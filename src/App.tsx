@@ -1,10 +1,16 @@
-import { Signin } from "./features/login/login";
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import Signin from "./components/auth/Signin";
+import Dashboard from "./layouts/Dashboard";
 
-function App() {
+const App: React.FC = () => {
   return (
-    <div className="flex items-center justify-center h-screen bg-gray-100">
-      <Signin />
-    </div>
-  )
-}
+    <Router>
+      <Routes>
+        <Route path="/" element={<Signin />} />
+        <Route path="/main" element={<Dashboard />} />
+      </Routes>
+    </Router>
+  );
+};
+
 export default App;
