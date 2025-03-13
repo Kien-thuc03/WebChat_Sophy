@@ -1,68 +1,87 @@
-import React from "react";
+import { useState } from "react";
+import {
+  FaComments,
+  FaUserFriends,
+  FaTasks,
+  FaCloud,
+  FaBriefcase,
+  FaCog,
+} from "react-icons/fa";
+import { useAuth } from "../../features/auth/hooks/useAuth"; // Import hook auth
 
-const Sidebar: React.FC = () => {
+const Sidebar = () => {
+  const { user } = useAuth(); // Lấy thông tin user từ context
+  const [active, setActive] = useState("chat"); // Lưu trạng thái mục được chọn
+
   return (
-    <div className="sidebar w-64 bg-white shadow-lg p-4">
-      {/* Thanh tìm kiếm */}
-      <div className="mb-6">
-        <input
-          type="text"
-          placeholder="Tìm kiếm"
-          className="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
-      </div>
-
-      {/* Ảnh đại diện người dùng */}
-      <div className="flex items-center mb-6">
+    <div className="h-screen w-16 bg-blue-600 flex flex-col justify-between items-center py-4">
+      <div>
+        {/* Avatar */}
         <img
-          src="/images/avatar.jpg"
+          src={user?.profile?.avatar || "/images/avatar.jpg"} // Nếu không có avatar, dùng ảnh mặc định
           alt="Avatar"
-          className="w-10 h-10 rounded-full mr-3"
+          className="w-12 h-12 rounded-full border-2 border-white object-cover"
         />
-        <span className="font-semibold">Người dùng</span>
-      </div>
 
-      {/* Danh sách biểu tượng điều hướng */}
-      <nav>
-        <ul className="space-y-4">
-          <li>
-            <button className="flex items-center w-full p-2 hover:bg-gray-100 rounded-lg">
-              <span className="mr-3">💬</span>
-              <span>Tin nhắn</span>
-            </button>
-          </li>
-          <li>
-            <button className="flex items-center w-full p-2 hover:bg-gray-100 rounded-lg">
-              <span className="mr-3">👥</span>
-              <span>Danh bạ</span>
-            </button>
-          </li>
-          <li>
-            <button className="flex items-center w-full p-2 hover:bg-gray-100 rounded-lg">
-              <span className="mr-3">📰</span>
-              <span>Nhật ký & khoảnh khắc</span>
-            </button>
-          </li>
-          <li>
-            <button className="flex items-center w-full p-2 hover:bg-gray-100 rounded-lg">
-              <span className="mr-3">☁️</span>
-              <span>Cloud của tôi</span>
-            </button>
-          </li>
-          <li>
-            <button className="flex items-center w-full p-2 hover:bg-gray-100 rounded-lg">
-              <span className="mr-3">📂</span>
-              <span>Công việc</span>
-            </button>
-          </li>
-          <li>
-            <button className="flex items-center w-full p-2 hover:bg-gray-100 rounded-lg">
-              <span className="mr-3">⚙️</span>
-              <span>Cài đặt</span>
-            </button>
-          </li>
-        </ul>
-      </nav>
+        {/* Icons List */}
+        <div className="flex flex-col space-y-6">
+          <div
+            className={`p-2 rounded-lg cursor-pointer ${
+              active === "chat" ? "bg-white text-blue-600" : "text-white"
+            }`}
+            onClick={() => setActive("chat")}
+          >
+            <FaComments className="text-2xl" />
+          </div>
+          <div
+            className={`p-2 rounded-lg cursor-pointer ${
+              active === "friends" ? "bg-white text-blue-600" : "text-white"
+            }`}
+            onClick={() => setActive("friends")}
+          >
+            <FaUserFriends className="text-2xl" />
+          </div>
+          <div
+            className={`p-2 rounded-lg cursor-pointer ${
+              active === "tasks" ? "bg-white text-blue-600" : "text-white"
+            }`}
+            onClick={() => setActive("tasks")}
+          >
+            <FaTasks className="text-2xl" />
+          </div>
+        </div>
+      </div>
+      <div>
+        {/* Bottom Icons */}
+        <div className="flex flex-col space-y-6">
+          {/* Divider */}
+          <div className="w-8 border-b border-white my-4"></div>
+          <div
+            className={`p-2 rounded-lg cursor-pointer ${
+              active === "cloud" ? "bg-white text-blue-600" : "text-white"
+            }`}
+            onClick={() => setActive("cloud")}
+          >
+            <FaCloud className="text-2xl" />
+          </div>
+          <div
+            className={`p-2 rounded-lg cursor-pointer ${
+              active === "briefcase" ? "bg-white text-blue-600" : "text-white"
+            }`}
+            onClick={() => setActive("briefcase")}
+          >
+            <FaBriefcase className="text-2xl" />
+          </div>
+          <div
+            className={`p-2 rounded-lg cursor-pointer ${
+              active === "settings" ? "bg-white text-blue-600" : "text-white"
+            }`}
+            onClick={() => setActive("settings")}
+          >
+            <FaCog className="text-2xl" />
+          </div>
+        </div>
+      </div>
     </div>
   );
 };

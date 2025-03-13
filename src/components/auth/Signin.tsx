@@ -1,21 +1,23 @@
 import React, { useState } from "react";
 import { useAuth } from '../../features/auth/hooks/useAuth';
-import { LoginForm } from '../../features/auth/types/authTypes';
-import 'react-phone-number-input/style.css'; // Import CSS
-import PhoneInput from 'react-phone-number-input';
 import { useNavigate } from "react-router-dom";
+import 'react-phone-number-input/style.css';
+import PhoneInput from 'react-phone-number-input';
 
 const Signin: React.FC = () => {
   const { login } = useAuth();
-  const [formData, setFormData] = useState<LoginForm>({ phone: "", password: "" });
-  const [error, setError] = useState<string>("");
+  const [formData, setFormData] = useState({ phone: "", password: "" });
+  const [error, setError] = useState("");
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await login(formData); // Gọi hàm login từ Auth Context
-      navigate("/main"); // Chuyển hướng đến Dashboard
+      console.log("Trước khi đăng nhập", formData);
+      await login(formData);
+      navigate("/main");
+      console.log("Form data:", formData);
+      console.log("Error:", error);
     } catch (error) {
       setError("Sai số điện thoại hoặc mật khẩu");
     }
@@ -45,11 +47,12 @@ const Signin: React.FC = () => {
             </label>
             <PhoneInput
               international
-              defaultCountry="VN" // Mặc định là Việt Nam
+              defaultCountry="VN"
               placeholder="Nhập số điện thoại"
               value={formData.phone}
               onChange={handlePhoneChange}
               className="mt-2 w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none"
+              autoComplete="tel" // Thêm autocomplete cho số điện thoại
             />
           </div>
 
@@ -70,6 +73,7 @@ const Signin: React.FC = () => {
               value={formData.password}
               onChange={handlePasswordChange}
               className="mt-2 w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none"
+              autoComplete="current-password" // Thêm autocomplete cho mật khẩu
             />
           </div>
 
