@@ -12,7 +12,7 @@ const apiClient = axios.create({
   },
 });
 
-// Hàm đăng nhập
+// Hàm đăng nhập do
 export const login = async (phone: string, password: string) => {
   const response = await apiClient.post("/login", { phone, password });
   console.log("Login response:", response.data);
