@@ -1,8 +1,10 @@
 import React from "react";
+import Header from "../header/Header";
 
 const ChatList: React.FC = () => {
   return (
     <div className="chat-list w-80 bg-gray-50 p-4">
+      <Header />
       {/* Thanh điều hướng danh sách tin nhắn */}
       <div className="flex justify-between mb-4">
         <button className="text-blue-500 font-semibold">Tất cả</button>
