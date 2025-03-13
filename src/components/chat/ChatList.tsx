@@ -12,7 +12,7 @@ const ChatList: React.FC = () => {
         <button className="text-gray-500">Phân loại</button>
         <button className="text-gray-500">•••</button>
       </div>
-
+ 
       {/* Danh sách các hội thoại */}
       <div className="space-y-2">
         <div className="p-2 bg-white rounded-lg shadow-sm">
