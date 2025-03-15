@@ -6,7 +6,9 @@ import MainContent from "../components/content/MainContent";
 const Dashboard: React.FC = () => {
   return (
     <div className="flex h-screen">
+
       <Sidebar />
+     
       <ChatList />
       <MainContent />
     </div>
