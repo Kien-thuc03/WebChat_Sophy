@@ -15,7 +15,7 @@ const Sidebar = () => {
 
   return (
     <div className="h-screen w-16 bg-blue-600 flex flex-col justify-between items-center py-4">
-      <div>
+      <div className="flex flex-col items-center">
         {/* Avatar */}
         <img
           src={user?.profile?.avatar || "/images/avatar.jpg"} // Nếu không có avatar, dùng ảnh mặc định
@@ -24,7 +24,7 @@ const Sidebar = () => {
         />
 
         {/* Icons List */}
-        <div className="flex flex-col space-y-6">
+        <div className="flex flex-col space-y-6 p-2">
           <div
             className={`p-2 rounded-lg cursor-pointer ${
               active === "chat" ? "bg-white text-blue-600" : "text-white"
@@ -53,7 +53,7 @@ const Sidebar = () => {
       </div>
       <div>
         {/* Bottom Icons */}
-        <div className="flex flex-col space-y-6">
+        <div className="flex flex-col space-y-6 items-center">
           {/* Divider */}
           <div className="w-8 border-b border-white my-4"></div>
           <div

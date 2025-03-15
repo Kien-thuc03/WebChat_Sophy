@@ -36,7 +36,7 @@ const Signin: React.FC = () => {
     <div className="flex min-h-screen flex-col items-center justify-center bg-blue-100 p-6">
       <div className="w-full max-w-sm rounded-lg bg-white p-8 shadow-lg">
         <div className="flex flex-col items-center">
-          <img src="/images/logo.jpg" alt="Logo" className="h-20 w-20 rounded-full" />
+          <img src="/images/logo.png" alt="Logo" className="h-20 w-20 rounded-full" />
           <h2 className="mt-4 text-2xl font-bold text-gray-900">Đăng nhập với mật khẩu</h2>
         </div>
 

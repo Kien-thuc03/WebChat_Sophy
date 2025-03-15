@@ -8,7 +8,6 @@ const Dashboard: React.FC = () => {
     <div className="flex h-screen">
 
       <Sidebar />
-     
       <ChatList />
       <MainContent />
     </div>
