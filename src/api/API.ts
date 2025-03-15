@@ -1,4 +1,5 @@
 import axios from "axios";
+import { Conversation } from "../features/chat/types/conversationTypes";
 // import bcrypt from "bcryptjs";
 
 // Khai báo URL API chính
@@ -52,4 +53,16 @@ export const checkLogin = async (phone: string, password: string) => {
   }
 
   throw new Error("Sai số điện thoại hoặc mật khẩu"); // Trả về lỗi nếu không tìm thấy user hợp lệ
+};
+
+// Hàm lấy danh sách hội thoại
+export const fetchConversations = async (): Promise<Conversation[]> => {
+  try {
+    const response = await apiClient.get("/conversations");
+    console.log("Fetch conversations response:", response.data);
+    return response.data;
+  } catch (error) {
+    console.error("Lỗi khi lấy danh sách hội thoại:", error);
+    throw error;
+  }
 };
