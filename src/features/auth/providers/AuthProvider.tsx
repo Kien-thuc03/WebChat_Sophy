@@ -1,7 +1,11 @@
 import { useState, ReactNode, useCallback, useEffect } from "react";
 import { AuthContext } from "../context/AuthContext";
 import { User } from "../types/authTypes";
-import { checkLogin, fetchUserData } from "../../../api/API";
+import {
+  login as apiLogin,
+  fetchUserData,
+  getUserByPhone,
+} from "../../../api/API";
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -10,7 +14,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const token = localStorage.getItem("token");
     const userId = localStorage.getItem("userId"); // Lưu userId khi login
-  
+
     if (token && userId) {
       const fetchUser = async () => {
         try {
@@ -30,29 +34,29 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       fetchUser();
     }
   }, []);
-  
 
   const login = useCallback(
     async (form: { phone: string; password: string }) => {
       try {
-        const response = await checkLogin(form.phone, form.password);
-        console.log("Login API response:", response);
-  
+        console.log("Attempting login with:", form);
+        const response = await apiLogin(form.phone, form.password);
+
         if (!response?.userId || !response?.token) {
+          console.error("Invalid login response:", response);
           throw new Error("Đăng nhập thất bại, không có dữ liệu hợp lệ");
         }
-  
+
         localStorage.setItem("token", response.token);
-        localStorage.setItem("userId", response.userId); // ✅ Lưu userId
-  
-        const userData = await fetchUserData(response.userId);
-        console.log("Fetched user data:", userData);
-  
-        if (!userData) {
-          throw new Error("Không lấy được thông tin người dùng");
+        localStorage.setItem("userId", response.userId);
+        try {
+          const userData = await getUserByPhone(form.phone);
+          setUser(userData);
+        } catch (error) {
+          // If user data fetch fails, clean up
+          localStorage.removeItem("token");
+          localStorage.removeItem("userId");
+          throw error;
         }
-  
-        setUser(userData);
       } catch (error) {
         console.error("Lỗi đăng nhập:", error);
         throw error;
@@ -60,7 +64,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     },
     []
   );
-  
 
   const logout = useCallback(() => {
     setUser(null);

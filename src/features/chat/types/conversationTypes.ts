@@ -34,18 +34,26 @@ export interface Participant {
     is_recalled: boolean;
   }
   
+  export interface Message {
+    _id: string;
+    conversationId: string;
+    senderId: string;
+    content: string;
+    type: string;
+    createdAt: string;
+    updatedAt: string;
+  }
+  
   export interface Conversation {
     _id: string;
-    conversation_link: string;
-    type: string;
-    conversation_name: string;
-    participants: Participant[];
-    permissions: {
-      can_send_message: boolean;
-      approval_member: boolean;
-    };
-    latest_message?: LatestMessage;
-    created_at: string;
-    updated_at: string;
+    type: 'private' | 'group';
+    creatorId: string;
+    receiverId?: string;
+    groupName?: string;
+    groupMembers?: string[];
+    lastMessage?: Message;
+    lastChange: string;
+    createdAt: string;
+    updatedAt: string;
   }
   
