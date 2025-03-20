@@ -1,15 +1,26 @@
 import React from "react";
 import Header from "../header/Header";
 import { useConversations } from "../../features/chat/hooks/useConversations";
+import ErrorBoundary from '../common/ErrorBoundary';
+import { useAuth } from "../../features/auth/hooks/useAuth";
 
 const ChatList: React.FC = () => {
   const conversations = useConversations();
+  const { user } = useAuth();
+
+  const getConversationName = (chat: any) => {
+    if (chat.type === 'group' && chat.groupName) {
+      return chat.groupName;
+    }
+    // For private chats, show the other participant's name
+    return "Private Chat"; // You'll need to fetch user details
+  };
 
   return (
     <div className="chat-list w-80 bg-gray-50 ">
       <Header />
       <div className="chat-list w-80 bg-gray-50 p-4">
-        {/* Thanh điều hướng danh sách tin nhắn */}
+        {/* Navigation buttons */}
         <div className="flex justify-between mb-4">
           <button type="button" className="text-blue-500 font-semibold">
             Tất cả
@@ -25,36 +36,25 @@ const ChatList: React.FC = () => {
           </button>
         </div>
 
-        {/* Danh sách hội thoại từ API */}
+        {/* Conversations list */}
         <div className="space-y-2">
           {conversations.length > 0 ? (
             conversations.map((chat) => (
               <div key={chat._id} className="p-2 bg-white rounded-lg shadow-sm">
-                <a
-                  href={chat.conversation_link}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="font-semibold text-blue-600"
-                >
-                  {chat.conversation_name}
-                </a>
+                <div className="font-semibold text-blue-600">
+                  {getConversationName(chat)}
+                </div>
                 <p className="text-sm text-gray-500">
-                  {chat.latest_message
-                    ? chat.latest_message.content
+                  {chat.lastMessage
+                    ? chat.lastMessage.content
                     : "Không có tin nhắn"}
                 </p>
                 <div className="flex items-center mt-1">
-                  {chat.participants.slice(0, 3).map((p) => (
-                    <img
-                      key={p.user_id}
-                      src={p.avatar}
-                      alt={p.name}
-                      className="w-6 h-6 rounded-full border-2 border-white -ml-2"
-                    />
-                  ))}
-                  {chat.participants.length > 3 && (
+                  {/* Temporarily show placeholder for participants */}
+                  <div className="w-6 h-6 rounded-full bg-gray-300"></div>
+                  {chat.type === 'group' && chat.groupMembers && chat.groupMembers.length > 1 && (
                     <span className="text-xs text-gray-500 ml-2">
-                      +{chat.participants.length - 3}
+                      +{chat.groupMembers.length - 1}
                     </span>
                   )}
                 </div>
@@ -69,4 +69,12 @@ const ChatList: React.FC = () => {
   );
 };
 
-export default ChatList;
+const ChatListWithErrorBoundary: React.FC = () => {
+  return (
+    <ErrorBoundary>
+      <ChatList />
+    </ErrorBoundary>
+  );
+};
+
+export default ChatListWithErrorBoundary;

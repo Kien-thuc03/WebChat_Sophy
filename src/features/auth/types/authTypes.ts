@@ -20,7 +20,7 @@ export interface UserSettings {
 export interface User {
   _id: ObjectId;
   full_name: string;
-  phone_number: string;
+  phone: string;
   hash_password: string;
   profile: UserProfile;
   friendList: ObjectId[]; // Danh sách bạn bè
@@ -33,7 +33,7 @@ export interface User {
 // Định nghĩa kiểu dữ liệu cho payload đăng ký
 export interface RegisterPayload {
   full_name: string;
-  phone_number: string;
+  phone: string;
   password: string;
   profile: {
     gender: "male" | "female" | "other";
