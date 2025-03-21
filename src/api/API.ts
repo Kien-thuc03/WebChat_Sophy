@@ -33,7 +33,6 @@ export const fetchUserData = async (userId: string) => {
   return user;
 };
 
-
 // Hàm kiểm tra thông tin đăng nhập từ db.json
 export const checkLogin = async (phone: string, password: string) => {
   const response = await apiClient.get("/users");

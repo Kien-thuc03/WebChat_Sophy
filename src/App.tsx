@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import Signin from "./components/auth/Signin";
 import Dashboard from "./pages/Dashboard";
 import PrivateRoute from "./components/routes/PrivateRoute";
+import ForgotPassword from "./components/auth/ForgotPassword";
 
 const App: React.FC = () => {
   return (
@@ -17,6 +18,7 @@ const App: React.FC = () => {
             </PrivateRoute>
           }
         />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
       </Routes>
     </Router>
   );

@@ -1,8 +1,8 @@
 import React, { useState } from "react";
-import { useAuth } from '../../features/auth/hooks/useAuth';
-import { useNavigate } from "react-router-dom";
-import 'react-phone-number-input/style.css';
-import PhoneInput from 'react-phone-number-input';
+import { useAuth } from "../../features/auth/hooks/useAuth";
+import { Link, useNavigate } from "react-router-dom";
+import "react-phone-number-input/style.css";
+import PhoneInput from "react-phone-number-input";
 
 const Signin: React.FC = () => {
   const { login } = useAuth();
@@ -36,13 +36,21 @@ const Signin: React.FC = () => {
     <div className="flex min-h-screen flex-col items-center justify-center bg-blue-100 p-6">
       <div className="w-full max-w-sm rounded-lg bg-white p-8 shadow-lg">
         <div className="flex flex-col items-center">
-          <img src="/images/logo.jpg" alt="Logo" className="h-20 w-20 rounded-full" />
-          <h2 className="mt-4 text-2xl font-bold text-gray-900">Đăng nhập với mật khẩu</h2>
+          <img
+            src="/images/logo.jpg"
+            alt="Logo"
+            className="h-20 w-20 rounded-full"
+          />
+          <h2 className="mt-4 text-2xl font-bold text-gray-900">
+            Đăng nhập với mật khẩu
+          </h2>
         </div>
 
         <form onSubmit={handleSubmit} className="mt-6 space-y-6">
           <div>
-            <label htmlFor="phone" className="block text-sm font-medium text-gray-900">
+            <label
+              htmlFor="phone"
+              className="block text-sm font-medium text-gray-900">
               Số điện thoại
             </label>
             <PhoneInput
@@ -58,11 +66,15 @@ const Signin: React.FC = () => {
 
           <div>
             <div className="flex items-center justify-between">
-              <label htmlFor="password" className="block text-sm font-medium text-gray-900">
+              <label
+                htmlFor="password"
+                className="block text-sm font-medium text-gray-900">
                 Mật khẩu
               </label>
-              <a href="#" className="text-sm font-semibold text-blue-500 hover:text-blue-400">
-                Quên mật khẩu?
+              <a
+                href="#"
+                className="text-sm font-semibold text-blue-500 hover:text-blue-400">
+                <Link to="/forgot-password">Quên mật khẩu?</Link>
               </a>
             </div>
             <input
@@ -77,12 +89,13 @@ const Signin: React.FC = () => {
             />
           </div>
 
-          {error && <div className="text-sm text-red-500 text-center">{error}</div>}
+          {error && (
+            <div className="text-sm text-red-500 text-center">{error}</div>
+          )}
 
           <button
             type="submit"
-            className="w-full rounded-md bg-blue-500 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-          >
+            className="w-full rounded-md bg-blue-500 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
             Đăng nhập
           </button>
         </form>
