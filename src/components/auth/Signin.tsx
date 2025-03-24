@@ -10,21 +10,41 @@ const Signin: React.FC = () => {
   const [error, setError] = useState("");
   const navigate = useNavigate();
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      console.log("Trước khi đăng nhập", formData);
-      await login(formData);
-      navigate("/main");
-      console.log("Form data:", formData);
-      console.log("Error:", error);
-    } catch (error) {
-      setError("Sai số điện thoại hoặc mật khẩu");
-    }
-  };
-
   const handlePhoneChange = (value?: string) => {
     setFormData((prev) => ({ ...prev, phone: value || "" }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(""); // Clear previous errors
+
+    try {
+      if (!formData.phone || !formData.password) {
+        setError("Vui lòng nhập đầy đủ thông tin");
+        return;
+      }
+
+      const formattedData = {
+        phone: formData.phone.startsWith("+84")
+          ? "0" + formData.phone.slice(3)
+          : formData.phone,
+        password: formData.password,
+      };
+
+      console.log("Attempting login with:", formattedData);
+      await login(formattedData);
+      navigate("/main");
+    } catch (error: any) {
+      // Handle specific error messages from API
+      if (error.message === "User not found") {
+        setError("Tài khoản không tồn tại");
+      } else if (error.message === "Invalid password") {
+        setError("Sai mật khẩu");
+      } else {
+        setError(error.message || "Đăng nhập thất bại, vui lòng thử lại");
+      }
+      console.error("Login error:", error);
+    }
   };
 
   const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -38,6 +58,15 @@ const Signin: React.FC = () => {
         <div className="flex flex-col items-center">
           <img
             src="/images/logo.jpg"
+            alt="Logo"
+            className="h-20 w-20 rounded-full"
+          />
+          <h2 className="mt-4 text-2xl font-bold text-gray-900">
+            Đăng nhập với mật khẩu
+          </h2>
+
+          <img
+            src="/images/logo.png"
             alt="Logo"
             className="h-20 w-20 rounded-full"
           />
