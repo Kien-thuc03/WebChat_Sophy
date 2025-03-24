@@ -1,16 +1,31 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
+import "react-phone-number-input/style.css";
+import PhoneInput from "react-phone-number-input";
+
+// Utility function to convert phone numbers
+const formatPhoneNumber = (phoneNumber: string): string => {
+  if (phoneNumber.startsWith("+84")) {
+    return "0" + phoneNumber.slice(3); // Replace +84 with 0
+  }
+  return phoneNumber; // Return as is if no conversion is needed
+};
 
 const ForgotPassword: React.FC = () => {
-  const [phoneNumber, setPhoneNumber] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState<string>(""); // Ensure phoneNumber is a string
   const [message, setMessage] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      console.log("Phone number submitted for password reset:", phoneNumber);
+      const formattedPhoneNumber = formatPhoneNumber(phoneNumber); // Format the phone number
+      console.log(
+        "Formatted phone number submitted for password reset:",
+        formattedPhoneNumber
+      );
+
       // Gửi yêu cầu reset mật khẩu đến API
-      // Ví dụ: await apiClient.post("/forgot-password", { phoneNumber });
+      // Ví dụ: await apiClient.post("/forgot-password", { phoneNumber: formattedPhoneNumber });
       setMessage(
         "Nếu số điện thoại tồn tại, bạn sẽ nhận được hướng dẫn đặt lại mật khẩu."
       );
@@ -35,19 +50,14 @@ const ForgotPassword: React.FC = () => {
               className="block text-sm font-medium text-gray-900">
               Nhập số điện thoại của bạn
             </label>
-            <div className="flex items-center mt-2">
-              <span className="text-lg text-gray-700">+84</span>
-              <input
-                id="phoneNumber"
-                name="phoneNumber"
-                type="text"
-                required
-                value={phoneNumber}
-                onChange={(e) => setPhoneNumber(e.target.value)}
-                className="ml-2 w-full rounded-md border border-[#e0e0e0] px-3 py-2 focus:border-[#0066ff] focus:outline-none"
-                placeholder="Số điện thoại"
-              />
-            </div>
+            <PhoneInput
+              international
+              defaultCountry="VN"
+              placeholder="Nhập số điện thoại"
+              value={phoneNumber}
+              onChange={(value) => setPhoneNumber(value || "")} // Handle undefined
+              className="mt-2 w-full rounded-md border border-[#e0e0e0] px-3 py-2 focus:border-[#0066ff] focus:outline-none"
+            />
           </div>
 
           {message && (
@@ -62,9 +72,9 @@ const ForgotPassword: React.FC = () => {
         </form>
 
         <div className="mt-4 text-center">
-          <a href="#" className="text-sm text-[#0066ff] hover:underline">
-            <Link to="/">Quay lại</Link>
-          </a>
+          <Link to="/" className="text-sm text-[#0066ff] hover:underline">
+            Quay lại
+          </Link>
         </div>
       </div>
     </div>

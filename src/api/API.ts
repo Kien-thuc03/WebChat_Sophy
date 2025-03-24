@@ -13,35 +13,34 @@ const apiClient = axios.create({
   },
 });
 
-
 export const login = async (phone: string, password: string) => {
   try {
     // Log request data
-    console.log("Login request data:", {
-      phone,
-      password
-    });
+    console.log("Login request data:", { phone, password });
 
     const response = await apiClient.post("/api/auth/login", {
-      phone: phone.replace(/\+84/g, '0'), // Convert +84 to 0
-      password
+      phone: phone.replace(/\+84/g, "0"), // Convert +84 to 0
+      password,
     });
-    
+
     console.log("Login response:", response.data);
-    
+
     const { token, user } = response.data;
-    
-    if (!user?.id || !token) {
+
+    // Kiểm tra phản hồi từ API
+    if (!token || !user || !user.userId) {
+      console.error("Invalid login response:", response.data);
       throw new Error("Dữ liệu đăng nhập không hợp lệ");
     }
-    
+
+    // Trả về dữ liệu hợp lệ
     return {
-      userId: user.id, // Changed from _id to id to match backend response
+      userId: user.userId, // Sử dụng đúng trường `userId` từ phản hồi API
       token: token,
-      fullname: user.fullname // Add fullname from response
+      fullname: user.fullname, // Nếu cần fullname
     };
   } catch (error: any) {
-    // Handle specific error cases from backend
+    // Xử lý lỗi từ API
     if (error.response?.status === 404) {
       throw new Error("Tài khoản không tồn tại");
     }
@@ -49,11 +48,15 @@ export const login = async (phone: string, password: string) => {
       throw new Error("Sai mật khẩu");
     }
     if (error.response?.status === 400) {
-      throw new Error(error.response.data.message || "Thông tin đăng nhập không hợp lệ");
+      throw new Error(
+        error.response.data.message || "Thông tin đăng nhập không hợp lệ"
+      );
     }
-    
+
     console.error("Login error:", error.response?.data || error.message);
-    throw new Error(error.response?.data?.message || "Đăng nhập thất bại, vui lòng thử lại");
+    throw new Error(
+      error.response?.data?.message || "Đăng nhập thất bại, vui lòng thử lại"
+    );
   }
 };
 
@@ -89,7 +92,7 @@ export const checkLogin = async (phone: string, password: string) => {
   throw new Error("Sai số điện thoại hoặc mật khẩu"); // Trả về lỗi nếu không tìm thấy user hợp lệ
 };
 
-const getAuthToken = () => localStorage.getItem('token');
+const getAuthToken = () => localStorage.getItem("token");
 
 // Update apiClient to include auth token in headers when available
 apiClient.interceptors.request.use((config) => {
@@ -122,6 +125,20 @@ export const getUserByPhone = async (phone: string) => {
   }
 };
 
+export const logout = async () => {
+  try {
+    const response = await apiClient.post("/api/auth/logout");
+    localStorage.removeItem("token");
+    console.log("Đăng xuất thành công:", response.data);
+    return response.data;
+  } catch (error: any) {
+    console.error("Lỗi khi đăng xuất:", error.response?.data || error.message);
+    throw new Error(
+      error.response?.data?.message || "Đăng xuất thất bại, vui lòng thử lại"
+    );
+  }
+};
+
 // Hàm lấy danh sách hội thoại
 export const fetchConversations = async (): Promise<Conversation[]> => {
   try {
@@ -131,7 +148,7 @@ export const fetchConversations = async (): Promise<Conversation[]> => {
     }
 
     const response = await apiClient.get("/api/conversations");
-    
+
     if (!Array.isArray(response.data)) {
       console.error("Invalid conversations data format:", response.data);
       return [];
@@ -142,23 +159,25 @@ export const fetchConversations = async (): Promise<Conversation[]> => {
       .filter((conv: any) => conv && conv._id)
       .map((conv: any) => ({
         _id: conv._id,
-        type: conv.type || 'private',
+        type: conv.type || "private",
         creatorId: conv.creatorId,
         receiverId: conv.receiverId,
         groupName: conv.groupName,
         groupMembers: conv.groupMembers,
-        lastMessage: conv.lastMessage ? {
-          _id: conv.lastMessage._id,
-          conversationId: conv.lastMessage.conversationId,
-          senderId: conv.lastMessage.senderId,
-          content: conv.lastMessage.content,
-          type: conv.lastMessage.type,
-          createdAt: conv.lastMessage.createdAt,
-          updatedAt: conv.lastMessage.updatedAt
-        } : undefined,
+        lastMessage: conv.lastMessage
+          ? {
+              _id: conv.lastMessage._id,
+              conversationId: conv.lastMessage.conversationId,
+              senderId: conv.lastMessage.senderId,
+              content: conv.lastMessage.content,
+              type: conv.lastMessage.type,
+              createdAt: conv.lastMessage.createdAt,
+              updatedAt: conv.lastMessage.updatedAt,
+            }
+          : undefined,
         lastChange: conv.lastChange,
         createdAt: conv.createdAt,
-        updatedAt: conv.updatedAt
+        updatedAt: conv.updatedAt,
       }));
 
     console.log("Processed conversations:", validConversations);

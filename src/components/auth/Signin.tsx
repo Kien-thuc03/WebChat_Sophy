@@ -24,6 +24,7 @@ const Signin: React.FC = () => {
         return;
       }
 
+      // Format phone number
       const formattedData = {
         phone: formData.phone.startsWith("+84")
           ? "0" + formData.phone.slice(3)
@@ -31,22 +32,32 @@ const Signin: React.FC = () => {
         password: formData.password,
       };
 
-      console.log("Attempting login with:", formattedData);
+      console.log("Formatted phone:", formattedData.phone);
+      console.log("Password:", formattedData.password);
+
+      // Attempt login
       await login(formattedData);
+
+      // Navigate to main page on success
       navigate("/main");
-    } catch (error: any) {
-      // Handle specific error messages from API
-      if (error.message === "User not found") {
-        setError("Tài khoản không tồn tại");
-      } else if (error.message === "Invalid password") {
-        setError("Sai mật khẩu");
+    } catch (error: unknown) {
+      // Narrow the error type
+      if (error instanceof Error) {
+        if (error.message === "Tài khoản không tồn tại") {
+          setError("Tài khoản không tồn tại");
+        } else if (error.message === "Sai mật khẩu") {
+          setError("Sai mật khẩu");
+        } else {
+          setError(error.message || "Đăng nhập thất bại, vui lòng thử lại");
+        }
       } else {
-        setError(error.message || "Đăng nhập thất bại, vui lòng thử lại");
+        setError("Đăng nhập thất bại, vui lòng thử lại");
       }
+
+      // Log error for debugging
       console.error("Login error:", error);
     }
   };
-
   const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { value } = e.target;
     setFormData((prev) => ({ ...prev, password: value }));
@@ -56,15 +67,6 @@ const Signin: React.FC = () => {
     <div className="flex min-h-screen flex-col items-center justify-center bg-blue-100 p-6">
       <div className="w-full max-w-sm rounded-lg bg-white p-8 shadow-lg">
         <div className="flex flex-col items-center">
-          <img
-            src="/images/logo.jpg"
-            alt="Logo"
-            className="h-20 w-20 rounded-full"
-          />
-          <h2 className="mt-4 text-2xl font-bold text-gray-900">
-            Đăng nhập với mật khẩu
-          </h2>
-
           <img
             src="/images/logo.png"
             alt="Logo"
@@ -100,11 +102,11 @@ const Signin: React.FC = () => {
                 className="block text-sm font-medium text-gray-900">
                 Mật khẩu
               </label>
-              <a
-                href="#"
+              <Link
+                to="/forgot-password"
                 className="text-sm font-semibold text-blue-500 hover:text-blue-400">
-                <Link to="/forgot-password">Quên mật khẩu?</Link>
-              </a>
+                Quên mật khẩu?
+              </Link>
             </div>
             <input
               id="password"
