@@ -1,19 +1,26 @@
-import React from "react";
-import { logout } from "../../api/API"; // Import hàm logout
+import React, { useEffect } from "react";
+import { logout } from "../../api/API";
 
 interface SettingsMenuProps {
-  onClose: () => void; // Hàm đóng menu
+  onClose: () => void;
+  onOpenModal: () => void; // Thêm prop để mở modal
 }
 
-const SettingsMenu: React.FC<SettingsMenuProps> = ({ onClose }) => {
+const SettingsMenu: React.FC<SettingsMenuProps> = ({
+  onClose,
+  onOpenModal,
+}) => {
+  useEffect(() => {
+    console.log("SettingsMenu mounted");
+    return () => console.log("SettingsMenu unmounted");
+  }, []);
+
   const handleLogout = async () => {
     try {
-      await logout(); // Gọi hàm logout
+      await logout();
       alert("Đăng xuất thành công!");
-      // Chuyển hướng về trang đăng nhập
       window.location.href = "/";
     } catch (error: unknown) {
-      // Narrow the error type
       if (error instanceof Error) {
         alert(error.message || "Đăng xuất thất bại, vui lòng thử lại.");
       } else {
@@ -29,7 +36,11 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ onClose }) => {
           <a
             href="#"
             className="block px-4 py-2 text-gray-700 hover:bg-gray-100"
-            onClick={onClose}>
+            onClick={(e) => {
+              e.preventDefault();
+              console.log("Clicked on Thông tin tài khoản");
+              onOpenModal(); // Gọi hàm từ props để mở modal
+            }}>
             Thông tin tài khoản
           </a>
         </li>
@@ -44,34 +55,10 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ onClose }) => {
         <li>
           <a
             href="#"
-            className="block px-4 py-2 text-gray-700 hover:bg-gray-100"
-            onClick={onClose}>
-            Dữ liệu
-          </a>
-        </li>
-        <li>
-          <a
-            href="#"
-            className="block px-4 py-2 text-gray-700 hover:bg-gray-100"
-            onClick={onClose}>
-            Ngôn ngữ
-          </a>
-        </li>
-        <li>
-          <a
-            href="#"
-            className="block px-4 py-2 text-gray-700 hover:bg-gray-100"
-            onClick={onClose}>
-            Hỗ trợ
-          </a>
-        </li>
-        <li>
-          <a
-            href="#"
             className="block px-4 py-2 text-red-500 hover:bg-gray-100"
             onClick={() => {
-              onClose(); // Đóng menu
-              handleLogout(); // Gọi hàm logout
+              onClose();
+              handleLogout();
             }}>
             Đăng xuất
           </a>

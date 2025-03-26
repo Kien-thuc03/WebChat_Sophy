@@ -94,5 +94,5 @@ export interface AuthContextType {
   user: User | null;
   login: (form: LoginPayload) => Promise<void>; // Đảm bảo đồng bộ với LoginPayload
   logout: () => void;
+  changePassword: (oldPassword: string, newPassword: string) => Promise<void>; // Sửa kiểu trả về
 }
-

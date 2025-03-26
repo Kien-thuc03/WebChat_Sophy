@@ -1,4 +1,4 @@
-import axios from "axios";
+import axios, { AxiosError } from "axios";
 import { Conversation } from "../features/chat/types/conversationTypes";
 // import bcrypt from "bcryptjs";
 
@@ -28,7 +28,7 @@ export const login = async (phone: string, password: string) => {
     const { token, user } = response.data;
 
     // Kiểm tra phản hồi từ API
-    if (!token || !user || !user.userId) {
+    if (!token?.accessToken || !user || !user.userId) {
       console.error("Invalid login response:", response.data);
       throw new Error("Dữ liệu đăng nhập không hợp lệ");
     }
@@ -36,7 +36,7 @@ export const login = async (phone: string, password: string) => {
     // Trả về dữ liệu hợp lệ
     return {
       userId: user.userId, // Sử dụng đúng trường `userId` từ phản hồi API
-      token: token,
+      accessToken: token.accessToken, // Lấy accessToken từ token
       fullname: user.fullname, // Nếu cần fullname
     };
   } catch (error: any) {
@@ -74,22 +74,30 @@ export const fetchUserData = async (userId: string) => {
 
 // Hàm kiểm tra thông tin đăng nhập từ db.json
 export const checkLogin = async (phone: string, password: string) => {
-  const response = await apiClient.get("/api/users");
-  // const users = response.data.users;
-  const users = response.data;
-  console.log("Users:", users);
+  try {
+    const response = await apiClient.get("/api/users");
+    const users = response.data;
+    console.log("Users:", users);
 
-  const user = users.find((user: any) => user.phone_number === phone);
+    const user = users.find((user: any) => user.phone_number === phone);
 
-  console.log("User found:", user);
-  console.log("Password match:", password === user.hash_password);
-  // console.log("Password match:", bcrypt.compareSync(password, user.hash_password));
-  // if (user && bcrypt.compareSync(password, user.hash_password)) {
-  if (user && password === user.hash_password) {
-    return { userId: user._id, token: "fake-token" };
+    if (user && password === user.hash_password) {
+      // Simulate generating an access token (replace with actual token logic if available)
+      const accessToken = `access-token-for-${user._id}`;
+      console.log("User found:", user);
+      return { userId: user._id, accessToken };
+    }
+
+    throw new Error("Sai số điện thoại hoặc mật khẩu");
+  } catch (error: any) {
+    console.error(
+      "Error in checkLogin:",
+      error.response?.data || error.message
+    );
+    throw new Error(
+      error.response?.data?.message || "Đăng nhập thất bại, vui lòng thử lại"
+    );
   }
-
-  throw new Error("Sai số điện thoại hoặc mật khẩu"); // Trả về lỗi nếu không tìm thấy user hợp lệ
 };
 
 const getAuthToken = () => localStorage.getItem("token");
@@ -103,6 +111,85 @@ apiClient.interceptors.request.use((config) => {
   return config;
 });
 
+let isRefreshing = false;
+let failedQueue: any[] = [];
+
+const processQueue = (error: any, token: string | null = null) => {
+  failedQueue.forEach((prom) => {
+    if (token) {
+      prom.resolve(token);
+    } else {
+      prom.reject(error);
+    }
+  });
+  failedQueue = [];
+};
+
+apiClient.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config;
+
+    // If the error is 401 and it's not a retry
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      if (isRefreshing) {
+        // Queue the request while refreshing
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject });
+        })
+          .then((token) => {
+            originalRequest.headers.Authorization = `Bearer ${token}`;
+            return apiClient(originalRequest);
+          })
+          .catch((err) => {
+            return Promise.reject(err);
+          });
+      }
+
+      originalRequest._retry = true;
+      isRefreshing = true;
+
+      try {
+        const refreshToken = localStorage.getItem("refreshToken");
+        if (!refreshToken) {
+          throw new Error("Refresh token not available");
+        }
+
+        // Call the refresh endpoint
+        const response = await axios.post(`${API_BASE_URL}/api/auth/refresh`, {
+          refreshToken,
+        });
+
+        const { accessToken, refreshToken: newRefreshToken } = response.data;
+
+        // Update tokens in localStorage
+        localStorage.setItem("token", accessToken);
+        localStorage.setItem("refreshToken", newRefreshToken);
+
+        // Process the queued requests
+        processQueue(null, accessToken);
+
+        // Retry the original request with the new token
+        originalRequest.headers.Authorization = `Bearer ${accessToken}`;
+        return apiClient(originalRequest);
+      } catch (err) {
+        processQueue(err, null);
+
+        // If refresh fails, clear tokens and log out the user
+        localStorage.removeItem("token");
+        localStorage.removeItem("refreshToken");
+        localStorage.removeItem("userId");
+        window.location.href = "/login"; // Redirect to login page
+        return Promise.reject(err);
+      } finally {
+        isRefreshing = false;
+      }
+    }
+
+    return Promise.reject(error);
+  }
+);
+
 export const getUserByPhone = async (phone: string) => {
   try {
     const token = getAuthToken();
@@ -115,7 +202,7 @@ export const getUserByPhone = async (phone: string) => {
     return response.data;
   } catch (error: any) {
     if (error.response?.status === 401) {
-      throw new Error("Phiên đăng nhập hết hạn");
+      await apiClient.patch("/api/auth/refresh");
     }
     if (error.response?.status === 404) {
       throw new Error("Không tìm thấy người dùng");
@@ -138,6 +225,62 @@ export const logout = async () => {
     );
   }
 };
+export const changePassword = async (
+  oldPassword: string,
+  newPassword: string
+): Promise<string> => {
+  try {
+    const userId = localStorage.getItem("userId");
+    if (!userId) {
+      throw new Error("Không tìm thấy thông tin người dùng");
+    }
+
+    const response = await apiClient.post("/api/auth/change-password", {
+      userId,
+      oldPassword,
+      newPassword,
+    });
+
+    if (response.status !== 200) {
+      throw new Error("Thay đổi mật khẩu không thành công");
+    }
+
+    return response.data.message || "Thay đổi mật khẩu thành công";
+  } catch (error: unknown) {
+    console.error("Error in changePassword:", error);
+
+    if (error instanceof AxiosError && error.response) {
+      throw new Error(error.response.data.message || "Lỗi từ server");
+    }
+
+    throw new Error("Không thể thay đổi mật khẩu, vui lòng thử lại");
+  }
+};
+
+//Hàm lấy user theo userId
+export const getUserById = async (userId: string): Promise<any> => {
+  try {
+    const token = getAuthToken();
+    if (!token) {
+      throw new Error("Không có token xác thực");
+    }
+
+    const response = await apiClient.get(`/api/users/${userId}`);
+    console.log("Get user by ID response:", response.data);
+    return response.data;
+  } catch (error: any) {
+    if (error.response?.status === 401) {
+      throw new Error("Không có quyền truy cập");
+    }
+    if (error.response?.status === 404) {
+      throw new Error("Không tìm thấy người dùng");
+    }
+    console.error("Error fetching user by ID:", error);
+    throw new Error("Lỗi khi lấy thông tin người dùng");
+  }
+};
+
+
 
 // Hàm lấy danh sách hội thoại
 export const fetchConversations = async (): Promise<Conversation[]> => {
@@ -155,30 +298,7 @@ export const fetchConversations = async (): Promise<Conversation[]> => {
     }
 
     // Transform and validate conversations
-    const validConversations = response.data
-      .filter((conv: any) => conv && conv._id)
-      .map((conv: any) => ({
-        _id: conv._id,
-        type: conv.type || "private",
-        creatorId: conv.creatorId,
-        receiverId: conv.receiverId,
-        groupName: conv.groupName,
-        groupMembers: conv.groupMembers,
-        lastMessage: conv.lastMessage
-          ? {
-              _id: conv.lastMessage._id,
-              conversationId: conv.lastMessage.conversationId,
-              senderId: conv.lastMessage.senderId,
-              content: conv.lastMessage.content,
-              type: conv.lastMessage.type,
-              createdAt: conv.lastMessage.createdAt,
-              updatedAt: conv.lastMessage.updatedAt,
-            }
-          : undefined,
-        lastChange: conv.lastChange,
-        createdAt: conv.createdAt,
-        updatedAt: conv.updatedAt,
-      }));
+    const validConversations = response.data;
 
     console.log("Processed conversations:", validConversations);
     return validConversations;
