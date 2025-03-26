@@ -10,7 +10,7 @@ const slides = [
   {
     imgSrc: darkModeImg,
     title: "Giao diện Dark Mode",
-    description: "Thư giãn và bảo vệ mắt với chế độ tối mới trên Zalo PC",
+    description: "Thư giãn và bảo vệ mắt với chế độ tối mới trên Sophy PC",
     buttonText: "Thử ngay",
   },
   {
@@ -33,7 +33,7 @@ const slides = [
   {
     imgSrc: fileTransferImg,
     title: "Gửi File nặng?",
-    description: 'Đã có Zalo PC "xử" hết',
+    description: 'Đã có Sophy PC "xử" hết',
   },
 ];
 
@@ -51,7 +51,9 @@ const MainContent: React.FC = () => {
   return (
     <div className="flex-1 w-full flex flex-col items-center justify-center bg-gray-100">
       <div className="text-center mb-4">
-        <h1 className="text-2xl">Chào mừng đến với <span className="font-bold">Sophy PC!</span></h1>
+        <h1 className="text-2xl">
+          Chào mừng đến với <span className="font-bold">Sophy PC!</span>
+        </h1>
         <p className="text-gray-600">
           Khám phá những tiện ích hỗ trợ làm việc và trò chuyện cùng người thân,
           bạn bè được tối ưu hoá cho máy tính của bạn.
@@ -63,8 +65,7 @@ const MainContent: React.FC = () => {
           type="button"
           className="absolute left-0 p-2 rounded-full cursor-pointer text-blue-500  transition"
           onClick={handlePrev}
-          title="Previous Slide"
-        >
+          title="Previous Slide">
           <LeftOutlined />
         </button>
 
@@ -81,7 +82,9 @@ const MainContent: React.FC = () => {
             {slides[currentSlide].description}
           </p>
           {slides[currentSlide].buttonText && (
-            <button type="button" className="mt-4 bg-blue-500 text-white py-2 px-4 rounded">
+            <button
+              type="button"
+              className="mt-4 bg-blue-500 text-white py-2 px-4 rounded">
               {slides[currentSlide].buttonText}
             </button>
           )}
@@ -91,8 +94,7 @@ const MainContent: React.FC = () => {
           type="button"
           className="absolute right-0 p-2 rounded-full text-blue-500 cursor-pointer transition"
           onClick={handleNext}
-          title="Next Slide"
-        >
+          title="Next Slide">
           <RightOutlined />
         </button>
       </div>
