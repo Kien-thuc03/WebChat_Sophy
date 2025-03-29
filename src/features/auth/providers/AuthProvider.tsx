@@ -49,7 +49,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
         // Store accessToken and userId in localStorage
         localStorage.setItem("token", response.accessToken);
-        localStorage.setItem("userId", response.userId);
+        localStorage.setItem("userId", response.userId.toString());
 
         try {
           // Fetch user data using the phone number

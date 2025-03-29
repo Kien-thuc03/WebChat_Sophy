@@ -15,29 +15,26 @@ const apiClient = axios.create({
 
 export const login = async (phone: string, password: string) => {
   try {
-    // Log request data
-    console.log("Login request data:", { phone, password });
-
     const response = await apiClient.post("/api/auth/login", {
-      phone: phone.replace(/\+84/g, "0"), // Convert +84 to 0
+      phone: phone.replace(/\+84/g, "0"),
       password,
     });
 
-    console.log("Login response:", response.data);
-
     const { token, user } = response.data;
 
-    // Kiểm tra phản hồi từ API
-    if (!token?.accessToken || !user || !user.userId) {
-      console.error("Invalid login response:", response.data);
+    if (!token?.accessToken || !token?.refreshToken || !user || !user.userId) {
       throw new Error("Dữ liệu đăng nhập không hợp lệ");
     }
 
-    // Trả về dữ liệu hợp lệ
+    // Lưu userId, accessToken và refreshToken vào localStorage
+    localStorage.setItem("userId", user.userId);
+    localStorage.setItem("token", token.accessToken);
+    localStorage.setItem("refreshToken", token.refreshToken);
+
     return {
-      userId: user.userId, // Sử dụng đúng trường `userId` từ phản hồi API
-      accessToken: token.accessToken, // Lấy accessToken từ token
-      fullname: user.fullname, // Nếu cần fullname
+      userId: user.userId,
+      accessToken: token.accessToken,
+      fullname: user.fullname,
     };
   } catch (error: any) {
     // Xử lý lỗi từ API
@@ -63,7 +60,13 @@ export const login = async (phone: string, password: string) => {
 // Sửa lại endpoint và xử lý lỗi cho fetchUserData
 export const fetchUserData = async (userId: string) => {
   try {
-    const response = await apiClient.get(`/api/users/${userId}`); // Sửa endpoint để lấy user theo ID
+    const token = getAuthToken();
+    if (!token) {
+      throw new Error("Không có token xác thực");
+    }
+
+    const response = await apiClient.get(`/api/users/get-user-by-id/${userId}`);
+
     console.log("Fetch user data response:", response.data);
     return response.data;
   } catch (error) {
@@ -72,7 +75,7 @@ export const fetchUserData = async (userId: string) => {
   }
 };
 
-// Hàm kiểm tra thông tin đăng nhập từ db.json
+// Hàm kiểm tra thông tin đăng nhập
 export const checkLogin = async (phone: string, password: string) => {
   try {
     const response = await apiClient.get("/api/users");
@@ -155,9 +158,11 @@ apiClient.interceptors.response.use(
           throw new Error("Refresh token not available");
         }
 
-        // Call the refresh endpoint
-        const response = await axios.post(`${API_BASE_URL}/api/auth/refresh`, {
-          refreshToken,
+        // Call the refresh endpoint với refreshToken trong header
+        const response = await axios.post(`${API_BASE_URL}/api/auth/refresh`, {}, {
+          headers: {
+            'Authorization': `Bearer ${refreshToken}`
+          }
         });
 
         const { accessToken, refreshToken: newRefreshToken } = response.data;
@@ -165,6 +170,9 @@ apiClient.interceptors.response.use(
         // Update tokens in localStorage
         localStorage.setItem("token", accessToken);
         localStorage.setItem("refreshToken", newRefreshToken);
+        
+        // Cập nhật header Authorization với accessToken mới
+        apiClient.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
 
         // Process the queued requests
         processQueue(null, accessToken);
@@ -179,7 +187,7 @@ apiClient.interceptors.response.use(
         localStorage.removeItem("token");
         localStorage.removeItem("refreshToken");
         localStorage.removeItem("userId");
-        window.location.href = "/login"; // Redirect to login page
+        window.location.href = "/"; // Redirect to login page
         return Promise.reject(err);
       } finally {
         isRefreshing = false;
