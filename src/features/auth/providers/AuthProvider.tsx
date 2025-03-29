@@ -1,7 +1,12 @@
 import { useState, ReactNode, useCallback, useEffect } from "react";
 import { AuthContext } from "../context/AuthContext";
 import { User } from "../types/authTypes";
-import { checkLogin, fetchUserData } from "../../../api/API";
+import {
+  login as apiLogin,
+  fetchUserData,
+  getUserByPhone,
+  changePassword as apiChangePassword, // Import hàm changePassword từ API
+} from "../../../api/API";
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -10,7 +15,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const token = localStorage.getItem("token");
     const userId = localStorage.getItem("userId"); // Lưu userId khi login
-  
+
     if (token && userId) {
       const fetchUser = async () => {
         try {
@@ -30,29 +35,32 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       fetchUser();
     }
   }, []);
-  
 
   const login = useCallback(
     async (form: { phone: string; password: string }) => {
       try {
-        const response = await checkLogin(form.phone, form.password);
-        console.log("Login API response:", response);
-  
-        if (!response?.userId || !response?.token) {
+        console.log("Attempting login with:", form);
+        const response = await apiLogin(form.phone, form.password);
+
+        if (!response?.userId || !response?.accessToken) {
+          console.error("Invalid login response:", response);
           throw new Error("Đăng nhập thất bại, không có dữ liệu hợp lệ");
         }
-  
-        localStorage.setItem("token", response.token);
-        localStorage.setItem("userId", response.userId); // ✅ Lưu userId
-  
-        const userData = await fetchUserData(response.userId);
-        console.log("Fetched user data:", userData);
-  
-        if (!userData) {
-          throw new Error("Không lấy được thông tin người dùng");
+
+        // Store accessToken and userId in localStorage
+        localStorage.setItem("token", response.accessToken);
+        localStorage.setItem("userId", response.userId.toString());
+
+        try {
+          // Fetch user data using the phone number
+          const userData = await getUserByPhone(form.phone);
+          setUser(userData);
+        } catch (error) {
+          // If fetching user data fails, clean up localStorage
+          localStorage.removeItem("token");
+          localStorage.removeItem("userId");
+          throw error;
         }
-  
-        setUser(userData);
       } catch (error) {
         console.error("Lỗi đăng nhập:", error);
         throw error;
@@ -60,15 +68,42 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     },
     []
   );
-  
 
   const logout = useCallback(() => {
     setUser(null);
     localStorage.removeItem("token");
   }, []);
 
+  const changePassword = useCallback(
+    async (oldPassword: string, newPassword: string): Promise<void> => {
+      if (!user) {
+        throw new Error("Người dùng chưa đăng nhập");
+      }
+
+      try {
+        // Gọi API changePassword
+        await apiChangePassword(oldPassword, newPassword);
+
+        // Không trả về chuỗi, chỉ xử lý thành công
+      } catch (error: unknown) {
+        console.error("Lỗi khi đổi mật khẩu:", error);
+
+        // Kiểm tra kiểu của error
+        if (error instanceof Error) {
+          throw new Error(
+            error.message || "Không thể đổi mật khẩu, vui lòng thử lại"
+          );
+        }
+
+        // Nếu error không phải là Error, ném lỗi mặc định
+        throw new Error("Không thể đổi mật khẩu, vui lòng thử lại");
+      }
+    },
+    [user]
+  );
+
   return (
-    <AuthContext.Provider value={{ user, login, logout }}>
+    <AuthContext.Provider value={{ user, login, logout, changePassword }}>
       {children}
     </AuthContext.Provider>
   );
