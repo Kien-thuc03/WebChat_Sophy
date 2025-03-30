@@ -3,6 +3,7 @@ import { useAuth } from "../../features/auth/hooks/useAuth";
 import { Link, useNavigate } from "react-router-dom";
 import "react-phone-number-input/style.css";
 import PhoneInput from "react-phone-number-input";
+import { generateQRToken, verifyQRToken } from "../../api/API";
 
 const Signin: React.FC = () => {
   const { login } = useAuth();
@@ -129,6 +130,19 @@ const Signin: React.FC = () => {
             className="w-full rounded-md bg-blue-500 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
             Đăng nhập
           </button>
+          
+          <div className="mt-15">
+            <Link
+              to="/register"
+              className="text-sm font-semibold text-blue-500 hover:text-blue-400">
+              Đăng ký
+            </Link>
+            <Link
+              to="/qr-signin"
+              className="text-sm font-semibold text-blue-500 hover:text-blue-400">
+              Đăng nhập bằng mã QR
+            </Link>
+          </div>
         </form>
       </div>
     </div>

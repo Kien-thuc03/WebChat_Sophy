@@ -13,6 +13,55 @@ const apiClient = axios.create({
   },
 });
 
+export const generateQRToken = async () => {
+  try {
+    const response = await apiClient.post("/api/auth/generate-qr-token");
+    return {
+      qrToken: response.data.qrToken,
+      expiresAt: response.data.expiresAt
+    };
+  } catch (error) {
+    throw new Error("Không thể tạo mã QR");
+  }
+};
+
+export const verifyQRToken = async (qrToken: string) => {
+  try {
+    const response = await apiClient.post("/api/auth/verify-qr-token", { qrToken });
+    return {
+      message: response.data.message
+    };
+  } catch (error: any) {
+    if (error.response?.status === 404) {
+      throw new Error("QR token không tồn tại hoặc đã hết hạn");
+    }
+    if (error.response?.status === 400) {
+      throw new Error("QR token đã hết hạn");
+    }
+    throw new Error("Xác thực mã QR thất bại");
+  }
+};
+
+export const checkQRStatus = async (qrToken: string) => {
+  try {
+    const response = await apiClient.post(`/api/auth/check-qr-status/${qrToken}`);
+    return {
+      status: response.data.status,
+      message: response.data.message,
+      userId: response.data.userId,
+      accessToken: response.data.accessToken
+    };
+  } catch (error: any) {
+    if (error.response?.status === 404) {
+      throw new Error("QR token không tồn tại hoặc đã hết hạn");
+    }
+    if (error.response?.status === 400) {
+      throw new Error("QR token đã hết hạn");
+    }
+    throw new Error("Kiểm tra trạng thái QR thất bại");
+  }
+};
+
 export const login = async (phone: string, password: string) => {
   try {
     const response = await apiClient.post("/api/auth/login", {
@@ -313,5 +362,82 @@ export const fetchConversations = async (): Promise<Conversation[]> => {
   } catch (error) {
     console.error("Lỗi khi lấy danh sách hội thoại:", error);
     return []; // Return empty array instead of throwing
+  }
+};
+
+// Kiểm tra số điện thoại đã được sử dụng chưa
+export const checkUsedPhone = async (phone: string): Promise<{ otpId: string; otp: string }> => {
+  try {
+    const response = await apiClient.get(`/api/auth/check-used-phone/${phone}`);
+    return {
+      otpId: response.data.otpId,
+      otp: response.data.otp
+    };
+  } catch (error: any) {
+    if (error.response?.status === 400) {
+      throw new Error(error.response.data.message || "Số điện thoại không hợp lệ");
+    }
+    throw new Error("Không thể kiểm tra số điện thoại");
+  }
+};
+
+// Xác thực mã OTP
+export const verifyPhoneOTP = async (phone: string, otp: string, otpId: string): Promise<void> => {
+  try {
+    const response = await apiClient.post("/api/auth/verify-phone-otp", {
+      phone,
+      otp,
+      otpId
+    });
+    console.log("Verify phone OTP response:", response.data);
+    if (response.data.message !== "Phone verified successfully") {
+      throw new Error(response.data.message || "Xác thực OTP thất bại");
+    }
+  } catch (error: any) {
+    throw new Error(
+      error.response?.data?.message || "Xác thực OTP thất bại"
+    );
+  }
+};
+
+// Đăng ký tài khoản mới
+export const register = async (
+  phone: string,
+  password: string,
+  fullname: string,
+  isMale: boolean,
+  birthday: string
+) => {
+  try {
+    const response = await apiClient.post("/api/auth/register", {
+      phone,
+      password,
+      fullname,
+      isMale,
+      birthday
+    });
+
+    const { token, user } = response.data;
+
+    if (!token?.accessToken || !token?.refreshToken || !user || !user.userId) {
+      throw new Error("Dữ liệu đăng ký không hợp lệ");
+    }
+
+    localStorage.setItem("userId", user.userId);
+    localStorage.setItem("token", token.accessToken);
+    localStorage.setItem("refreshToken", token.refreshToken);
+
+    return {
+      userId: user.userId,
+      accessToken: token.accessToken,
+      fullname: user.fullname
+    };
+  } catch (error: any) {
+    if (error.response?.status === 400) {
+      throw new Error(
+        error.response.data.message || "Thông tin đăng ký không hợp lệ"
+      );
+    }
+    throw new Error("Đăng ký thất bại, vui lòng thử lại");
   }
 };

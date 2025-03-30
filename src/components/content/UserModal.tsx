@@ -3,27 +3,10 @@ import { useAuth } from "../../features/auth/hooks/useAuth"; // Import useAuth h
 import { FaMarker } from "react-icons/fa";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faXmark } from "@fortawesome/free-solid-svg-icons"; // Import biểu tượng xmark
+import {User } from "../../features/auth/types/authTypes"
 interface UserModalProps {
   isOpen: boolean;
   onClose: () => void;
-}
-
-export interface User {
-  _id: string;
-  userId: string;
-  fullname: string;
-  isMale: boolean;
-  phone: string;
-  birthday: string;
-  settings: {
-    hidden_profile_from_strangers: boolean;
-    block_msg_from_strangers: boolean;
-  };
-  friendList: string[];
-  blockList: string[];
-  createdAt: string;
-  lastActive: string;
-  deviceTokens: string[];
 }
 
 const UserModal: React.FC<UserModalProps> = ({ isOpen, onClose }) => {
@@ -52,6 +35,8 @@ const UserModal: React.FC<UserModalProps> = ({ isOpen, onClose }) => {
             Thông tin tài khoản
           </h2>
           <button
+            type="button"
+            title="Đóng"
             onClick={onClose}
             className="text-gray-500 text-xl hover:text-gray-700">
             <FontAwesomeIcon icon={faXmark} />
@@ -102,6 +87,7 @@ const UserModal: React.FC<UserModalProps> = ({ isOpen, onClose }) => {
         </div>
         <div className="mt-4 text-center">
           <button
+            type="button"
             className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
             onClick={onClose}>
             Cập nhật
