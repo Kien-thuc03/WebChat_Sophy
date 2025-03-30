@@ -13,19 +13,27 @@ export interface UserProfile {
 
 // Định nghĩa kiểu dữ liệu cho cài đặt người dùng
 export interface UserSettings {
-  block_msg_from_stranger: boolean;
+  hidden_profile_from_strangers: boolean;
+  block_msg_from_strangers: boolean;
 }
 
 // Định nghĩa kiểu dữ liệu cho người dùng
 export interface User {
   _id: ObjectId;
+  userId: string;
   full_name: string;
+  fullname: string;
+  isMale: boolean;
   phone: string;
   hash_password: string;
+  birthday: string;
   profile: UserProfile;
-  friendList: ObjectId[]; // Danh sách bạn bè
-  blockList: ObjectId[]; // Danh sách chặn
   settings: UserSettings;
+  friendList: string[];
+  blockList: string[];
+  createdAt: string;
+  lastActive: string;
+  deviceTokens: string[];
   created_at: ISODate;
   updated_at: ISODate;
 }
