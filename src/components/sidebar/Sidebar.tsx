@@ -7,46 +7,36 @@ import {
   FaBriefcase,
   FaCog,
 } from "react-icons/fa";
-import { useAuth } from "../../features/auth/hooks/useAuth"; // Import hook auth
-import SettingsPopover from "../content/SettingsPopoverProps"; // Import SettingsPopover
-import SettingsMenu from "../content/SettingsMenu"; // Import SettingsMenu
+import { useAuth } from "../../features/auth/hooks/useAuth";
+import SettingsPopover from "../content/SettingsPopoverProps";
+import SettingsMenu from "../content/SettingsMenu";
 
 interface SidebarProps {
   onSettingsClick?: () => void;
+  onOpenModal?: () => void; // Giữ optional
 }
 
-const Sidebar: React.FC<SidebarProps> = () => {
-  const { user } = useAuth(); // Lấy thông tin user từ context
-  const [active, setActive] = useState("chat"); // Lưu trạng thái mục được chọn
-  const [isPopoverOpen, setIsPopoverOpen] = useState(false); // Trạng thái hiển thị SettingsPopover
-  const [isSettingsMenuOpen, setIsSettingsMenuOpen] = useState(false); // Trạng thái hiển thị SettingsMenu
-  const popoverRef = useRef<HTMLDivElement | null>(null); // Ref cho SettingsPopover
-  const settingsMenuRef = useRef<HTMLDivElement | null>(null); // Ref cho SettingsMenu
-  const settingsButtonRef = useRef<HTMLDivElement | null>(null); // Ref cho nút Settings (FaCog)
+const Sidebar: React.FC<SidebarProps> = ({ onSettingsClick, onOpenModal }) => {
+  const { user } = useAuth();
+  const [active, setActive] = useState("chat");
+  const [isPopoverOpen, setIsPopoverOpen] = useState(false);
+  const [isSettingsMenuOpen, setIsSettingsMenuOpen] = useState(false);
+  const popoverRef = useRef<HTMLDivElement | null>(null);
+  const settingsMenuRef = useRef<HTMLDivElement | null>(null);
+  const settingsButtonRef = useRef<HTMLDivElement | null>(null);
 
-  // Toggle popover visibility
   const togglePopover = () => {
     setIsPopoverOpen((prev) => !prev);
   };
 
-  // Toggle settings menu visibility
-  const toggleSettingsMenu = () => {
-    setIsSettingsMenuOpen((prev) => !prev);
-    setActive("settings"); // Đặt trạng thái active cho settings
-  };
-
-  // Đóng popover và menu cài đặt khi nhấp ra ngoài
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      // Kiểm tra popover
       if (
         popoverRef.current &&
         !popoverRef.current.contains(event.target as Node)
       ) {
         setIsPopoverOpen(false);
       }
-
-      // Kiểm tra menu cài đặt
       if (
         settingsMenuRef.current &&
         !settingsMenuRef.current.contains(event.target as Node) &&
@@ -57,20 +47,23 @@ const Sidebar: React.FC<SidebarProps> = () => {
       }
     };
 
-    // Chỉ thêm sự kiện khi một trong hai menu đang mở
     if (isPopoverOpen || isSettingsMenuOpen) {
       document.addEventListener("mousedown", handleClickOutside);
     }
 
     return () => {
-      document.removeEventListener("mousedown", handleClickOutside); // Dọn dẹp sự kiện
+      document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [isPopoverOpen, isSettingsMenuOpen]);
+
+  // Hàm mặc định nếu onOpenModal không được cung cấp
+  const defaultOpenModal = () => {
+    console.log("onOpenModal không được cung cấp");
+  };
 
   return (
     <div className="h-screen w-16 bg-blue-600 flex flex-col justify-between items-center py-4 relative">
       <div className="flex flex-col items-center">
-        {/* Avatar */}
         <img
           src={user?.profile?.avatar || "https://picsum.photos/id/1/200"}
           alt="Avatar"
@@ -78,7 +71,6 @@ const Sidebar: React.FC<SidebarProps> = () => {
           onClick={togglePopover}
         />
 
-        {/* Hiển thị SettingsPopover */}
         {isPopoverOpen && (
           <div ref={popoverRef} className="absolute top-10 left-16 z-50">
             <SettingsPopover
@@ -86,8 +78,9 @@ const Sidebar: React.FC<SidebarProps> = () => {
                 console.log("Đăng xuất");
                 setIsPopoverOpen(false);
               }}
-              onProfileClick={() => {
+              onOpenModal={() => {
                 console.log("Hồ sơ của bạn");
+                onOpenModal?.(); // Gọi hàm nếu tồn tại
                 setIsPopoverOpen(false);
               }}
               onUpgradeClick={() => {
@@ -98,7 +91,6 @@ const Sidebar: React.FC<SidebarProps> = () => {
           </div>
         )}
 
-        {/* Icons List */}
         <div className="flex flex-col space-y-6 p-2">
           <div
             className={`p-2 rounded-lg cursor-pointer ${
@@ -124,9 +116,7 @@ const Sidebar: React.FC<SidebarProps> = () => {
         </div>
       </div>
       <div>
-        {/* Bottom Icons */}
         <div className="flex flex-col space-y-6 items-center">
-          {/* Divider */}
           <div className="w-8 border-b border-white my-4"></div>
           <div
             className={`p-2 rounded-lg cursor-pointer ${
@@ -142,25 +132,28 @@ const Sidebar: React.FC<SidebarProps> = () => {
             onClick={() => setActive("briefcase")}>
             <FaBriefcase className="text-2xl" />
           </div>
-          {/* Nút Settings */}
           <div
             ref={settingsButtonRef}
             className={`p-2 rounded-lg cursor-pointer ${
               active === "settings" ? "bg-white text-blue-600" : "text-white"
             }`}
-            onClick={toggleSettingsMenu}>
+            onClick={() => {
+              setActive("settings");
+              if (onSettingsClick) {
+                onSettingsClick();
+              }
+            }}>
             <FaCog className="text-2xl" />
           </div>
         </div>
 
-        {/* Hiển thị SettingsMenu */}
         {isSettingsMenuOpen && (
           <div
             ref={settingsMenuRef}
             className="absolute bottom-16 left-16 z-50">
             <SettingsMenu
               onClose={() => setIsSettingsMenuOpen(false)}
-              onOpenModal={() => console.log("Open modal")} // Thay bằng logic mở modal nếu cần
+              onOpenModal={onOpenModal || defaultOpenModal} // Truyền hàm mặc định nếu onOpenModal là undefined
             />
           </div>
         )}

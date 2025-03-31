@@ -116,7 +116,32 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({
       key: "5",
       icon: <FontAwesomeIcon icon={faHeadset} />,
       label: "Hỗ trợ",
-      onClick: onClose, // Close menu on click
+      children: [
+        {
+          key: "5-1",
+          label: "Thông tin phiên bản",
+          onClick: () => {
+            console.log("Thông tin phiên bản clicked");
+            onClose();
+          },
+        },
+        {
+          key: "5-2",
+          label: "Liên hệ",
+          onClick: () => {
+            console.log("Liên hệ clicked");
+            onClose();
+          },
+        },
+        {
+          key: "5-3",
+          label: "Gửi file log tới Sophy",
+          onClick: () => {
+            console.log("Gửi file log tới Sophy clicked");
+            onClose();
+          },
+        },
+      ],
     },
     {
       type: "divider", // Divider before logout
@@ -133,7 +158,7 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({
   ];
 
   return (
-    <div className="absolute left-42 bottom-1 transform translate-x-[-100%] ml-3 w-58 p-2 bg-white ">
+    <div className="absolute left-58 bottom-15 transform translate-x-[-100%] ml-3 w-58 p-2 bg-white ">
       <Menu
         items={items}
         mode="vertical"

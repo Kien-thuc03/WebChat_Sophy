@@ -9,13 +9,13 @@ import type { MenuProps } from "antd";
 
 interface SettingsPopoverProps {
   onLogout: () => void; // Function to handle logout
-  onProfileClick: () => void; // Function to handle profile click
+  onOpenModal: () => void; // Function to handle profile click
   onUpgradeClick: () => void; // Function to handle upgrade account click
 }
 
 const SettingsPopover: React.FC<SettingsPopoverProps> = ({
   onLogout,
-  onProfileClick,
+  onOpenModal,
   onUpgradeClick,
 }) => {
   const { user } = useAuth() as { user: User | null }; // Move useAuth inside the component
@@ -50,20 +50,32 @@ const SettingsPopover: React.FC<SettingsPopoverProps> = ({
     },
     {
       key: "2",
-      icon: <FontAwesomeIcon icon={faPenToSquare} />,
-      label: "Nâng cấp tài khoản",
+      label: (
+        <div className="flex items-center justify-between">
+          <span className="text-gray-700 font-large font-medium">
+            Nâng cấp tài khoản
+          </span>
+          <FontAwesomeIcon icon={faPenToSquare} className="ml-2" />
+        </div>
+      ),
       onClick: onUpgradeClick,
     },
     {
       key: "3",
 
-      label: "Hồ sơ của bạn",
-      onClick: onProfileClick,
+      label: (
+        <span className="text-gray-700 font-large font-medium ">
+          Hồ sơ của bạn
+        </span>
+      ),
+      onClick: onOpenModal, 
     },
     {
       key: "4",
 
-      label: "Cài đặt",
+      label: (
+        <span className="text-gray-700 font-large font-medium ">Cài đặt</span>
+      ),
     },
     {
       type: "divider",
@@ -71,7 +83,7 @@ const SettingsPopover: React.FC<SettingsPopoverProps> = ({
     {
       key: "5",
 
-      label: <span className="text-red-600">Đăng xuất</span>,
+      label: <span className="text-red-600 font-large ">Đăng xuất</span>,
       onClick: () => {
         onLogout();
         handleLogout();
@@ -80,7 +92,7 @@ const SettingsPopover: React.FC<SettingsPopoverProps> = ({
   ];
 
   return (
-    <div className="bg-white shadow-lg rounded-lg w-64 p-4">
+    <div className="bg-white  w-64 p-4">
       <Menu
         items={items}
         mode="vertical"
