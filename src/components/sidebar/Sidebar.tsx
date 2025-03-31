@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   FaComments,
   FaUserFriends,
@@ -29,32 +29,31 @@ const Sidebar: React.FC<SidebarProps> = ({ onSettingsClick, onOpenModal }) => {
     setIsPopoverOpen((prev) => !prev);
   };
 
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        popoverRef.current &&
-        !popoverRef.current.contains(event.target as Node)
-      ) {
-        setIsPopoverOpen(false);
-      }
-      if (
-        settingsMenuRef.current &&
-        !settingsMenuRef.current.contains(event.target as Node) &&
-        settingsButtonRef.current &&
-        !settingsButtonRef.current.contains(event.target as Node)
-      ) {
-        setIsSettingsMenuOpen(false);
-      }
-    };
+  const handleClickOutside = useCallback((event: MouseEvent) => {
+    console.log("Event target:", event.target);
+    console.log("Settings menu ref:", settingsMenuRef.current);
+    console.log("Settings button ref:", settingsButtonRef.current);
 
-    if (isPopoverOpen || isSettingsMenuOpen) {
+    if (
+      settingsMenuRef.current &&
+      !settingsMenuRef.current.contains(event.target as Node) &&
+      settingsButtonRef.current &&
+      !settingsButtonRef.current.contains(event.target as Node)
+    ) {
+      console.log("Click outside detected, closing settings menu.");
+      setIsSettingsMenuOpen(false);
+    }
+  }, []);
+  // Thêm/gỡ sự kiện khi menu hoặc popover mở
+  useEffect(() => {
+    if (isSettingsMenuOpen) {
       document.addEventListener("mousedown", handleClickOutside);
     }
 
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
-  }, [isPopoverOpen, isSettingsMenuOpen]);
+  }, [isSettingsMenuOpen, handleClickOutside]);
 
   // Hàm mặc định nếu onOpenModal không được cung cấp
   const defaultOpenModal = () => {
@@ -65,7 +64,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onSettingsClick, onOpenModal }) => {
     <div className="h-screen w-16 bg-blue-600 flex flex-col justify-between items-center py-4 relative">
       <div className="flex flex-col items-center">
         <img
-          src={user?.profile?.avatar || "https://picsum.photos/id/1/200"}
+          src={user?.urlavatar || "https://picsum.photos/id/1/200"}
           alt="Avatar"
           className="w-12 h-12 rounded-full border-2 border-white object-cover cursor-pointer"
           onClick={togglePopover}
@@ -153,7 +152,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onSettingsClick, onOpenModal }) => {
             className="absolute bottom-16 left-16 z-50">
             <SettingsMenu
               onClose={() => setIsSettingsMenuOpen(false)}
-              onOpenModal={onOpenModal || defaultOpenModal} // Truyền hàm mặc định nếu onOpenModal là undefined
+              onOpenModal={onOpenModal || defaultOpenModal}
             />
           </div>
         )}

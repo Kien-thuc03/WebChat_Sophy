@@ -3,7 +3,7 @@ import Sidebar from "../components/sidebar/Sidebar";
 import ChatList from "../components/chat/ChatList";
 import MainContent from "../components/content/MainContent";
 import SettingsMenu from "../components/content/SettingsMenu";
-import UserModal from "../components/content/UserModal";
+import UserModal from "../components/content/modal/UserModal";
 
 const Dashboard: React.FC = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false); // State for SettingsMenu visibility

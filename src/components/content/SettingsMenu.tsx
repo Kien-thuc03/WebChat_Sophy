@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { logout } from "../../api/API";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
@@ -12,6 +12,7 @@ import {
 
 import { Menu } from "antd";
 import type { MenuProps } from "antd";
+import SettingsModal from "../content/modal/SettingsModal";
 
 interface SettingsMenuProps {
   onClose: () => void;
@@ -22,6 +23,15 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({
   onClose,
   onOpenModal,
 }) => {
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false); // State quản lý modal
+
+  const openSettingsModal = () => {
+    setIsSettingsModalOpen(true); // Mở modal
+  };
+  const closeSettingsModal = () => {
+    setIsSettingsModalOpen(false); // Đóng modal
+  };
+
   useEffect(() => {
     console.log("SettingsMenu mounted");
     return () => console.log("SettingsMenu unmounted");
@@ -53,7 +63,7 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({
       key: "2",
       icon: <FontAwesomeIcon icon={faGear} />,
       label: "Cài đặt",
-      onClick: onClose, // Close menu on click
+      onClick: openSettingsModal, // Mở modal cài đặt chung
     },
     {
       type: "divider", // Divider between sections
@@ -164,6 +174,12 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({
         mode="vertical"
         theme="light"
         className="rounded-lg"
+      />
+
+      {/* Sử dụng SettingsModal */}
+      <SettingsModal
+        visible={isSettingsModalOpen}
+        onClose={closeSettingsModal}
       />
     </div>
   );

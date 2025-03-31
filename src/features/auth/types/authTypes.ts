@@ -21,13 +21,12 @@ export interface UserSettings {
 export interface User {
   _id: ObjectId;
   userId: string;
-  full_name: string;
   fullname: string;
   isMale: boolean;
   phone: string;
   hash_password: string;
   birthday: string;
-  profile: UserProfile;
+  urlavatar: string;
   settings: UserSettings;
   friendList: string[];
   blockList: string[];
