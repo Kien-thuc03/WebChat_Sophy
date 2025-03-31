@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { List, Avatar } from "antd";
 import Header from "../header/Header";
 import { useConversations } from "../../features/chat/hooks/useConversations";
-import ErrorBoundary from '../common/ErrorBoundary';
+import ErrorBoundary from "../common/ErrorBoundary";
 import { useAuth } from "../../features/auth/hooks/useAuth";
 import { formatMessageTime } from "../../utils/dateUtils";
 import { Conversation } from "../../features/chat/types/conversationTypes";
@@ -10,8 +10,8 @@ import { getUserById } from "../../api/API";
 import { User } from "../../features/auth/types/authTypes";
 
 const formatGroupName = (members: string[] = []) => {
-  if (!members.length) return 'Nhóm không có thành viên';
-  const displayNames = members.slice(0, 3).join(', ');
+  if (!members.length) return "Nhóm không có thành viên";
+  const displayNames = members.slice(0, 3).join(", ");
   return members.length > 3 ? `${displayNames}...` : displayNames;
 };
 
@@ -33,34 +33,61 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
       try {
         if (!userCache[chat.receiverId]) {
           const userData = await getUserById(chat.receiverId);
-          await setUserCache(prev => ({ ...prev, [chat.receiverId as string]: userData }));
+          await setUserCache((prev) => ({
+            ...prev,
+            [chat.receiverId as string]: userData,
+          }));
           return userData?.fullname || chat.receiverId;
         }
         return userCache[chat.receiverId]?.fullname || chat.receiverId;
       } catch (error) {
-        console.error('Lỗi khi lấy thông tin người dùng:', error);
+        console.error("Lỗi khi lấy thông tin người dùng:", error);
         return chat.receiverId;
       }
     }
-    return 'Private Chat';
+    return "Private Chat";
   };
 
   useEffect(() => {
     const fetchUserInfo = async () => {
       for (const chat of conversations) {
+        // Fetch group members' info
+        if (chat.isGroup && chat.groupMembers) {
+          for (const memberId of chat.groupMembers) {
+            if (!userCache[memberId]) {
+              try {
+                const userData = await getUserById(memberId);
+                await setUserCache((prev) => ({
+                  ...prev,
+                  [memberId]: userData
+                }));
+              } catch (error) {
+                console.warn(`Không thể tải thông tin thành viên ${memberId}`);
+              }
+            }
+          }
+        }
         const displayName = await getDisplayName(chat);
-        setDisplayNames(prev => ({
+        setDisplayNames((prev) => ({
           ...prev,
-          [chat.conversationId]: displayName
+          [chat.conversationId]: displayName,
         }));
 
         // Fetch sender info for last message only if senderId exists
-        if (chat.lastMessage?.senderId && !userCache[chat.lastMessage.senderId]) {
+        if (
+          chat.lastMessage?.senderId &&
+          !userCache[chat.lastMessage.senderId]
+        ) {
           try {
             const userData = await getUserById(chat.lastMessage.senderId);
-            await setUserCache(prev => ({...prev, [chat.lastMessage?.senderId as string]: userData }));
+            await setUserCache((prev) => ({
+              ...prev,
+              [chat.lastMessage?.senderId as string]: userData,
+            }));
           } catch (error) {
-            console.warn(`Không thể tải thông tin người gửi ${chat.lastMessage.senderId}`);
+            console.warn(
+              `Không thể tải thông tin người gửi ${chat.lastMessage.senderId}`
+            );
           }
         }
       }
@@ -77,67 +104,97 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
         dataSource={conversations}
         renderItem={(chat) => (
           <List.Item
-            className="grid grid-cols-[60px,auto,5px,22px] gap-0 hover:bg-gray-50 cursor-pointer items-center px-2 py-3"
+            className="flex items-center gap-3 hover:bg-gray-50 cursor-pointer px-3 py-2"
             onClick={() => onSelectConversation(chat)}
           >
             {/* Avatar section */}
-            <div className="flex items-center justify-center">
-              <div className="relative">
-                <div className="flex items-center justify-center">
-                  {chat.isGroup && chat.groupMembers && chat.groupMembers.length > 0 ? (
-                    <Avatar.Group
-                      max={{ count: 4 }}
-                      size={48}
-                      className="cursor-pointer"
-                    >
-                      {chat.groupMembers.map((member, index) => (
-                        <Avatar
-                          key={index}
-                          src={`/images/default-avatar.png`}
-                          size={48}
-                          draggable={false}
-                        />
-                      ))}
-                    </Avatar.Group>
-                  ) : (
-                    <Avatar 
-                      src={'/images/default-avatar.png'}
-                      size={48}
-                      draggable={false}
-                      className="cursor-pointer"
+            <div className="relative shrink-0 pl-2">
+              {chat.isGroup && chat.groupMembers.length > 0 ? (
+                <Avatar.Group max={{ count: 4 }} size={40}>
+                  {chat.groupMembers.map((_, index) => (
+                    <Avatar
+                      key={index}
+                      src={`/images/default-avatar.png`}
+                      size={40}
                     />
-                  )}
-                </div>
-              </div>
+                  ))}
+                </Avatar.Group>
+              ) : (
+                <Avatar
+                  src={"/images/default-avatar.png"}
+                  size={40}
+                  className="cursor-pointer"
+                />
+              )}
             </div>
 
             {/* Content section */}
-            <div className="flex flex-col min-w-0">
-              <div className="truncate font-semibold text-gray-900">
-                {displayNames[chat.conversationId] || chat.receiverId || 'Private Chat'}
+            <div className="flex-1 min-w-0">
+              <div className="flex justify-between items-center">
+                <span className="truncate font-semibold text-gray-900">
+                  {displayNames[chat.conversationId] ||
+                    chat.receiverId ||
+                    "Private Chat"}
+                </span>
+                <div className="relative group">
+                  <div className="relative group">
+                    <span className="text-xs text-gray-500 hover:text-blue-500 cursor-pointer">
+                      {chat.lastMessage && formatMessageTime(chat.lastMessage.createdAt)}
+                    </span>
+                    <div className="absolute hidden group-hover:block z-20 w-48 bg-white shadow-lg rounded-md border border-gray-200 right-0">
+                      <div className="py-1">
+                        <div className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer">
+                          Ghim hội thoại
+                        </div>
+                        <div className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer">
+                          Phân loại
+                        </div>
+                        <div className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer">
+                          Tắt thông báo
+                        </div>
+                        <div className="border-t border-gray-200"></div>
+                        <div className="px-4 py-2 text-sm text-red-500 hover:bg-gray-100 cursor-pointer">
+                          Xóa hội thoại
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="absolute hidden group-hover:block z-20 w-48 bg-white shadow-lg rounded-md border border-gray-200 right-0">
+                    <div className="py-1">
+                      <div className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer">
+                        Ghim hội thoại
+                      </div>
+                      <div className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer">
+                        Phân loại
+                      </div>
+                      <div className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer">
+                        Tắt thông báo
+                      </div>
+                      <div className="border-t border-gray-200"></div>
+                      <div className="px-4 py-2 text-sm text-red-500 hover:bg-gray-100 cursor-pointer">
+                        Xóa hội thoại
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
               <div className="flex items-center text-sm text-gray-500 truncate">
                 {chat.lastMessage?.senderId && (
-                  <span className="mr-1 truncate">{userCache[chat.lastMessage.senderId]?.full_name || userCache[chat.lastMessage.senderId]?.fullname || chat.lastMessage.senderId}:</span>
+                  <span className="mr-1 truncate">
+                    {userCache[chat.lastMessage.senderId]?.fullname ||
+                      chat.lastMessage.senderId}
+                    :
+                  </span>
                 )}
-                <span className="truncate">{chat.lastMessage?.content || 'Chưa có tin nhắn'}</span>
+                <span className="truncate">
+                  {chat.lastMessage?.content || "Chưa có tin nhắn"}
+                </span>
               </div>
             </div>
 
-            {/* Time section */}
-            <div className="text-xs text-gray-500">
-              {chat.lastMessage && formatMessageTime(chat.lastMessage.createdAt)}
-            </div>
-
             {/* Actions section */}
-            <div className="relative">
-              <button 
-                type="button" 
-                title="Thêm" 
-                className="p-1 hover:bg-gray-100 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-              >
-                <i className="fa fa-ellipsis-h text-gray-400"></i>
-              </button>
+            <div className="shrink-0">
+              <i className="fa fa-ellipsis-h text-gray-400 cursor-pointer hover:text-gray-600"></i>
             </div>
           </List.Item>
         )}
@@ -146,7 +203,7 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
             <div className="p-4 text-center text-gray-500">
               Không có hội thoại nào
             </div>
-          )
+          ),
         }}
       />
     </div>

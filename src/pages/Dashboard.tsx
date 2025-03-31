@@ -40,6 +40,7 @@ const Dashboard: React.FC = () => {
         {selectedConversation ? (
           <>
             <ChatHeader
+            conversation={selectedConversation}
               isGroup={selectedConversation.type === 'group'}
               groupName={selectedConversation.type === 'group' ? selectedConversation.groupName : selectedConversation.receiverId}
               groupAvatarUrl={selectedConversation.type === 'group' ? '/images/group-avatar.png' : '/images/default-avatar.png'}
