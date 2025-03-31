@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { useAuth } from "../../features/auth/hooks/useAuth";
 import { User } from "../../features/auth/types/authTypes";
 import { logout } from "../../api/API";
@@ -6,6 +6,7 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faPenToSquare } from "@fortawesome/free-solid-svg-icons";
 import { Menu } from "antd";
 import type { MenuProps } from "antd";
+import SettingsModal from "./modal/SettingsModal";
 
 interface SettingsPopoverProps {
   onLogout: () => void; // Function to handle logout
@@ -32,6 +33,16 @@ const SettingsPopover: React.FC<SettingsPopoverProps> = ({
         alert("Đăng xuất thất bại, vui lòng thử lại.");
       }
     }
+  };
+
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+
+  const openSettingsModal = () => {
+    setIsSettingsModalOpen(true); // Show the modal
+  };
+
+  const closeSettingsModal = () => {
+    setIsSettingsModalOpen(false); // Hide the modal
   };
 
   // Define menu items
@@ -68,14 +79,15 @@ const SettingsPopover: React.FC<SettingsPopoverProps> = ({
           Hồ sơ của bạn
         </span>
       ),
-      onClick: onOpenModal, 
+      onClick: onOpenModal,
     },
     {
       key: "4",
-
       label: (
-        <span className="text-gray-700 font-large font-medium ">Cài đặt</span>
+        <span className="text-gray-700 font-large font-medium">Cài đặt</span>
       ),
+
+      onClick: openSettingsModal, // Open the modal when clicked
     },
     {
       type: "divider",
@@ -98,6 +110,11 @@ const SettingsPopover: React.FC<SettingsPopoverProps> = ({
         mode="vertical"
         theme="light"
         className="rounded-lg"
+      />
+      {/* SettingsModal */}
+      <SettingsModal
+        visible={isSettingsModalOpen}
+        onClose={closeSettingsModal}
       />
     </div>
   );

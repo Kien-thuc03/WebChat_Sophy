@@ -9,11 +9,10 @@ import {
 } from "react-icons/fa";
 import { useAuth } from "../../features/auth/hooks/useAuth";
 import SettingsPopover from "../content/SettingsPopoverProps";
-import SettingsMenu from "../content/SettingsMenu";
 
 interface SidebarProps {
   onSettingsClick?: () => void;
-  onOpenModal?: () => void; // Giữ optional
+  onOpenModal?: () => void; // Optional
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ onSettingsClick, onOpenModal }) => {
@@ -25,39 +24,48 @@ const Sidebar: React.FC<SidebarProps> = ({ onSettingsClick, onOpenModal }) => {
   const settingsMenuRef = useRef<HTMLDivElement | null>(null);
   const settingsButtonRef = useRef<HTMLDivElement | null>(null);
 
-  const togglePopover = () => {
-    setIsPopoverOpen((prev) => !prev);
-  };
+  const handleClickOutside = useCallback(
+    (event: MouseEvent) => {
+      if (
+        popoverRef.current &&
+        !popoverRef.current.contains(event.target as Node) &&
+        isPopoverOpen
+      ) {
+        setIsPopoverOpen(false);
+      }
 
-  const handleClickOutside = useCallback((event: MouseEvent) => {
-    console.log("Event target:", event.target);
-    console.log("Settings menu ref:", settingsMenuRef.current);
-    console.log("Settings button ref:", settingsButtonRef.current);
+      if (
+        settingsMenuRef.current &&
+        !settingsMenuRef.current.contains(event.target as Node) &&
+        settingsButtonRef.current &&
+        !settingsButtonRef.current.contains(event.target as Node) &&
+        isSettingsMenuOpen
+      ) {
+        setIsSettingsMenuOpen(false);
+      }
+    },
+    [isPopoverOpen, isSettingsMenuOpen]
+  );
 
-    if (
-      settingsMenuRef.current &&
-      !settingsMenuRef.current.contains(event.target as Node) &&
-      settingsButtonRef.current &&
-      !settingsButtonRef.current.contains(event.target as Node)
-    ) {
-      console.log("Click outside detected, closing settings menu.");
-      setIsSettingsMenuOpen(false);
-    }
-  }, []);
-  // Thêm/gỡ sự kiện khi menu hoặc popover mở
   useEffect(() => {
-    if (isSettingsMenuOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
-
+    document.addEventListener("mousedown", handleClickOutside);
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
-  }, [isSettingsMenuOpen, handleClickOutside]);
+  }, [handleClickOutside]);
 
-  // Hàm mặc định nếu onOpenModal không được cung cấp
-  const defaultOpenModal = () => {
-    console.log("onOpenModal không được cung cấp");
+  const togglePopover = () => {
+    setIsPopoverOpen((prev) => {
+      if (!prev) setIsSettingsMenuOpen(false); // Close SettingsMenu if opening Popover
+      return !prev;
+    });
+  };
+
+  const toggleSettingsMenu = () => {
+    setIsSettingsMenuOpen((prev) => {
+      if (!prev) setIsPopoverOpen(false); // Close Popover if opening SettingsMenu
+      return !prev;
+    });
   };
 
   return (
@@ -79,7 +87,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onSettingsClick, onOpenModal }) => {
               }}
               onOpenModal={() => {
                 console.log("Hồ sơ của bạn");
-                onOpenModal?.(); // Gọi hàm nếu tồn tại
+                onOpenModal?.(); // Call if exists
                 setIsPopoverOpen(false);
               }}
               onUpgradeClick={() => {
@@ -138,6 +146,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onSettingsClick, onOpenModal }) => {
             }`}
             onClick={() => {
               setActive("settings");
+              toggleSettingsMenu();
               if (onSettingsClick) {
                 onSettingsClick();
               }
@@ -149,12 +158,9 @@ const Sidebar: React.FC<SidebarProps> = ({ onSettingsClick, onOpenModal }) => {
         {isSettingsMenuOpen && (
           <div
             ref={settingsMenuRef}
-            className="absolute bottom-16 left-16 z-50">
-            <SettingsMenu
-              onClose={() => setIsSettingsMenuOpen(false)}
-              onOpenModal={onOpenModal || defaultOpenModal}
-            />
-          </div>
+            className="absolute bottom-16 left-16 z-50"
+            onClick={(event) => event.stopPropagation()} // Prevent event propagation
+          ></div>
         )}
       </div>
     </div>

@@ -1,21 +1,24 @@
-import React from "react";
 import { Modal } from "antd";
 
-interface SettingsModalProps {
-  visible: boolean;
-  onClose: () => void;
-}
-
-const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onClose }) => {
+const SettingsModal: React.FC<{ visible: boolean; onClose: () => void }> = ({
+  visible,
+  onClose,
+}) => {
   return (
     <Modal
-      title="Cài đặt chung"
-      visible={visible}
-      onCancel={onClose} // Đóng modal khi nhấn nút "X" hoặc bên ngoài
-      footer={null} // Không hiển thị footer
-    >
-      <p>Đây là nội dung của modal cài đặt chung.</p>
-      {/* Thêm nội dung cài đặt tại đây */}
+      title="Cài đặt"
+      open={visible} // Use `open` instead of `visible` in Ant Design v4+
+      onCancel={onClose}
+      footer={null}
+      width={{
+        xs: "90%",
+        sm: "80%",
+        md: "70%",
+        lg: "60%",
+        xl: "50%",
+        xxl: "40%",
+      }}>
+      <p>Content of the modal</p>
     </Modal>
   );
 };
