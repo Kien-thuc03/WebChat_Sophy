@@ -21,13 +21,12 @@ export interface UserSettings {
 export interface User {
   _id: ObjectId;
   userId: string;
-  full_name: string;
   fullname: string;
   isMale: boolean;
   phone: string;
   hash_password: string;
   birthday: string;
-  profile: UserProfile;
+  urlavatar: string;
   settings: UserSettings;
   friendList: string[];
   blockList: string[];
@@ -100,7 +99,8 @@ export interface RefreshTokenFunction {
 // Định nghĩa kiểu dữ liệu cho context xác thực
 export interface AuthContextType {
   user: User | null;
-  login: (form: LoginPayload) => Promise<void>; // Đảm bảo đồng bộ với LoginPayload
+  setUser: React.Dispatch<React.SetStateAction<User | null>>; // Thêm setUser
+  login: (form: { phone: string; password: string }) => Promise<void>;
   logout: () => void;
-  changePassword: (oldPassword: string, newPassword: string) => Promise<void>; // Sửa kiểu trả về
+  changePassword: (oldPassword: string, newPassword: string) => Promise<void>;
 }

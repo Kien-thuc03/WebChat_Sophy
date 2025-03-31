@@ -11,7 +11,7 @@ const Dashboard: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedConversation, setSelectedConversation] = useState<any>(null);
 
-  // Function to open the modal (passed to SettingsMenu as onOpenModal)
+  // Function to open the modal (passed to SettingsMenu and Sidebar)
   const handleOpenModal = () => {
     setIsModalOpen(true);
     setIsSettingsOpen(false); // Close settings menu when modal opens
@@ -54,6 +54,7 @@ const Dashboard: React.FC = () => {
           <MainContent />
         )}
       </div>
+
       {isSettingsOpen && (
         <SettingsMenu
           onClose={handleCloseSettings}
