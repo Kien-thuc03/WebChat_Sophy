@@ -1,5 +1,5 @@
 import axios, { AxiosError } from "axios";
-import { Conversation } from "../features/chat/types/conversationTypes";
+import { Conversation, Message } from "../features/chat/types/conversationTypes";
 // import bcrypt from "bcryptjs";
 
 // Khai báo URL API chính
@@ -322,7 +322,7 @@ export const getUserById = async (userId: string): Promise<any> => {
       throw new Error("Không có token xác thực");
     }
 
-    const response = await apiClient.get(`/api/users/${userId}`);
+    const response = await apiClient.get(`/api/users/get-user-by-id/${userId}`);
     console.log("Get user by ID response:", response.data);
     return response.data;
   } catch (error: any) {
@@ -362,6 +362,69 @@ export const fetchConversations = async (): Promise<Conversation[]> => {
   } catch (error) {
     console.error("Lỗi khi lấy danh sách hội thoại:", error);
     return []; // Return empty array instead of throwing
+  }
+};
+
+// Lấy tin nhắn của một cuộc trò chuyện
+export const getMessages = async (conversationId: string, page: number = 1, limit: number = 20): Promise<Message[]> => {
+  try {
+    const token = getAuthToken();
+    if (!token) {
+      throw new Error("Không có token xác thực");
+    }
+
+    const response = await apiClient.get(`/api/conversations/${conversationId}/messages`, {
+      params: {
+        page,
+        limit
+      }
+    });
+
+    if (!Array.isArray(response.data)) {
+      console.error("Invalid messages data format:", response.data);
+      return [];
+    }
+
+    return response.data;
+  } catch (error) {
+    console.error("Lỗi khi lấy tin nhắn:", error);
+    return [];
+  }
+};
+
+// Gửi tin nhắn mới
+export const sendMessage = async (conversationId: string, content: string, type: string = 'text'): Promise<Message> => {
+  try {
+    const token = getAuthToken();
+    if (!token) {
+      throw new Error("Không có token xác thực");
+    }
+
+    const response = await apiClient.post(`/api/conversations/${conversationId}/messages`, {
+      content,
+      type
+    });
+
+    return response.data;
+  } catch (error: any) {
+    console.error("Lỗi khi gửi tin nhắn:", error);
+    throw new Error(error.response?.data?.message || "Không thể gửi tin nhắn");
+  }
+};
+
+// Lấy chi tiết một cuộc trò chuyện
+export const getConversationDetail = async (conversationId: string): Promise<Conversation> => {
+  try {
+    const token = getAuthToken();
+    if (!token) {
+      throw new Error("Không có token xác thực");
+    }
+
+    const response = await apiClient.get(`/api/conversations/${conversationId}`);
+    return response.data;
+  } catch (error: any) {
+    console.error("Lỗi khi lấy chi tiết cuộc trò chuyện:", error);
+    throw new Error(error.response?.data?.message || "Không thể lấy chi tiết cuộc trò chuyện");
   }
 };
 
@@ -417,20 +480,17 @@ export const register = async (
       birthday
     });
 
-    const { token, user } = response.data;
-
-    if (!token?.accessToken || !token?.refreshToken || !user || !user.userId) {
+    const { token, userId } = response.data;
+    if (!token || !userId) {
       throw new Error("Dữ liệu đăng ký không hợp lệ");
     }
 
-    localStorage.setItem("userId", user.userId);
-    localStorage.setItem("token", token.accessToken);
-    localStorage.setItem("refreshToken", token.refreshToken);
+    localStorage.setItem("userId", userId);
+    localStorage.setItem("token", token);
 
     return {
-      userId: user.userId,
-      accessToken: token.accessToken,
-      fullname: user.fullname
+      userId,
+      token
     };
   } catch (error: any) {
     if (error.response?.status === 400) {
