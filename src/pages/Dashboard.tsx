@@ -2,14 +2,14 @@ import React, { useState } from "react";
 import Sidebar from "../components/sidebar/Sidebar";
 import ChatList from "../components/chat/ChatList";
 import MainContent from "../components/content/MainContent";
-import SettingsMenu from "../components/content/SettingsMenu"; // Import SettingsMenu
-import UserModal from "../components/content/UserModal"; // Import UserModal
+import SettingsMenu from "../components/content/SettingsMenu";
+import UserModal from "../components/content/modal/UserModal";
 
 const Dashboard: React.FC = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false); // State for SettingsMenu visibility
   const [isModalOpen, setIsModalOpen] = useState(false); // State for UserModal visibility
 
-  // Function to open the modal (passed to SettingsMenu as onOpenModal)
+  // Function to open the modal (passed to SettingsMenu and Sidebar)
   const handleOpenModal = () => {
     setIsModalOpen(true);
     setIsSettingsOpen(false); // Close settings menu when modal opens
@@ -32,7 +32,10 @@ const Dashboard: React.FC = () => {
 
   return (
     <div className="flex h-screen relative">
-      <Sidebar onSettingsClick={handleToggleSettings} />
+      <Sidebar
+        onSettingsClick={handleToggleSettings}
+        onOpenModal={handleOpenModal} // Truyền hàm mở modal vào Sidebar
+      />
       <ChatList />
       <MainContent />
       {isSettingsOpen && (

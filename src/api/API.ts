@@ -1,4 +1,5 @@
 import axios, { AxiosError } from "axios";
+
 import { Conversation } from "../features/chat/types/conversationTypes";
 // import bcrypt from "bcryptjs";
 
@@ -13,12 +14,45 @@ const apiClient = axios.create({
   },
 });
 
+export const updateUserName = async (userId: string, fullname: string) => {
+  try {
+    const response = await apiClient.put("/api/users/update-user/name", {
+      userId,
+      fullname,
+    });
+    return response.data;
+  } catch (error: any) {
+    if (error.response?.status === 404) {
+      throw new Error("Không tìm thấy người dùng");
+    }
+    throw new Error(error.response?.data?.message || "Lỗi không xác định");
+  }
+};
+
+export const updateUserInfo = async (
+  userId: string,
+  data: { isMale: boolean; birthday: string; [key: string]: any }
+) => {
+  try {
+    const response = await apiClient.put("/api/users/update-user/info", {
+      userId,
+      ...data, // Truyền các thông tin cần cập nhật
+    });
+    return response.data;
+  } catch (error: any) {
+    if (error.response?.status === 404) {
+      throw new Error("Không tìm thấy người dùng");
+    }
+    throw new Error(error.response?.data?.message || "Lỗi không xác định");
+  }
+};
+
 export const generateQRToken = async () => {
   try {
     const response = await apiClient.post("/api/auth/generate-qr-token");
     return {
       qrToken: response.data.qrToken,
-      expiresAt: response.data.expiresAt
+      expiresAt: response.data.expiresAt,
     };
   } catch (error) {
     throw new Error("Không thể tạo mã QR");
@@ -27,9 +61,11 @@ export const generateQRToken = async () => {
 
 export const verifyQRToken = async (qrToken: string) => {
   try {
-    const response = await apiClient.post("/api/auth/verify-qr-token", { qrToken });
+    const response = await apiClient.post("/api/auth/verify-qr-token", {
+      qrToken,
+    });
     return {
-      message: response.data.message
+      message: response.data.message,
     };
   } catch (error: any) {
     if (error.response?.status === 404) {
@@ -44,12 +80,14 @@ export const verifyQRToken = async (qrToken: string) => {
 
 export const checkQRStatus = async (qrToken: string) => {
   try {
-    const response = await apiClient.post(`/api/auth/check-qr-status/${qrToken}`);
+    const response = await apiClient.post(
+      `/api/auth/check-qr-status/${qrToken}`
+    );
     return {
       status: response.data.status,
       message: response.data.message,
       userId: response.data.userId,
-      accessToken: response.data.accessToken
+      accessToken: response.data.accessToken,
     };
   } catch (error: any) {
     if (error.response?.status === 404) {
@@ -208,20 +246,25 @@ apiClient.interceptors.response.use(
         }
 
         // Call the refresh endpoint với refreshToken trong header
-        const response = await axios.post(`${API_BASE_URL}/api/auth/refresh`, {}, {
-          headers: {
-            'Authorization': `Bearer ${refreshToken}`
+        const response = await axios.post(
+          `${API_BASE_URL}/api/auth/refresh`,
+          {},
+          {
+            headers: {
+              Authorization: `Bearer ${refreshToken}`,
+            },
           }
-        });
+        );
 
         const { accessToken, refreshToken: newRefreshToken } = response.data;
 
         // Update tokens in localStorage
         localStorage.setItem("token", accessToken);
         localStorage.setItem("refreshToken", newRefreshToken);
-        
+
         // Cập nhật header Authorization với accessToken mới
-        apiClient.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
+        apiClient.defaults.headers.common["Authorization"] =
+          `Bearer ${accessToken}`;
 
         // Process the queued requests
         processQueue(null, accessToken);
@@ -337,8 +380,6 @@ export const getUserById = async (userId: string): Promise<any> => {
   }
 };
 
-
-
 // Hàm lấy danh sách hội thoại
 export const fetchConversations = async (): Promise<Conversation[]> => {
   try {
@@ -366,37 +407,43 @@ export const fetchConversations = async (): Promise<Conversation[]> => {
 };
 
 // Kiểm tra số điện thoại đã được sử dụng chưa
-export const checkUsedPhone = async (phone: string): Promise<{ otpId: string; otp: string }> => {
+export const checkUsedPhone = async (
+  phone: string
+): Promise<{ otpId: string; otp: string }> => {
   try {
     const response = await apiClient.get(`/api/auth/check-used-phone/${phone}`);
     return {
       otpId: response.data.otpId,
-      otp: response.data.otp
+      otp: response.data.otp,
     };
   } catch (error: any) {
     if (error.response?.status === 400) {
-      throw new Error(error.response.data.message || "Số điện thoại không hợp lệ");
+      throw new Error(
+        error.response.data.message || "Số điện thoại không hợp lệ"
+      );
     }
     throw new Error("Không thể kiểm tra số điện thoại");
   }
 };
 
 // Xác thực mã OTP
-export const verifyPhoneOTP = async (phone: string, otp: string, otpId: string): Promise<void> => {
+export const verifyPhoneOTP = async (
+  phone: string,
+  otp: string,
+  otpId: string
+): Promise<void> => {
   try {
     const response = await apiClient.post("/api/auth/verify-phone-otp", {
       phone,
       otp,
-      otpId
+      otpId,
     });
     console.log("Verify phone OTP response:", response.data);
     if (response.data.message !== "Phone verified successfully") {
       throw new Error(response.data.message || "Xác thực OTP thất bại");
     }
   } catch (error: any) {
-    throw new Error(
-      error.response?.data?.message || "Xác thực OTP thất bại"
-    );
+    throw new Error(error.response?.data?.message || "Xác thực OTP thất bại");
   }
 };
 
@@ -414,7 +461,7 @@ export const register = async (
       password,
       fullname,
       isMale,
-      birthday
+      birthday,
     });
 
     const { token, user } = response.data;
@@ -430,7 +477,7 @@ export const register = async (
     return {
       userId: user.userId,
       accessToken: token.accessToken,
-      fullname: user.fullname
+      fullname: user.fullname,
     };
   } catch (error: any) {
     if (error.response?.status === 400) {

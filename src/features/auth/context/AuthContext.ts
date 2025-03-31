@@ -1,9 +1,11 @@
 import { createContext } from "react";
 import { AuthContextType } from "../types/authTypes";
 
-// Tạo context với giá trị mặc định
 export const AuthContext = createContext<AuthContextType>({
-  user: null, // Giá trị mặc định là null
+  user: null,
+  setUser: () => {
+    console.warn("setUser function is not implemented");
+  },
   login: async () => {
     console.warn("login function is not implemented");
   },
