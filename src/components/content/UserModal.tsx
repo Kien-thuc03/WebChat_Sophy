@@ -1,9 +1,10 @@
 import React, { useEffect } from "react";
-import { useAuth } from "../../features/auth/hooks/useAuth"; // Import useAuth hook
+import { useAuth } from "../../features/auth/hooks/useAuth"; 
+import { User } from "../../features/auth/types/authTypes";
 import { FaMarker } from "react-icons/fa";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faXmark } from "@fortawesome/free-solid-svg-icons"; // Import biểu tượng xmark
-import {User } from "../../features/auth/types/authTypes"
+import { faXmark } from "@fortawesome/free-solid-svg-icons"; 
+
 interface UserModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -11,10 +12,6 @@ interface UserModalProps {
 
 const UserModal: React.FC<UserModalProps> = ({ isOpen, onClose }) => {
   const { user } = useAuth() as { user: User | null };
-
-  console.log("Modal isOpen:", isOpen); // Kiểm tra trạng thái của isOpen
-  console.log("User data:", user); // Kiểm tra thông tin user
-
   useEffect(() => {
     if (isOpen) {
       console.log("Modal is opened.");
