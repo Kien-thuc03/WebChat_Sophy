@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faChevronDown,
@@ -32,17 +32,11 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
 }) => {
   const [displayName, setDisplayName] = useState(initialData.displayName);
   const [isMale, setIsMale] = useState(initialData.isMale);
-  const [birthday, setBirthday] = useState(initialData.birthday);
+  const [, setBirthday] = useState(initialData.birthday);
 
-  // Kiểm tra và tách ngày, tháng, năm từ birthday
-  const [day, month, year] =
-    birthday && /^\d{4}-\d{2}-\d{2}$/.test(birthday)
-      ? birthday.split("-")
-      : ["01", "01", "2000"]; // Giá trị mặc định nếu birthday không hợp lệ
-
-  const [selectedDay, setSelectedDay] = useState(day);
-  const [selectedMonth, setSelectedMonth] = useState(month);
-  const [selectedYear, setSelectedYear] = useState(year);
+  const [selectedDay, setSelectedDay] = useState("01");
+  const [selectedMonth, setSelectedMonth] = useState("01");
+  const [selectedYear, setSelectedYear] = useState("2000");
 
   const handleSave = async () => {
     try {
@@ -53,6 +47,8 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
 
       const updatedBirthday = `${selectedYear}-${selectedMonth}-${selectedDay}`;
 
+      console.log("Giới tính trước khi gọi API:", isMale);
+
       // Cập nhật tên hiển thị
       const nameResponse = await updateUserName(userId, displayName);
 
@@ -62,10 +58,17 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
         birthday: updatedBirthday,
       });
 
+      console.log("Payload gửi đến API:", {
+        isMale,
+        birthday: updatedBirthday,
+      });
+      console.log("Kết quả từ API:", infoResponse);
+
       // Gọi hàm onSave để cập nhật state
       onSave({
         displayName: nameResponse.fullname || displayName,
-        isMale: infoResponse.isMale || isMale,
+        isMale:
+          infoResponse.isMale !== undefined ? infoResponse.isMale : isMale,
         birthday: infoResponse.birthday || updatedBirthday,
       });
 
@@ -76,6 +79,24 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
       alert("Cập nhật thất bại!");
     }
   };
+
+  useEffect(() => {
+    if (
+      initialData.birthday &&
+      /^\d{4}-\d{2}-\d{2}$/.test(initialData.birthday)
+    ) {
+      const [year, month, day] = initialData.birthday.split("-");
+      setSelectedDay(day);
+      setSelectedMonth(month);
+      setSelectedYear(year);
+    } else {
+      // Giá trị mặc định nếu birthday không hợp lệ
+      setSelectedDay("01");
+      setSelectedMonth("01");
+      setSelectedYear("2000");
+    }
+  }, [initialData.birthday]);
+
   const handleDateChange = (day: string, month: string, year: string) => {
     setSelectedDay(day);
     setSelectedMonth(month);
@@ -138,9 +159,13 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
               Thông tin cá nhân
             </span>
             <div className="flex items-center">
+              {/* Chọn Nam */}
               <div
                 className="flex items-center mr-8 cursor-pointer"
-                onClick={() => setIsMale(true)}>
+                onClick={() => {
+                  setIsMale(true); // Cập nhật giới tính là Nam
+                  console.log("Giới tính được chọn: Nam");
+                }}>
                 <div
                   className={`w-5 h-5 rounded-full border-2 mr-2 flex items-center justify-center ${
                     isMale ? "border-blue-500" : "border-gray-300"
@@ -151,9 +176,14 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
                 </div>
                 <span>Nam</span>
               </div>
+
+              {/* Chọn Nữ */}
               <div
                 className="flex items-center cursor-pointer"
-                onClick={() => setIsMale(false)}>
+                onClick={() => {
+                  setIsMale(false); // Cập nhật giới tính là Nữ
+                  console.log("Giới tính được chọn: Nữ");
+                }}>
                 <div
                   className={`w-5 h-5 rounded-full border-2 mr-2 flex items-center justify-center ${
                     !isMale ? "border-blue-500" : "border-gray-300"
@@ -200,7 +230,13 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
                 <div className="relative">
                   <select
                     value={selectedMonth}
-                    onChange={(e) => setSelectedMonth(e.target.value)}
+                    onChange={(e) =>
+                      handleDateChange(
+                        selectedDay,
+                        e.target.value,
+                        selectedYear
+                      )
+                    }
                     className="w-full p-2 border rounded-md appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500">
                     {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
                       <option key={m} value={String(m).padStart(2, "0")}>
@@ -218,7 +254,13 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
                 <div className="relative">
                   <select
                     value={selectedYear}
-                    onChange={(e) => setSelectedYear(e.target.value)}
+                    onChange={(e) =>
+                      handleDateChange(
+                        selectedDay,
+                        selectedMonth,
+                        e.target.value
+                      )
+                    }
                     className="w-full p-2 border rounded-md appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500">
                     {Array.from(
                       { length: 100 },
