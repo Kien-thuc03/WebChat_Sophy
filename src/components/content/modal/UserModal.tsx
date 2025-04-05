@@ -69,7 +69,18 @@ const UserModal: React.FC<UserModalProps> = ({ isOpen, onClose }) => {
         bodyStyle={{ padding: "24px" }}
       >
         <div className="text-center mt-4">
-          <div className="flex justify-baseline -mt-12">
+          {/* Add background banner */}
+          <div 
+            className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-r from-blue-400 to-blue-600 rounded-t-lg"
+            style={{
+              backgroundImage: `url(${ 'https://picsum.photos/id/1/800/200'})`,
+              // user?.urlbanner ||
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+            }}
+          />
+          
+          <div className="flex justify-baseline mt-5 relative">
             <img
               src={user?.urlavatar || "https://picsum.photos/id/1/200/200"}
               alt="Avatar"
@@ -80,7 +91,7 @@ const UserModal: React.FC<UserModalProps> = ({ isOpen, onClose }) => {
               <span className="ml-2 text-gray-500 hover:text-gray-700 cursor-pointer">
                 <FaMarker
                   onClick={() => {
-                    setIsEditModalOpen(true); // Open the EditUserModal
+                    setIsEditModalOpen(true);
                   }}
                 />
               </span>
