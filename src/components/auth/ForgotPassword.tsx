@@ -1,32 +1,66 @@
-import React, { useState } from "react"; // Xóa useContext nếu không cần
-import { Link } from "react-router-dom";
+import React, { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import "react-phone-number-input/style.css";
 import PhoneInput from "react-phone-number-input";
-import { changePassword } from "../../api/API"; // Import API quên mật khẩu
+import { sendOTPForgotPassword } from "../../api/API";
 
 const ForgotPassword: React.FC = () => {
-  const [phoneNumber, setPhoneNumber] = useState<string>(""); // Ensure phoneNumber is a string
-  const [oldPassword, setOldPassword] = useState<string>(""); // Input for old password
-  const [newPassword, setNewPassword] = useState<string>(""); // Input for new password
+  const [phoneNumber, setPhoneNumber] = useState("");
   const [message, setMessage] = useState("");
+  const [messageType, setMessageType] = useState<"success" | "error">(
+    "success"
+  );
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault(); // Ngăn chặn reload trang
+    e.preventDefault();
+
+    if (isSubmitting) {
+      return;
+    }
+
+    if (!phoneNumber || phoneNumber.length < 10) {
+      setMessage("Vui lòng nhập số điện thoại hợp lệ");
+      setMessageType("error");
+      return;
+    }
+
+    setIsSubmitting(true);
+    const formattedPhone = phoneNumber.startsWith("+84")
+      ? "0" + phoneNumber.substring(3)
+      : phoneNumber;
 
     try {
-      // Gọi API changePassword
-      const responseMessage = await changePassword(oldPassword, newPassword);
-
-      // Hiển thị thông báo thành công
-      setMessage(responseMessage);
-    } catch (error: unknown) {
-      // Xử lý lỗi và hiển thị thông báo lỗi
+      const response = await sendOTPForgotPassword(formattedPhone);
+      setMessage("Đã gửi mã OTP!");
+      setMessageType("success");
+      
+      setTimeout(() => {
+        navigate("/verify-otp", {
+          state: {
+            phoneNumber: formattedPhone,
+            otpId: response.otpId,
+          },
+        });
+      }, 1500);
+    } catch (error) {
       if (error instanceof Error) {
-        setMessage(error.message || "Đã xảy ra lỗi, vui lòng thử lại.");
+        setMessage(error.message);
       } else {
-        setMessage("Đã xảy ra lỗi không xác định.");
+        setMessage("Có lỗi xảy ra. Vui lòng thử lại.");
       }
+      setMessageType("error");
+    } finally {
+      setIsSubmitting(false);
     }
+  };
+
+  // Remove the standalone button component
+
+  const handlePhoneChange = (value: string | undefined) => {
+    setMessage("");
+    setPhoneNumber(value || "");
   };
 
   return (
@@ -44,56 +78,33 @@ const ForgotPassword: React.FC = () => {
               className="block text-sm font-medium text-gray-900">
               Nhập số điện thoại của bạn
             </label>
+
             <PhoneInput
               international
               defaultCountry="VN"
               placeholder="Nhập số điện thoại"
               value={phoneNumber}
-              onChange={(value) => setPhoneNumber(value || "")} // Handle undefined
+              onChange={handlePhoneChange}
               className="mt-2 w-full rounded-md border border-[#e0e0e0] px-3 py-2 focus:border-[#0066ff] focus:outline-none"
-            />
-          </div>
-
-          <div>
-            <label
-              htmlFor="oldPassword"
-              className="block text-sm font-medium text-gray-900">
-              Nhập mật khẩu cũ
-            </label>
-            <input
-              type="password"
-              id="oldPassword"
-              value={oldPassword}
-              onChange={(e) => setOldPassword(e.target.value)}
-              className="mt-2 w-full rounded-md border border-[#e0e0e0] px-3 py-2 focus:border-[#0066ff] focus:outline-none"
-              autoComplete="current-password" // Thêm thuộc tính này
-            />
-          </div>
-
-          <div>
-            <label
-              htmlFor="newPassword"
-              className="block text-sm font-medium text-gray-900">
-              Nhập mật khẩu mới
-            </label>
-            <input
-              type="password"
-              id="newPassword"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              className="mt-2 w-full rounded-md border border-[#e0e0e0] px-3 py-2 focus:border-[#0066ff] focus:outline-none"
-              autoComplete="new-password" // Thêm thuộc tính này
             />
           </div>
 
           {message && (
-            <div className="text-sm text-green-500 text-center">{message}</div>
+            <div
+              className={`text-sm text-center ${
+                messageType === "success" ? "text-green-500" : "text-red-500"
+              }`}>
+              {message}
+            </div>
           )}
 
           <button
             type="submit"
-            className="w-full rounded-md bg-[#0066ff] px-4 py-2 text-sm font-semibold text-white hover:bg-[#0051cc] focus:outline-none focus:ring-2 focus:ring-[#0066ff] focus:ring-offset-2">
-            Tiếp tục
+            disabled={isSubmitting}
+            className={`w-full rounded-md ${
+              isSubmitting ? "bg-[#99c2ff]" : "bg-[#0066ff] hover:bg-[#0051cc]"
+            } px-4 py-2 text-sm font-semibold text-white focus:outline-none focus:ring-2 focus:ring-[#0066ff] focus:ring-offset-2`}>
+            {isSubmitting ? "Đang xử lý..." : "Tiếp tục"}
           </button>
         </form>
 

@@ -473,7 +473,9 @@ export const checkUsedPhone = async (
   phone: string
 ): Promise<{ otpId: string; otp: string }> => {
   try {
-    const response = await apiClient.get(`/api/auth/check-used-phone/${phone}`);
+    const response = await apiClient.post(
+      `/api/auth/check-used-phone/${phone}`
+    );
     return {
       otpId: response.data.otpId,
       otp: response.data.otp,
@@ -485,6 +487,87 @@ export const checkUsedPhone = async (
       );
     }
     throw new Error("Không thể kiểm tra số điện thoại");
+  }
+};
+// Gửi mã Xác thực OTP
+export const sendOTPForgotPassword = async (
+  phone: string
+): Promise<{ otpId: string }> => {
+  try {
+    const response = await apiClient.post(
+      "/api/auth/send-otp-forgot-password",
+      {
+        phone,
+      }
+    );
+
+    return {
+      otpId: response.data.otpId,
+    };
+  } catch (error: unknown) {
+    if (error instanceof AxiosError) {
+      if (error.response?.status === 404) {
+        throw new Error("Không tìm thấy tài khoản với số điện thoại này");
+      }
+      throw new Error(error.response?.data?.message || "Không thể gửi mã OTP");
+    }
+    throw new Error("Không thể gửi mã OTP");
+  }
+};
+//Xác thực OTP
+export const verifyOTPForgotPassword = async (
+  phone: string,
+  otp: string,
+  otpId: string
+): Promise<void> => {
+  try {
+    const response = await apiClient.post(
+      "/api/auth/verify-otp-forgot-password",
+      {
+        phone,
+        otp,
+        otpId,
+      }
+    );
+
+    if (response.status !== 200) {
+      throw new Error("Xác thực OTP thất bại");
+    }
+  } catch (error: unknown) {
+    if (error instanceof AxiosError) {
+      if (error.response?.status === 404) {
+        throw new Error("Không tìm thấy mã OTP hợp lệ");
+      }
+      throw new Error(error.response?.data?.message || "Xác thực OTP thất bại");
+    }
+    throw new Error("Xác thực OTP thất bại");
+  }
+};
+
+//Quên mật khẩu
+export const forgotPassword = async (
+  phone: string,
+  newPassword: string
+): Promise<void> => {
+  try {
+    const response = await apiClient.put("/api/auth/forgot-password", {
+      phone,
+      newPassword,
+    });
+
+    if (response.status !== 200) {
+      throw new Error("Không thể đặt lại mật khẩu");
+    }
+  } catch (error: unknown) {
+    if (error instanceof AxiosError) {
+      if (error.response?.status === 404) {
+        throw new Error("Không tìm thấy tài khoản với số điện thoại này");
+      }
+      throw new Error(
+        error.response?.data?.message || "Không thể đặt lại mật khẩu"
+      );
+    }
+    throw new Error("Không thể đặt lại mật khẩu");
   }
 };
 

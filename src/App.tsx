@@ -6,7 +6,8 @@ import QRScanner from "./components/auth/QRScanner";
 import Dashboard from "./pages/Dashboard";
 import PrivateRoute from "./components/routes/PrivateRoute";
 import ForgotPassword from "./components/auth/ForgotPassword";
-
+import VerifyOTP from "./components/auth/VerifyOTP";
+import ResetPassword from "./components/auth/ResetPassword";
 const App: React.FC = () => {
   return (
     <Router>
@@ -23,6 +24,8 @@ const App: React.FC = () => {
           }
         />
         <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/verify-otp" element={<VerifyOTP />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
       </Routes>
     </Router>
   );
