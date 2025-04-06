@@ -3,7 +3,7 @@ import { useAuth } from "../../features/auth/hooks/useAuth";
 import { Link, useNavigate } from "react-router-dom";
 import "react-phone-number-input/style.css";
 import PhoneInput from "react-phone-number-input";
-import { generateQRToken, verifyQRToken } from "../../api/API";
+// import { generateQRToken, verifyQRToken } from "../../api/API";
 
 const Signin: React.FC = () => {
   const { login } = useAuth();
