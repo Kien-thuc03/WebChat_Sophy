@@ -4,7 +4,7 @@ const Header = () => {
   return (
     <div
       id="contact-search"
-      className="flex items-center justify-between overflow-hidden w-full px-2 py-1 bg-white rounded-lg space-x-2"
+      className="flex items-center justify-between overflow-hidden w-full px-2 pt-5 py-1 bg-white rounded-lg space-x-2"
     >
       {/* Ô tìm kiếm */}
       <div className="relative flex items-center border border-gray-300 rounded-lg px-2 py-1 w-2/3">

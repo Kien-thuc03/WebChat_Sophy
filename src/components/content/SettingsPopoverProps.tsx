@@ -104,7 +104,7 @@ const SettingsPopover: React.FC<SettingsPopoverProps> = ({
   ];
 
   return (
-    <div className="bg-white  w-64 p-4">
+    <div className="bg-white w-64 p-4 shadow-[0_0_15px_rgba(0,0,0,0.2)] rounded-lg">
       <Menu
         items={items}
         mode="vertical"

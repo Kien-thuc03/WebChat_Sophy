@@ -3,11 +3,12 @@ import { List, Avatar } from "antd";
 import Header from "../header/Header";
 import { useConversations } from "../../features/chat/hooks/useConversations";
 import ErrorBoundary from "../common/ErrorBoundary";
-import { useAuth } from "../../features/auth/hooks/useAuth";
+// import { useAuth } from "../../features/auth/hooks/useAuth";
 import { formatMessageTime } from "../../utils/dateUtils";
 import { Conversation } from "../../features/chat/types/conversationTypes";
 import { getUserById } from "../../api/API";
 import { User } from "../../features/auth/types/authTypes";
+import ChatNav from "./ChatNav";
 import GroupAvatar from "./GroupAvatar";
 
 const formatGroupName = (members: string[] = []) => {
@@ -22,7 +23,7 @@ interface ChatListProps {
 
 const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
   const conversations = useConversations();
-  const { user } = useAuth();
+  // const { user } = useAuth();
   const [userCache, setUserCache] = useState<Record<string, User>>({});
   const [displayNames, setDisplayNames] = useState<Record<string, string>>({});
   const [userAvatars, setUserAvatars] = useState<Record<string, string>>({});
@@ -61,14 +62,14 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
                 const userData = await getUserById(memberId);
                 await setUserCache((prev) => ({
                   ...prev,
-                  [memberId]: userData
+                  [memberId]: userData,
                 }));
-                
+
                 // Lưu avatar URL của thành viên
                 if (userData?.urlavatar) {
-                  setUserAvatars(prev => ({
+                  setUserAvatars((prev) => ({
                     ...prev,
-                    [memberId]: userData.urlavatar
+                    [memberId]: userData.urlavatar,
                   }));
                 }
               } catch (error) {
@@ -109,6 +110,7 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
   return (
     <div className="chat-list w-80 bg-white border-r">
       <Header />
+      <ChatNav />
       <List
         className="overflow-y-auto h-[calc(100vh-64px)]"
         dataSource={conversations}
@@ -120,7 +122,7 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
             {/* Avatar section */}
             <div className="relative shrink-0 pl-2">
               {chat.isGroup && chat.groupMembers.length > 0 ? (
-                <GroupAvatar 
+                <GroupAvatar
                   members={chat.groupMembers}
                   userAvatars={userAvatars}
                   size={40}
@@ -129,7 +131,10 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
                 />
               ) : (
                 <Avatar
-                  src={userCache[chat.receiverId || '']?.urlavatar || "/images/default-avatar.png"}
+                  src={
+                    userCache[chat.receiverId || ""]?.urlavatar ||
+                    "/images/default-avatar.png"
+                  }
                   size={40}
                   className="cursor-pointer"
                 />
@@ -147,7 +152,8 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
                 <div className="relative group">
                   <div className="relative group">
                     <span className="text-xs text-gray-500 hover:text-blue-500 cursor-pointer">
-                      {chat.lastMessage && formatMessageTime(chat.lastMessage.createdAt)}
+                      {chat.lastMessage &&
+                        formatMessageTime(chat.lastMessage.createdAt)}
                     </span>
                     <div className="absolute hidden group-hover:block z-20 w-48 bg-white shadow-lg rounded-md border border-gray-200 right-0">
                       <div className="py-1">
