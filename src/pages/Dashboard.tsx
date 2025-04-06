@@ -3,7 +3,7 @@ import Sidebar from "../components/sidebar/Sidebar";
 import ChatList from "../components/chat/ChatList";
 import ChatHeader from "../components/chat/ChatHeader";
 import SettingsMenu from "../components/content/SettingsMenu";
-import UserModal from "../components/content/UserModal";
+import UserModal from "../components/content/modal/UserModal";
 import MainContent from "../components/content/MainContent";
 
 const Dashboard: React.FC = () => {
@@ -56,7 +56,7 @@ const Dashboard: React.FC = () => {
       </div>
 
       {isSettingsOpen && (
-        <SettingsMenu
+        <SettingsMenu openSettingsModal={handleOpenModal}
           onClose={handleCloseSettings}
           onOpenModal={handleOpenModal}
         />

@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { Avatar } from 'antd';
 import { SearchOutlined, VideoCameraOutlined, UserAddOutlined, RightOutlined } from '@ant-design/icons';
 import { ChatHeaderProps } from '../../features/chat/types/chatTypes';
 import { getUserById } from '../../api/API';
 import { User } from '../../features/auth/types/authTypes';
 import { Conversation } from '../../features/chat/types/conversationTypes';
+import GroupAvatar from './GroupAvatar';
 
 interface ExtendedChatHeaderProps extends ChatHeaderProps {
   conversation: Conversation;
@@ -12,6 +12,7 @@ interface ExtendedChatHeaderProps extends ChatHeaderProps {
 
 const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({ conversation }) => {
   const [receiverInfo, setReceiverInfo] = useState<User | null>(null);
+  const [userAvatars, setUserAvatars] = useState<Record<string, string>>({});
   const isGroup = conversation.isGroup;
   const groupName = conversation.groupName;
   const groupAvatarUrl = conversation.groupAvatarUrl;
@@ -23,26 +24,56 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({ conversation }) => {
         try {
           const userData = await getUserById(conversation.receiverId);
           setReceiverInfo(userData);
+          if (userData?.urlavatar) {
+            setUserAvatars(prev => ({
+              ...prev,
+              [conversation.receiverId as string]: userData.urlavatar
+            }));
+          }
         } catch (error) {
           console.error('Lỗi khi lấy thông tin người dùng:', error);
         }
+      } else if (isGroup && groupMembers.length > 0) {
+        // Fetch avatars for group members
+        const avatars: Record<string, string> = {};
+        for (const memberId of groupMembers.slice(0, 4)) { // Limit to first 4 members
+          try {
+            const userData = await getUserById(memberId);
+            if (userData?.urlavatar) {
+              avatars[memberId] = userData.urlavatar;
+            }
+          } catch (error) {
+            console.error(`Lỗi khi lấy thông tin thành viên ${memberId}:`, error);
+          }
+        }
+        setUserAvatars(avatars);
       }
     };
 
     fetchReceiverInfo();
-  }, [isGroup, conversation.receiverId]);
+  }, [isGroup, conversation.receiverId, groupMembers]);
   return (
     <header className="flex items-center justify-between px-4 py-2 bg-white border-b">
       <div className="flex items-center flex-1 group">
         {/* Avatar Group */}
         <div className="relative cursor-pointer mr-3">
-          <div className="flex -space-x-2 overflow-hidden">
-            <Avatar
-              src={groupAvatarUrl || '/images/group-avatar.png'}
-              className="border-2 border-white"
+          {isGroup ? (
+            <GroupAvatar
+              members={groupMembers}
+              userAvatars={userAvatars}
               size={40}
+              className="border-2 border-white"
+              groupAvatarUrl={groupAvatarUrl || undefined}
             />
-          </div>
+          ) : (
+            <div className="w-10 h-10 rounded-lg overflow-hidden">
+              <img
+                src={userAvatars[conversation.receiverId as string] || '/images/default-avatar.png'}
+                alt="Avatar"
+                className="w-full h-full object-cover"
+              />
+            </div>
+          )}
         </div>
 
         {/* Title and Member Info */}

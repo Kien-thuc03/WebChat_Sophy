@@ -8,6 +8,7 @@ import { formatMessageTime } from "../../utils/dateUtils";
 import { Conversation } from "../../features/chat/types/conversationTypes";
 import { getUserById } from "../../api/API";
 import { User } from "../../features/auth/types/authTypes";
+import GroupAvatar from "./GroupAvatar";
 
 const formatGroupName = (members: string[] = []) => {
   if (!members.length) return "Nhóm không có thành viên";
@@ -24,6 +25,7 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
   const { user } = useAuth();
   const [userCache, setUserCache] = useState<Record<string, User>>({});
   const [displayNames, setDisplayNames] = useState<Record<string, string>>({});
+  const [userAvatars, setUserAvatars] = useState<Record<string, string>>({});
 
   const getDisplayName = async (chat: Conversation) => {
     if (chat.isGroup) {
@@ -61,6 +63,14 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
                   ...prev,
                   [memberId]: userData
                 }));
+                
+                // Lưu avatar URL của thành viên
+                if (userData?.urlavatar) {
+                  setUserAvatars(prev => ({
+                    ...prev,
+                    [memberId]: userData.urlavatar
+                  }));
+                }
               } catch (error) {
                 console.warn(`Không thể tải thông tin thành viên ${memberId}`);
               }
@@ -110,18 +120,16 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
             {/* Avatar section */}
             <div className="relative shrink-0 pl-2">
               {chat.isGroup && chat.groupMembers.length > 0 ? (
-                <Avatar.Group max={{ count: 4 }} size={40}>
-                  {chat.groupMembers.map((_, index) => (
-                    <Avatar
-                      key={index}
-                      src={`/images/default-avatar.png`}
-                      size={40}
-                    />
-                  ))}
-                </Avatar.Group>
+                <GroupAvatar 
+                  members={chat.groupMembers}
+                  userAvatars={userAvatars}
+                  size={40}
+                  className="cursor-pointer"
+                  groupAvatarUrl={chat.groupAvatarUrl || undefined}
+                />
               ) : (
                 <Avatar
-                  src={"/images/default-avatar.png"}
+                  src={userCache[chat.receiverId || '']?.urlavatar || "/images/default-avatar.png"}
                   size={40}
                   className="cursor-pointer"
                 />
