@@ -1,111 +1,19 @@
-import React, { useEffect, useState } from "react";
-import { List, Avatar } from "antd";
+import React from "react";
+import { List } from "antd";
 import Header from "../header/Header";
+import { Avatar } from "../common/Avatar";
 import { useConversations } from "../../features/chat/hooks/useConversations";
 import ErrorBoundary from "../common/ErrorBoundary";
-// import { useAuth } from "../../features/auth/hooks/useAuth";
 import { formatMessageTime } from "../../utils/dateUtils";
-import { Conversation } from "../../features/chat/types/conversationTypes";
-import { getUserById } from "../../api/API";
-import { User } from "../../features/auth/types/authTypes";
 import ChatNav from "./ChatNav";
 import GroupAvatar from "./GroupAvatar";
-
-const formatGroupName = (members: string[] = []) => {
-  if (!members.length) return "Nhóm không có thành viên";
-  const displayNames = members.slice(0, 3).join(", ");
-  return members.length > 3 ? `${displayNames}...` : displayNames;
-};
 
 interface ChatListProps {
   onSelectConversation: (conversation: any) => void;
 }
 
 const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
-  const conversations = useConversations();
-  // const { user } = useAuth();
-  const [userCache, setUserCache] = useState<Record<string, User>>({});
-  const [displayNames, setDisplayNames] = useState<Record<string, string>>({});
-  const [userAvatars, setUserAvatars] = useState<Record<string, string>>({});
-
-  const getDisplayName = async (chat: Conversation) => {
-    if (chat.isGroup) {
-      return chat.groupName || formatGroupName(chat.groupMembers);
-    }
-    if (chat.receiverId) {
-      try {
-        if (!userCache[chat.receiverId]) {
-          const userData = await getUserById(chat.receiverId);
-          await setUserCache((prev) => ({
-            ...prev,
-            [chat.receiverId as string]: userData,
-          }));
-          return userData?.fullname || chat.receiverId;
-        }
-        return userCache[chat.receiverId]?.fullname || chat.receiverId;
-      } catch (error) {
-        console.error("Lỗi khi lấy thông tin người dùng:", error);
-        return chat.receiverId;
-      }
-    }
-    return "Private Chat";
-  };
-
-  useEffect(() => {
-    const fetchUserInfo = async () => {
-      for (const chat of conversations) {
-        // Fetch group members' info
-        if (chat.isGroup && chat.groupMembers) {
-          for (const memberId of chat.groupMembers) {
-            if (!userCache[memberId]) {
-              try {
-                const userData = await getUserById(memberId);
-                await setUserCache((prev) => ({
-                  ...prev,
-                  [memberId]: userData,
-                }));
-
-                // Lưu avatar URL của thành viên
-                if (userData?.urlavatar) {
-                  setUserAvatars((prev) => ({
-                    ...prev,
-                    [memberId]: userData.urlavatar,
-                  }));
-                }
-              } catch (error) {
-                console.warn(`Không thể tải thông tin thành viên ${memberId}`);
-              }
-            }
-          }
-        }
-        const displayName = await getDisplayName(chat);
-        setDisplayNames((prev) => ({
-          ...prev,
-          [chat.conversationId]: displayName,
-        }));
-
-        // Fetch sender info for last message only if senderId exists
-        if (
-          chat.lastMessage?.senderId &&
-          !userCache[chat.lastMessage.senderId]
-        ) {
-          try {
-            const userData = await getUserById(chat.lastMessage.senderId);
-            await setUserCache((prev) => ({
-              ...prev,
-              [chat.lastMessage?.senderId as string]: userData,
-            }));
-          } catch (error) {
-            console.warn(
-              `Không thể tải thông tin người gửi ${chat.lastMessage.senderId}`
-            );
-          }
-        }
-      }
-    };
-
-    fetchUserInfo();
-  }, [conversations]);
+  const { conversations, userCache, displayNames, userAvatars } = useConversations();
 
   return (
     <div className="chat-list w-80 bg-white border-r">
@@ -131,10 +39,8 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
                 />
               ) : (
                 <Avatar
-                  src={
-                    userCache[chat.receiverId || ""]?.urlavatar ||
-                    "/images/default-avatar.png"
-                  }
+                  name={userCache[chat.receiverId || ""]?.fullname || "User"}
+                  avatarUrl={userCache[chat.receiverId || ""]?.urlavatar}
                   size={40}
                   className="cursor-pointer"
                 />

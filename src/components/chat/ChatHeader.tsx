@@ -1,57 +1,22 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { SearchOutlined, VideoCameraOutlined, UserAddOutlined, RightOutlined } from '@ant-design/icons';
 import { ChatHeaderProps } from '../../features/chat/types/chatTypes';
-import { getUserById } from '../../api/API';
-import { User } from '../../features/auth/types/authTypes';
 import { Conversation } from '../../features/chat/types/conversationTypes';
 import GroupAvatar from './GroupAvatar';
+import { useConversations } from '../../features/chat/hooks/useConversations';
+import { Avatar } from '../common/Avatar';
 
 interface ExtendedChatHeaderProps extends ChatHeaderProps {
   conversation: Conversation;
 }
 
 const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({ conversation }) => {
-  const [receiverInfo, setReceiverInfo] = useState<User | null>(null);
-  const [userAvatars, setUserAvatars] = useState<Record<string, string>>({});
+  const { userCache, userAvatars } = useConversations();
   const isGroup = conversation.isGroup;
   const groupName = conversation.groupName;
   const groupAvatarUrl = conversation.groupAvatarUrl;
   const groupMembers = conversation.groupMembers;
-
-  useEffect(() => {
-    const fetchReceiverInfo = async () => {
-      if (!isGroup && conversation.receiverId) {
-        try {
-          const userData = await getUserById(conversation.receiverId);
-          setReceiverInfo(userData);
-          if (userData?.urlavatar) {
-            setUserAvatars(prev => ({
-              ...prev,
-              [conversation.receiverId as string]: userData.urlavatar
-            }));
-          }
-        } catch (error) {
-          console.error('Lỗi khi lấy thông tin người dùng:', error);
-        }
-      } else if (isGroup && groupMembers.length > 0) {
-        // Fetch avatars for group members
-        const avatars: Record<string, string> = {};
-        for (const memberId of groupMembers.slice(0, 4)) { // Limit to first 4 members
-          try {
-            const userData = await getUserById(memberId);
-            if (userData?.urlavatar) {
-              avatars[memberId] = userData.urlavatar;
-            }
-          } catch (error) {
-            console.error(`Lỗi khi lấy thông tin thành viên ${memberId}:`, error);
-          }
-        }
-        setUserAvatars(avatars);
-      }
-    };
-
-    fetchReceiverInfo();
-  }, [isGroup, conversation.receiverId, groupMembers]);
+  const receiverInfo = conversation.receiverId ? userCache[conversation.receiverId] : null;
   return (
     <header className="flex items-center justify-between px-4 py-2 bg-white border-b">
       <div className="flex items-center flex-1 group">
@@ -66,13 +31,12 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({ conversation }) => {
               groupAvatarUrl={groupAvatarUrl || undefined}
             />
           ) : (
-            <div className="w-10 h-10 rounded-lg overflow-hidden">
-              <img
-                src={userAvatars[conversation.receiverId as string] || '/images/default-avatar.png'}
-                alt="Avatar"
-                className="w-full h-full object-cover"
-              />
-            </div>
+            <Avatar
+              name={receiverInfo?.fullname || 'User'}
+              avatarUrl={userCache[conversation.receiverId || ""]?.urlavatar}
+              size={40}
+              className="rounded-lg"
+            />
           )}
         </div>
 

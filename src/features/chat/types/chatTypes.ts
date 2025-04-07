@@ -4,3 +4,11 @@ export interface ChatHeaderProps {
   groupAvatarUrl?: string | null;
   groupMembers?: string[];
 }
+
+//các item phân loại trong chat
+export interface Label {
+  id: string;
+  name: string;
+  color: string;
+  selected: boolean;
+}
