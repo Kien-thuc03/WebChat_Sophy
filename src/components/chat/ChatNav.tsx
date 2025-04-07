@@ -201,8 +201,8 @@ const ChatNav: React.FC = () => {
                         </div>
                       ))}
                       
-                      <div className="border-t border-gray-200 my-2"></div>
-                      <div className={`p-2 text-center rounded-full cursor-pointer my-1 ${labels.some(l => l.selected) ? 'bg-blue-100 text-blue-600 font-medium' : 'text-blue-500 hover:bg-gray-100'}`} onClick={handleManageLabels}>
+                      <div className={`p-2 rounded-full hover:bg-gray-200 cursor-pointer relative text-sm ${isMoreMenuOpen ? 'text-blue-500 bg-blue-100' : 'text-gray-500 hover:bg-gray-100'}`}></div>
+                      <div className={`p-2 text-center rounded-full cursor-pointer my-1 ${labels.some(l => l.selected) ? 'bg-blue-100 text-blue-600 font-medium rounded-full' : 'text-blue-500 hover:bg-gray-100'}`} onClick={handleManageLabels}>
                         <span>Quản lý thẻ phân loại</span>
                       </div>
                     </div>
@@ -214,10 +214,10 @@ const ChatNav: React.FC = () => {
           
           <div 
             ref={moreButtonRef}
-            className="p-2 rounded-full hover:bg-gray-200 cursor-pointer relative text-sm"
+            className={`p-2 rounded-full cursor-pointer relative text-sm ${isMoreMenuOpen ? 'bg-blue-100' : 'hover:bg-gray-200'}`}
             onClick={toggleMoreMenu}
           >
-            <FontAwesomeIcon icon={faEllipsisH} className="text-gray-500" />
+            <FontAwesomeIcon icon={faEllipsisH} className={`${isMoreMenuOpen ? 'text-blue-500 font-semibold' : 'text-gray-500'}`} />
             
             {/* Dropdown menu More */}
             {isMoreMenuOpen && (

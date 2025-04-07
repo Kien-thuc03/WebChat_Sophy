@@ -14,6 +14,17 @@ export const formatMessageTime = (timestamp: string) => {
     const hours = Math.floor(diff / 3600000);
     return `${hours} giờ`;
   }
+  //less than 2 days nếu lớn hơn 24h và nhỏ hơn 3 ngày thì hiển thị là "Hôm qua"
+  if (diff < 172800000) {
+    return "Hôm qua"; 
+  }
+
+
+  // Less than 7 days
+  if (diff < 604800000) {
+    const days = Math.floor(diff / 86400000);
+    return `${days} ngày`;
+  }
   
   // More than 24 hours
   return date.toLocaleDateString('vi-VN');
