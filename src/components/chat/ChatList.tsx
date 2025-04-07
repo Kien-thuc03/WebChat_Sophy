@@ -1,4 +1,6 @@
-import React from "react";
+import React, { useState, useRef, useEffect } from "react";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faEllipsisH, faChevronRight } from "@fortawesome/free-solid-svg-icons";
 import { List } from "antd";
 import Header from "../header/Header";
 import { Avatar } from "../common/Avatar";
@@ -8,12 +10,35 @@ import { formatMessageTime } from "../../utils/dateUtils";
 import ChatNav from "./ChatNav";
 import GroupAvatar from "./GroupAvatar";
 
+import { Conversation } from "../../features/chat/types/conversationTypes";
+
 interface ChatListProps {
-  onSelectConversation: (conversation: any) => void;
+  onSelectConversation: (conversation: Conversation) => void;
 }
 
 const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
   const { conversations, userCache, displayNames, userAvatars } = useConversations();
+  const [activeMenu, setActiveMenu] = useState<string | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        menuRef.current &&
+        buttonRef.current &&
+        !menuRef.current.contains(event.target as Node) &&
+        !buttonRef.current.contains(event.target as Node)
+      ) {
+        setActiveMenu(null);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   return (
     <div className="chat-list w-80 bg-white border-r">
@@ -49,50 +74,92 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
 
             {/* Content section */}
             <div className="flex-1 min-w-0">
-              <div className="flex justify-between items-center">
+              <div className="flex justify-between items-center relative group">
                 <span className="truncate font-semibold text-gray-900">
                   {displayNames[chat.conversationId] ||
                     chat.receiverId ||
                     "Private Chat"}
                 </span>
-                <div className="relative group">
-                  <div className="relative group">
-                    <span className="text-xs text-gray-500 hover:text-blue-500 cursor-pointer">
-                      {chat.lastMessage &&
-                        formatMessageTime(chat.lastMessage.createdAt)}
-                    </span>
-                    <div className="absolute hidden group-hover:block z-20 w-48 bg-white shadow-lg rounded-md border border-gray-200 right-0">
+                <div className="flex items-center">
+                  <span className="text-xs text-gray-500 group-hover:opacity-0 transition-opacity duration-200">
+                    {chat.lastMessage && formatMessageTime(chat.lastMessage.createdAt)}
+                  </span>
+                  <div className="absolute right-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                    <button
+                      ref={buttonRef}
+                      className="p-1 rounded hover:bg-gray-100"
+                      title="Thêm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setActiveMenu(activeMenu === chat.conversationId ? null : chat.conversationId);
+                      }}
+                    >
+                      <FontAwesomeIcon icon={faEllipsisH} className="fa fa-ellipsis-h text-gray-600" />
+                    </button>
+                    <div
+                      ref={menuRef}
+                      className={`absolute z-20 w-50 bg-white shadow-lg rounded-md border border-gray-200 right-0 mt-1 ${activeMenu === chat.conversationId ? 'block' : 'hidden'}`}
+                    >
                       <div className="py-1">
                         <div className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer">
                           Ghim hội thoại
                         </div>
-                        <div className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer">
-                          Phân loại
+                        <div className="border-t border-gray-200"></div>
+                        <div className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer relative group/sub flex items-center justify-between">
+                          <span>Phân loại</span>
+                          <FontAwesomeIcon icon={faChevronRight} className="text-gray-400 ml-2" />
+                          <div className="absolute hidden group-hover/sub:block left-full top-0 w-64 bg-white shadow-lg rounded-md border border-gray-200">
+                            <div className="py-1">
+                              <div className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer">Khách hàng</div>
+                              <div className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer">Gia đình</div>
+                              <div className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer">Công việc</div>
+                              <div className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer">Bạn bè</div>
+                              <div className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer">Trả lời sau</div>
+                              <div className="border-t border-gray-200"></div>
+                              <div className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer">Quản lý thẻ phân loại</div>
+                            </div>
+                          </div>
                         </div>
                         <div className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer">
-                          Tắt thông báo
+                          Đánh dấu chưa đọc
+                        </div>
+                        <div className="border-t border-gray-200"></div>
+                        <div className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer relative group/sub flex items-center justify-between">
+                          <span>Tắt thông báo</span>
+                          <FontAwesomeIcon icon={faChevronRight} className="text-gray-400 ml-2" />
+                          <div className="absolute hidden group-hover/sub:block left-full top-0 w-64 bg-white shadow-lg rounded-md border border-gray-200">
+                            <div className="py-1">
+                              <div className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer">Trong 1 giờ</div>
+                              <div className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer">Trong 4 giờ</div>
+                              <div className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer">Cho đến 8:00 AM</div>
+                              <div className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer">Cho đến khi được mở lại</div>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer">
+                          Ẩn trò chuyện
+                        </div>
+                        <div className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer relative group/sub flex items-center justify-between">
+                          <span>Tin nhắn tự xóa</span>
+                          <FontAwesomeIcon icon={faChevronRight} className="text-gray-400 ml-2" />
+                          <div className="absolute hidden group-hover/sub:block left-full top-0 w-64 bg-white shadow-lg rounded-md border border-gray-200">
+                            <div className="py-1">
+                              <div className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer">1 ngày</div>
+                              <div className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer">7 ngày</div>
+                              <div className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer">14 ngày</div>
+                              <div className="border-t border-gray-200"></div>
+                              <div className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer">Không bao giờ</div>
+                            </div>
+                          </div>
                         </div>
                         <div className="border-t border-gray-200"></div>
                         <div className="px-4 py-2 text-sm text-red-500 hover:bg-gray-100 cursor-pointer">
                           Xóa hội thoại
                         </div>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="absolute hidden group-hover:block z-20 w-48 bg-white shadow-lg rounded-md border border-gray-200 right-0">
-                    <div className="py-1">
-                      <div className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer">
-                        Ghim hội thoại
-                      </div>
-                      <div className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer">
-                        Phân loại
-                      </div>
-                      <div className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer">
-                        Tắt thông báo
-                      </div>
-                      <div className="border-t border-gray-200"></div>
-                      <div className="px-4 py-2 text-sm text-red-500 hover:bg-gray-100 cursor-pointer">
-                        Xóa hội thoại
+                        <div className="border-t border-gray-200"></div>
+                        <div className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer">
+                          Báo xấu
+                        </div>
                       </div>
                     </div>
                   </div>

@@ -112,10 +112,10 @@ const ChatNav: React.FC = () => {
         <div className="flex items-center">
           <div
             ref={labelButtonRef}
-            className={`px-2 py-2 cursor-pointer flex items-center relative text-sm ${isLabelMenuOpen ? 'bg-blue-100 rounded-full' : ''}`}
+            className={`px-2 py-2 hover:bg-gray-200 rounded-full cursor-pointer flex items-center relative text-sm ${isLabelMenuOpen ? 'bg-blue-100 ' : ''}`}
             onClick={toggleLabelMenu}
           >
-            <div className={`${isLabelMenuOpen ? 'text-blue-500 font-semibold' : 'text-gray-500'} mr-1`}>
+            <div className={` ${isLabelMenuOpen ? 'text-blue-500 font-semibold' : 'text-gray-500'} mr-1`}>
               Phân loại
             </div>
             <FontAwesomeIcon icon={faChevronDown} className={`text-xs ${isLabelMenuOpen ? 'text-blue-500' : 'text-gray-500'}`} />
@@ -171,8 +171,7 @@ const ChatNav: React.FC = () => {
                           <div className="truncate flex-1 text-gray-700">{label.name}</div>
                         </div>
                       ))}
-                      
-                      <div className={`p-2 rounded-full hover:bg-gray-200 cursor-pointer relative text-sm ${isMoreMenuOpen ? 'text-blue-500 bg-blue-100' : 'text-gray-500 hover:bg-gray-100'}`}></div>
+                      <div className="border-t border-gray-200"></div>
                       <div className={`p-2 text-center rounded-full cursor-pointer my-1 ${labels.some(l => l.selected) ? 'bg-blue-100 text-blue-600 font-medium rounded-full' : 'text-blue-500 hover:bg-gray-100'}`} onClick={handleManageLabels}>
                         <span>Quản lý thẻ phân loại</span>
                       </div>
