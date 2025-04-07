@@ -1,12 +1,7 @@
 import React from "react";
-
-interface GroupAvatarProps {
-  members: string[];
-  userAvatars: Record<string, string>;
-  size?: number;
-  className?: string;
-  groupAvatarUrl?: string;
-}
+import { GroupAvatarProps } from "../../features/chat/types/groupTypes";
+import { useGroupAvatar } from "../../features/chat/hooks/useGroupAvatar";
+import { useAvatarPlaceholder } from "../../features/auth/hooks/useAvatarPlaceholder";
 
 const GroupAvatar: React.FC<GroupAvatarProps> = ({
   members,
@@ -15,26 +10,12 @@ const GroupAvatar: React.FC<GroupAvatarProps> = ({
   className = "",
   groupAvatarUrl,
 }) => {
-  // Giới hạn số lượng avatar hiển thị
-  const maxVisibleAvatars = members.length > 4 ? 3 : 4;
-  const visibleMembers = members.slice(0, maxVisibleAvatars);
-  const remainingCount =
-    members.length > maxVisibleAvatars ? members.length - maxVisibleAvatars : 0;
-  const AVT_DEFAULT = "/images/default-avatar.png";
-  const containerStyle = {
-    width: `${size}px`,
-    height: `${size}px`,
-    display: "grid",
-    gridTemplateColumns: "repeat(2, 1fr)",
-    gap: "1px",
-    padding: "1px",
-    aspectRatio: "1",
-    backgroundColor: "#fff",
-  };
-
-  const getAvatarClasses = () => {
-    return "w-full h-full border border-white rounded-full overflow-hidden aspect-square";
-  };
+  const { visibleMembers, remainingCount, containerStyle, getAvatarClasses } = useGroupAvatar({
+    members,
+    userAvatars,
+    size,
+    groupAvatarUrl,
+  });
 
   // Nếu có groupAvatarUrl, hiển thị ảnh nhóm từ URL đó
   if (groupAvatarUrl) {
@@ -58,15 +39,29 @@ const GroupAvatar: React.FC<GroupAvatarProps> = ({
       className={`rounded-lg overflow-hidden ${className}`}
       style={containerStyle}
     >
-      {visibleMembers.map((memberId, index) => (
-        <div key={index} className={getAvatarClasses()}>
-          <img
-            src={userAvatars[memberId] || AVT_DEFAULT}
-            alt={`Member ${index + 1}`}
-            className="w-full h-full object-cover aspect-square"
-          />
-        </div>
-      ))}
+      {visibleMembers.map((memberId, index) => {
+        const { content, style } = useAvatarPlaceholder(
+          memberId,
+          userAvatars[memberId]
+        );
+        return (
+          <div
+            key={index}
+            className={getAvatarClasses()}
+            style={{
+              ...style,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#FFFFFF',
+              fontSize: `${Math.floor(size * 0.4)}px`,
+              fontWeight: 'bold'
+            }}
+          >
+            {content}
+          </div>
+        );
+      })}
       {remainingCount > 0 && (
         <div className="bg-gray-200 text-gray-600 flex items-center justify-center text-xs font-medium border border-white rounded-full">
           +{remainingCount}

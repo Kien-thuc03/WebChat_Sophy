@@ -1,29 +1,22 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faChevronDown, faEllipsisH, faTag } from "@fortawesome/free-solid-svg-icons";
-//thay the khi BE them thong tin
-type TabType = "all" | "unread" | "label";
-//thay the khi BE them thong tin
-interface Label {
-  id: string;
-  name: string;
-  color: string;
-  selected: boolean;
-}
+import { useConversations, TabType } from "../../features/chat/hooks/useConversations";
 
 const ChatNav: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<TabType>("all");
-  const [isLabelMenuOpen, setIsLabelMenuOpen] = useState(false);
-  const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
-  //thay the khi BE them thong tin
-  const [labels, setLabels] = useState<Label[]>([
-    { id: "customer", name: "Khách hàng", color: "rgb(217, 27, 27)", selected: false },
-    { id: "family", name: "Gia đình", color: "rgb(75, 195, 119)", selected: false },
-    { id: "work", name: "Công việc", color: "rgb(255, 105, 5)", selected: false },
-    { id: "friends", name: "Bạn bè", color: "rgb(111, 63, 207)", selected: false },
-    { id: "reply_later", name: "Trả lời sau", color: "rgb(250, 192, 0)", selected: false },
-    { id: "stranger", name: "Tin nhắn từ người lạ", color: "#666", selected: false },
-  ]);
+  const { 
+    activeTab, 
+    labels, 
+    isLabelMenuOpen,
+    isMoreMenuOpen,
+    handleTabChange, 
+    handleLabelSelect, 
+    handleMarkAsRead, 
+    handleManageLabels,
+    toggleLabelMenu,
+    toggleMoreMenu,
+    handleClickOutside
+  } = useConversations();
   
   const tabsRef = useRef<Record<TabType, HTMLDivElement | null>>({
     all: null,
@@ -39,37 +32,23 @@ const ChatNav: React.FC = () => {
     left: 0,
   });
 
-  // Xử lý click bên ngoài để đóng menu phân loại
-  const handleClickOutside = useCallback((event: MouseEvent) => {
-    if (
-      labelMenuRef.current &&
-      !labelMenuRef.current.contains(event.target as Node) &&
-      labelButtonRef.current &&
-      !labelButtonRef.current.contains(event.target as Node) &&
-      isLabelMenuOpen
-    ) {
-      setIsLabelMenuOpen(false);
-    }
-
-    if (
-      moreMenuRef.current &&
-      !moreMenuRef.current.contains(event.target as Node) &&
-      moreButtonRef.current &&
-      !moreButtonRef.current.contains(event.target as Node) &&
-      isMoreMenuOpen
-    ) {
-      setIsMoreMenuOpen(false);
-    }
-  }, [isLabelMenuOpen, isMoreMenuOpen]);
-
+  /**
+   * Xử lý sự kiện click bên ngoài các menu dropdown
+   * @param {MouseEvent} event - Sự kiện click chuột
+   */
   useEffect(() => {
-    document.addEventListener("mousedown", handleClickOutside);
+    const handleOutsideClick = (event: MouseEvent) => {
+      handleClickOutside(event, labelMenuRef, labelButtonRef, moreMenuRef, moreButtonRef);
+    };
+    document.addEventListener("mousedown", handleOutsideClick);
     return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("mousedown", handleOutsideClick);
     };
   }, [handleClickOutside]);
-
-  // Cập nhật vị trí của thanh indicator khi tab thay đổi
+  
+  /**
+   * Cập nhật vị trí và kích thước của thanh indicator khi tab thay đổi
+   */
   useEffect(() => {
     const activeTabElement = tabsRef.current[activeTab];
     if (activeTabElement) {
@@ -79,35 +58,27 @@ const ChatNav: React.FC = () => {
       });
     }
   }, [activeTab]);
-
+  
+  /**
+   * Xử lý sự kiện khi người dùng click vào tab
+   * @param {TabType} tab - Loại tab được chọn (all | unread | label)
+   */
   const handleTabClick = (tab: TabType) => {
-    setActiveTab(tab);
+    handleTabChange(tab);
   };
-
-  const toggleLabelMenu = () => {
-    setIsLabelMenuOpen(!isLabelMenuOpen);
-    if (isMoreMenuOpen) setIsMoreMenuOpen(false);
+  
+  /**
+   * Xử lý sự kiện khi người dùng click vào nút quản lý thẻ phân loại
+   */
+  const onManageLabels = () => {
+    handleManageLabels();
   };
-
-  const toggleMoreMenu = () => {
-    setIsMoreMenuOpen(!isMoreMenuOpen);
-    if (isLabelMenuOpen) setIsLabelMenuOpen(false);
-  };
-
-  const handleLabelSelect = (labelId: string) => {
-    setLabels(labels.map(label => 
-      label.id === labelId ? { ...label, selected: !label.selected } : label
-    ));
-  };
-
-  const handleManageLabels = () => {
-    console.log("Quản lý thẻ phân loại");
-    setIsLabelMenuOpen(false);
-  };
-
-  const handleMarkAsRead = () => {
-    console.log("Đánh dấu đã đọc");
-    setIsMoreMenuOpen(false);
+  
+  /**
+   * Xử lý sự kiện khi người dùng click vào nút đánh dấu đã đọc
+   */
+  const onMarkAsRead = () => {
+    handleMarkAsRead();
   };
 
   return (
@@ -141,10 +112,10 @@ const ChatNav: React.FC = () => {
         <div className="flex items-center">
           <div
             ref={labelButtonRef}
-            className={`px-2 py-2 cursor-pointer flex items-center relative text-sm ${isLabelMenuOpen ? 'bg-blue-100 rounded-full' : ''}`}
+            className={`px-2 py-2 hover:bg-gray-200 rounded-full cursor-pointer flex items-center relative text-sm ${isLabelMenuOpen ? 'bg-blue-100 ' : ''}`}
             onClick={toggleLabelMenu}
           >
-            <div className={`${isLabelMenuOpen ? 'text-blue-500 font-semibold' : 'text-gray-500'} mr-1`}>
+            <div className={` ${isLabelMenuOpen ? 'text-blue-500 font-semibold' : 'text-gray-500'} mr-1`}>
               Phân loại
             </div>
             <FontAwesomeIcon icon={faChevronDown} className={`text-xs ${isLabelMenuOpen ? 'text-blue-500' : 'text-gray-500'}`} />
@@ -200,9 +171,8 @@ const ChatNav: React.FC = () => {
                           <div className="truncate flex-1 text-gray-700">{label.name}</div>
                         </div>
                       ))}
-                      
-                      <div className="border-t border-gray-200 my-2"></div>
-                      <div className={`p-2 text-center rounded-full cursor-pointer my-1 ${labels.some(l => l.selected) ? 'bg-blue-100 text-blue-600 font-medium' : 'text-blue-500 hover:bg-gray-100'}`} onClick={handleManageLabels}>
+                      <div className="border-t border-gray-200"></div>
+                      <div className={`p-2 text-center rounded-full cursor-pointer my-1 ${labels.some(l => l.selected) ? 'bg-blue-100 text-blue-600 font-medium rounded-full' : 'text-blue-500 hover:bg-gray-100'}`} onClick={handleManageLabels}>
                         <span>Quản lý thẻ phân loại</span>
                       </div>
                     </div>
@@ -214,10 +184,10 @@ const ChatNav: React.FC = () => {
           
           <div 
             ref={moreButtonRef}
-            className="p-2 rounded-full hover:bg-gray-200 cursor-pointer relative text-sm"
+            className={`p-2 rounded-full cursor-pointer relative text-sm ${isMoreMenuOpen ? 'bg-blue-100' : 'hover:bg-gray-200'}`}
             onClick={toggleMoreMenu}
           >
-            <FontAwesomeIcon icon={faEllipsisH} className="text-gray-500" />
+            <FontAwesomeIcon icon={faEllipsisH} className={`${isMoreMenuOpen ? 'text-blue-500 font-semibold' : 'text-gray-500'}`} />
             
             {/* Dropdown menu More */}
             {isMoreMenuOpen && (
