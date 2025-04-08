@@ -3,12 +3,15 @@ import { useAuth } from "../../features/auth/hooks/useAuth";
 import { Link, useNavigate } from "react-router-dom";
 import "react-phone-number-input/style.css";
 import PhoneInput from "react-phone-number-input";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faEyeSlash, faEye } from "@fortawesome/free-solid-svg-icons";
 // import { generateQRToken, verifyQRToken } from "../../api/API";
 
 const Signin: React.FC = () => {
   const { login } = useAuth();
   const [formData, setFormData] = useState({ phone: "", password: "" });
   const [error, setError] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const navigate = useNavigate();
 
   const handlePhoneChange = (value?: string) => {
@@ -44,6 +47,8 @@ const Signin: React.FC = () => {
     } catch (error: unknown) {
       // Narrow the error type
       if (error instanceof Error) {
+        console.error("Login error details:", error);
+        
         if (error.message === "Tài khoản không tồn tại") {
           setError("Tài khoản không tồn tại");
         } else if (error.message === "Sai mật khẩu") {
@@ -52,6 +57,7 @@ const Signin: React.FC = () => {
           setError(error.message || "Đăng nhập thất bại, vui lòng thử lại");
         }
       } else {
+        console.error("Unknown error type:", error);
         setError("Đăng nhập thất bại, vui lòng thử lại");
       }
 
@@ -62,6 +68,10 @@ const Signin: React.FC = () => {
   const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { value } = e.target;
     setFormData((prev) => ({ ...prev, password: value }));
+  };
+
+  const togglePasswordVisibility = () => {
+    setShowPassword(!showPassword);
   };
 
   return (
@@ -109,16 +119,26 @@ const Signin: React.FC = () => {
                 Quên mật khẩu?
               </Link>
             </div>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              required
-              value={formData.password}
-              onChange={handlePasswordChange}
-              className="mt-2 w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none"
-              autoComplete="current-password" // Thêm autocomplete cho mật khẩu
-            />
+            <div className="relative">
+              <input
+                id="password"
+                name="password"
+                type={showPassword ? "text" : "password"}
+                required
+                value={formData.password}
+                onChange={handlePasswordChange}
+                className="mt-2 w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none"
+                autoComplete="current-password" // Thêm autocomplete cho mật khẩu
+              />
+              <button
+                type="button"
+                className="absolute inset-y-0 right-0 flex items-center pr-3 mt-2 text-gray-500 hover:text-gray-700"
+                onClick={togglePasswordVisibility}
+                aria-label={showPassword ? "Ẩn mật khẩu" : "Hiển thị mật khẩu"}
+              >
+                <FontAwesomeIcon icon={showPassword ? faEye :  faEyeSlash} />
+              </button>
+            </div>
           </div>
 
           {error && (
@@ -131,7 +151,7 @@ const Signin: React.FC = () => {
             Đăng nhập
           </button>
           
-          <div className="mt-15">
+          <div className="mt-15 flex justify-between" >
             <Link
               to="/register"
               className="text-sm font-semibold text-blue-500 hover:text-blue-400">
