@@ -1,5 +1,8 @@
 import axios, { AxiosError } from "axios";
-import { Conversation, Message } from "../features/chat/types/conversationTypes";
+import {
+  Conversation,
+  Message,
+} from "../features/chat/types/conversationTypes";
 // import bcrypt from "bcryptjs";
 
 // Khai báo URL API chính
@@ -12,7 +15,7 @@ const apiClient = axios.create({
     "Content-Type": "application/json",
   },
 });
-
+//update tên người dùng
 export const updateUserName = async (userId: string, fullname: string) => {
   try {
     const response = await apiClient.put("/api/users/update-user/name", {
@@ -27,7 +30,7 @@ export const updateUserName = async (userId: string, fullname: string) => {
     throw new Error(error.response?.data?.message || "Lỗi không xác định");
   }
 };
-
+//update thông tin người dùng
 export const updateUserInfo = async (
   userId: string,
   data: { isMale: boolean; birthday: string; [key: string]: any }
@@ -45,6 +48,42 @@ export const updateUserInfo = async (
     throw new Error(error.response?.data?.message || "Lỗi không xác định");
   }
 };
+//update avatar người dùng
+export const updateUserAvatar = async (imageFile: File): Promise<void> => {
+  try {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      throw new Error("Không có token xác thực");
+    }
+
+    const formData = new FormData();
+    formData.append("avatar", imageFile);
+
+    const response = await fetch(`${API_BASE_URL}/api/users/update-user/avatar`, {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      throw new Error("Cập nhật avatar thất bại");
+    }
+
+    const updatedUser = await response.json();
+
+    // Cập nhật thông tin người dùng vào localStorage
+    localStorage.setItem("user", JSON.stringify(updatedUser));
+    console.log("Avatar updated successfully:", updatedUser);
+  } catch (error: unknown) {
+    console.error("Error updating avatar:", error);
+    throw new Error(
+      error instanceof Error ? error.message : "Lỗi không xác định"
+    );
+  }
+};
+
 
 export const generateQRToken = async () => {
   try {
@@ -334,6 +373,7 @@ export const logout = async () => {
     );
   }
 };
+//Thay đổi mật khẩu
 export const changePassword = async (
   oldPassword: string,
   newPassword: string
@@ -344,7 +384,7 @@ export const changePassword = async (
       throw new Error("Không tìm thấy thông tin người dùng");
     }
 
-    const response = await apiClient.post("/api/auth/change-password", {
+    const response = await apiClient.put("/api/auth/change-password", {
       userId,
       oldPassword,
       newPassword,
@@ -416,19 +456,26 @@ export const fetchConversations = async (): Promise<Conversation[]> => {
 };
 
 // Lấy tin nhắn của một cuộc trò chuyện
-export const getMessages = async (conversationId: string, page: number = 1, limit: number = 20): Promise<Message[]> => {
+export const getMessages = async (
+  conversationId: string,
+  page: number = 1,
+  limit: number = 20
+): Promise<Message[]> => {
   try {
     const token = getAuthToken();
     if (!token) {
       throw new Error("Không có token xác thực");
     }
 
-    const response = await apiClient.get(`/api/conversations/${conversationId}/messages`, {
-      params: {
-        page,
-        limit
+    const response = await apiClient.get(
+      `/api/conversations/${conversationId}/messages`,
+      {
+        params: {
+          page,
+          limit,
+        },
       }
-    });
+    );
 
     if (!Array.isArray(response.data)) {
       console.error("Invalid messages data format:", response.data);
@@ -443,17 +490,24 @@ export const getMessages = async (conversationId: string, page: number = 1, limi
 };
 
 // Gửi tin nhắn mới
-export const sendMessage = async (conversationId: string, content: string, type: string = 'text'): Promise<Message> => {
+export const sendMessage = async (
+  conversationId: string,
+  content: string,
+  type: string = "text"
+): Promise<Message> => {
   try {
     const token = getAuthToken();
     if (!token) {
       throw new Error("Không có token xác thực");
     }
 
-    const response = await apiClient.post(`/api/conversations/${conversationId}/messages`, {
-      content,
-      type
-    });
+    const response = await apiClient.post(
+      `/api/conversations/${conversationId}/messages`,
+      {
+        content,
+        type,
+      }
+    );
 
     return response.data;
   } catch (error: any) {
@@ -463,18 +517,24 @@ export const sendMessage = async (conversationId: string, content: string, type:
 };
 
 // Lấy chi tiết một cuộc trò chuyện
-export const getConversationDetail = async (conversationId: string): Promise<Conversation> => {
+export const getConversationDetail = async (
+  conversationId: string
+): Promise<Conversation> => {
   try {
     const token = getAuthToken();
     if (!token) {
       throw new Error("Không có token xác thực");
     }
 
-    const response = await apiClient.get(`/api/conversations/${conversationId}`);
+    const response = await apiClient.get(
+      `/api/conversations/${conversationId}`
+    );
     return response.data;
   } catch (error: any) {
     console.error("Lỗi khi lấy chi tiết cuộc trò chuyện:", error);
-    throw new Error(error.response?.data?.message || "Không thể lấy chi tiết cuộc trò chuyện");
+    throw new Error(
+      error.response?.data?.message || "Không thể lấy chi tiết cuộc trò chuyện"
+    );
   }
 };
 
@@ -639,6 +699,7 @@ export const register = async (
       userId: user.userId,
       accessToken: token.accessToken,
       fullname: user.fullname
+
     };
   } catch (error: any) {
     if (error.response?.status === 400) {

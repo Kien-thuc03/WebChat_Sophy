@@ -3,8 +3,9 @@ import { useAuth } from "../../../features/auth/hooks/useAuth";
 import { User } from "../../../features/auth/types/authTypes";
 import { FaMarker } from "react-icons/fa";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faEdit } from "@fortawesome/free-solid-svg-icons";
+import { faCamera } from "@fortawesome/free-solid-svg-icons";
 import EditUserModal from "./EditUserModal";
+import UpdateAvatarModal from "./UpdateAvatarModal"; // Import modal mới
 import { Modal } from "antd";
 
 interface UserModalProps {
@@ -15,6 +16,7 @@ interface UserModalProps {
 const UserModal: React.FC<UserModalProps> = ({ isOpen, onClose }) => {
   const { user, setUser } = useAuth();
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isUpdateAvatarModalOpen, setIsUpdateAvatarModalOpen] = useState(false); // State cho modal cập nhật avatar
 
   useEffect(() => {
     if (isOpen) {
@@ -57,6 +59,22 @@ const UserModal: React.FC<UserModalProps> = ({ isOpen, onClose }) => {
     setIsEditModalOpen(false);
   };
 
+  const handleOpenUpdateAvatarModal = () => {
+    setIsUpdateAvatarModalOpen(true);
+  };
+
+  const handleCloseUpdateAvatarModal = () => {
+    setIsUpdateAvatarModalOpen(false);
+  };
+
+  const handleUpdateAvatar = (newAvatar: string) => {
+    setUser((prevUser: User | null) => {
+      if (!prevUser) return null;
+      return { ...prevUser, urlavatar: newAvatar };
+    });
+    setIsUpdateAvatarModalOpen(false);
+  };
+
   return (
     <>
       {/* Main User Modal */}
@@ -66,25 +84,33 @@ const UserModal: React.FC<UserModalProps> = ({ isOpen, onClose }) => {
         onCancel={onClose}
         footer={null}
         centered
-        bodyStyle={{ padding: "24px" }}>
+        bodyStyle={{ padding: "24px" }}
+      >
         <div className="text-center mt-4">
           {/* Add background banner */}
           <div
             className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-r from-blue-400 to-blue-600 rounded-t-lg"
             style={{
               backgroundImage: `url(${"https://picsum.photos/id/1/800/200"})`,
-              // user?.urlbanner ||
               backgroundSize: "cover",
               backgroundPosition: "center",
             }}
           />
 
           <div className="flex justify-baseline mt-5 relative">
-            <img
-              src={user?.urlavatar || "https://picsum.photos/id/1/200/200"}
-              alt="Avatar"
-              className="w-20 h-20 rounded-full border-4 border-white object-cover"
-            />
+            <div className="relative">
+              <img
+                src={user?.urlavatar || "https://picsum.photos/id/1/200/200"}
+                alt="Avatar"
+                className="w-20 h-20 rounded-full border-4 border-white object-cover"
+              />
+              <div
+                className="absolute bottom-0 right-0 bg-gray-200 p-1 rounded-full cursor-pointer hover:bg-gray-300"
+                onClick={handleOpenUpdateAvatarModal} // Mở modal cập nhật avatar
+              >
+                <FontAwesomeIcon icon={faCamera} className="text-gray-600" />
+              </div>
+            </div>
             <h3 className="mt-10 text-lg font-bold text-gray-800 flex items-center justify-center">
               {user?.fullname || "Tên người dùng"}
               <span className="ml-2 text-gray-500 hover:text-gray-700 cursor-pointer">
@@ -116,19 +142,15 @@ const UserModal: React.FC<UserModalProps> = ({ isOpen, onClose }) => {
             </p>
           </div>
         </div>
-
-        {/* Update Button */}
-        <div className="mt-4 text-center">
-          <button
-            type="button"
-            className="w-full px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 flex items-center justify-center"
-            onClick={() => setIsEditModalOpen(true)} // Open EditUserModal on click
-          >
-            <FontAwesomeIcon icon={faEdit} className="mr-2" />
-            <span>Cập nhật</span>
-          </button>
-        </div>
       </Modal>
+
+      {/* Modal cập nhật avatar */}
+      <UpdateAvatarModal
+        isOpen={isUpdateAvatarModalOpen}
+        onClose={handleCloseUpdateAvatarModal}
+        currentAvatar={user?.urlavatar || "https://picsum.photos/id/1/200/200"}
+        onUpdate={handleUpdateAvatar}
+      />
 
       {/* Edit User Modal */}
       {isEditModalOpen && (
@@ -141,7 +163,7 @@ const UserModal: React.FC<UserModalProps> = ({ isOpen, onClose }) => {
             isMale: user?.isMale ?? true,
             birthday: user?.birthday || "",
           }}
-          onSave={handleSave} // Save the updated data
+          onSave={handleSave}
         />
       )}
     </>

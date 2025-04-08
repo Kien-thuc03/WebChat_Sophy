@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { fetchConversations, getUserById } from "../../../api/API";
 import { Conversation } from "../types/conversationTypes";
 import { User } from "../../auth/types/authTypes";
