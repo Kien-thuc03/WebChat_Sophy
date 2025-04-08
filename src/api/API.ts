@@ -598,9 +598,15 @@ export const register = async (
   password: string,
   fullname: string,
   isMale: boolean,
-  birthday: string
+  birthday: string,
 ) => {
   try {
+    // Kiểm tra định dạng mật khẩu
+    const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{6,}$/;
+    if (!passwordRegex.test(password)) {
+      throw new Error('Mật khẩu phải có ít nhất 6 ký tự và chứa cả chữ và số');
+    }
+
     const response = await apiClient.post("/api/auth/register", {
       phone,
       password,
@@ -609,17 +615,20 @@ export const register = async (
       birthday,
     });
 
-    const { token, userId } = response.data;
-    if (!token || !userId) {
+    const { token, user } = response.data;
+    if (!token?.accessToken || !token?.refreshToken || !user?.userId) {
       throw new Error("Dữ liệu đăng ký không hợp lệ");
     }
 
-    localStorage.setItem("userId", userId);
-    localStorage.setItem("token", token);
+    // Lưu thông tin người dùng và token vào localStorage
+    localStorage.setItem("userId", user.userId);
+    localStorage.setItem("token", token.accessToken);
+    localStorage.setItem("refreshToken", token.refreshToken);
 
     return {
-      userId,
-      token
+      userId: user.userId,
+      accessToken: token.accessToken,
+      fullname: user.fullname
     };
   } catch (error: any) {
     if (error.response?.status === 400) {
