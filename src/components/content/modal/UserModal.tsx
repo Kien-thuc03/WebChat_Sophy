@@ -3,7 +3,7 @@ import { useAuth } from "../../../features/auth/hooks/useAuth";
 import { User } from "../../../features/auth/types/authTypes";
 import { FaMarker } from "react-icons/fa";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import {  faEdit } from "@fortawesome/free-solid-svg-icons";
+import { faEdit } from "@fortawesome/free-solid-svg-icons";
 import EditUserModal from "./EditUserModal";
 import { Modal } from "antd";
 
@@ -66,20 +66,19 @@ const UserModal: React.FC<UserModalProps> = ({ isOpen, onClose }) => {
         onCancel={onClose}
         footer={null}
         centered
-        bodyStyle={{ padding: "24px" }}
-      >
+        bodyStyle={{ padding: "24px" }}>
         <div className="text-center mt-4">
           {/* Add background banner */}
-          <div 
+          <div
             className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-r from-blue-400 to-blue-600 rounded-t-lg"
             style={{
-              backgroundImage: `url(${ 'https://picsum.photos/id/1/800/200'})`,
+              backgroundImage: `url(${"https://picsum.photos/id/1/800/200"})`,
               // user?.urlbanner ||
-              backgroundSize: 'cover',
-              backgroundPosition: 'center',
+              backgroundSize: "cover",
+              backgroundPosition: "center",
             }}
           />
-          
+
           <div className="flex justify-baseline mt-5 relative">
             <img
               src={user?.urlavatar || "https://picsum.photos/id/1/200/200"}
