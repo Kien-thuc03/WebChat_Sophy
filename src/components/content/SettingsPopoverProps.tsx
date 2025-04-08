@@ -1,64 +1,66 @@
-import React, { useState } from "react";
+import React from "react";
 import { useAuth } from "../../features/auth/hooks/useAuth";
 import { User } from "../../features/auth/types/authTypes";
 import { logout } from "../../api/API";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faPenToSquare } from "@fortawesome/free-solid-svg-icons";
-import { Menu } from "antd";
+import { Menu, Modal } from "antd";
 import type { MenuProps } from "antd";
-import SettingsModal from "./modal/SettingsModal";
 
 interface SettingsPopoverProps {
-  onLogout: () => void; // Function to handle logout
-  onOpenModal: () => void; // Function to handle profile click
-  onUpgradeClick: () => void; // Function to handle upgrade account click
+  onLogout: () => void;
+  onOpenModal: () => void;
+  onUpgradeClick: () => void;
+  openSettingsModal: () => void;
 }
 
 const SettingsPopover: React.FC<SettingsPopoverProps> = ({
   onLogout,
   onOpenModal,
   onUpgradeClick,
+  openSettingsModal,
 }) => {
-  const { user } = useAuth() as { user: User | null }; // Move useAuth inside the component
+  const { user } = useAuth() as { user: User | null };
 
   const handleLogout = async () => {
-    try {
-      await logout();
-      alert("Đăng xuất thành công!");
-      window.location.href = "/"; // Redirect to login page after logout
-    } catch (error: unknown) {
-      if (error instanceof Error) {
-        alert(error.message || "Đăng xuất thất bại, vui lòng thử lại.");
-      } else {
-        alert("Đăng xuất thất bại, vui lòng thử lại.");
-      }
-    }
+    Modal.confirm({
+      title: "Xác nhận đăng xuất",
+      content: "Bạn có chắc chắn muốn đăng xuất không?",
+      okText: "Đồng ý",
+      cancelText: "Hủy",
+      onOk: async () => {
+        try {
+          await logout();
+          Modal.success({
+            title: "Đăng xuất thành công",
+            content: "Bạn đã đăng xuất thành công!",
+            onOk: () => {
+              window.location.href = "/";
+            },
+          });
+        } catch (error: unknown) {
+          Modal.error({
+            title: "Đăng xuất thất bại",
+            content:
+              error instanceof Error
+                ? error.message
+                : "Đăng xuất thất bại, vui lòng thử lại.",
+          });
+        }
+      },
+    });
   };
 
-  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
-
-  const openSettingsModal = () => {
-    setIsSettingsModalOpen(true); // Show the modal
-  };
-
-  const closeSettingsModal = () => {
-    setIsSettingsModalOpen(false); // Hide the modal
-  };
-
-  // Define menu items
   const items: MenuProps["items"] = [
     {
       key: "1",
-
       label: (
         <span className="text-gray-700 font-large font-semibold text-lg">
           {user?.fullname || "Tên người dùng"}
         </span>
       ),
     },
-    {
-      type: "divider",
-    },
+    { type: "divider" },
     {
       key: "2",
       label: (
@@ -73,9 +75,8 @@ const SettingsPopover: React.FC<SettingsPopoverProps> = ({
     },
     {
       key: "3",
-
       label: (
-        <span className="text-gray-700 font-large font-medium ">
+        <span className="text-gray-700 font-large font-medium">
           Hồ sơ của bạn
         </span>
       ),
@@ -86,16 +87,12 @@ const SettingsPopover: React.FC<SettingsPopoverProps> = ({
       label: (
         <span className="text-gray-700 font-large font-medium">Cài đặt</span>
       ),
-
-      onClick: openSettingsModal, // Open the modal when clicked
+      onClick: openSettingsModal,
     },
-    {
-      type: "divider",
-    },
+    { type: "divider" },
     {
       key: "5",
-
-      label: <span className="text-red-600 font-large ">Đăng xuất</span>,
+      label: <span className="text-red-600 font-large">Đăng xuất</span>,
       onClick: () => {
         onLogout();
         handleLogout();
@@ -110,11 +107,6 @@ const SettingsPopover: React.FC<SettingsPopoverProps> = ({
         mode="vertical"
         theme="light"
         className="rounded-lg"
-      />
-      {/* SettingsModal */}
-      <SettingsModal
-        visible={isSettingsModalOpen}
-        onClose={closeSettingsModal}
       />
     </div>
   );

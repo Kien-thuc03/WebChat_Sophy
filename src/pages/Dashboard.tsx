@@ -1,20 +1,41 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import Sidebar from "../components/sidebar/Sidebar";
 import ChatList from "../components/chat/ChatList";
 import ChatHeader from "../components/chat/ChatHeader";
 import SettingsMenu from "../components/content/SettingsMenu";
 import UserModal from "../components/content/modal/UserModal";
+import SettingsModal from "../components/content/modal/SettingsModal";
 import MainContent from "../components/content/MainContent";
 import { Conversation } from "../features/chat/types/conversationTypes";
 
 const Dashboard: React.FC = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedConversation, setSelectedConversation] =
-    useState<Conversation | null>(null);
+  const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
+  const settingsRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        settingsRef.current &&
+        !settingsRef.current.contains(event.target as Node) &&
+        !document.querySelector(".settings-modal")?.contains(event.target as Node)
+      ) {
+        console.log("Click outside SettingsMenu detected");
+        setIsSettingsOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
 
   const handleOpenModal = () => {
     setIsModalOpen(true);
+    setIsSettingsOpen(false);
   };
 
   const handleCloseModal = () => {
@@ -24,11 +45,16 @@ const Dashboard: React.FC = () => {
   const handleToggleSettings = () => {
     setIsSettingsOpen((prev) => !prev);
   };
-  const handleOpenSettings = () => {
+
+  const handleOpenSettingsModal = () => {
+    console.log("Opening SettingsModal from Dashboard");
+    setIsSettingsModalOpen(true);
     setIsSettingsOpen(false);
   };
-  const handleCloseSettings = () => {
-    setIsSettingsOpen(false);
+
+  const handleCloseSettingsModal = () => {
+    console.log("Closing SettingsModal from Dashboard");
+    setIsSettingsModalOpen(false);
   };
 
   return (
@@ -36,6 +62,7 @@ const Dashboard: React.FC = () => {
       <Sidebar
         onSettingsClick={handleToggleSettings}
         onOpenModal={handleOpenModal}
+        openSettingsModal={handleOpenSettingsModal} // Truyền vào Sidebar
       />
       <ChatList onSelectConversation={setSelectedConversation} />
       <div className="flex-1 flex flex-col">
@@ -51,15 +78,12 @@ const Dashboard: React.FC = () => {
               }
               groupAvatarUrl={
                 selectedConversation.isGroup
-                  ? selectedConversation.groupAvatarUrl ||
-                    "/images/group-avatar.png"
+                  ? selectedConversation.groupAvatarUrl || "/images/group-avatar.png"
                   : "/images/default-avatar.png"
               }
               groupMembers={selectedConversation.groupMembers}
             />
-            <div className="flex-1 bg-gray-50">
-              {/* Chat messages will be added here */}
-            </div>
+            <div className="flex-1 bg-gray-50">{/* Chat messages will be added here */}</div>
           </>
         ) : (
           <MainContent />
@@ -67,13 +91,17 @@ const Dashboard: React.FC = () => {
       </div>
 
       {isSettingsOpen && (
-        <SettingsMenu
-          openSettingsModal={handleOpenSettings}
-          onClose={handleCloseSettings}
-          onOpenModal={handleOpenModal}
-        />
+        <div ref={settingsRef}>
+          <SettingsMenu
+            openSettingsModal={handleOpenSettingsModal}
+            onClose={() => setIsSettingsOpen(false)}
+            onOpenModal={handleOpenModal}
+          />
+        </div>
       )}
+
       <UserModal isOpen={isModalOpen} onClose={handleCloseModal} />
+      <SettingsModal visible={isSettingsModalOpen} onClose={handleCloseSettingsModal} />
     </div>
   );
 };
