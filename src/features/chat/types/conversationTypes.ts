@@ -6,6 +6,12 @@ export interface Message {
   createdAt: string;
 }
 
+interface UnreadCount {
+  userId: string;
+  count: number;
+  lastRead?: string;
+}
+
 export interface Conversation {
   conversationId: string;
   creatorId: string;
@@ -29,7 +35,7 @@ export interface Conversation {
   listFile: string[];
   pinnedMessages: string[];
   muteNotifications: string[];
-  unreadCount: any[];
+  unreadCount: UnreadCount[];
   lastChange: string;
   createdAt: string;
 }
