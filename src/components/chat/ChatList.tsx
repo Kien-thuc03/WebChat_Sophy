@@ -9,6 +9,9 @@ import ErrorBoundary from "../common/ErrorBoundary";
 import { formatMessageTime } from "../../utils/dateUtils";
 import ChatNav from "./ChatNav";
 import GroupAvatar from "./GroupAvatar";
+import LabelModal from "./modals/LabelModal";
+import NotificationModal from "./modals/NotificationModal";
+import AutoDeleteModal from "./modals/AutoDeleteModal";
 
 import { Conversation } from "../../features/chat/types/conversationTypes";
 
@@ -17,8 +20,15 @@ interface ChatListProps {
 }
 
 const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
-  const { conversations, userCache, displayNames, userAvatars } = useConversations();
+  const { conversations, userCache, displayNames, userAvatars } =
+    useConversations();
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
+  const [selectedConversation, setSelectedConversation] = useState<
+    string | null
+  >(null);
+  const [isLabelModalOpen, setIsLabelModalOpen] = useState(false);
+  const [isNotificationModalOpen, setIsNotificationModalOpen] = useState(false);
+  const [isAutoDeleteModalOpen, setIsAutoDeleteModalOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
 
@@ -34,9 +44,9 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
       }
     };
 
-    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener("mousedown", handleClickOutside);
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener("mousedown", handleClickOutside);
     };
   }, []);
 
@@ -82,7 +92,8 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
                 </span>
                 <div className="flex items-center">
                   <span className="text-xs text-gray-500 group-hover:opacity-0 transition-opacity duration-200">
-                    {chat.lastMessage && formatMessageTime(chat.lastMessage.createdAt)}
+                    {chat.lastMessage &&
+                      formatMessageTime(chat.lastMessage.createdAt)}
                   </span>
                   <div className="absolute right-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                     <button
@@ -91,66 +102,75 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
                       title="Thêm"
                       onClick={(e) => {
                         e.stopPropagation();
-                        setActiveMenu(activeMenu === chat.conversationId ? null : chat.conversationId);
+                        setActiveMenu(
+                          activeMenu === chat.conversationId
+                            ? null
+                            : chat.conversationId
+                        );
                       }}
                     >
-                      <FontAwesomeIcon icon={faEllipsisH} className="fa fa-ellipsis-h text-gray-600" />
+                      <FontAwesomeIcon
+                        icon={faEllipsisH}
+                        className="fa fa-ellipsis-h text-gray-600"
+                      />
                     </button>
                     <div
                       ref={menuRef}
-                      className={`absolute z-20 w-50 bg-white shadow-lg rounded-md border border-gray-200 right-0 mt-1 ${activeMenu === chat.conversationId ? 'block' : 'hidden'}`}
+                      className={`absolute z-20 w-50 bg-white shadow-lg rounded-md border border-gray-200 right-0 mt-1 ${activeMenu === chat.conversationId ? "block" : "hidden"}`}
                     >
                       <div className="py-1">
                         <div className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer">
                           Ghim hội thoại
                         </div>
                         <div className="border-t border-gray-200"></div>
-                        <div className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer relative group/sub flex items-center justify-between">
+                        <div
+                          className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer flex items-center justify-between"
+                          onClick={() => {
+                            setSelectedConversation(chat.conversationId);
+                            setIsLabelModalOpen(true);
+                            setActiveMenu(null);
+                          }}
+                        >
                           <span>Phân loại</span>
-                          <FontAwesomeIcon icon={faChevronRight} className="text-gray-400 ml-2" />
-                          <div className="absolute hidden group-hover/sub:block left-full top-0 w-64 bg-white shadow-lg rounded-md border border-gray-200">
-                            <div className="py-1">
-                              <div className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer">Khách hàng</div>
-                              <div className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer">Gia đình</div>
-                              <div className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer">Công việc</div>
-                              <div className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer">Bạn bè</div>
-                              <div className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer">Trả lời sau</div>
-                              <div className="border-t border-gray-200"></div>
-                              <div className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer">Quản lý thẻ phân loại</div>
-                            </div>
-                          </div>
+                          <FontAwesomeIcon
+                            icon={faChevronRight}
+                            className="ml-1"
+                          />
                         </div>
                         <div className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer">
                           Đánh dấu chưa đọc
                         </div>
                         <div className="border-t border-gray-200"></div>
-                        <div className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer relative group/sub flex items-center justify-between">
+                        <div
+                          className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer flex items-center justify-between"
+                          onClick={() => {
+                            setSelectedConversation(chat.conversationId);
+                            setIsNotificationModalOpen(true);
+                            setActiveMenu(null);
+                          }}
+                        >
                           <span>Tắt thông báo</span>
-                          <FontAwesomeIcon icon={faChevronRight} className="text-gray-400 ml-2" />
-                          <div className="absolute hidden group-hover/sub:block left-full top-0 w-64 bg-white shadow-lg rounded-md border border-gray-200">
-                            <div className="py-1">
-                              <div className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer">Trong 1 giờ</div>
-                              <div className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer">Trong 4 giờ</div>
-                              <div className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer">Cho đến 8:00 AM</div>
-                              <div className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer">Cho đến khi được mở lại</div>
-                            </div>
-                          </div>
+                          <FontAwesomeIcon
+                            icon={faChevronRight}
+                            className="ml-1"
+                          />
                         </div>
-                        <div className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer">
+                        <div className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer flex items-center justify-between">
                           Ẩn trò chuyện
                         </div>
-                        <div className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer relative group/sub flex items-center justify-between">
+                        <div
+                          className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer flex items-center justify-between"
+                          onClick={() => {
+                            setSelectedConversation(chat.conversationId);
+                            setIsAutoDeleteModalOpen(true);
+                            setActiveMenu(null);
+                          }}
+                        >
                           <span>Tin nhắn tự xóa</span>
-                          <FontAwesomeIcon icon={faChevronRight} className="text-gray-400 ml-2" />
-                          <div className="absolute hidden group-hover/sub:block left-full top-0 w-64 bg-white shadow-lg rounded-md border border-gray-200">
-                            <div className="py-1">
-                              <div className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer">1 ngày</div>
-                              <div className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer">7 ngày</div>
-                              <div className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer">14 ngày</div>
-                              <div className="border-t border-gray-200"></div>
-                              <div className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer">Không bao giờ</div>
-                            </div>
-                          </div>
+                          <FontAwesomeIcon
+                            icon={faChevronRight}
+                            className="ml-1"
+                          />
                         </div>
                         <div className="border-t border-gray-200"></div>
                         <div className="px-4 py-2 text-sm text-red-500 hover:bg-gray-100 cursor-pointer">
@@ -191,6 +211,68 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
               Không có hội thoại nào
             </div>
           ),
+        }}
+      />
+
+      {/* Modals */}
+      <LabelModal
+        isOpen={isLabelModalOpen}
+        onClose={() => setIsLabelModalOpen(false)}
+        labels={[
+          {
+            id: "customer",
+            name: "Khách hàng",
+            color: "#FF6B6B",
+            selected: false,
+          },
+          { id: "family", name: "Gia đình", color: "#4ECDC4", selected: false },
+          { id: "work", name: "Công việc", color: "#45B7D1", selected: false },
+          { id: "friends", name: "Bạn bè", color: "#96CEB4", selected: false },
+          {
+            id: "later",
+            name: "Trả lời sau",
+            color: "#FFEEAD",
+            selected: false,
+          },
+        ]}
+        onLabelSelect={(labelId) => {
+          console.log(
+            "Selected label:",
+            labelId,
+            "for conversation:",
+            selectedConversation
+          );
+          setIsLabelModalOpen(false);
+        }}
+        onManageLabels={() => {
+          console.log("Manage labels clicked");
+          setIsLabelModalOpen(false);
+        }}
+      />
+
+      <NotificationModal
+        isOpen={isNotificationModalOpen}
+        onClose={() => setIsNotificationModalOpen(false)}
+        onSelect={(duration) => {
+          console.log(
+            "Selected notification duration:",
+            duration,
+            "for conversation:",
+            selectedConversation
+          );
+        }}
+      />
+
+      <AutoDeleteModal
+        isOpen={isAutoDeleteModalOpen}
+        onClose={() => setIsAutoDeleteModalOpen(false)}
+        onSelect={(duration) => {
+          console.log(
+            "Selected auto-delete duration:",
+            duration,
+            "for conversation:",
+            selectedConversation
+          );
         }}
       />
     </div>
