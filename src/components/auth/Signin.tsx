@@ -44,6 +44,8 @@ const Signin: React.FC = () => {
     } catch (error: unknown) {
       // Narrow the error type
       if (error instanceof Error) {
+        console.error("Login error details:", error);
+        
         if (error.message === "Tài khoản không tồn tại") {
           setError("Tài khoản không tồn tại");
         } else if (error.message === "Sai mật khẩu") {
@@ -52,6 +54,7 @@ const Signin: React.FC = () => {
           setError(error.message || "Đăng nhập thất bại, vui lòng thử lại");
         }
       } else {
+        console.error("Unknown error type:", error);
         setError("Đăng nhập thất bại, vui lòng thử lại");
       }
 
@@ -131,7 +134,7 @@ const Signin: React.FC = () => {
             Đăng nhập
           </button>
           
-          <div className="mt-15">
+          <div className="mt-15 flex justify-between" >
             <Link
               to="/register"
               className="text-sm font-semibold text-blue-500 hover:text-blue-400">

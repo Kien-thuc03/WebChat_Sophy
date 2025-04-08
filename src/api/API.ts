@@ -123,12 +123,22 @@ export const login = async (phone: string, password: string) => {
       fullname: user.fullname,
     };
   } catch (error: any) {
-    // Xử lý lỗi từ API
+    // Log chi tiết về lỗi cho debugging
+    console.log("=== Chi tiết lỗi đăng nhập ===");
+    console.log("Status:", error.response?.status);
+    console.log("Response data:", error.response?.data);
+    console.log("Error message:", error.message);
+
+    // Xử lý các trường hợp lỗi cụ thể mà không gây reload trang
+    if (error.response?.status === 401) {
+      // Check if the error message from the server indicates wrong password
+      if (error.response.data?.message?.toLowerCase().includes("mật khẩu")) {
+        throw new Error("Sai mật khẩu");
+      }
+      throw new Error("Sai mật khẩu");
+    }
     if (error.response?.status === 404) {
       throw new Error("Tài khoản không tồn tại");
-    }
-    if (error.response?.status === 401) {
-      throw new Error("Sai mật khẩu");
     }
     if (error.response?.status === 400) {
       throw new Error(
@@ -136,7 +146,7 @@ export const login = async (phone: string, password: string) => {
       );
     }
 
-    console.error("Login error:", error.response?.data || error.message);
+    // Nếu không phải các lỗi trên, trả về thông báo lỗi chung
     throw new Error(
       error.response?.data?.message || "Đăng nhập thất bại, vui lòng thử lại"
     );
@@ -219,8 +229,8 @@ apiClient.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    // If the error is 401 and it's not a retry
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    // If the error is 401 and it's not a retry and it's not a login request
+    if (error.response?.status === 401 && !originalRequest._retry && !originalRequest.url.includes('/api/auth/login')) {
       if (isRefreshing) {
         // Queue the request while refreshing
         return new Promise((resolve, reject) => {
