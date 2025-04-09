@@ -78,6 +78,32 @@ const Register: React.FC = () => {
       setError('Mật khẩu xác nhận không khớp');
       return;
     }
+
+    // Kiểm tra tên chỉ chứa chữ cái và dấu cách
+    const nameRegex = /^[A-Za-zÀ-ỹ\s]+$/;
+    if (!nameRegex.test(fullname)) {
+      setError('Họ và tên chỉ được chứa chữ cái và dấu cách');
+      return;
+    }
+
+    // Kiểm tra tuổi - phải đủ 13 tuổi
+    if (birthday) {
+      const birthDate = new Date(birthday);
+      const today = new Date();
+      let age = today.getFullYear() - birthDate.getFullYear();
+      const monthDiff = today.getMonth() - birthDate.getMonth();
+      
+      // Nếu chưa đến tháng sinh nhật trong năm nay, trừ đi 1 tuổi
+      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+        age--;
+      }
+      
+      if (age < 13) {
+        setError('Bạn phải đủ 13 tuổi để đăng ký tài khoản');
+        return;
+      }
+    }
+
     try {
       await register(phone, password, fullname, isMale, birthday);
       navigate('/');
@@ -192,6 +218,8 @@ const Register: React.FC = () => {
                   className="mt-2 w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none"
                   value={fullname}
                   onChange={(e) => setFullname(e.target.value)}
+                  pattern="^[A-Za-zÀ-ỹ\s]+$"
+                  title="Họ và tên chỉ được chứa chữ cái và dấu cách"
                 />
               </div>
 
@@ -265,6 +293,9 @@ const Register: React.FC = () => {
                   value={birthday}
                   onChange={(e) => setBirthday(e.target.value)}
                 />
+                <p className="mt-1 text-xs text-gray-500">
+                  Bạn phải đủ 13 tuổi để đăng ký tài khoản
+                </p>
               </div>
 
               <div>

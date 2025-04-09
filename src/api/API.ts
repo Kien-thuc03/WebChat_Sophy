@@ -164,12 +164,22 @@ export const login = async (phone: string, password: string) => {
       fullname: user.fullname,
     };
   } catch (error: any) {
-    // Xử lý lỗi từ API
+    // Log chi tiết về lỗi cho debugging
+    console.log("=== Chi tiết lỗi đăng nhập ===");
+    console.log("Status:", error.response?.status);
+    console.log("Response data:", error.response?.data);
+    console.log("Error message:", error.message);
+
+    // Xử lý các trường hợp lỗi cụ thể mà không gây reload trang
+    if (error.response?.status === 401) {
+      // Check if the error message from the server indicates wrong password
+      if (error.response.data?.message?.toLowerCase().includes("mật khẩu")) {
+        throw new Error("Sai mật khẩu");
+      }
+      throw new Error("Sai mật khẩu");
+    }
     if (error.response?.status === 404) {
       throw new Error("Tài khoản không tồn tại");
-    }
-    if (error.response?.status === 401) {
-      throw new Error("Sai mật khẩu");
     }
     if (error.response?.status === 400) {
       throw new Error(
@@ -177,7 +187,7 @@ export const login = async (phone: string, password: string) => {
       );
     }
 
-    console.error("Login error:", error.response?.data || error.message);
+    // Nếu không phải các lỗi trên, trả về thông báo lỗi chung
     throw new Error(
       error.response?.data?.message || "Đăng nhập thất bại, vui lòng thử lại"
     );
@@ -260,12 +270,12 @@ apiClient.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    // If the error is 401 and it's not a retry and it's not a login request
+    if (error.response?.status === 401 && !originalRequest._retry && !originalRequest.url.includes('/api/auth/login')) {
       if (originalRequest.url.includes("/api/auth/change-password")) {
         // Nếu là yêu cầu đổi mật khẩu, không logout mà để hàm gọi xử lý lỗi
         return Promise.reject(error);
       }
-
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
@@ -687,9 +697,15 @@ export const register = async (
   password: string,
   fullname: string,
   isMale: boolean,
-  birthday: string
+  birthday: string,
 ) => {
   try {
+    // Kiểm tra định dạng mật khẩu
+    const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{6,}$/;
+    if (!passwordRegex.test(password)) {
+      throw new Error('Mật khẩu phải có ít nhất 6 ký tự và chứa cả chữ và số');
+    }
+
     const response = await apiClient.post("/api/auth/register", {
       phone,
       password,
@@ -698,17 +714,21 @@ export const register = async (
       birthday,
     });
 
-    const { token, userId } = response.data;
-    if (!token || !userId) {
+    const { token, user } = response.data;
+    if (!token?.accessToken || !token?.refreshToken || !user?.userId) {
       throw new Error("Dữ liệu đăng ký không hợp lệ");
     }
 
-    localStorage.setItem("userId", userId);
-    localStorage.setItem("token", token);
+    // Lưu thông tin người dùng và token vào localStorage
+    localStorage.setItem("userId", user.userId);
+    localStorage.setItem("token", token.accessToken);
+    localStorage.setItem("refreshToken", token.refreshToken);
 
     return {
-      userId,
-      token,
+      userId: user.userId,
+      accessToken: token.accessToken,
+      fullname: user.fullname
+
     };
   } catch (error: any) {
     if (error.response?.status === 400) {
