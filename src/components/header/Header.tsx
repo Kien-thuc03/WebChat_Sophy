@@ -1,6 +1,9 @@
 import { FaSearch, FaUserPlus, FaUsers } from "react-icons/fa";
+import { useLanguage } from "../../features/auth/context/LanguageContext"; // Import context
 
 const Header = () => {
+  const { t } = useLanguage(); // Sử dụng context
+
   return (
     <div
       id="contact-search"
@@ -14,24 +17,22 @@ const Header = () => {
           type="text"
           maxLength={100}
           autoComplete="off"
-          placeholder="Tìm kiếm"
+          placeholder={t.search || 'Tìm kiếm'}
           className="pl-8 w-full focus:outline-none"
         />
       </div>
 
-      {/* Nút Thêm Bạn */}
       <button
         type="button"
-        title="Thêm bạn"
+        title={t?.add_friend || 'Thêm bạn'}
         className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-gray-300"
       >
         <FaUserPlus className="text-gray-600" />
       </button>
 
-      {/* Nút Tạo Nhóm */}
       <button
         type="button"
-        title="Tạo nhóm chat"
+        title={t?.create_group || 'Tạo nhóm chat'}
         className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-gray-300"
       >
         <FaUsers className="text-gray-600" />

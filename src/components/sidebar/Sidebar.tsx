@@ -1,15 +1,27 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { FaComments, FaUserFriends, FaTasks, FaCloud, FaBriefcase, FaCog } from "react-icons/fa";
+import {
+  FaComments,
+  FaUserFriends,
+  FaTasks,
+  FaCloud,
+  FaBriefcase,
+  FaCog,
+} from "react-icons/fa";
 import { useAuth } from "../../features/auth/hooks/useAuth";
 import SettingsPopover from "../content/SettingsPopoverProps";
+import { useLanguage } from "../../features/auth/context/LanguageContext"; // Import context
 
 interface SidebarProps {
   onSettingsClick?: () => void;
   onOpenModal?: () => void;
-  openSettingsModal?: () => void; // Thêm prop từ Dashboard
+  openSettingsModal: () => void; // Remove the optional '?'
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ onSettingsClick, onOpenModal, openSettingsModal }) => {
+const Sidebar: React.FC<SidebarProps> = ({
+  onSettingsClick,
+  onOpenModal,
+  openSettingsModal,
+}) => {
   const { user } = useAuth();
   const [active, setActive] = useState("chat");
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
@@ -17,24 +29,28 @@ const Sidebar: React.FC<SidebarProps> = ({ onSettingsClick, onOpenModal, openSet
   const popoverRef = useRef<HTMLDivElement | null>(null);
   const settingsMenuRef = useRef<HTMLDivElement | null>(null);
   const settingsButtonRef = useRef<HTMLDivElement | null>(null);
+  const { t } = useLanguage(); // Sử dụng context (nếu cần tooltip)
 
   const handleClickOutside = useCallback(
     (event: MouseEvent) => {
       if (
         popoverRef.current &&
         !popoverRef.current.contains(event.target as Node) &&
-        !document.querySelector(".settings-modal")?.contains(event.target as Node) &&
+        !document
+          .querySelector(".settings-modal")
+          ?.contains(event.target as Node) &&
         isPopoverOpen
       ) {
         setIsPopoverOpen(false);
       }
-
       if (
         settingsMenuRef.current &&
         !settingsMenuRef.current.contains(event.target as Node) &&
         settingsButtonRef.current &&
         !settingsButtonRef.current.contains(event.target as Node) &&
-        !document.querySelector(".settings-modal")?.contains(event.target as Node) &&
+        !document
+          .querySelector(".settings-modal")
+          ?.contains(event.target as Node) &&
         isSettingsMenuOpen
       ) {
         setIsSettingsMenuOpen(false);
@@ -45,9 +61,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onSettingsClick, onOpenModal, openSet
 
   useEffect(() => {
     document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [handleClickOutside]);
 
   const togglePopover = () => {
@@ -73,7 +87,6 @@ const Sidebar: React.FC<SidebarProps> = ({ onSettingsClick, onOpenModal, openSet
           className="w-12 h-12 rounded-full border-2 border-white object-cover cursor-pointer"
           onClick={togglePopover}
         />
-
         {isPopoverOpen && (
           <div ref={popoverRef} className="absolute top-10 left-16 z-50">
             <SettingsPopover
@@ -90,32 +103,27 @@ const Sidebar: React.FC<SidebarProps> = ({ onSettingsClick, onOpenModal, openSet
                 console.log("Nâng cấp tài khoản");
                 setIsPopoverOpen(false);
               }}
-              openSettingsModal={() => {
-                console.log("Opening SettingsModal from SettingsPopover");
-                openSettingsModal?.(); // Truyền từ Dashboard
-                setIsPopoverOpen(false); // Đóng popover khi mở SettingsModal
-              }}
+              openSettingsModal={openSettingsModal}
             />
           </div>
         )}
-
         <div className="flex flex-col space-y-6 p-2">
           <div
             className={`p-2 rounded-lg cursor-pointer ${active === "chat" ? "bg-white text-blue-600" : "text-white"}`}
             onClick={() => setActive("chat")}
-          >
+            title={t.messages}>
             <FaComments className="text-2xl" />
           </div>
           <div
             className={`p-2 rounded-lg cursor-pointer ${active === "friends" ? "bg-white text-blue-600" : "text-white"}`}
             onClick={() => setActive("friends")}
-          >
+            title={t.contacts}>
             <FaUserFriends className="text-2xl" />
           </div>
           <div
             className={`p-2 rounded-lg cursor-pointer ${active === "tasks" ? "bg-white text-blue-600" : "text-white"}`}
             onClick={() => setActive("tasks")}
-          >
+            title={t.utilities}>
             <FaTasks className="text-2xl" />
           </div>
         </div>
@@ -126,13 +134,13 @@ const Sidebar: React.FC<SidebarProps> = ({ onSettingsClick, onOpenModal, openSet
           <div
             className={`p-2 rounded-lg cursor-pointer ${active === "cloud" ? "bg-white text-blue-600" : "text-white"}`}
             onClick={() => setActive("cloud")}
-          >
+            title={t.data}>
             <FaCloud className="text-2xl" />
           </div>
           <div
             className={`p-2 rounded-lg cursor-pointer ${active === "briefcase" ? "bg-white text-blue-600" : "text-white"}`}
             onClick={() => setActive("briefcase")}
-          >
+            title={t.utilities}>
             <FaBriefcase className="text-2xl" />
           </div>
           <div
@@ -141,17 +149,17 @@ const Sidebar: React.FC<SidebarProps> = ({ onSettingsClick, onOpenModal, openSet
             onClick={() => {
               setActive("settings");
               toggleSettingsMenu();
-              if (onSettingsClick) {
-                onSettingsClick();
-              }
+              if (onSettingsClick) onSettingsClick();
             }}
-          >
+            title={t.settings}>
             <FaCog className="text-2xl" />
           </div>
         </div>
-
         {isSettingsMenuOpen && (
-          <div ref={settingsMenuRef} className="absolute bottom-16 left-16 z-50" onClick={(event) => event.stopPropagation()}></div>
+          <div
+            ref={settingsMenuRef}
+            className="absolute bottom-16 left-16 z-50"
+            onClick={(event) => event.stopPropagation()}></div>
         )}
       </div>
     </div>

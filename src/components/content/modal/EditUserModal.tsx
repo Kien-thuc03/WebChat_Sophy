@@ -1,17 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { Modal } from "antd";
-
 import { updateUserInfo, updateUserName } from "../../../api/API";
+import { useLanguage } from "../../../features/auth/context/LanguageContext";
 
 interface EditUserModalProps {
   isOpen: boolean;
   onClose: () => void;
   onBack: () => void;
-  initialData: {
-    displayName: string;
-    isMale: boolean;
-    birthday: string;
-  };
+  initialData: { displayName: string; isMale: boolean; birthday: string };
   onSave: (data: {
     displayName: string;
     isMale: boolean;
@@ -30,20 +26,18 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
   const [selectedDay, setSelectedDay] = useState("01");
   const [selectedMonth, setSelectedMonth] = useState("01");
   const [selectedYear, setSelectedYear] = useState("2000");
+  const { t } = useLanguage(); // Sử dụng context
 
   const handleSave = async () => {
     try {
       const userId = localStorage.getItem("userId");
-      if (!userId) {
-        throw new Error("Không tìm thấy userId trong localStorage");
-      }
+      if (!userId)
+        throw new Error(
+          t.no_user_id || "Không tìm thấy userId trong localStorage"
+        );
 
       const updatedBirthday = `${selectedYear}-${selectedMonth}-${selectedDay}`;
-
-      // Cập nhật tên hiển thị
       const nameResponse = await updateUserName(userId, displayName);
-
-      // Cập nhật giới tính và ngày sinh
       const infoResponse = await updateUserInfo(userId, {
         isMale,
         birthday: updatedBirthday,
@@ -56,11 +50,11 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
         birthday: infoResponse.birthday || updatedBirthday,
       });
 
-      onClose(); // Đóng modal
-      alert("Cập nhật thông tin thành công!");
+      onClose();
+      alert(t.update_success || "Cập nhật thông tin thành công!");
     } catch (error) {
       console.error("Lỗi:", error);
-      alert("Cập nhật thất bại!");
+      alert(t.update_error || "Cập nhật thất bại!");
     }
   };
 
@@ -88,10 +82,10 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
 
   return (
     <Modal
-      title="Cập nhật thông tin cá nhân"
+      title={t.update_profile || "Cập nhật thông tin cá nhân"}
       open={isOpen}
       onCancel={onClose}
-      onOk={handleSave} // Trigger save on clicking "OK"
+      onOk={handleSave}
       centered
       bodyStyle={{ padding: "24px" }}
       footer={[
@@ -100,66 +94,62 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
           type="button"
           className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300"
           onClick={onClose}>
-          Hủy
+          {t.cancel || "Hủy"}
         </button>,
         <button
           key="save"
           type="button"
           className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
           onClick={handleSave}>
-          Cập nhật
+          {t.update || "Cập nhật"}
         </button>,
       ]}>
       <div>
-        {/* Tên hiển thị */}
         <div className="mb-4">
-          <label className="text-gray-700 font-medium">Tên hiển thị</label>
+          <label className="text-gray-700 font-medium">
+            {t.display_name || "Tên hiển thị"}
+          </label>
           <input
             type="text"
-            placeholder="Nhập tên hiển thị"
+            placeholder={t.enter_display_name || "Nhập tên hiển thị"}
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
             className="w-full p-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
-
-        {/* Giới tính */}
         <div className="mb-4">
-          <label className="text-gray-700 font-medium">Giới tính</label>
+          <label className="text-gray-700 font-medium">
+            {t.gender || "Giới tính"}
+          </label>
           <div className="flex items-center space-x-4">
             <div
               className="flex items-center cursor-pointer"
               onClick={() => setIsMale(true)}>
               <div
-                className={`w-5 h-5 rounded-full border-2 mr-2 flex items-center justify-center ${
-                  isMale ? "border-blue-500" : "border-gray-300"
-                }`}>
+                className={`w-5 h-5 rounded-full border-2 mr-2 flex items-center justify-center ${isMale ? "border-blue-500" : "border-gray-300"}`}>
                 {isMale && (
                   <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
                 )}
               </div>
-              <span>Nam</span>
+              <span>{t.male || "Nam"}</span>
             </div>
-
             <div
               className="flex items-center cursor-pointer"
               onClick={() => setIsMale(false)}>
               <div
-                className={`w-5 h-5 rounded-full border-2 mr-2 flex items-center justify-center ${
-                  !isMale ? "border-blue-500" : "border-gray-300"
-                }`}>
+                className={`w-5 h-5 rounded-full border-2 mr-2 flex items-center justify-center ${!isMale ? "border-blue-500" : "border-gray-300"}`}>
                 {!isMale && (
                   <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
                 )}
               </div>
-              <span>Nữ</span>
+              <span>{t.female || "Nữ"}</span>
             </div>
           </div>
         </div>
-
-        {/* Ngày sinh */}
         <div className="mb-4">
-          <label className="text-gray-700 font-medium">Ngày sinh</label>
+          <label className="text-gray-700 font-medium">
+            {t.birthday || "Ngày sinh"}
+          </label>
           <div className="flex space-x-2">
             <div className="w-1/3">
               <select
@@ -175,7 +165,6 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
                 ))}
               </select>
             </div>
-
             <div className="w-1/3">
               <select
                 value={selectedMonth}
@@ -190,7 +179,6 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
                 ))}
               </select>
             </div>
-
             <div className="w-1/3">
               <select
                 value={selectedYear}

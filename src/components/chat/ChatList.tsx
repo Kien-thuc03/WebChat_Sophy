@@ -12,8 +12,8 @@ import GroupAvatar from "./GroupAvatar";
 import LabelModal from "./modals/LabelModal";
 import NotificationModal from "./modals/NotificationModal";
 import AutoDeleteModal from "./modals/AutoDeleteModal";
-
 import { Conversation } from "../../features/chat/types/conversationTypes";
+import { useLanguage } from "../../features/auth/context/LanguageContext";
 
 interface ChatListProps {
   onSelectConversation: (conversation: Conversation) => void;
@@ -22,6 +22,7 @@ interface ChatListProps {
 const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
   const { conversations, userCache, displayNames, userAvatars } =
     useConversations();
+  const { t } = useLanguage(); // Sử dụng context
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const [selectedConversation, setSelectedConversation] = useState<
     string | null
@@ -60,8 +61,7 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
         renderItem={(chat) => (
           <List.Item
             className="flex items-center gap-3 hover:bg-gray-50 cursor-pointer px-3 py-2"
-            onClick={() => onSelectConversation(chat)}
-          >
+            onClick={() => onSelectConversation(chat)}>
             {/* Avatar section */}
             <div className="relative shrink-0 pl-2">
               {chat.isGroup && chat.groupMembers.length > 0 ? (
@@ -88,6 +88,7 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
                 <span className="truncate font-semibold text-gray-900">
                   {displayNames[chat.conversationId] ||
                     chat.receiverId ||
+                    t.private_chat ||
                     "Private Chat"}
                 </span>
                 <div className="flex items-center">
@@ -99,7 +100,7 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
                     <button
                       ref={buttonRef}
                       className="p-1 rounded hover:bg-gray-100"
-                      title="Thêm"
+                      title={t.more || "Thêm"}
                       onClick={(e) => {
                         e.stopPropagation();
                         setActiveMenu(
@@ -107,8 +108,7 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
                             ? null
                             : chat.conversationId
                         );
-                      }}
-                    >
+                      }}>
                       <FontAwesomeIcon
                         icon={faEllipsisH}
                         className="fa fa-ellipsis-h text-gray-600"
@@ -116,11 +116,10 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
                     </button>
                     <div
                       ref={menuRef}
-                      className={`absolute z-20 w-50 bg-white shadow-lg rounded-md border border-gray-200 right-0 mt-1 ${activeMenu === chat.conversationId ? "block" : "hidden"}`}
-                    >
+                      className={`absolute z-20 w-50 bg-white shadow-lg rounded-md border border-gray-200 right-0 mt-1 ${activeMenu === chat.conversationId ? "block" : "hidden"}`}>
                       <div className="py-1">
                         <div className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer">
-                          Ghim hội thoại
+                          {t.pin_conversation || "Ghim hội thoại"}
                         </div>
                         <div className="border-t border-gray-200"></div>
                         <div
@@ -129,16 +128,15 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
                             setSelectedConversation(chat.conversationId);
                             setIsLabelModalOpen(true);
                             setActiveMenu(null);
-                          }}
-                        >
-                          <span>Phân loại</span>
+                          }}>
+                          <span>{t.label || "Phân loại"}</span>
                           <FontAwesomeIcon
                             icon={faChevronRight}
                             className="ml-1"
                           />
                         </div>
                         <div className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer">
-                          Đánh dấu chưa đọc
+                          {t.mark_unread || "Đánh dấu chưa đọc"}
                         </div>
                         <div className="border-t border-gray-200"></div>
                         <div
@@ -147,16 +145,17 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
                             setSelectedConversation(chat.conversationId);
                             setIsNotificationModalOpen(true);
                             setActiveMenu(null);
-                          }}
-                        >
-                          <span>Tắt thông báo</span>
+                          }}>
+                          <span>
+                            {t.turn_off_notifications || "Tắt thông báo"}
+                          </span>
                           <FontAwesomeIcon
                             icon={faChevronRight}
                             className="ml-1"
                           />
                         </div>
                         <div className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer flex items-center justify-between">
-                          Ẩn trò chuyện
+                          {t.hide_chat || "Ẩn trò chuyện"}
                         </div>
                         <div
                           className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer flex items-center justify-between"
@@ -164,9 +163,10 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
                             setSelectedConversation(chat.conversationId);
                             setIsAutoDeleteModalOpen(true);
                             setActiveMenu(null);
-                          }}
-                        >
-                          <span>Tin nhắn tự xóa</span>
+                          }}>
+                          <span>
+                            {t.auto_delete_messages || "Tin nhắn tự xóa"}
+                          </span>
                           <FontAwesomeIcon
                             icon={faChevronRight}
                             className="ml-1"
@@ -174,11 +174,11 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
                         </div>
                         <div className="border-t border-gray-200"></div>
                         <div className="px-4 py-2 text-sm text-red-500 hover:bg-gray-100 cursor-pointer">
-                          Xóa hội thoại
+                          {t.delete_conversation || "Xóa hội thoại"}
                         </div>
                         <div className="border-t border-gray-200"></div>
                         <div className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer">
-                          Báo xấu
+                          {t.report || "Báo xấu"}
                         </div>
                       </div>
                     </div>
@@ -194,7 +194,9 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
                   </span>
                 )}
                 <span className="truncate">
-                  {chat.lastMessage?.content || "Chưa có tin nhắn"}
+                  {chat.lastMessage?.content ||
+                    t.no_messages ||
+                    "Chưa có tin nhắn"}
                 </span>
               </div>
             </div>
@@ -208,7 +210,7 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
         locale={{
           emptyText: (
             <div className="p-4 text-center text-gray-500">
-              Không có hội thoại nào
+              {t.no_conversations || "Không có hội thoại nào"}
             </div>
           ),
         }}
@@ -221,16 +223,31 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
         labels={[
           {
             id: "customer",
-            name: "Khách hàng",
+            name: t.label_customer || "Khách hàng",
             color: "#FF6B6B",
             selected: false,
           },
-          { id: "family", name: "Gia đình", color: "#4ECDC4", selected: false },
-          { id: "work", name: "Công việc", color: "#45B7D1", selected: false },
-          { id: "friends", name: "Bạn bè", color: "#96CEB4", selected: false },
+          {
+            id: "family",
+            name: t.label_family || "Gia đình",
+            color: "#4ECDC4",
+            selected: false,
+          },
+          {
+            id: "work",
+            name: t.label_work || "Công việc",
+            color: "#45B7D1",
+            selected: false,
+          },
+          {
+            id: "friends",
+            name: t.label_friends || "Bạn bè",
+            color: "#96CEB4",
+            selected: false,
+          },
           {
             id: "later",
-            name: "Trả lời sau",
+            name: t.label_later || "Trả lời sau",
             color: "#FFEEAD",
             selected: false,
           },

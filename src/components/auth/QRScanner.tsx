@@ -1,7 +1,10 @@
 import React, { useEffect, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { useNavigate } from "react-router-dom";
-import { generateQRToken, checkQRStatus } from "../../api/API";
+import { generateQRToken } from "../../api/API";
+import io from "socket.io-client"; // Remove Socket type import
+
+const SOCKET_SERVER_URL = "http://localhost:3000"; // URL của server WebSocket
 
 const QRScanner: React.FC = () => {
   const navigate = useNavigate();
@@ -10,7 +13,11 @@ const QRScanner: React.FC = () => {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [status, setStatus] = useState<string>("");
+  const [timeLeft, setTimeLeft] = useState<number>(0); // Thêm trạng thái thời gian còn lại
+  const [isExpired, setIsExpired] = useState<boolean>(false); // Kiểm tra mã QR đã hết hạn chưa
+  const [isNearExpiration, setIsNearExpiration] = useState<boolean>(false); // Thêm biến trạng thái cho gần hết hạn
 
+  // Khởi tạo QR Token
   useEffect(() => {
     const generateQR = async () => {
       try {
@@ -19,8 +26,13 @@ const QRScanner: React.FC = () => {
         setQRToken(response.qrToken);
         setExpiresAt(new Date(response.expiresAt));
         setStatus("waiting");
-      } catch (error) {
-        setError("Không thể tạo mã QR. Vui lòng thử lại.");
+        setIsExpired(false); // Reset khi tạo lại mã QR
+      } catch (err: unknown) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Không thể tạo mã QR. Vui lòng thử lại."
+        );
       } finally {
         setIsLoading(false);
       }
@@ -29,40 +41,86 @@ const QRScanner: React.FC = () => {
     generateQR();
   }, []);
 
+  // Cập nhật thời gian còn lại mỗi giây
   useEffect(() => {
-    let pollingInterval: NodeJS.Timeout;
+    if (!expiresAt) return;
+    const interval = setInterval(() => {
+      const timeRemaining = Math.max(
+        0,
+        expiresAt.getTime() - new Date().getTime()
+      );
+      setTimeLeft(timeRemaining);
+      if (timeRemaining === 0) {
+        setIsExpired(true);
+      } else if (timeRemaining <= 30000) {
+        // Thời gian còn lại dưới 30 giây
+        setIsNearExpiration(true);
+      } else {
+        setIsNearExpiration(false);
+      }
+    }, 1000);
 
-    if (qrToken && status === "waiting") {
-      pollingInterval = setInterval(async () => {
-        try {
-          const response = await checkQRStatus(qrToken);
-          setStatus(response.status);
+    return () => clearInterval(interval);
+  }, [expiresAt]);
 
-          if (response.status === "authenticated") {
-            localStorage.setItem("userId", response.userId);
-            localStorage.setItem("token", response.accessToken);
-            clearInterval(pollingInterval);
-            navigate("/main");
-          } else if (response.status === "expired") {
-            setError("Mã QR đã hết hạn. Vui lòng tải lại trang để tạo mã mới.");
-            clearInterval(pollingInterval);
-          }
-        } catch (error: any) {
-          console.error("Lỗi kiểm tra trạng thái QR:", error);
-          if (error.message === "QR token đã hết hạn") {
-            setError("Mã QR đã hết hạn. Vui lòng tải lại trang để tạo mã mới.");
-            clearInterval(pollingInterval);
-          }
-        }
-      }, 2000);
-    }
+  // Kết nối WebSocket và lắng nghe sự kiện từ server
+  useEffect(() => {
+    if (!qrToken || status !== "waiting") return;
+
+    const socketIo = io(SOCKET_SERVER_URL, {
+      query: { qrToken },
+    });
+
+    socketIo.emit("initQrLogin", qrToken);
+
+    socketIo.on("qrScanned", (data) => {
+      console.log("QR scanned by mobile app:", data);
+      setStatus("scanned");
+    });
+
+    socketIo.on("qrLoginConfirmed", (data) => {
+      console.log("QR login confirmed:", data);
+      setStatus("authenticated");
+      localStorage.setItem("userId", data.userId);
+      localStorage.setItem("token", data.token);
+      navigate("/");
+    });
+
+    socketIo.on("qrLoginRejected", (data) => {
+      setError(data.message || "Đăng nhập QR bị từ chối.");
+      setStatus("rejected");
+    });
+
+    socketIo.on("qrError", (data) => {
+      setError(data.message || "Lỗi không xác định.");
+      setStatus("error");
+    });
 
     return () => {
-      if (pollingInterval) {
-        clearInterval(pollingInterval);
-      }
+      socketIo.disconnect();
     };
   }, [qrToken, status, navigate]);
+
+  const handleRegenerateQR = async () => {
+    setIsExpired(false); // Reset trạng thái hết hạn
+    setTimeLeft(0); // Reset thời gian còn lại
+    setQRToken(""); // Xóa mã QR hiện tại
+    setExpiresAt(null); // Xóa thời gian hết hạn
+    setStatus("waiting");
+
+    try {
+      const response = await generateQRToken(); // Gọi API để tạo mã QR mới
+      setQRToken(response.qrToken);
+      setExpiresAt(new Date(response.expiresAt)); // Cập nhật thời gian hết hạn mới
+      setStatus("waiting");
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Không thể tạo mã QR. Vui lòng thử lại."
+      );
+    }
+  };
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-blue-100 p-6">
@@ -88,9 +146,29 @@ const QRScanner: React.FC = () => {
             </div>
           ) : error ? (
             <div className="text-center text-red-500">{error}</div>
+          ) : isExpired ? (
+            <div className="text-center text-gray-500">
+              <p>Mã QR đã hết hạn!</p>
+              <button
+                onClick={handleRegenerateQR}
+                className="mt-4 text-blue-500">
+                Tạo lại mã QR
+              </button>
+            </div>
           ) : (
             <div className="p-4 border-2 border-gray-200 rounded-lg">
-              <QRCodeSVG value={qrToken} size={200} />
+              <QRCodeSVG
+                value={JSON.stringify({
+                  token: qrToken,
+                  expiresAt: expiresAt?.toISOString(),
+                  type: "sophy_auth",
+                })}
+                size={200}
+              />
+              <p
+                className={`font-bold text-xl text-center mt-2  ${isNearExpiration ? "text-red-500" : "text-black"}`}>
+                {Math.ceil(timeLeft / 1000)} giây còn lại
+              </p>
             </div>
           )}
         </div>
@@ -99,8 +177,7 @@ const QRScanner: React.FC = () => {
           <button
             type="button"
             onClick={() => navigate("/")}
-            className="text-sm text-blue-500 hover:text-blue-400"
-          >
+            className="text-sm text-blue-500 transition-colors duration-200 hover:text-blue-600 underline hover:no-underline">
             Đăng nhập bằng mật khẩu
           </button>
         </div>

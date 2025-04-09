@@ -1,6 +1,7 @@
 import React from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faTag } from '@fortawesome/free-solid-svg-icons';
+import { useLanguage } from "../../../features/auth/context/LanguageContext";
 
 interface LabelModalProps {
   isOpen: boolean;
@@ -22,6 +23,8 @@ const LabelModal: React.FC<LabelModalProps> = ({
   onLabelSelect,
   onManageLabels,
 }) => {
+  const { t } = useLanguage(); // Sử dụng context
+
   if (!isOpen) return null;
 
   return (
@@ -32,12 +35,12 @@ const LabelModal: React.FC<LabelModalProps> = ({
       >
         <div className="p-4">
           <div className="flex justify-between items-center mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Phân loại</h3>
+            <h3 className="text-lg font-semibold text-gray-900">{t.label || 'Phân loại'}</h3>
             <button
               onClick={onClose}
               className="text-gray-400 hover:text-gray-500"
             >
-              <span className="sr-only">Đóng</span>
+              <span className="sr-only">{t.close || 'Đóng'}</span>
               <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
@@ -46,7 +49,7 @@ const LabelModal: React.FC<LabelModalProps> = ({
           
           <div className="max-h-[400px] overflow-y-auto">
             <div className="px-1 py-2 font-bold text-gray-600">
-              <span>Theo thẻ phân loại</span>
+              <span>{t.by_label || 'Theo thẻ phân loại'}</span>
             </div>
             
             {labels.map((label) => (
@@ -93,7 +96,7 @@ const LabelModal: React.FC<LabelModalProps> = ({
               onClick={onManageLabels}
               className={`w-full p-2 text-center rounded-full ${labels.some(l => l.selected) ? 'bg-blue-100 text-blue-600 font-medium' : 'text-blue-500 hover:bg-gray-100'}`}
             >
-              Quản lý thẻ phân loại
+              {t.manage_labels || 'Quản lý thẻ phân loại'}
             </button>
           </div>
         </div>

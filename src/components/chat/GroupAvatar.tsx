@@ -17,7 +17,6 @@ const GroupAvatar: React.FC<GroupAvatarProps> = ({
     groupAvatarUrl,
   });
 
-  // Nếu có groupAvatarUrl, hiển thị ảnh nhóm từ URL đó
   if (groupAvatarUrl) {
     return (
       <div 
@@ -33,17 +32,13 @@ const GroupAvatar: React.FC<GroupAvatarProps> = ({
     );
   }
 
-  // Nếu không có groupAvatarUrl, sử dụng phần gộp ảnh hiện tại
   return (
     <div
       className={`rounded-lg overflow-hidden ${className}`}
       style={containerStyle}
     >
       {visibleMembers.map((memberId, index) => {
-        const { content, style } = useAvatarPlaceholder(
-          memberId,
-          userAvatars[memberId]
-        );
+        const { content, style } = useAvatarPlaceholder(memberId, userAvatars[memberId]);
         return (
           <div
             key={index}

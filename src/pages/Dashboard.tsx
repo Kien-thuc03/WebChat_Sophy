@@ -7,6 +7,8 @@ import UserModal from "../components/content/modal/UserModal";
 import SettingsModal from "../components/content/modal/SettingsModal";
 import MainContent from "../components/content/MainContent";
 import { Conversation } from "../features/chat/types/conversationTypes";
+// Remove the unused import
+// import { useLanguage } from "../features/auth/context/LanguageContext"; 
 
 const Dashboard: React.FC = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -14,6 +16,9 @@ const Dashboard: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const settingsRef = useRef<HTMLDivElement>(null);
+  
+  // Remove the unused variable
+  // const { t } = useLanguage();
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -62,7 +67,7 @@ const Dashboard: React.FC = () => {
       <Sidebar
         onSettingsClick={handleToggleSettings}
         onOpenModal={handleOpenModal}
-        openSettingsModal={handleOpenSettingsModal} // Truyền vào Sidebar
+        openSettingsModal={handleOpenSettingsModal}
       />
       <ChatList onSelectConversation={setSelectedConversation} />
       <div className="flex-1 flex flex-col">
@@ -83,7 +88,10 @@ const Dashboard: React.FC = () => {
               }
               groupMembers={selectedConversation.groupMembers}
             />
-            <div className="flex-1 bg-gray-50">{/* Chat messages will be added here */}</div>
+            <div className="flex-1 bg-gray-50">
+              {/* Ví dụ thêm văn bản dịch */}
+              {/* <p>{t.chat_placeholder || "Chưa có tin nhắn nào"}</p> */}
+            </div>
           </>
         ) : (
           <MainContent />

@@ -1,11 +1,12 @@
 import React from "react";
 import { useAuth } from "../../features/auth/hooks/useAuth";
-import { User } from "../../features/auth/types/authTypes";
+// import { User } from "../../features/auth/types/authTypes";
 import { logout } from "../../api/API";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faPenToSquare } from "@fortawesome/free-solid-svg-icons";
 import { Menu, Modal } from "antd";
 import type { MenuProps } from "antd";
+import { useLanguage } from "../../features/auth/context/LanguageContext";
 
 interface SettingsPopoverProps {
   onLogout: () => void;
@@ -20,31 +21,29 @@ const SettingsPopover: React.FC<SettingsPopoverProps> = ({
   onUpgradeClick,
   openSettingsModal,
 }) => {
-  const { user } = useAuth() as { user: User | null };
+  const { user } = useAuth();
+  const { t } = useLanguage(); // Sử dụng context
 
   const handleLogout = async () => {
     Modal.confirm({
-      title: "Xác nhận đăng xuất",
-      content: "Bạn có chắc chắn muốn đăng xuất không?",
-      okText: "Đồng ý",
-      cancelText: "Hủy",
+      title: t.logout_confirm_title || "Xác nhận đăng xuất",
+      content: t.logout_confirm_content || "Bạn có chắc chắn muốn đăng xuất không?",
+      okText: t.agree || "Đồng ý",
+      cancelText: t.cancel || "Hủy",
       onOk: async () => {
         try {
           await logout();
           Modal.success({
-            title: "Đăng xuất thành công",
-            content: "Bạn đã đăng xuất thành công!",
+            title: t.logout_success_title || "Đăng xuất thành công",
+            content: t.logout_success_content || "Bạn đã đăng xuất thành công!",
             onOk: () => {
               window.location.href = "/";
             },
           });
         } catch (error: unknown) {
           Modal.error({
-            title: "Đăng xuất thất bại",
-            content:
-              error instanceof Error
-                ? error.message
-                : "Đăng xuất thất bại, vui lòng thử lại.",
+            title: t.logout_error_title || "Đăng xuất thất bại",
+            content: error instanceof Error ? error.message : t.logout_error_content || "Đăng xuất thất bại, vui lòng thử lại.",
           });
         }
       },
@@ -65,9 +64,7 @@ const SettingsPopover: React.FC<SettingsPopoverProps> = ({
       key: "2",
       label: (
         <div className="flex items-center justify-between">
-          <span className="text-gray-700 font-large font-medium">
-            Nâng cấp tài khoản
-          </span>
+          <span className="text-gray-700 font-large font-medium">{t.upgrade_account || "Nâng cấp tài khoản"}</span>
           <FontAwesomeIcon icon={faPenToSquare} className="ml-2" />
         </div>
       ),
@@ -75,24 +72,18 @@ const SettingsPopover: React.FC<SettingsPopoverProps> = ({
     },
     {
       key: "3",
-      label: (
-        <span className="text-gray-700 font-large font-medium">
-          Hồ sơ của bạn
-        </span>
-      ),
+      label: <span className="text-gray-700 font-large font-medium">{t.your_profile || "Hồ sơ của bạn"}</span>,
       onClick: onOpenModal,
     },
     {
       key: "4",
-      label: (
-        <span className="text-gray-700 font-large font-medium">Cài đặt</span>
-      ),
+      label: <span className="text-gray-700 font-large font-medium">{t.settings || "Cài đặt"}</span>,
       onClick: openSettingsModal,
     },
     { type: "divider" },
     {
       key: "5",
-      label: <span className="text-red-600 font-large">Đăng xuất</span>,
+      label: <span className="text-red-600 font-large">{t.logout || "Đăng xuất"}</span>,
       onClick: () => {
         onLogout();
         handleLogout();
@@ -102,12 +93,7 @@ const SettingsPopover: React.FC<SettingsPopoverProps> = ({
 
   return (
     <div className="bg-white w-64 p-4 shadow-[0_0_15px_rgba(0,0,0,0.2)] rounded-lg">
-      <Menu
-        items={items}
-        mode="vertical"
-        theme="light"
-        className="rounded-lg"
-      />
+      <Menu items={items} mode="vertical" theme="light" className="rounded-lg" />
     </div>
   );
 };
