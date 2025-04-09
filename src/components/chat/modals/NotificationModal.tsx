@@ -1,4 +1,5 @@
-import React from 'react';
+import React from "react";
+import { useLanguage } from "../../../features/auth/context/LanguageContext";
 
 interface NotificationModalProps {
   isOpen: boolean;
@@ -11,31 +12,45 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
   onClose,
   onSelect,
 }) => {
+  const { t } = useLanguage(); // Sử dụng context
+
   if (!isOpen) return null;
 
   const options = [
-    { id: '1h', label: 'Trong 1 giờ' },
-    { id: '4h', label: 'Trong 4 giờ' },
-    { id: '8am', label: 'Cho đến 8:00 AM' },
-    { id: 'indefinite', label: 'Cho đến khi được mở lại' },
+    { id: "1h", label: t.notification_1h || "Trong 1 giờ" },
+    { id: "4h", label: t.notification_4h || "Trong 4 giờ" },
+    { id: "8am", label: t.notification_8am || "Cho đến 8:00 AM" },
+    {
+      id: "indefinite",
+      label: t.notification_indefinite || "Cho đến khi được mở lại",
+    },
   ];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-      <div 
+      <div
         className="bg-white rounded-lg shadow-xl w-96 max-w-md"
-        onClick={(e) => e.stopPropagation()}
-      >
+        onClick={(e) => e.stopPropagation()}>
         <div className="p-4">
           <div className="flex justify-between items-center mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Tắt thông báo</h3>
+            <h3 className="text-lg font-semibold text-gray-900">
+              {t.turn_off_notifications || "Tắt thông báo"}
+            </h3>
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-gray-500"
-            >
-              <span className="sr-only">Đóng</span>
-              <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              className="text-gray-400 hover:text-gray-500">
+              <span className="sr-only">{t.close || "Đóng"}</span>
+              <svg
+                className="h-6 w-6"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
               </svg>
             </button>
           </div>
@@ -48,8 +63,7 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
                 onClick={() => {
                   onSelect(option.id);
                   onClose();
-                }}
-              >
+                }}>
                 {option.label}
               </button>
             ))}

@@ -59,13 +59,16 @@ export const updateUserAvatar = async (imageFile: File): Promise<void> => {
     const formData = new FormData();
     formData.append("avatar", imageFile);
 
-    const response = await fetch(`${API_BASE_URL}/api/users/update-user/avatar`, {
-      method: "PUT",
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-      body: formData,
-    });
+    const response = await fetch(
+      `${API_BASE_URL}/api/users/update-user/avatar`,
+      {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      }
+    );
 
     if (!response.ok) {
       throw new Error("Cập nhật avatar thất bại");
@@ -83,7 +86,6 @@ export const updateUserAvatar = async (imageFile: File): Promise<void> => {
     );
   }
 };
-
 
 export const generateQRToken = async () => {
   try {
@@ -258,10 +260,13 @@ apiClient.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    // If the error is 401 and it's not a retry
     if (error.response?.status === 401 && !originalRequest._retry) {
+      if (originalRequest.url.includes("/api/auth/change-password")) {
+        // Nếu là yêu cầu đổi mật khẩu, không logout mà để hàm gọi xử lý lỗi
+        return Promise.reject(error);
+      }
+
       if (isRefreshing) {
-        // Queue the request while refreshing
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
         })
@@ -269,9 +274,7 @@ apiClient.interceptors.response.use(
             originalRequest.headers.Authorization = `Bearer ${token}`;
             return apiClient(originalRequest);
           })
-          .catch((err) => {
-            return Promise.reject(err);
-          });
+          .catch((err) => Promise.reject(err));
       }
 
       originalRequest._retry = true;
@@ -283,41 +286,29 @@ apiClient.interceptors.response.use(
           throw new Error("Refresh token not available");
         }
 
-        // Call the refresh endpoint với refreshToken trong header
         const response = await axios.post(
           `${API_BASE_URL}/api/auth/refresh`,
           {},
           {
-            headers: {
-              Authorization: `Bearer ${refreshToken}`,
-            },
+            headers: { Authorization: `Bearer ${refreshToken}` },
           }
         );
 
         const { accessToken, refreshToken: newRefreshToken } = response.data;
-
-        // Update tokens in localStorage
         localStorage.setItem("token", accessToken);
         localStorage.setItem("refreshToken", newRefreshToken);
-
-        // Cập nhật header Authorization với accessToken mới
         apiClient.defaults.headers.common["Authorization"] =
           `Bearer ${accessToken}`;
-
-        // Process the queued requests
         processQueue(null, accessToken);
 
-        // Retry the original request with the new token
         originalRequest.headers.Authorization = `Bearer ${accessToken}`;
         return apiClient(originalRequest);
       } catch (err) {
         processQueue(err, null);
-
-        // If refresh fails, clear tokens and log out the user
         localStorage.removeItem("token");
         localStorage.removeItem("refreshToken");
         localStorage.removeItem("userId");
-        window.location.href = "/"; // Redirect to login page
+        window.location.href = "/";
         return Promise.reject(err);
       } finally {
         isRefreshing = false;
@@ -349,7 +340,7 @@ export const getUserByPhone = async (phone: string) => {
     throw new Error("Lỗi khi lấy thông tin người dùng");
   }
 };
-
+//Đăng xuất
 export const logout = async () => {
   try {
     const response = await apiClient.post("/api/auth/logout");
@@ -367,7 +358,7 @@ export const logout = async () => {
 export const changePassword = async (
   oldPassword: string,
   newPassword: string
-): Promise<string> => {
+): Promise<{ accessToken: string; refreshToken: string; userId: string }> => {
   try {
     const userId = localStorage.getItem("userId");
     if (!userId) {
@@ -380,21 +371,59 @@ export const changePassword = async (
       newPassword,
     });
 
-    if (response.status !== 200) {
-      throw new Error("Thay đổi mật khẩu không thành công");
+    console.log("Response from changePassword API:", response.data);
+
+    const { token, user } = response.data;
+
+    if (!token?.accessToken || !token?.refreshToken || !user || !user.userId) {
+      throw new Error("Dữ liệu không hợp lệ");
     }
 
-    return response.data.message || "Thay đổi mật khẩu thành công";
-  } catch (error: unknown) {
-    console.error("Error in changePassword:", error);
+    localStorage.setItem("token", token.accessToken);
+    localStorage.setItem("refreshToken", token.refreshToken);
+    apiClient.defaults.headers.common["Authorization"] =
+      `Bearer ${token.accessToken}`;
 
-    if (error instanceof AxiosError && error.response) {
-      throw new Error(error.response.data.message || "Lỗi từ server");
+    return {
+      accessToken: token.accessToken,
+      refreshToken: token.refreshToken,
+      userId: user.userId,
+    };
+  } catch (error) {
+    interface ApiError {
+      response?: {
+        status: number;
+        data?: {
+          message?: string;
+        };
+      };
+      message: string;
     }
 
-    throw new Error("Không thể thay đổi mật khẩu, vui lòng thử lại");
+    const apiError = error as ApiError;
+    if (apiError.response) {
+      switch (apiError.response.status) {
+        case 404:
+          throw new Error("Không tìm thấy thông tin người dùng");
+        case 401:
+          throw new Error("Mật khẩu cũ không đúng");
+        case 400:
+          // Xử lý lỗi từ API với thông báo chi tiết
+          if (apiError.response.data?.message) {
+            throw new Error(apiError.response.data.message); // Lấy thông báo lỗi từ API
+          } else {
+            throw new Error("Mật khẩu mới phải có ít nhất 6 ký tự và chứa cả chữ và số");
+          }
+        case 500:
+          throw new Error("Lỗi server, vui lòng thử lại sau");
+        default:
+          throw new Error(apiError.response.data?.message || "Đổi mật khẩu thất bại, vui lòng thử lại");
+      }
+    }
+    throw new Error("Đổi mật khẩu thất bại, vui lòng thử lại");
   }
 };
+
 
 //Hàm lấy user theo userId
 export const getUserById = async (userId: string): Promise<any> => {

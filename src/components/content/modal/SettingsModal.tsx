@@ -1,5 +1,5 @@
 import { Button, Modal, Radio, Select, Switch } from "antd";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import ChangePasswordModal from "./ChangePasswordModal";
 import {
   SettingOutlined,
@@ -8,77 +8,69 @@ import {
   MessageOutlined,
   AppstoreOutlined,
 } from "@ant-design/icons";
+import { useLanguage } from "../../../features/auth/context/LanguageContext"; // Import context
 
 const SettingsModal: React.FC<{ visible: boolean; onClose: () => void }> = ({
   visible,
   onClose,
 }) => {
   const [contactDisplay, setContactDisplay] = useState("active");
-  const [language, setLanguage] = useState("vi");
   const [selectedMenu, setSelectedMenu] = useState("general");
-  const [isChangePasswordModalOpen, setIsChangePasswordModalOpen] =
-    useState(false);
-
-  console.log("SettingsModal render - visible:", visible); // Debug trạng thái visible
+  const [isChangePasswordModalOpen, setIsChangePasswordModalOpen] = useState(false);
+  const { language, setLanguage, t } = useLanguage(); // Sử dụng context
 
   const menuItems = [
-    { key: "general", icon: <SettingOutlined />, label: "Cài đặt chung" },
-    { key: "security", icon: <LockOutlined />, label: "Tài khoản và bảo mật" },
-    { key: "privacy", icon: <LockOutlined />, label: "Quyền riêng tư" },
-    { key: "sync", icon: <MessageOutlined />, label: "Đồng bộ tin nhắn" },
-    { key: "data", icon: <AppstoreOutlined />, label: "Quản lý dữ liệu" },
+    { key: "general", icon: <SettingOutlined />, label: t.general },
+    { key: "security", icon: <LockOutlined />, label: t.security },
+    { key: "privacy", icon: <LockOutlined />, label: t.privacy },
+    { key: "sync", icon: <MessageOutlined />, label: t.sync },
+    { key: "data", icon: <AppstoreOutlined />, label: t.data },
     {
       key: "interface",
       icon: <AppstoreOutlined />,
-      label: "Giao diện",
+      label: t.interface,
       extra: <span className="text-xs text-blue-500 ml-2">Beta</span>,
     },
-    { key: "notifications", icon: <BellOutlined />, label: "Thông báo" },
-    { key: "messages", icon: <MessageOutlined />, label: "Tin nhắn" },
-    { key: "calls", icon: <AppstoreOutlined />, label: "Cài đặt cuộc gọi" },
-    { key: "utilities", icon: <AppstoreOutlined />, label: "Tiện ích" },
+    { key: "notifications", icon: <BellOutlined />, label: t.notifications },
+    { key: "messages", icon: <MessageOutlined />, label: t.messages },
+    { key: "calls", icon: <AppstoreOutlined />, label: t.calls },
+    { key: "utilities", icon: <AppstoreOutlined />, label: t.utilities },
   ];
+
+  useEffect(() => {
+    if (visible) {
+      setSelectedMenu("general");
+    }
+  }, [visible]);
 
   const renderContent = () => {
     switch (selectedMenu) {
       case "general":
         return (
           <div className="p-4">
-            {/* Phần "Danh bạ" */}
             <div className="mb-6">
-              <h3 className="text-base font-medium mb-2 text-gray-800">
-                Danh bạ
-              </h3>
-              <p className="text-sm text-gray-500 mb-4">
-                Danh sách bạn bè được hiển thị hiện thông trong danh bạ
-              </p>
+              <h3 className="text-base font-medium mb-2 text-gray-800">{t.contacts}</h3>
+              <p className="text-sm text-gray-500 mb-4">{t.contacts_description}</p>
               <Radio.Group
                 value={contactDisplay}
                 onChange={(e) => setContactDisplay(e.target.value)}
-                className="flex flex-col space-y-3">
-                <Radio value="all" className="text-sm text-gray-700">
-                  Hiển thị tất cả bạn bè
-                </Radio>
-                <Radio value="active" className="text-sm text-gray-700">
-                  Chỉ hiển thị bạn bè đang sử dụng Zalo
-                </Radio>
+                className="flex flex-col space-y-3"
+              >
+                <Radio value="all" className="text-sm text-gray-700">{t.show_all_friends}</Radio>
+                <Radio value="active" className="text-sm text-gray-700">{t.show_active_friends}</Radio>
               </Radio.Group>
             </div>
-
-            {/* Phần "Ngôn ngữ" */}
             <div>
-              <h3 className="text-base font-medium mb-2 text-gray-800">
-                Ngôn ngữ
-              </h3>
+              <h3 className="text-base font-medium mb-2 text-gray-800">{t.language}</h3>
               <div className="flex items-center justify-between p-3 bg-white border border-gray-200 rounded-lg">
-                <span className="text-sm text-gray-700">Thay đổi ngôn ngữ</span>
+                <span className="text-sm text-gray-700">{t.change_language}</span>
                 <Select
                   value={language}
-                  onChange={(value) => setLanguage(value)}
+                  onChange={(value) => setLanguage(value as "vi" | "en")} // Cập nhật ngôn ngữ toàn cục
                   style={{ width: 120 }}
                   options={[
-                    { value: "vi", label: "Tiếng Việt" },
-                    { value: "en", label: "English" },
+                    { value: "vi", label: t.vietnamese },
+                    { value: "en", label: t.english },
                   ]}
                   suffixIcon={<span className="text-gray-400">▼</span>}
                 />
@@ -88,164 +80,72 @@ const SettingsModal: React.FC<{ visible: boolean; onClose: () => void }> = ({
         );
       case "privacy":
         return (
-          <div>
-            <h3 className="text-base font-medium mb-2">Quyền riêng tư</h3>
+          <div className="p-4">
+            <h3 className="text-base font-medium mb-2">{t.privacy}</h3>
             <div className="space-y-6">
               <div className="flex justify-between items-center">
                 <div>
-                  <h4 className="text-sm font-medium">Đổi mật khẩu</h4>
-                  <p className="text-xs text-gray-500">
-                    Thay đổi mật khẩu đăng nhập của bạn
-                  </p>
+                  <h4 className="text-sm font-medium">{t.change_password}</h4>
+                  <p className="text-xs text-gray-500">{t.change_password_desc}</p>
                 </div>
-                <Button
-                  type="link"
-                  size="small"
-                  onClick={() => setIsChangePasswordModalOpen(true)}>
-                  Đổi mật khẩu
+                <Button type="link" size="small" onClick={() => setIsChangePasswordModalOpen(true)}>
+                  {t.change_password}
                 </Button>
               </div>
-
               <div className="flex justify-between items-center">
                 <div>
-                  <h4 className="text-sm font-medium">Khóa màn hình Zalo</h4>
-                  <p className="text-xs text-gray-500">
-                    Khóa màn hình khi không sử dụng
-                  </p>
+                  <h4 className="text-sm font-medium">{t.lock_screen}</h4>
+                  <p className="text-xs text-gray-500">{t.lock_screen_desc}</p>
                 </div>
                 <Switch size="small" />
               </div>
-
               <div className="flex justify-between items-center">
                 <div>
-                  <h4 className="text-sm font-medium">Bảo mật 2 lớp</h4>
-                  <p className="text-xs text-gray-500">
-                    Sau khi bật, bạn sẽ được yêu cầu nhập mã OTP hoặc xác thực
-                    từ thiết bị di động sau khi đăng nhập
-                  </p>
+                  <h4 className="text-sm font-medium">{t.two_factor}</h4>
+                  <p className="text-xs text-gray-500">{t.two_factor_desc}</p>
                 </div>
                 <Switch size="small" />
               </div>
-            </div>
-          </div>
-        );
-      case "interface":
-        return (
-          <div>
-            <h3 className="text-base font-medium mb-2">Giao diện</h3>
-            <p className="text-sm text-gray-500">
-              Tùy chỉnh giao diện ứng dụng
-            </p>
-          </div>
-        );
-      case "notifications":
-        return (
-          <div>
-            <h3 className="text-base font-medium mb-2">Thông báo</h3>
-            <p className="text-sm text-gray-500">Cài đặt thông báo</p>
-          </div>
-        );
-      case "messages":
-        return (
-          <div>
-            <h3 className="text-base font-medium mb-2">Tin nhắn</h3>
-            <p className="text-sm text-gray-500">Cài đặt tin nhắn</p>
-          </div>
-        );
-      case "utilities":
-        return (
-          <div>
-            <h3 className="text-base font-medium mb-2">Tiện ích</h3>
-            <p className="text-sm text-gray-500">Các tiện ích bổ sung</p>
-          </div>
-        );
-      case "contacts":
-        return (
-          <div>
-            <h3 className="text-base font-medium mb-2">Danh bạ</h3>
-            <p className="text-sm text-gray-500 mb-4">
-              Danh sách bạn bè được hiển thị trong danh bạ
-            </p>
-            <Radio.Group
-              value={contactDisplay}
-              onChange={(e) => setContactDisplay(e.target.value)}
-              className="flex flex-col space-y-2">
-              <Radio value="all">Hiển thị tất cả bạn bè</Radio>
-              <Radio value="active">
-                Chỉ hiển thị bạn bè đang sử dụng Sophy
-              </Radio>
-            </Radio.Group>
-          </div>
-        );
-      case "language":
-        return (
-          <div>
-            <h3 className="text-base font-medium mb-2">Ngôn ngữ</h3>
-            <div className="flex items-center space-x-4">
-              <span className="text-sm">Thay đổi ngôn ngữ</span>
-              <Select
-                value={language}
-                onChange={(value) => setLanguage(value)}
-                style={{ width: 120 }}
-                options={[
-                  { value: "vi", label: "Tiếng Việt" },
-                  { value: "en", label: "English" },
-                ]}
-              />
             </div>
           </div>
         );
       default:
-        return (
-          <div>
-            <h3 className="text-base font-medium mb-2">Cài đặt chung</h3>
-            <p className="text-sm text-gray-500">
-              Các cài đặt chung của ứng dụng
-            </p>
-          </div>
-        );
+        return null;
     }
   };
 
   const handleMenuClick = (key: string, e: React.MouseEvent) => {
-    e.preventDefault(); // Ngăn hành vi mặc định
-    e.stopPropagation(); // Ngăn sự kiện lan ra ngoài
+    e.preventDefault();
+    e.stopPropagation();
     setSelectedMenu(key);
   };
 
   const handleCancel = () => {
-    console.log("onCancel triggered");
     onClose();
   };
 
   return (
     <>
       <Modal
-        title={
-          <div className="flex items-center">
-            <span className="text-lg font-semibold">Cài đặt</span>
-          </div>
-        }
+        title={<div className="flex items-center"><span className="text-lg font-semibold">{t.settings}</span></div>}
         open={visible}
         onCancel={handleCancel}
         maskClosable={false}
         destroyOnClose={true}
         footer={null}
         width={800}
-        className="settings-modal">
+        className="settings-modal"
+      >
         <div className="flex" onClick={(e) => e.stopPropagation()}>
-          {" "}
-          {/* Ngăn click trong Modal lan ra ngoài */}
           <div className="w-[200px] border-r border-[#f0f0f0]">
             {menuItems.map((item) => (
               <button
                 key={item.key}
                 onClick={(e) => handleMenuClick(item.key, e)}
                 className={`w-full flex items-center px-4 py-2 text-left transition-colors duration-200 ${
-                  selectedMenu === item.key
-                    ? "bg-blue-50 text-blue-600 font-medium"
-                    : "text-gray-700 hover:bg-gray-100"
-                }`}>
+                  selectedMenu === item.key ? "bg-blue-50 text-blue-600 font-medium" : "text-gray-700 hover:bg-gray-100"
+                }`}
+              >
                 <span className="mr-2">{item.icon}</span>
                 <span>{item.label}</span>
                 {item.extra && <span className="ml-2">{item.extra}</span>}
@@ -255,11 +155,7 @@ const SettingsModal: React.FC<{ visible: boolean; onClose: () => void }> = ({
           <div className="flex-1 p-6">{renderContent()}</div>
         </div>
       </Modal>
-
-      <ChangePasswordModal
-        visible={isChangePasswordModalOpen}
-        onClose={() => setIsChangePasswordModalOpen(false)}
-      />
+      <ChangePasswordModal visible={isChangePasswordModalOpen} onClose={() => setIsChangePasswordModalOpen(false)} />
     </>
   );
 };

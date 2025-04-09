@@ -79,31 +79,33 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (!user) {
         throw new Error("Người dùng chưa đăng nhập");
       }
-
+  
       try {
-        // Gọi API changePassword
-        await apiChangePassword(oldPassword, newPassword);
-
-        // Không trả về chuỗi, chỉ xử lý thành công
-      } catch (error: unknown) {
-        console.error("Lỗi khi đổi mật khẩu:", error);
-
-        // Kiểm tra kiểu của error
-        if (error instanceof Error) {
-          throw new Error(
-            error.message || "Không thể đổi mật khẩu, vui lòng thử lại"
-          );
+        const response = await apiChangePassword(oldPassword, newPassword);
+        console.log("Change password response in AuthProvider:", response);
+  
+        localStorage.setItem("token", response.accessToken);
+        localStorage.setItem("refreshToken", response.refreshToken);
+        localStorage.setItem("userId", response.userId);
+  
+        if (user.phone) {
+          const userData = await getUserByPhone(user.phone);
+          setUser(userData);
         }
-
-        // Nếu error không phải là Error, ném lỗi mặc định
+      } catch (error: unknown) {
+        console.error("Lỗi khi đổi mật khẩu:", error instanceof Error ? error.message : error);
+        if (error instanceof Error && error.message === "Mật khẩu cũ không đúng") {
+          throw new Error("Mật khẩu cũ không đúng");
+        }
         throw new Error("Không thể đổi mật khẩu, vui lòng thử lại");
       }
     },
-    [user]
+    [user, setUser]
   );
 
   return (
-    <AuthContext.Provider value={{ user, setUser, login, logout, changePassword }}>
+    <AuthContext.Provider
+      value={{ user, setUser, login, logout, changePassword }}>
       {children}
     </AuthContext.Provider>
   );

@@ -1,4 +1,5 @@
-import React from 'react';
+import React from "react";
+import { useLanguage } from "../../../features/auth/context/LanguageContext"; // Import context
 
 interface AutoDeleteModalProps {
   isOpen: boolean;
@@ -11,31 +12,42 @@ const AutoDeleteModal: React.FC<AutoDeleteModalProps> = ({
   onClose,
   onSelect,
 }) => {
+  const { t } = useLanguage(); // Sử dụng context
+
   if (!isOpen) return null;
 
   const options = [
-    { id: '1d', label: '1 ngày' },
-    { id: '7d', label: '7 ngày' },
-    { id: '14d', label: '14 ngày' },
-    { id: 'never', label: 'Không bao giờ' },
+    { id: "1d", label: t.auto_delete_1d || "1 ngày" },
+    { id: "7d", label: t.auto_delete_7d || "7 ngày" },
+    { id: "14d", label: t.auto_delete_14d || "14 ngày" },
+    { id: "never", label: t.auto_delete_never || "Không bao giờ" },
   ];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-      <div 
+      <div
         className="bg-white rounded-lg shadow-xl w-96 max-w-md"
-        onClick={(e) => e.stopPropagation()}
-      >
+        onClick={(e) => e.stopPropagation()}>
         <div className="p-4">
           <div className="flex justify-between items-center mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Tin nhắn tự xóa</h3>
+            <h3 className="text-lg font-semibold text-gray-900">
+              {t.auto_delete_messages || "Tin nhắn tự xóa"}
+            </h3>
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-gray-500"
-            >
-              <span className="sr-only">Đóng</span>
-              <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              className="text-gray-400 hover:text-gray-500">
+              <span className="sr-only">{t.close || "Đóng"}</span>
+              <svg
+                className="h-6 w-6"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
               </svg>
             </button>
           </div>
@@ -48,8 +60,7 @@ const AutoDeleteModal: React.FC<AutoDeleteModalProps> = ({
                 onClick={() => {
                   onSelect(option.id);
                   onClose();
-                }}
-              >
+                }}>
                 {option.label}
               </button>
             ))}
