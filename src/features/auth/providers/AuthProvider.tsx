@@ -7,6 +7,7 @@ import {
   getUserByPhone,
   changePassword as apiChangePassword, // Import hàm changePassword từ API
 } from "../../../api/API";
+import socketService from "../../../utils/socketService";
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -15,21 +16,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const token = localStorage.getItem("token");
     const userId = localStorage.getItem("userId"); // Lưu userId khi login
-
-    if (token && userId) {
+    const refreshToken = localStorage.getItem("refreshToken");
+    if ((token && userId) || (refreshToken && userId)) {
       const fetchUser = async () => {
         try {
           const userData = await fetchUserData(userId);
           if (userData) {
             setUser(userData);
+            // Authenticate socket connection with userId
+            socketService.authenticate(userId);
           } else {
             localStorage.removeItem("token");
             localStorage.removeItem("userId");
+            localStorage.removeItem("refreshToken");
           }
         } catch (error) {
           console.error("Lỗi khi lấy thông tin người dùng:", error);
           localStorage.removeItem("token");
           localStorage.removeItem("userId");
+          localStorage.removeItem("refreshToken");
         }
       };
       fetchUser();
@@ -42,22 +47,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         console.log("Attempting login with:", form);
         const response = await apiLogin(form.phone, form.password);
 
-        if (!response?.userId || !response?.accessToken) {
+        if (!response?.userId || !response?.accessToken || !response?.refreshToken) {
           console.error("Invalid login response:", response);
           throw new Error("Đăng nhập thất bại, không có dữ liệu hợp lệ");
         }
 
-        // Store accessToken and userId in localStorage
+        // Store accessToken, refreshToken and userId in localStorage
         localStorage.setItem("token", response.accessToken);
+        localStorage.setItem("refreshToken", response.refreshToken);
         localStorage.setItem("userId", response.userId.toString());
 
         try {
           // Fetch user data using the phone number
           const userData = await getUserByPhone(form.phone);
           setUser(userData);
+          
+          // Authenticate socket connection after successful login
+          socketService.authenticate(response.userId.toString());
         } catch (error) {
           // If fetching user data fails, clean up localStorage
           localStorage.removeItem("token");
+          localStorage.removeItem("refreshToken");
           localStorage.removeItem("userId");
           throw error;
         }
@@ -72,6 +82,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const logout = useCallback(() => {
     setUser(null);
     localStorage.removeItem("token");
+    // Disconnect socket on logout
+    socketService.disconnect();
   }, []);
 
   const changePassword = useCallback(
