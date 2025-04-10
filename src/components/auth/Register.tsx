@@ -3,11 +3,12 @@ import { useNavigate, Link } from 'react-router-dom';
 import { checkUsedPhone, verifyPhoneOTP, registerWithAvatar } from '../../api/API';
 import { useAuth } from '../../features/auth/hooks/useAuth';
 import PhoneInput from "react-phone-number-input";
+import "react-phone-number-input/style.css";
 
 const Register: React.FC = () => {
   const navigate = useNavigate();
   const { login } = useAuth();
-  const [step, setStep] = useState<'phone' | 'otp' | 'info'>('phone');
+  const [step, setStep] = useState<'phone' | 'otp' | 'name' | 'info'>('phone');
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
   const [otpId, setOtpId] = useState('');
@@ -26,18 +27,56 @@ const Register: React.FC = () => {
 
   const handlePhoneSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
     try {
-      const result = await checkUsedPhone(phone);
+      // Đảm bảo số điện thoại đúng định dạng (bắt đầu bằng 0 ở Việt Nam)
+      let formattedPhone = phone;
+      
+      // Kiểm tra định dạng số điện thoại
+      if (!phone || (typeof phone !== 'string')) {
+        setError('Vui lòng nhập số điện thoại hợp lệ');
+        return;
+      }
+      
+      // Kiểm tra xem số điện thoại có định dạng quốc tế (+84) không
+      if (phone.startsWith("+84")) {
+        // Đảm bảo có 9 số sau mã quốc gia +84
+        if (phone.length !== 12) {
+          setError('Định dạng số điện thoại không hợp lệ.');
+          return;
+        }
+        formattedPhone = "0" + phone.slice(3);
+      } else if (!phone.startsWith("0")) {
+        setError('Định dạng số điện thoại không hợp lệ.');
+        return;
+      }
+      
+      console.log("Gửi yêu cầu kiểm tra số điện thoại:", formattedPhone);
+      const result = await checkUsedPhone(formattedPhone);
+      console.log("Kết quả kiểm tra số điện thoại:", result);
+      
+      if (!result || !result.otpId) {
+        setError('Không nhận được mã OTP. Vui lòng thử lại.');
+        return;
+      }
+      
       setOtpId(result.otpId);
       setStep('otp');
       setError('');
       setResendTimer(60);
       setIsPhoneUsed(false);
     } catch (err: any) {
-      if (err.message.includes('đã được sử dụng')) {
+      console.error('Lỗi kiểm tra số điện thoại:', err);
+      
+      // Chuyển thông báo lỗi sang tiếng Việt
+      if (err.message && err.message.includes('Invalid phone number format')) {
+        setError('Định dạng số điện thoại không hợp lệ. Vui lòng kiểm tra lại.');
+      } else if (err.message.includes('đã được sử dụng')) {
         setIsPhoneUsed(true);
+        setError(err.message);
+      } else {
+        setError(err.message || 'Đã xảy ra lỗi. Vui lòng thử lại sau.');
       }
-      setError(err.message);
     }
   };
 
@@ -68,13 +107,62 @@ const Register: React.FC = () => {
 
   const handleOtpSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
     try {
-      await verifyPhoneOTP(phone, otp, otpId);
-      setStep('info');
+      // Đảm bảo định dạng số điện thoại đúng trước khi gửi đến API
+      let formattedPhone = phone;
+      if (phone.startsWith("+84")) {
+        formattedPhone = "0" + phone.slice(3);
+      }
+
+      console.log("Xác thực OTP với thông tin:", {
+        phone: formattedPhone,
+        otp,
+        otpId
+      });
+
+      await verifyPhoneOTP(formattedPhone, otp, otpId);
+      setStep('name'); // Chuyển sang step nhập tên thay vì info
       setError('');
     } catch (err: any) {
-      setError(err.message);
+      console.error("Lỗi xác thực OTP:", err);
+      // Xử lý các loại lỗi xác thực OTP
+      if (err.message.includes("Yêu cầu xác thực không hợp lệ")) {
+        setError("Yêu cầu xác thực không hợp lệ. Vui lòng gửi lại mã mới.");
+        setResendTimer(0);
+      } else if (err.message.includes("Mã OTP không chính xác")) {
+        setError("Mã OTP không chính xác. Vui lòng kiểm tra và thử lại.");
+      } else if (err.message.includes("Mã OTP đã hết hạn")) {
+        setError("Mã OTP đã hết hạn. Vui lòng gửi lại mã mới.");
+        setResendTimer(0);
+      } else if (err.message.includes("Quá nhiều lần xác thực")) {
+        setError("Quá nhiều lần xác thực thất bại. Vui lòng thử lại sau một lúc.");
+      } else {
+        setError(err.message || "Xác thực OTP thất bại. Vui lòng thử lại.");
+      }
     }
+  };
+
+  // Thêm hàm xử lý cho bước nhập tên
+  const handleNameSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    
+    // Kiểm tra tên với regex cập nhật - yêu cầu ít nhất 2 từ cách nhau bởi dấu cách
+    const nameRegex = /^[A-Za-zÀ-ỹ]+ [A-Za-zÀ-ỹ]+( [A-Za-zÀ-ỹ]+)*$/;
+    if (!nameRegex.test(fullname)) {
+      setError('Họ và tên phải có ít nhất 2 từ (họ và tên) cách nhau bởi dấu cách');
+      return;
+    }
+    
+    // Kiểm tra độ dài
+    if (fullname.length < 3 || fullname.length > 50) {
+      setError('Họ và tên phải từ 3-50 ký tự');
+      return;
+    }
+    
+    // Nếu tên hợp lệ, chuyển sang bước tiếp theo
+    setStep('info');
   };
 
   const handleRegister = async (e: React.FormEvent) => {
@@ -84,18 +172,24 @@ const Register: React.FC = () => {
     setIsLoading(true);
     
     try {
+      // Cập nhật regex cho mật khẩu
+      const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{6,20}$/;
+      if (!passwordRegex.test(password)) {
+        setError('Mật khẩu phải từ 6-20 ký tự, bao gồm chữ và số');
+        setIsLoading(false);
+        return;
+      }
+      
       if (password !== confirmPassword) {
         setError('Mật khẩu xác nhận không khớp');
         setIsLoading(false);
         return;
       }
 
-      // Kiểm tra tên chỉ chứa chữ cái và dấu cách
-      const nameRegex = /^[A-Za-zÀ-ỹ\s]+$/;
-      if (!nameRegex.test(fullname)) {
-        setError('Họ và tên chỉ được chứa chữ cái và dấu cách');
-        setIsLoading(false);
-        return;
+      // Kiểm tra định dạng số điện thoại
+      let formattedPhone = phone;
+      if (phone.startsWith("+84")) {
+        formattedPhone = "0" + phone.slice(3);
       }
 
       // Kiểm tra tuổi - phải đủ 13 tuổi
@@ -124,7 +218,7 @@ const Register: React.FC = () => {
 
       // Sử dụng hàm registerWithAvatar thay vì register để hỗ trợ tải lên avatar
       const result = await registerWithAvatar(
-        phone, 
+        formattedPhone, 
         password, 
         fullname, 
         isMale, 
@@ -140,7 +234,7 @@ const Register: React.FC = () => {
       try {
         // Tự động đăng nhập sau khi đăng ký thành công
         await login({
-          phone: phone,
+          phone: formattedPhone,
           password: password
         });
         
@@ -179,32 +273,45 @@ const Register: React.FC = () => {
           </p>
         </div>
 
-        {error && (
-          <div className="text-sm text-red-500 text-center">{error}</div>
-        )}
-
-        {successMessage && (
-          <div className="text-sm text-green-500 text-center">{successMessage}</div>
-        )}
-
         {step === 'phone' && (
           <form className="mt-8 space-y-6" onSubmit={handlePhoneSubmit}>
             <div>
               <label htmlFor="phone" className="block text-sm font-medium text-gray-700">
                 Số điện thoại
               </label>
-              <input
-                id="phone"
-                name="phone"
-                type="tel"
-                required
-                className="mt-2 w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none"
+              <PhoneInput
+                international
+                defaultCountry="VN"
                 placeholder="Nhập số điện thoại"
                 value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                pattern="^0\d{9}$"
+                onChange={value => setPhone(value || '')}
+                className="mt-2 w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none"
               />
+              <div className="mt-2 text-xs text-gray-500 space-y-1">
+                <p>Yêu cầu về số điện thoại:</p>
+                <ul className="space-y-1 pl-1">
+                  <li className="flex items-start">
+                    <span className="mr-2">-</span>
+                    <span>Số điện thoại Việt Nam hợp lệ</span>
+                  </li>
+                  <li className="flex items-start">
+                    <span className="mr-2">-</span>
+                    <span>Có 9 chữ số sau mã quốc gia +84</span>
+                  </li>
+                  <li className="flex items-start">
+                    <span className="mr-2">-</span>
+                    <span>Có 10 chữ số với số 0 đầu tiên (không kể mã quốc gia)</span>
+                  </li>
+                </ul>
+              </div>
             </div>
+            
+            {error && (
+              <div className="p-2 bg-red-50 border border-red-200 rounded-md">
+                <p className="text-sm text-red-600 text-center">{error}</p>
+              </div>
+            )}
+            
             <button
               type="submit"
               className="w-full rounded-md bg-blue-500 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
@@ -213,7 +320,13 @@ const Register: React.FC = () => {
             </button>
             {isPhoneUsed && (
               <div className="mt-4 text-center">
-                <Link to="/login" className="text-sm font-semibold text-blue-500 hover:text-blue-400">
+                <Link 
+                  to={{
+                    pathname: "/",
+                    search: `?phone=${encodeURIComponent(phone)}`
+                  }} 
+                  className="text-sm font-semibold text-blue-500 hover:text-blue-400"
+                >
                   Đăng nhập thay vì đăng ký
                 </Link>
               </div>
@@ -238,7 +351,27 @@ const Register: React.FC = () => {
                 onChange={(e) => setOtp(e.target.value)}
                 pattern="^\d{6}$"
               />
+              <div className="mt-2 text-xs text-gray-500 space-y-1">
+                <p>Yêu cầu về mã OTP:</p>
+                <ul className="space-y-1 pl-1">
+                  <li className="flex items-start">
+                    <span className="mr-2">-</span>
+                    <span>Mã OTP gồm 6 chữ số</span>
+                  </li>
+                  <li className="flex items-start">
+                    <span className="mr-2">-</span>
+                    <span>Mã không bao gồm ký tự</span>
+                  </li>
+                </ul>
+              </div>
             </div>
+            
+            {error && (
+              <div className="p-2 bg-red-50 border border-red-200 rounded-md">
+                <p className="text-sm text-red-600 text-center">{error}</p>
+              </div>
+            )}
+            
             <button
               type="submit"
               className="w-full rounded-md bg-blue-500 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
@@ -261,26 +394,65 @@ const Register: React.FC = () => {
           </form>
         )}
 
+        {/* Thêm step mới cho phần nhập tên */}
+        {step === 'name' && (
+          <form className="mt-8 space-y-6" onSubmit={handleNameSubmit}>
+            <div>
+              <label htmlFor="fullname" className="block text-sm font-medium text-gray-700">
+                Họ và tên
+              </label>
+              <input
+                id="fullname"
+                name="fullname"
+                type="text"
+                required
+                className="mt-2 w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none"
+                value={fullname}
+                onChange={(e) => setFullname(e.target.value)}
+                pattern="^[A-Za-zÀ-ỹ]+ [A-Za-zÀ-ỹ]+( [A-Za-zÀ-ỹ]+)*$"
+                title="Họ và tên phải có ít nhất 2 từ (họ và tên) cách nhau bởi dấu cách"
+              />
+              <div className="mt-2 text-xs text-gray-500 space-y-1">
+                <p>Yêu cầu về Họ và tên:</p>
+                <ul className="space-y-1 pl-1">
+                  <li className="flex items-start">
+                    <span className="mr-2">-</span>
+                    <span>Phải có ít nhất 2 từ (họ và tên)</span>
+                  </li>
+                  <li className="flex items-start">
+                    <span className="mr-2">-</span>
+                    <span>Các từ phải cách nhau bởi dấu cách</span>
+                  </li>
+                  <li className="flex items-start">
+                    <span className="mr-2">-</span>
+                    <span>Chỉ chứa chữ cái và dấu cách</span>
+                  </li>
+                  <li className="flex items-start">
+                    <span className="mr-2">-</span>
+                    <span>Độ dài từ 3-50 ký tự</span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+            
+            {error && (
+              <div className="p-2 bg-red-50 border border-red-200 rounded-md">
+                <p className="text-sm text-red-600 text-center">{error}</p>
+              </div>
+            )}
+            
+            <button
+              type="submit"
+              className="w-full rounded-md bg-blue-500 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            >
+              Tiếp tục
+            </button>
+          </form>
+        )}
+
         {step === 'info' && (
           <form className="mt-8 space-y-6" onSubmit={handleRegister}>
             <div className="space-y-4">
-              <div>
-                <label htmlFor="fullname" className="block text-sm font-medium text-gray-700">
-                  Họ và tên
-                </label>
-                <input
-                  id="fullname"
-                  name="fullname"
-                  type="text"
-                  required
-                  className="mt-2 w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none"
-                  value={fullname}
-                  onChange={(e) => setFullname(e.target.value)}
-                  pattern="^[A-Za-zÀ-ỹ\s]+$"
-                  title="Họ và tên chỉ được chứa chữ cái và dấu cách"
-                />
-              </div>
-
               <div>
                 <label htmlFor="password" className="block text-sm font-medium text-gray-700">
                   Mật khẩu
@@ -293,9 +465,26 @@ const Register: React.FC = () => {
                   className="mt-2 w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  pattern="^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{6,}$"
-                  title="Mật khẩu phải có ít nhất 6 ký tự, bao gồm chữ và số"
+                  pattern="^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{6,20}$"
+                  title="Mật khẩu phải từ 6-20 ký tự, bao gồm chữ và số"
                 />
+              </div>
+              <div className="mt-2 text-xs text-gray-500 space-y-1">
+                <p>Yêu cầu về mật khẩu:</p>
+                <ul className="space-y-1 pl-1">
+                  <li className="flex items-start">
+                    <span className="mr-2">-</span>
+                    <span>Mật khẩu phải từ 6-20 ký tự</span>
+                  </li>
+                  <li className="flex items-start">
+                    <span className="mr-2">-</span>
+                    <span>Phải chứa ít nhất 1 chữ cái</span>
+                  </li>
+                  <li className="flex items-start">
+                    <span className="mr-2">-</span>
+                    <span>Phải chứa ít nhất 1 chữ số</span>
+                  </li>
+                </ul>
               </div>
 
               <div>
@@ -351,9 +540,19 @@ const Register: React.FC = () => {
                   value={birthday}
                   onChange={(e) => setBirthday(e.target.value)}
                 />
-                <p className="mt-1 text-xs text-gray-500">
-                  Bạn phải đủ 13 tuổi để đăng ký tài khoản
-                </p>
+              </div>
+              <div className="mt-2 text-xs text-gray-500 space-y-1">
+                <p>Yêu cầu về Ngày sinh:</p>
+                <ul className="space-y-1 pl-1">
+                  <li className="flex items-start">
+                    <span className="mr-2">-</span>
+                    <span>Phải đủ 13 tuổi</span>
+                  </li>
+                  <li className="flex items-start">
+                    <span className="mr-2">-</span>
+                    <span>Ngày tháng năm không được sau ngày hiện tại</span>
+                  </li>
+                </ul>
               </div>
 
               <div>
@@ -391,6 +590,18 @@ const Register: React.FC = () => {
                 </div>
               </div>
             </div>
+
+            {error && (
+              <div className="p-2 bg-red-50 border border-red-200 rounded-md">
+                <p className="text-sm text-red-600 text-center">{error}</p>
+              </div>
+            )}
+            
+            {successMessage && (
+              <div className="p-2 bg-green-50 border border-green-200 rounded-md">
+                <p className="text-sm text-green-600 text-center">{successMessage}</p>
+              </div>
+            )}
 
             <button
               type="submit"
