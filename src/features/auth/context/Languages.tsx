@@ -167,6 +167,10 @@ const translations = {
     common_groups: "Nhóm chung",
     zalo_card: "Danh thiếp Zalo",
     suggested_friends: "Gợi ý 'Có thể bạn quen'",
+    invalid_age: "Tuổi phải từ 13 đến 123!",
+    invalid_age_min: "Tuổi phải lớn hơn hoặc bằng 13",
+    invalid_age_max: "Tuổi phải nhỏ hơn hoặc bằng 123",
+    invalid_date: "Ngày sinh không hợp lệ",
   },
   en: {
     settings: "Settings",
@@ -334,6 +338,10 @@ const translations = {
     common_groups: "Common Groups",
     zalo_card: "Zalo Card",
     suggested_friends: "Suggested 'You May Know'",
+    invalid_age: "Age must be between 13 and 123!",
+    invalid_age_min: "Age must be at least 13",
+    invalid_age_max: "Age must be at most 123",
+    invalid_date: "Invalid birthdate",
   },
 };
 
