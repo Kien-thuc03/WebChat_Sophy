@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { checkUsedPhone, verifyPhoneOTP, register } from '../../api/API';
+import { checkUsedPhone, verifyPhoneOTP, registerWithAvatar } from '../../api/API';
 
 const Register: React.FC = () => {
   const navigate = useNavigate();
@@ -18,6 +18,8 @@ const Register: React.FC = () => {
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState('');
   const [isPhoneUsed, setIsPhoneUsed] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
 
   const handlePhoneSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -74,41 +76,78 @@ const Register: React.FC = () => {
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (password !== confirmPassword) {
-      setError('Mật khẩu xác nhận không khớp');
-      return;
-    }
-
-    // Kiểm tra tên chỉ chứa chữ cái và dấu cách
-    const nameRegex = /^[A-Za-zÀ-ỹ\s]+$/;
-    if (!nameRegex.test(fullname)) {
-      setError('Họ và tên chỉ được chứa chữ cái và dấu cách');
-      return;
-    }
-
-    // Kiểm tra tuổi - phải đủ 13 tuổi
-    if (birthday) {
-      const birthDate = new Date(birthday);
-      const today = new Date();
-      let age = today.getFullYear() - birthDate.getFullYear();
-      const monthDiff = today.getMonth() - birthDate.getMonth();
-      
-      // Nếu chưa đến tháng sinh nhật trong năm nay, trừ đi 1 tuổi
-      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-        age--;
-      }
-      
-      if (age < 13) {
-        setError('Bạn phải đủ 13 tuổi để đăng ký tài khoản');
+    setError('');
+    setSuccessMessage('');
+    setIsLoading(true);
+    
+    try {
+      if (password !== confirmPassword) {
+        setError('Mật khẩu xác nhận không khớp');
+        setIsLoading(false);
         return;
       }
-    }
 
-    try {
-      await register(phone, password, fullname, isMale, birthday);
-      navigate('/');
+      // Kiểm tra tên chỉ chứa chữ cái và dấu cách
+      const nameRegex = /^[A-Za-zÀ-ỹ\s]+$/;
+      if (!nameRegex.test(fullname)) {
+        setError('Họ và tên chỉ được chứa chữ cái và dấu cách');
+        setIsLoading(false);
+        return;
+      }
+
+      // Kiểm tra tuổi - phải đủ 13 tuổi
+      if (birthday) {
+        const birthDate = new Date(birthday);
+        const today = new Date();
+        let age = today.getFullYear() - birthDate.getFullYear();
+        const monthDiff = today.getMonth() - birthDate.getMonth();
+        
+        // Nếu chưa đến tháng sinh nhật trong năm nay, trừ đi 1 tuổi
+        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+          age--;
+        }
+        
+        if (age < 13) {
+          setError('Bạn phải đủ 13 tuổi để đăng ký tài khoản');
+          setIsLoading(false);
+          return;
+        }
+      }
+
+      // Thông báo nếu có avatar
+      if (avatarFile) {
+        setSuccessMessage('Đang tải lên ảnh đại diện...');
+      }
+
+      // Sử dụng hàm registerWithAvatar thay vì register để hỗ trợ tải lên avatar
+      const result = await registerWithAvatar(
+        phone, 
+        password, 
+        fullname, 
+        isMale, 
+        birthday,
+        avatarFile
+      );
+      
+      console.log('Đăng ký thành công:', result);
+      
+      // Hiển thị thông báo thành công nếu cần
+      if (result.avatarUrl) {
+        setSuccessMessage('Đăng ký thành công! Ảnh đại diện đã được tải lên.');
+      } else {
+        setSuccessMessage('Đăng ký thành công!');
+      }
+      
+      // Đợi một chút để người dùng thấy thông báo thành công
+      setTimeout(() => {
+        // Chuyển hướng đến trang đăng nhập
+        navigate('/');
+      }, 1500);
     } catch (err: any) {
+      console.error('Lỗi đăng ký:', err);
       setError(err.message);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -127,6 +166,10 @@ const Register: React.FC = () => {
 
         {error && (
           <div className="text-sm text-red-500 text-center">{error}</div>
+        )}
+
+        {successMessage && (
+          <div className="text-sm text-green-500 text-center">{successMessage}</div>
         )}
 
         {step === 'phone' && (
@@ -336,9 +379,10 @@ const Register: React.FC = () => {
 
             <button
               type="submit"
-              className="w-full rounded-md bg-blue-500 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+              disabled={isLoading}
+              className={`w-full rounded-md ${isLoading ? 'bg-gray-400' : 'bg-blue-500 hover:bg-blue-600'} px-4 py-2 text-sm font-semibold text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2`}
             >
-              Đăng ký
+              {isLoading ? 'Đang xử lý...' : 'Đăng ký'}
             </button>
           </form>
         )}
