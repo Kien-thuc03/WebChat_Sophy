@@ -93,11 +93,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setUser(userData);
         }
       } catch (error: unknown) {
-        console.error("Lỗi khi đổi mật khẩu:", error instanceof Error ? error.message : error);
-        if (error instanceof Error && error.message === "Mật khẩu cũ không đúng") {
-          throw new Error("Mật khẩu cũ không đúng");
-        }
-        throw new Error("Không thể đổi mật khẩu, vui lòng thử lại");
+        const apiError = error as Error;
+        console.error("Lỗi khi đổi mật khẩu:", apiError.message);
+        throw new Error(apiError.message); // Truyền trực tiếp lỗi từ API
       }
     },
     [user, setUser]

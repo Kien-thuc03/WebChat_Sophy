@@ -57,13 +57,19 @@ const UpdateAvatarModal: React.FC<UpdateAvatarModalProps> = ({
     fileInputRef.current?.click();
   };
 
+  const handleCancel = () => {
+    setPreviewImage(null);
+    setSelectedFile(null);
+    onClose();
+  };
+
   return (
     <Modal
       title={t.update_avatar || "Cập nhật ảnh đại diện"}
       open={isOpen}
-      onCancel={onClose}
+      onCancel={handleCancel}
       footer={[
-        <Button key="cancel" onClick={onClose}>
+        <Button key="cancel" onClick={handleCancel}>
           {t.cancel || "Hủy"}
         </Button>,
         <Button key="update" type="primary" onClick={handleUpdate}>

@@ -1,20 +1,30 @@
 import React, { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-
 import { forgotPassword } from "../../api/API";
+import { EyeInvisibleOutlined, EyeTwoTone } from '@ant-design/icons'; // Import icons
+import { Input } from 'antd'; // Import Ant Design Input
 
 const ResetPassword: React.FC = () => {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState<"success" | "error">("success");
-  
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const location = useLocation();
   const navigate = useNavigate();
   const { phoneNumber } = location.state || {};
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (isSubmitting) return;
+
+    if (!phoneNumber) {
+      setMessage("Không tìm thấy số điện thoại. Vui lòng thử lại từ đầu.");
+      setMessageType("error");
+      return;
+    }
 
     if (!newPassword || newPassword.length < 6) {
       setMessage("Mật khẩu phải có ít nhất 6 ký tự");
@@ -28,6 +38,9 @@ const ResetPassword: React.FC = () => {
       return;
     }
 
+    setIsSubmitting(true);
+    setMessage("");
+
     try {
       await forgotPassword(phoneNumber, newPassword);
       setMessage("Đặt lại mật khẩu thành công!");
@@ -35,13 +48,15 @@ const ResetPassword: React.FC = () => {
       setTimeout(() => {
         navigate("/");
       }, 2000);
-    } catch (error) {
+    } catch (error: unknown) {
       if (error instanceof Error) {
-        setMessage(error.message);
+        setMessage(error.message || "Có lỗi xảy ra. Vui lòng thử lại.");
       } else {
         setMessage("Có lỗi xảy ra. Vui lòng thử lại.");
       }
       setMessageType("error");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -58,12 +73,13 @@ const ResetPassword: React.FC = () => {
             <label className="block text-sm font-medium text-gray-900">
               Mật khẩu mới
             </label>
-            <input
-              type="password"
+            <Input.Password
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               className="mt-2 w-full rounded-md border border-[#e0e0e0] px-3 py-2 focus:border-[#0066ff] focus:outline-none"
               placeholder="Nhập mật khẩu mới"
+              disabled={isSubmitting}
+              iconRender={visible => (visible ? <EyeTwoTone /> : <EyeInvisibleOutlined />)}
             />
           </div>
 
@@ -71,12 +87,13 @@ const ResetPassword: React.FC = () => {
             <label className="block text-sm font-medium text-gray-900">
               Xác nhận mật khẩu
             </label>
-            <input
-              type="password"
+            <Input.Password
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               className="mt-2 w-full rounded-md border border-[#e0e0e0] px-3 py-2 focus:border-[#0066ff] focus:outline-none"
               placeholder="Nhập lại mật khẩu mới"
+              disabled={isSubmitting}
+              iconRender={visible => (visible ? <EyeTwoTone /> : <EyeInvisibleOutlined />)}
             />
           </div>
 
@@ -84,15 +101,22 @@ const ResetPassword: React.FC = () => {
             <div
               className={`text-sm text-center ${
                 messageType === "success" ? "text-green-500" : "text-red-500"
-              }`}>
+              }`}
+            >
               {message}
             </div>
           )}
 
           <button
             type="submit"
-            className="w-full rounded-md bg-[#0066ff] px-4 py-2 text-sm font-semibold text-white hover:bg-[#0051cc] focus:outline-none focus:ring-2 focus:ring-[#0066ff] focus:ring-offset-2">
-            Xác nhận
+            disabled={isSubmitting}
+            className={`w-full rounded-md ${
+              isSubmitting
+                ? "bg-[#99c2ff] cursor-not-allowed"
+                : "bg-[#0066ff] hover:bg-[#0051cc]"
+            } px-4 py-2 text-sm font-semibold text-white focus:outline-none focus:ring-2 focus:ring-[#0066ff] focus:ring-offset-2`}
+          >
+            {isSubmitting ? "Đang xử lý..." : "Xác nhận"}
           </button>
         </form>
       </div>

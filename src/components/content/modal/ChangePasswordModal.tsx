@@ -1,7 +1,7 @@
 import { Modal, Form, Input, Button, message } from "antd";
-import { useState, useContext } from "react";
+import { useState, useContext, useEffect } from "react"; // Thêm useEffect
 import { AuthContext } from "../../../features/auth/context/AuthContext";
-import { useLanguage } from "../../../features/auth/context/LanguageContext"; // Import context
+import { useLanguage } from "../../../features/auth/context/LanguageContext";
 
 interface ChangePasswordModalProps {
   visible: boolean;
@@ -21,7 +21,14 @@ const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const { changePassword } = useContext(AuthContext);
-  const { t } = useLanguage(); // Sử dụng context
+  const { t } = useLanguage();
+
+  // Reset form khi modal mở
+  useEffect(() => {
+    if (visible) {
+      form.resetFields(); // Reset tất cả các trường về giá trị ban đầu (rỗng)
+    }
+  }, [visible, form]);
 
   const handleSubmit = async (values: ChangePasswordFormValues) => {
     if (values.newPassword !== values.confirmPassword) {
@@ -35,19 +42,13 @@ const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
     try {
       await changePassword(values.currentPassword, values.newPassword);
       message.success(t.change_password_success || "Đổi mật khẩu thành công");
-      form.resetFields();
+      form.resetFields(); // Reset sau khi thành công
       onClose();
     } catch (error: unknown) {
-      if (error instanceof Error) {
-        // Hiển thị thông báo lỗi chính xác từ API
-        message.error(
-          error.message || "Đổi mật khẩu thất bại. Vui lòng thử lại"
-        );
-      } else {
-        message.error(
-          t.change_password_error || "Đổi mật khẩu thất bại. Vui lòng thử lại"
-        );
-      }
+      const apiError = error as Error;
+      message.error(
+        apiError.message || t.change_password_error || "Đổi mật khẩu thất bại. Vui lòng thử lại"
+      );
     } finally {
       setLoading(false);
     }
@@ -60,12 +61,14 @@ const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
       onCancel={onClose}
       footer={null}
       maskClosable={false}
-      destroyOnClose>
+      destroyOnClose // Xóa state của modal khi đóng để đảm bảo reset hoàn toàn
+    >
       <Form
         form={form}
         layout="vertical"
         onFinish={handleSubmit}
-        className="mt-4">
+        className="mt-4"
+      >
         <Form.Item
           name="currentPassword"
           label={t.current_password || "Mật khẩu hiện tại"}
@@ -75,7 +78,8 @@ const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
               message:
                 t.enter_current_password || "Vui lòng nhập mật khẩu hiện tại",
             },
-          ]}>
+          ]}
+        >
           <Input.Password
             placeholder={t.enter_current_password || "Nhập mật khẩu hiện tại"}
           />
@@ -93,7 +97,8 @@ const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
               message:
                 t.password_min_length || "Mật khẩu phải có ít nhất 6 ký tự",
             },
-          ]}>
+          ]}
+        >
           <Input.Password
             placeholder={t.enter_new_password || "Nhập mật khẩu mới"}
           />
@@ -113,7 +118,8 @@ const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
               message:
                 t.password_min_length || "Mật khẩu phải có ít nhất 6 ký tự",
             },
-          ]}>
+          ]}
+        >
           <Input.Password
             placeholder={t.confirm_new_password || "Nhập lại mật khẩu mới"}
           />
@@ -128,4 +134,5 @@ const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
     </Modal>
   );
 };
+
 export default ChangePasswordModal;

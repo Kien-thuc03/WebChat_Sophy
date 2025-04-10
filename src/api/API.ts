@@ -23,11 +23,12 @@ export const updateUserName = async (userId: string, fullname: string) => {
       fullname,
     });
     return response.data;
-  } catch (error: any) {
-    if (error.response?.status === 404) {
+  } catch (error: unknown) {
+    const apiError = error as AxiosError<{ message?: string }>;
+    if (apiError.response?.status === 404) {
       throw new Error("Không tìm thấy người dùng");
     }
-    throw new Error(error.response?.data?.message || "Lỗi không xác định");
+    throw new Error(apiError.response?.data?.message || "Lỗi không xác định");
   }
 };
 //update thông tin người dùng
@@ -41,11 +42,12 @@ export const updateUserInfo = async (
       ...data, // Truyền các thông tin cần cập nhật
     });
     return response.data;
-  } catch (error: any) {
-    if (error.response?.status === 404) {
+  } catch (error: unknown) {
+    const apiError = error as AxiosError<{ message?: string }>;
+    if (apiError.response?.status === 404) {
       throw new Error("Không tìm thấy người dùng");
     }
-    throw new Error(error.response?.data?.message || "Lỗi không xác định");
+    throw new Error(apiError.response?.data?.message || "Lỗi không xác định");
   }
 };
 //update avatar người dùng
@@ -107,11 +109,12 @@ export const verifyQRToken = async (qrToken: string) => {
     return {
       message: response.data.message,
     };
-  } catch (error: any) {
-    if (error.response?.status === 404) {
+  } catch (error: unknown) {
+    const apiError = error as AxiosError<{ message?: string }>;
+    if (apiError.response?.status === 404) {
       throw new Error("QR token không tồn tại hoặc đã hết hạn");
     }
-    if (error.response?.status === 400) {
+    if (apiError.response?.status === 400) {
       throw new Error("QR token đã hết hạn");
     }
     throw new Error("Xác thực mã QR thất bại");
@@ -271,7 +274,11 @@ apiClient.interceptors.response.use(
     const originalRequest = error.config;
 
     // If the error is 401 and it's not a retry and it's not a login request
-    if (error.response?.status === 401 && !originalRequest._retry && !originalRequest.url.includes('/api/auth/login')) {
+    if (
+      error.response?.status === 401 &&
+      !originalRequest._retry &&
+      !originalRequest.url.includes("/api/auth/login")
+    ) {
       if (originalRequest.url.includes("/api/auth/change-password")) {
         // Nếu là yêu cầu đổi mật khẩu, không logout mà để hàm gọi xử lý lỗi
         return Promise.reject(error);
@@ -400,40 +407,33 @@ export const changePassword = async (
       userId: user.userId,
     };
   } catch (error) {
-    interface ApiError {
-      response?: {
-        status: number;
-        data?: {
-          message?: string;
-        };
-      };
-      message: string;
-    }
-
-    const apiError = error as ApiError;
+    const apiError = error as AxiosError<{ message?: string }>;
     if (apiError.response) {
-      switch (apiError.response.status) {
+      const { status, data } = apiError.response;
+      switch (status) {
         case 404:
           throw new Error("Không tìm thấy thông tin người dùng");
         case 401:
           throw new Error("Mật khẩu cũ không đúng");
         case 400:
-          // Xử lý lỗi từ API với thông báo chi tiết
-          if (apiError.response.data?.message) {
-            throw new Error(apiError.response.data.message); // Lấy thông báo lỗi từ API
-          } else {
-            throw new Error("Mật khẩu mới phải có ít nhất 6 ký tự và chứa cả chữ và số");
+          if (
+            data?.message ===
+            "Password must be at least 6 characters and contain both letters and numbers"
+          ) {
+            throw new Error(
+              "Mật khẩu mới phải có ít nhất 6 ký tự và chứa cả chữ và số"
+            );
           }
+          throw new Error(data?.message || "Yêu cầu không hợp lệ");
         case 500:
           throw new Error("Lỗi server, vui lòng thử lại sau");
         default:
-          throw new Error(apiError.response.data?.message || "Đổi mật khẩu thất bại, vui lòng thử lại");
+          throw new Error(data?.message || "Đổi mật khẩu thất bại, vui lòng thử lại");
       }
     }
     throw new Error("Đổi mật khẩu thất bại, vui lòng thử lại");
   }
 };
-
 
 //Hàm lấy user theo userId
 export const getUserById = async (userId: string): Promise<any> => {
@@ -620,24 +620,29 @@ export const verifyOTPForgotPassword = async (
   otpId: string
 ): Promise<void> => {
   try {
-    const response = await apiClient.post(
-      "/api/auth/verify-otp-forgot-password",
-      {
-        phone,
-        otp,
-        otpId,
-      }
-    );
+    const response = await apiClient.post("/api/auth/verify-otp-forgot-password", {
+      phone,
+      otp,
+      otpId,
+    });
 
     if (response.status !== 200) {
       throw new Error("Xác thực OTP thất bại");
     }
   } catch (error: unknown) {
-    if (error instanceof AxiosError) {
-      if (error.response?.status === 404) {
-        throw new Error("Không tìm thấy mã OTP hợp lệ");
+    const apiError = error as AxiosError<{ message?: string }>;
+    if (apiError.response) {
+      const { status, data } = apiError.response;
+      switch (status) {
+        case 400:
+          throw new Error(data?.message || "Xác thực OTP thất bại");
+        case 404:
+          throw new Error("Không tìm thấy mã OTP hợp lệ");
+        case 429: // Thêm xử lý lỗi 429
+          throw new Error("Quá nhiều lần xác thực. Vui lòng thử lại sau.");
+        default:
+          throw new Error(data?.message || "Xác thực OTP thất bại");
       }
-      throw new Error(error.response?.data?.message || "Xác thực OTP thất bại");
     }
     throw new Error("Xác thực OTP thất bại");
   }
@@ -658,13 +663,30 @@ export const forgotPassword = async (
       throw new Error("Không thể đặt lại mật khẩu");
     }
   } catch (error: unknown) {
-    if (error instanceof AxiosError) {
-      if (error.response?.status === 404) {
-        throw new Error("Không tìm thấy tài khoản với số điện thoại này");
+    const apiError = error as AxiosError<{ message?: string }>;
+    if (apiError.response) {
+      const { status, data } = apiError.response;
+      switch (status) {
+        case 400:
+          if (
+            data?.message ===
+            "Password must be at least 6 characters and contain both letters and numbers"
+          ) {
+            throw new Error(
+              "Mật khẩu mới phải có ít nhất 6 ký tự và chứa cả chữ và số"
+            );
+          }
+          throw new Error(data?.message || "Thông tin không hợp lệ");
+        case 404:
+          if (data?.message === "User not found") {
+            throw new Error("Không tìm thấy tài khoản với số điện thoại này");
+          }
+          throw new Error(data?.message || "Không tìm thấy người dùng");
+        case 500:
+          throw new Error(data?.message || "Lỗi server, vui lòng thử lại sau");
+        default:
+          throw new Error(data?.message || "Không thể đặt lại mật khẩu");
       }
-      throw new Error(
-        error.response?.data?.message || "Không thể đặt lại mật khẩu"
-      );
     }
     throw new Error("Không thể đặt lại mật khẩu");
   }
@@ -697,13 +719,13 @@ export const register = async (
   password: string,
   fullname: string,
   isMale: boolean,
-  birthday: string,
+  birthday: string
 ) => {
   try {
     // Kiểm tra định dạng mật khẩu
     const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{6,}$/;
     if (!passwordRegex.test(password)) {
-      throw new Error('Mật khẩu phải có ít nhất 6 ký tự và chứa cả chữ và số');
+      throw new Error("Mật khẩu phải có ít nhất 6 ký tự và chứa cả chữ và số");
     }
 
     const response = await apiClient.post("/api/auth/register", {
@@ -727,8 +749,7 @@ export const register = async (
     return {
       userId: user.userId,
       accessToken: token.accessToken,
-      fullname: user.fullname
-
+      fullname: user.fullname,
     };
   } catch (error: any) {
     if (error.response?.status === 400) {
