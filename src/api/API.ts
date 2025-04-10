@@ -164,6 +164,7 @@ export const login = async (phone: string, password: string) => {
     return {
       userId: user.userId,
       accessToken: token.accessToken,
+      refreshToken: token.refreshToken,
       fullname: user.fullname,
     };
   } catch (error: any) {
@@ -362,6 +363,8 @@ export const logout = async () => {
   try {
     const response = await apiClient.post("/api/auth/logout");
     localStorage.removeItem("token");
+    localStorage.removeItem("refreshToken");
+    localStorage.removeItem("userId");
     console.log("Đăng xuất thành công:", response.data);
     return response.data;
   } catch (error: any) {
@@ -713,6 +716,42 @@ export const verifyPhoneOTP = async (
   }
 };
 
+// Upload avatar cho người dùng
+export const uploadAvatar = async (imageFile: File): Promise<string> => {
+  try {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      throw new Error("Không có token xác thực");
+    }
+
+    const formData = new FormData();
+    formData.append("avatar", imageFile);
+
+    // Sử dụng fetch API thay vì axios để xử lý tốt hơn với FormData
+    const response = await fetch(`${API_BASE_URL}/api/users/update-user/avatar`, {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${token}`
+      },
+      body: formData
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || "Cập nhật avatar thất bại");
+    }
+
+    const data = await response.json();
+    console.log("Avatar uploaded successfully:", data);
+    
+    // Trả về URL của avatar mới
+    return data.user.urlavatar;
+  } catch (error) {
+    console.error("Error uploading avatar:", error);
+    throw new Error(error instanceof Error ? error.message : "Lỗi không xác định khi tải ảnh");
+  }
+};
+
 // Đăng ký tài khoản mới
 export const register = async (
   phone: string,
@@ -749,7 +788,71 @@ export const register = async (
     return {
       userId: user.userId,
       accessToken: token.accessToken,
+      refreshToken: token.refreshToken,
       fullname: user.fullname,
+    };
+  } catch (error: any) {
+    if (error.response?.status === 400) {
+      throw new Error(
+        error.response.data.message || "Thông tin đăng ký không hợp lệ"
+      );
+    }
+    throw new Error("Đăng ký thất bại, vui lòng thử lại");
+  }
+};
+
+// Đăng ký tài khoản mới với avatar
+export const registerWithAvatar = async (
+  phone: string,
+  password: string,
+  fullname: string,
+  isMale: boolean,
+  birthday: string,
+  avatarFile: File | null
+) => {
+  try {
+    // Kiểm tra định dạng mật khẩu
+    const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{6,}$/;
+    if (!passwordRegex.test(password)) {
+      throw new Error("Mật khẩu phải có ít nhất 6 ký tự và chứa cả chữ và số");
+    }
+
+    // Đăng ký tài khoản cơ bản
+    const response = await apiClient.post("/api/auth/register", {
+      phone,
+      password,
+      fullname,
+      isMale,
+      birthday,
+    });
+
+    const { token, user } = response.data;
+    if (!token?.accessToken || !token?.refreshToken || !user?.userId) {
+      throw new Error("Dữ liệu đăng ký không hợp lệ");
+    }
+
+    // Lưu thông tin người dùng và token vào localStorage
+    localStorage.setItem("userId", user.userId);
+    localStorage.setItem("token", token.accessToken);
+    localStorage.setItem("refreshToken", token.refreshToken);
+
+    // Nếu có file avatar, tiến hành upload
+    let avatarUrl = null;
+    if (avatarFile) {
+      try {
+        avatarUrl = await uploadAvatar(avatarFile);
+      } catch (avatarError) {
+        console.error("Lỗi khi tải ảnh đại diện:", avatarError);
+        // Vẫn tiếp tục mà không dừng quá trình đăng ký
+      }
+    }
+
+    return {
+      userId: user.userId,
+      accessToken: token.accessToken,
+      refreshToken: token.refreshToken,
+      fullname: user.fullname,
+      avatarUrl
     };
   } catch (error: any) {
     if (error.response?.status === 400) {
