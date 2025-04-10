@@ -362,6 +362,9 @@ export const logout = async () => {
   try {
     const response = await apiClient.post("/api/auth/logout");
     localStorage.removeItem("token");
+    localStorage.removeItem("refreshToken");
+    localStorage.removeItem("userId");
+    apiClient.defaults.headers.common["Authorization"] = "";
     console.log("Đăng xuất thành công:", response.data);
     return response.data;
   } catch (error: any) {

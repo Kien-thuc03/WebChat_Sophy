@@ -1,5 +1,5 @@
 import React, { useState, useRef } from "react";
-import { Modal, Button, message } from "antd";
+import { Modal, Button, message, Spin } from "antd"; // Import Spin for loading indicator
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faCamera } from "@fortawesome/free-solid-svg-icons";
 import { updateUserAvatar } from "../../../api/API";
@@ -20,6 +20,7 @@ const UpdateAvatarModal: React.FC<UpdateAvatarModalProps> = ({
 }) => {
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(false); // State for loading status
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { t } = useLanguage(); // Sử dụng context
 
@@ -40,6 +41,8 @@ const UpdateAvatarModal: React.FC<UpdateAvatarModalProps> = ({
       return;
     }
 
+    setIsLoading(true); // Set loading to true when update starts
+
     try {
       await updateUserAvatar(selectedFile);
       message.success(
@@ -50,6 +53,8 @@ const UpdateAvatarModal: React.FC<UpdateAvatarModalProps> = ({
     } catch (error) {
       message.error(t.update_avatar_error || "Cập nhật ảnh đại diện thất bại!");
       console.error("Error updating avatar:", error);
+    } finally {
+      setIsLoading(false); // Set loading to false when update ends
     }
   };
 
@@ -69,11 +74,11 @@ const UpdateAvatarModal: React.FC<UpdateAvatarModalProps> = ({
       open={isOpen}
       onCancel={handleCancel}
       footer={[
-        <Button key="cancel" onClick={handleCancel}>
+        <Button key="cancel" onClick={handleCancel} disabled={isLoading}>
           {t.cancel || "Hủy"}
         </Button>,
-        <Button key="update" type="primary" onClick={handleUpdate}>
-          {t.update || "Cập nhật"}
+        <Button key="update" type="primary" onClick={handleUpdate} disabled={isLoading}>
+          {isLoading ? <Spin /> : t.update || "Cập nhật"}
         </Button>,
       ]}>
       <div className="flex flex-col items-center">
@@ -88,7 +93,9 @@ const UpdateAvatarModal: React.FC<UpdateAvatarModalProps> = ({
           type="default"
           icon={<FontAwesomeIcon icon={faCamera} />}
           onClick={handleUploadClick}
-          className="mb-4">
+          className="mb-4"
+          disabled={isLoading}
+        >
           {t.upload_from_computer || "Tải lên từ máy tính"}
         </Button>
         <input

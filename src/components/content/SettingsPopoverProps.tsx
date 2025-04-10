@@ -34,13 +34,7 @@ const SettingsPopover: React.FC<SettingsPopoverProps> = ({
       onOk: async () => {
         try {
           await logout();
-          Modal.success({
-            title: t.logout_success_title || "Đăng xuất thành công",
-            content: t.logout_success_content || "Bạn đã đăng xuất thành công!",
-            onOk: () => {
-              window.location.href = "/";
-            },
-          });
+          window.location.href = "/"; // Redirect directly after logout
         } catch (error: unknown) {
           Modal.error({
             title: t.logout_error_title || "Đăng xuất thất bại",
