@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Modal, message } from "antd"; // Import message from antd
+import { Modal, message } from "antd";
 import { updateUserInfo, updateUserName } from "../../../api/API";
 import { useLanguage } from "../../../features/auth/context/LanguageContext";
 
@@ -26,17 +26,59 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
   const [selectedDay, setSelectedDay] = useState("01");
   const [selectedMonth, setSelectedMonth] = useState("01");
   const [selectedYear, setSelectedYear] = useState("2000");
-  const { t } = useLanguage(); // Sử dụng context
+  const { t } = useLanguage();
+
+  const validateAge = (year: string, month: string, day: string): boolean => {
+    const updatedBirthday = `${year}-${month}-${day}`;
+    const birthDate = new Date(updatedBirthday);
+    const currentDate = new Date();
+
+    if (isNaN(birthDate.getTime())) {
+      return false;
+    }
+
+    let age = currentDate.getFullYear() - birthDate.getFullYear();
+    const monthDifference = currentDate.getMonth() - birthDate.getMonth();
+    const dayDifference = currentDate.getDate() - birthDate.getDate();
+
+    if (monthDifference < 0 || (monthDifference === 0 && dayDifference < 0)) {
+      age--;
+    }
+
+    return age >= 13 && age <= 123;
+  };
 
   const handleSave = async () => {
     try {
       const userId = localStorage.getItem("userId");
-      if (!userId)
-        throw new Error(
+      if (!userId) {
+        message.error(
           t.no_user_id || "Không tìm thấy userId trong localStorage"
         );
+        return;
+      }
 
       const updatedBirthday = `${selectedYear}-${selectedMonth}-${selectedDay}`;
+
+      // Kiểm tra tuổi ở client trước
+      if (!validateAge(selectedYear, selectedMonth, selectedDay)) {
+        const birthDate = new Date(updatedBirthday);
+        let age = new Date().getFullYear() - birthDate.getFullYear();
+        const monthDiff = new Date().getMonth() - birthDate.getMonth();
+        const dayDiff = new Date().getDate() - birthDate.getDate();
+        if (monthDiff < 0 || (monthDiff === 0 && dayDiff < 0)) age--;
+
+        if (age < 13) {
+          message.error(t.invalid_age_min || "Tuổi phải lớn hơn hoặc bằng 13");
+        } else if (age > 123) {
+          message.error(t.invalid_age_max || "Tuổi phải nhỏ hơn hoặc bằng 123");
+        } else {
+          message.error(t.invalid_date || "Ngày sinh không hợp lệ");
+        }
+        return;
+      }
+
+      // Gửi request API
       const nameResponse = await updateUserName(userId, displayName);
       const infoResponse = await updateUserInfo(userId, {
         isMale,
@@ -52,9 +94,11 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
 
       onClose();
       message.success(t.update_success || "Cập nhật thông tin thành công!");
-    } catch (error) {
-      console.error("Lỗi:", error);
-      message.error(t.update_error || "Cập nhật thất bại!");
+    } catch (error: unknown) {
+      // Hiển thị lỗi cụ thể từ API
+      const errorMessage =
+        error instanceof Error ? error.message : "Lỗi không xác định";
+      message.error(errorMessage);
     }
   };
 
@@ -126,7 +170,9 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
               className="flex items-center cursor-pointer"
               onClick={() => setIsMale(true)}>
               <div
-                className={`w-5 h-5 rounded-full border-2 mr-2 flex items-center justify-center ${isMale ? "border-blue-500" : "border-gray-300"}`}>
+                className={`w-5 h-5 rounded-full border-2 mr-2 flex items-center justify-center ${
+                  isMale ? "border-blue-500" : "border-gray-300"
+                }`}>
                 {isMale && (
                   <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
                 )}
@@ -137,7 +183,9 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
               className="flex items-center cursor-pointer"
               onClick={() => setIsMale(false)}>
               <div
-                className={`w-5 h-5 rounded-full border-2 mr-2 flex items-center justify-center ${!isMale ? "border-blue-500" : "border-gray-300"}`}>
+                className={`w-5 h-5 rounded-full border-2 mr-2 flex items-center justify-center ${
+                  !isMale ? "border-blue-500" : "border-gray-300"
+                }`}>
                 {!isMale && (
                   <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
                 )}

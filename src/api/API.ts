@@ -39,13 +39,18 @@ export const updateUserInfo = async (
   try {
     const response = await apiClient.put("/api/users/update-user/info", {
       userId,
-      ...data, // Truyền các thông tin cần cập nhật
+      ...data,
     });
     return response.data;
   } catch (error: unknown) {
     const apiError = error as AxiosError<{ message?: string }>;
     if (apiError.response?.status === 404) {
       throw new Error("Không tìm thấy người dùng");
+    }
+    if (apiError.response?.status === 400) {
+      throw new Error(
+        apiError.response.data?.message || "Dữ liệu không hợp lệ"
+      ); // Truyền lỗi cụ thể từ server
     }
     throw new Error(apiError.response?.data?.message || "Lỗi không xác định");
   }
@@ -386,7 +391,7 @@ export const logout = async () => {
     localStorage.removeItem("token");
     localStorage.removeItem("refreshToken");
     localStorage.removeItem("userId");
-    
+
     apiClient.defaults.headers.common["Authorization"] = "";
     console.log("Đăng xuất thành công:", response.data);
     return response.data;
@@ -454,7 +459,9 @@ export const changePassword = async (
         case 500:
           throw new Error("Lỗi server, vui lòng thử lại sau");
         default:
-          throw new Error(data?.message || "Đổi mật khẩu thất bại, vui lòng thử lại");
+          throw new Error(
+            data?.message || "Đổi mật khẩu thất bại, vui lòng thử lại"
+          );
       }
     }
     throw new Error("Đổi mật khẩu thất bại, vui lòng thử lại");
@@ -726,6 +733,7 @@ export const verifyOTPForgotPassword = async (
   otpId: string
 ): Promise<void> => {
   try {
+
     console.log("verifyOTPForgotPassword input params:", { phone, otp, otpId });
     
     if (!phone || !otp || !otpId) {
@@ -970,13 +978,16 @@ export const uploadAvatar = async (imageFile: File): Promise<string> => {
     formData.append("avatar", imageFile);
 
     // Sử dụng fetch API thay vì axios để xử lý tốt hơn với FormData
-    const response = await fetch(`${API_BASE_URL}/api/users/update-user/avatar`, {
-      method: "PUT",
-      headers: {
-        Authorization: `Bearer ${token}`
-      },
-      body: formData
-    });
+    const response = await fetch(
+      `${API_BASE_URL}/api/users/update-user/avatar`,
+      {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      }
+    );
 
     if (!response.ok) {
       const errorData = await response.json();
@@ -985,12 +996,14 @@ export const uploadAvatar = async (imageFile: File): Promise<string> => {
 
     const data = await response.json();
     console.log("Avatar uploaded successfully:", data);
-    
+
     // Trả về URL của avatar mới
     return data.user.urlavatar;
   } catch (error) {
     console.error("Error uploading avatar:", error);
-    throw new Error(error instanceof Error ? error.message : "Lỗi không xác định khi tải ảnh");
+    throw new Error(
+      error instanceof Error ? error.message : "Lỗi không xác định khi tải ảnh"
+    );
   }
 };
 
@@ -1094,7 +1107,7 @@ export const registerWithAvatar = async (
       accessToken: token.accessToken,
       refreshToken: token.refreshToken,
       fullname: user.fullname,
-      avatarUrl
+      avatarUrl,
     };
   } catch (error: any) {
     if (error.response?.status === 400) {

@@ -178,7 +178,7 @@ const SettingsModal: React.FC<{ visible: boolean; onClose: () => void }> = ({
         title={<div className="flex items-center"><span className="text-lg font-semibold">{t.settings}</span></div>}
         open={visible}
         onCancel={handleCancel}
-        maskClosable={false}
+        maskClosable={true} // Set maskClosable to true to close on outside click
         destroyOnClose={true}
         footer={null}
         width={800}
