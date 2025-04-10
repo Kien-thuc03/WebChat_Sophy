@@ -19,10 +19,14 @@ const UserModal: React.FC<UserModalProps> = ({ isOpen, onClose }) => {
   const { user, setUser } = useAuth();
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isUpdateAvatarModalOpen, setIsUpdateAvatarModalOpen] = useState(false);
+  const [randomImageId, setRandomImageId] = useState<number>(1); // State for random image ID
   const { t } = useLanguage(); // Sử dụng context
 
   useEffect(() => {
-    if (isOpen) console.log("Modal is opened.");
+    if (isOpen) {
+      console.log("Modal is opened.");
+      setRandomImageId(Math.floor(Math.random() * 100) + 1); // Generate random number between 1 and 100
+    }
   }, [isOpen]);
 
   const formatPhoneNumber = (phone: string | undefined): string => {
@@ -82,14 +86,14 @@ const UserModal: React.FC<UserModalProps> = ({ isOpen, onClose }) => {
         bodyStyle={{ padding: "24px" }}>
         <div className="text-center mt-4">
           <div
-            className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-r from-blue-400 to-blue-600 rounded-t-lg"
+            className="absolute top-0 left-0 right-0 h-40 bg-gradient-to-r from-blue-400 to-blue-600 rounded-t-lg"
             style={{
-              backgroundImage: `url(${"https://picsum.photos/id/1/800/200"})`,
+              backgroundImage: `url(https://picsum.photos/id/${randomImageId}/800/200)`, // Use random image ID
               backgroundSize: "cover",
               backgroundPosition: "center",
             }}
           />
-          <div className="flex justify-baseline mt-5 relative">
+          <div className="flex justify-baseline mt-10 relative">
             <div className="relative">
               <img
                 src={user?.urlavatar || "https://picsum.photos/id/1/200/200"}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Modal } from "antd";
+import { Modal, message } from "antd"; // Import message from antd
 import { updateUserInfo, updateUserName } from "../../../api/API";
 import { useLanguage } from "../../../features/auth/context/LanguageContext";
 
@@ -51,10 +51,10 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
       });
 
       onClose();
-      alert(t.update_success || "Cập nhật thông tin thành công!");
+      message.success(t.update_success || "Cập nhật thông tin thành công!");
     } catch (error) {
       console.error("Lỗi:", error);
-      alert(t.update_error || "Cập nhật thất bại!");
+      message.error(t.update_error || "Cập nhật thất bại!");
     }
   };
 

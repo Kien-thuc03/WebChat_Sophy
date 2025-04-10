@@ -190,7 +190,7 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({
 
   return (
     <>
-      <div className="absolute left-58 bottom-15 transform translate-x-[-100%] ml-3 w-58 p-2 bg-white rounded-lg shadow-lg">
+      <div className="absolute left-58 bottom-15 transform translate-x-[-100%] ml-3 w-58 p-2 bg-white">
         <Menu
           items={items}
           mode="vertical"
