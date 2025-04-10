@@ -1,6 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useAuth } from "../../features/auth/hooks/useAuth";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import "react-phone-number-input/style.css";
 import PhoneInput from "react-phone-number-input";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -13,6 +13,16 @@ const Signin: React.FC = () => {
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Đọc số điện thoại từ URL khi component được tải
+  useEffect(() => {
+    const searchParams = new URLSearchParams(location.search);
+    const phoneParam = searchParams.get('phone');
+    if (phoneParam) {
+      setFormData(prev => ({ ...prev, phone: phoneParam }));
+    }
+  }, [location.search]);
 
   const handlePhoneChange = (value?: string) => {
     setFormData((prev) => ({ ...prev, phone: value || "" }));
@@ -142,7 +152,9 @@ const Signin: React.FC = () => {
           </div>
 
           {error && (
-            <div className="text-sm text-red-500 text-center">{error}</div>
+            <div className="p-2 bg-red-50 border border-red-200 rounded-md">
+              <p className="text-sm text-red-600 text-center">{error}</p>
+            </div>
           )}
 
           <button
