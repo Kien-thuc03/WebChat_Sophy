@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { checkUsedPhone, verifyPhoneOTP, registerWithAvatar } from '../../api/API';
+import { useAuth } from '../../features/auth/hooks/useAuth';
+import PhoneInput from "react-phone-number-input";
 
 const Register: React.FC = () => {
   const navigate = useNavigate();
+  const { login } = useAuth();
   const [step, setStep] = useState<'phone' | 'otp' | 'info'>('phone');
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
@@ -131,18 +134,30 @@ const Register: React.FC = () => {
       
       console.log('Đăng ký thành công:', result);
       
-      // Hiển thị thông báo thành công nếu cần
-      if (result.avatarUrl) {
-        setSuccessMessage('Đăng ký thành công! Ảnh đại diện đã được tải lên.');
-      } else {
-        setSuccessMessage('Đăng ký thành công!');
-      }
+      // Hiển thị thông báo thành công
+      setSuccessMessage('Đăng ký thành công! Đang đăng nhập...');
       
-      // Đợi một chút để người dùng thấy thông báo thành công
-      setTimeout(() => {
-        // Chuyển hướng đến trang đăng nhập
-        navigate('/');
-      }, 1500);
+      try {
+        // Tự động đăng nhập sau khi đăng ký thành công
+        await login({
+          phone: phone,
+          password: password
+        });
+        
+        // Đợi một chút để hiển thị thông báo thành công
+        setTimeout(() => {
+          // Chuyển hướng đến trang chính sau khi đăng nhập
+          navigate('/main');
+        }, 1000);
+      } catch (loginError) {
+        console.error('Lỗi khi tự động đăng nhập:', loginError);
+        setError('Đăng ký thành công nhưng không thể tự động đăng nhập. Vui lòng đăng nhập thủ công.');
+        
+        // Nếu đăng nhập thất bại, vẫn chuyển hướng về trang đăng nhập sau một khoảng thời gian
+        setTimeout(() => {
+          navigate('/');
+        }, 2000);
+      }
     } catch (err: any) {
       console.error('Lỗi đăng ký:', err);
       setError(err.message);
