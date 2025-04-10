@@ -1,4 +1,4 @@
-import { Button, Modal, Radio, Select, Switch } from "antd";
+import { Button, Checkbox, Modal, Radio, Select, Switch } from "antd";
 import { useEffect, useState } from "react";
 import ChangePasswordModal from "./ChangePasswordModal";
 import {
@@ -78,9 +78,57 @@ const SettingsModal: React.FC<{ visible: boolean; onClose: () => void }> = ({
             </div>
           </div>
         );
-      case "privacy":
-        return (
-          <div className="p-4">
+        case "privacy":
+          return (
+            <div className="p-4">
+              <h3 className="text-base font-medium mb-2">{t.privacy}</h3>
+              <div className="space-y-6">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <h4 className="text-sm font-medium">{t.show_birthdate}</h4>
+                    <p className="text-xs text-gray-500">{t.show_birthdate_desc}</p>
+                  </div>
+                  <Switch size="small" />
+                </div>
+                <div className="flex justify-between items-center">
+                  <div>
+                    <h4 className="text-sm font-medium">{t.show_read_receipts}</h4>
+                    <p className="text-xs text-gray-500">{t.show_read_receipts_desc}</p>
+                  </div>
+                  <Switch size="small" />
+                </div>
+                <div className="flex justify-between items-center">
+                  <div>
+                    <h4 className="text-sm font-medium">{t.allow_strangers_find}</h4>
+                    <p className="text-xs text-gray-500">{t.allow_strangers_find_desc}</p>
+                  </div>
+                  <Switch size="small" />
+                </div>
+                <div className="flex justify-between items-center">
+                  <div>
+                    <h4 className="text-sm font-medium">{t.block_messages}</h4>
+                    <p className="text-xs text-gray-500">{t.block_messages_desc}</p>
+                  </div>
+                  <Button type="link" size="small">{t.block_list}</Button>
+                </div>
+                <div className="flex justify-between items-center">
+                  <div>
+                    <h4 className="text-sm font-medium">{t.allow_strangers_connect}</h4>
+                    <p className="text-xs text-gray-500">{t.allow_strangers_connect_desc}</p>
+                  </div>
+                  <Checkbox.Group options={[
+                    { label: t.qr_code, value: 'qr' },
+                    { label: t.common_groups, value: 'groups' },
+                    { label: t.zalo_card, value: 'zalo_card' },
+                    { label: t.suggested_friends, value: 'suggested' },
+                  ]} />
+                </div>
+              </div>
+            </div>
+          );
+        case "security":
+          return (
+            <div className="p-4">
             <h3 className="text-base font-medium mb-2">{t.privacy}</h3>
             <div className="space-y-6">
               <div className="flex justify-between items-center">
@@ -108,7 +156,7 @@ const SettingsModal: React.FC<{ visible: boolean; onClose: () => void }> = ({
               </div>
             </div>
           </div>
-        );
+          );
       default:
         return null;
     }

@@ -148,6 +148,25 @@ const translations = {
     search: "Tìm kiếm",
     add_friend: "Thêm bạn",
     create_group: "Tạo nhóm chat",
+
+    show_birthdate: "Hiển thị ngày sinh",
+    show_birthdate_desc: "Cho phép hiển thị ngày sinh của bạn",
+    show_read_receipts: "Hiển thị trạng thái 'Đã xem'",
+    show_read_receipts_desc:
+      "Cho phép hiển thị trạng thái 'Đã xem' trong tin nhắn",
+    allow_strangers_find: "Cho phép người lạ tìm thấy bạn qua số điện thoại",
+    allow_strangers_find_desc:
+      "Cho phép người lạ tìm thấy và kết bạn qua số điện thoại của bạn",
+    block_messages: "Chặn tin nhắn",
+    block_messages_desc: "Danh sách chặn tin nhắn của bạn",
+    block_list: "Danh sách chặn",
+    allow_strangers_connect: "Cho phép người lạ kết bạn",
+    allow_strangers_connect_desc:
+      "Cho phép người lạ kết bạn qua các phương thức",
+    qr_code: "Mã QR của tôi",
+    common_groups: "Nhóm chung",
+    zalo_card: "Danh thiếp Zalo",
+    suggested_friends: "Gợi ý 'Có thể bạn quen'",
   },
   en: {
     settings: "Settings",
@@ -297,6 +316,24 @@ const translations = {
     search: "Search",
     add_friend: "Add Friend",
     create_group: "Create Group Chat",
+
+    show_birthdate: "Show Birthdate",
+    show_birthdate_desc: "Allow your birthdate to be displayed",
+    show_read_receipts: "Show Read Receipts",
+    show_read_receipts_desc: "Allow read receipts to be displayed in messages",
+    allow_strangers_find: "Allow Strangers to Find You by Phone Number",
+    allow_strangers_find_desc:
+      "Allow strangers to find and connect with you via your phone number",
+    block_messages: "Block Messages",
+    block_messages_desc: "Your message block list",
+    block_list: "Block List",
+    allow_strangers_connect: "Allow Strangers to Connect",
+    allow_strangers_connect_desc:
+      "Allow strangers to connect via various methods",
+    qr_code: "My QR Code",
+    common_groups: "Common Groups",
+    zalo_card: "Zalo Card",
+    suggested_friends: "Suggested 'You May Know'",
   },
 };
 
