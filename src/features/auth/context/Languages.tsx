@@ -176,6 +176,7 @@ const translations = {
     system: "Hệ Thống",
     chat_background: "Hình nền chat",
     use_avatar_as_background: "Sử dụng Avatar làm hình nền",
+    same_password_error: "Mật khẩu mới không được trùng với mật khẩu hiện tại",
   },
   en: {
     settings: "Settings",
@@ -352,6 +353,7 @@ const translations = {
     system: "System",
     chat_background: "Chat Background",
     use_avatar_as_background: "Use Avatar as Chat Background",
+    same_password_error: "New password cannot be the same as current password",
   },
 };
 

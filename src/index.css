@@ -1,1 +1,9 @@
 @import "tailwindcss";
+
+html[data-theme="dark"] {
+  /* Các quy tắc tùy chỉnh cho dark mode nếu cần */
+}
+
+html[data-theme="light"] {
+  /* Các quy tắc tùy chỉnh cho light mode nếu cần */
+}
