@@ -174,6 +174,7 @@ const VerifyOTP: React.FC = () => {
                   ? "bg-green-50 border-green-200"
                   : "bg-red-50 border-red-200"
               }`}>
+
               <p
                 className={`text-sm text-center ${
                   messageType === "success" ? "text-green-600" : "text-red-600"
