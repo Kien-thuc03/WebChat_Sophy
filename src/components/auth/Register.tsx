@@ -28,8 +28,9 @@ const Register: React.FC = () => {
   const { login } = useAuth();
   const [step, setStep] = useState<'phone' | 'otp' | 'name' | 'info'>('phone');
   const [phone, setPhone] = useState('');
+  const [formattedPhoneNumber, setFormattedPhoneNumber] = useState('');
   const [otp, setOtp] = useState('');
-  const [otpId, setOtpId] = useState('');
+  const [backendOTP, setBackendOTP] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [fullname, setFullname] = useState('');
@@ -43,7 +44,6 @@ const Register: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [showRecaptcha, setShowRecaptcha] = useState(false);
-  const [formattedPhoneNumber, setFormattedPhoneNumber] = useState('');
   const [recaptchaVerified, setRecaptchaVerified] = useState(false);
   
   // Tham chiếu để lưu confirmation result từ Firebase
@@ -67,8 +67,8 @@ const Register: React.FC = () => {
     // before attempting to send the OTP
     setTimeout(async () => {
       try {
-        // Gửi OTP với verifier đã xác thực - không ẩn reCAPTCHA trước khi gửi OTP
-        const confirmationResult = await sendOtpToPhone(formattedPhoneNumber, verifier);
+        // Gửi OTP với verifier đã xác thực và OTP từ backend nếu có
+        const confirmationResult = await sendOtpToPhone(formattedPhoneNumber, verifier, backendOTP);
         
         // Lưu confirmation result để sử dụng khi xác thực OTP
         confirmationResultRef.current = confirmationResult;
@@ -84,7 +84,11 @@ const Register: React.FC = () => {
           
           // Hiển thị thông báo mã test trong môi trường development
           if (isDevelopment && !successMessage) {
-            setSuccessMessage('Mã OTP đã được gửi đến số điện thoại của bạn. Trong môi trường development, hãy sử dụng mã: 123456');
+            if (backendOTP) {
+              setSuccessMessage(`Mã OTP đã được gửi đến số điện thoại của bạn. Dev mode: Sử dụng mã OTP ${backendOTP}`);
+            } else {
+              setSuccessMessage('Mã OTP đã được gửi đến số điện thoại của bạn. Trong môi trường development, hãy sử dụng mã: 123456');
+            }
           } else if (!successMessage) {
             setSuccessMessage('Mã OTP đã được gửi đến số điện thoại của bạn');
           }
@@ -105,6 +109,11 @@ const Register: React.FC = () => {
   const changeStep = (newStep: 'phone' | 'otp' | 'name' | 'info') => {
     // Hide reCAPTCHA first
     setShowRecaptcha(false);
+    
+    // Reset backend OTP if going back to phone step
+    if (newStep === 'phone') {
+      setBackendOTP('');
+    }
     
     // Only perform cleanup when not in the middle of verification
     if (!recaptchaVerified && newStep !== 'otp') {
@@ -167,15 +176,26 @@ const Register: React.FC = () => {
     setError('');
     setIsLoading(true);
     
+    // Ensure OTP is properly formatted (trim whitespace and ensure it's a string)
+    const cleanOtp = (otp || '').trim();
+    if (cleanOtp !== otp) {
+      console.log('OTP was trimmed from:', otp, 'to:', cleanOtp);
+      setOtp(cleanOtp);
+    }
+    
     try {
       if (!confirmationResultRef.current) {
         throw new Error('Không tìm thấy phiên xác thực. Vui lòng yêu cầu mã OTP mới.');
       }
       
+      console.log('Đang xác thực OTP:', cleanOtp);
+      console.log('Đang sử dụng mã OTP từ backend:', backendOTP || 'Không có');
+      
       // Xác thực OTP thông qua Firebase
-      const result = await confirmationResultRef.current.confirm(otp);
+      const result = await confirmationResultRef.current.confirm(cleanOtp);
       
       if (result.user) {
+        console.log('Xác thực OTP thành công!');
         // Use the changeStep function to ensure cleanup
         changeStep('name');
         setSuccessMessage('Xác thực số điện thoại thành công');
@@ -184,6 +204,7 @@ const Register: React.FC = () => {
       }
     } catch (err: any) {
       console.error("Lỗi xác thực OTP:", err);
+      console.error("Chi tiết lỗi:", JSON.stringify(err, null, 2));
       
       if (err.code === 'auth/invalid-verification-code') {
         setError('Mã OTP không chính xác. Vui lòng kiểm tra và thử lại.');
@@ -408,6 +429,7 @@ const Register: React.FC = () => {
     setIsLoading(true);
     setSuccessMessage('');
     setRecaptchaVerified(false);
+    setBackendOTP(''); // Reset any stored backend OTP when attempting new verification
     
     try {
       // Kiểm tra định dạng số điện thoại
@@ -449,6 +471,8 @@ const Register: React.FC = () => {
         // Lưu response để lấy mã OTP từ backend nếu có
         const response = await checkUsedPhone(apiFormattedPhone);
         if (response && response.otp && isDevelopment) {
+          // Lưu mã OTP từ backend vào state để sử dụng sau này
+          setBackendOTP(response.otp);
           // Trong môi trường development, hiển thị mã OTP từ backend nếu có
           setSuccessMessage(`Mã OTP đã được gửi đến số điện thoại của bạn. Dev mode: Sử dụng mã OTP ${response.otp || '123456'}`);
         }
