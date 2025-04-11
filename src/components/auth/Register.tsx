@@ -63,6 +63,15 @@ const Register: React.FC = () => {
     // Set loading state
     setIsLoading(true);
     
+    // Validate phone number format again
+    const phoneRegex = /^\+84\d{9}$/;
+    if (!phoneRegex.test(formattedPhoneNumber)) {
+      setError('Định dạng số điện thoại không hợp lệ. Vui lòng kiểm tra lại.');
+      setShowRecaptcha(false);
+      setIsLoading(false);
+      return;
+    }
+    
     // Use setTimeout to ensure reCAPTCHA has fully completed its verification
     // before attempting to send the OTP
     setTimeout(async () => {
@@ -78,18 +87,23 @@ const Register: React.FC = () => {
         
         // Chuyển sang bước nhập OTP
         setTimeout(() => {
-          setStep('otp');
+          // Nếu chưa ở bước OTP, chuyển sang bước đó
+          if (step !== 'otp') {
+            setStep('otp');
+          }
+          
+          // Luôn set lại timer khi gửi OTP thành công
           setResendTimer(60);
           setIsPhoneUsed(false);
           
-          // Hiển thị thông báo mã test trong môi trường development
-          if (isDevelopment && !successMessage) {
+          // Hiển thị thông báo OTP dựa trên loại OTP được sử dụng
+          if (isDevelopment) {
             if (backendOTP) {
               setSuccessMessage(`Mã OTP đã được gửi đến số điện thoại của bạn. Dev mode: Sử dụng mã OTP ${backendOTP}`);
             } else {
               setSuccessMessage('Mã OTP đã được gửi đến số điện thoại của bạn. Trong môi trường development, hãy sử dụng mã: 123456');
             }
-          } else if (!successMessage) {
+          } else {
             setSuccessMessage('Mã OTP đã được gửi đến số điện thoại của bạn');
           }
           
@@ -156,14 +170,22 @@ const Register: React.FC = () => {
     } else if (err.code === 'auth/invalid-app-credential') {
       setError('Lỗi cài đặt reCAPTCHA. Đang sử dụng mã OTP giả lập: 123456');
       // Trong môi trường development với lỗi Firebase credential, chuyển sang sử dụng mã giả lập
-      setStep('otp');
+      if (step !== 'otp') {
+        setStep('otp');
+      }
       setResendTimer(60);
       setSuccessMessage('Đã xảy ra lỗi, nhưng bạn có thể tiếp tục với mã OTP: 123456');
     } else if (isDevelopment) {
       // Nếu là môi trường development và có lỗi Firebase, vẫn cho phép tiếp tục
-      setStep('otp');
+      if (step !== 'otp') {
+        setStep('otp');
+      }
       setResendTimer(60);
-      setSuccessMessage('Dev mode: Đã xảy ra lỗi Firebase nhưng bạn có thể tiếp tục với mã OTP: 123456');
+      if (backendOTP) {
+        setSuccessMessage(`Dev mode: Đã xảy ra lỗi Firebase nhưng bạn có thể tiếp tục với mã OTP từ backend: ${backendOTP}`);
+      } else {
+        setSuccessMessage('Dev mode: Đã xảy ra lỗi Firebase nhưng bạn có thể tiếp tục với mã OTP: 123456');
+      }
     } else {
       setError(err.message || 'Đã xảy ra lỗi khi gửi OTP. Vui lòng thử lại sau.');
     }
@@ -198,7 +220,7 @@ const Register: React.FC = () => {
         console.log('Xác thực OTP thành công!');
         // Use the changeStep function to ensure cleanup
         changeStep('name');
-        setSuccessMessage('Xác thực số điện thoại thành công');
+        setSuccessMessage('Số điện thoại đã được xác thực');
       } else {
         throw new Error('Xác thực thất bại');
       }
@@ -401,14 +423,42 @@ const Register: React.FC = () => {
   }, [resendTimer]);
 
   useEffect(() => {
-    if (step === 'otp' && 'OTPCredential' in window) {
+    if (step === 'otp' && 'OTPCredential' in window && confirmationResultRef.current) {
       const ac = new AbortController();
       navigator.credentials.get({
         otp: { transport: ['sms'] },
         signal: ac.signal
       } as any).then(otp => {
         if (otp && typeof otp === 'object' && 'code' in otp) {
-          setOtp(String(otp.code));
+          const otpCode = String(otp.code);
+          console.log('Mã OTP được phát hiện tự động:', otpCode);
+          setOtp(otpCode);
+          
+          // Auto-submit OTP if detected
+          if (otpCode.length === 6 && /^\d{6}$/.test(otpCode)) {
+            // Validate the OTP immediately if it has the correct format
+            // But do it after a small delay to let state update
+            setTimeout(async () => {
+              if (confirmationResultRef.current) {
+                try {
+                  setIsLoading(true);
+                  const result = await confirmationResultRef.current.confirm(otpCode);
+                  
+                  if (result.user) {
+                    console.log('Xác thực OTP tự động thành công!');
+                    // Use the changeStep function to ensure cleanup
+                    changeStep('name');
+                    setSuccessMessage('Số điện thoại đã được xác thực');
+                  }
+                } catch (err) {
+                  console.error('Lỗi khi xác thực OTP tự động:', err);
+                  // Don't show error for auto-detection
+                } finally {
+                  setIsLoading(false);
+                }
+              }
+            }, 500);
+          }
         }
       }).catch(() => {});
       return () => ac.abort();
@@ -457,6 +507,14 @@ const Register: React.FC = () => {
         }
       }
       
+      // Kiểm tra định dạng số điện thoại theo định dạng Việt Nam
+      const phoneRegex = /^\+84\d{9}$/;
+      if (!phoneRegex.test(formattedPhone)) {
+        setError('Định dạng số điện thoại không hợp lệ. Vui lòng kiểm tra lại.');
+        setIsLoading(false);
+        return;
+      }
+      
       console.log("Số điện thoại đã định dạng:", formattedPhone);
       
       // Lưu số điện thoại đã định dạng để sử dụng trong callback
@@ -470,11 +528,49 @@ const Register: React.FC = () => {
           
         // Lưu response để lấy mã OTP từ backend nếu có
         const response = await checkUsedPhone(apiFormattedPhone);
-        if (response && response.otp && isDevelopment) {
-          // Lưu mã OTP từ backend vào state để sử dụng sau này
-          setBackendOTP(response.otp);
-          // Trong môi trường development, hiển thị mã OTP từ backend nếu có
-          setSuccessMessage(`Mã OTP đã được gửi đến số điện thoại của bạn. Dev mode: Sử dụng mã OTP ${response.otp || '123456'}`);
+        
+        // Nếu có phản hồi hợp lệ từ API, xử lý tiếp theo
+        if (response && isDevelopment) {
+          if (response.otp) {
+            // Lưu mã OTP từ backend vào state để sử dụng sau này
+            setBackendOTP(response.otp);
+            
+            // Nếu đã ở bước OTP, gửi OTP ngay bằng cách sử dụng RecaptchaVerifier hiện có 
+            // hoặc fake OTP với backendOTP
+            if (step === 'otp') {
+              if (recaptchaVerifierRef.current) {
+                // Có RecaptchaVerifier, thử gửi OTP thật với backend OTP làm fallback
+                try {
+                  const result = await sendOtpToPhone(formattedPhone, recaptchaVerifierRef.current, response.otp);
+                  confirmationResultRef.current = result;
+                  setSuccessMessage(`Mã OTP đã được gửi lại. Dev mode: Sử dụng mã OTP ${response.otp}`);
+                  setResendTimer(60);
+                } catch (otpErr) {
+                  console.error('Lỗi khi gửi lại OTP:', otpErr);
+                  // Vẫn hiển thị thông báo vì đã có mã từ backend
+                  setSuccessMessage(`Mã OTP đã được gửi lại. Dev mode: Sử dụng mã OTP ${response.otp}`);
+                  setResendTimer(60);
+                }
+              } else {
+                // Không có RecaptchaVerifier, sử dụng trực tiếp backend OTP
+                const result = await sendOtpToPhone(formattedPhone, undefined, response.otp);
+                confirmationResultRef.current = result;
+                setSuccessMessage(`Mã OTP đã được gửi lại. Dev mode: Sử dụng mã OTP ${response.otp}`);
+                setResendTimer(60);
+              }
+              
+              setIsLoading(false);
+              return;
+            }
+            
+            // Trong môi trường development, hiển thị mã OTP từ backend nếu có
+            setSuccessMessage(`Mã OTP đã được gửi đến số điện thoại của bạn. Dev mode: Sử dụng mã OTP ${response.otp}`);
+          }
+        } else {
+          // Nếu không nhận được OTP từ backend (có thể số điện thoại không tồn tại)
+          setError('Số điện thoại không tồn tại hoặc không thể gửi mã OTP. Vui lòng kiểm tra lại.');
+          setIsLoading(false);
+          return;
         }
       } catch (err: any) {
         if (err.message.includes('đã được sử dụng')) {
@@ -482,7 +578,61 @@ const Register: React.FC = () => {
           setError(err.message);
           setIsLoading(false);
           return;
+        } else {
+          // Các lỗi khác có thể là số điện thoại không tồn tại
+          setError('Số điện thoại không tồn tại hoặc không thể kiểm tra. Vui lòng thử lại sau.');
+          setIsLoading(false);
+          return;
         }
+      }
+      
+      // Nếu đã ở bước OTP và không có backendOTP, cần xử lý việc gửi lại OTP
+      if (step === 'otp') {
+        // Nếu có RecaptchaVerifier, thử gửi lại OTP
+        if (recaptchaVerifierRef.current) {
+          try {
+            const result = await sendOtpToPhone(formattedPhone, recaptchaVerifierRef.current);
+            confirmationResultRef.current = result;
+            setSuccessMessage('Mã OTP đã được gửi lại đến số điện thoại của bạn');
+            setResendTimer(60);
+          } catch (resendErr) {
+            console.error('Lỗi khi gửi lại OTP:', resendErr);
+            handleOtpError(resendErr);
+          }
+        } else {
+          // Không có verifier, hiển thị reCAPTCHA mới
+          try {
+            if (window.recaptchaVerifier && typeof window.recaptchaVerifier.clear === 'function') {
+              try {
+                window.recaptchaVerifier.clear();
+              } catch (clearError) {
+                console.log('Error clearing verifier, continuing', clearError);
+              }
+              window.recaptchaVerifier = null;
+            }
+            
+            // Reset DOM setup for reCAPTCHA
+            const container = document.getElementById('inline-recaptcha-container');
+            if (container) {
+              container.innerHTML = '';
+            }
+            
+            // Show reCAPTCHA
+            setTimeout(() => {
+              setShowRecaptcha(true);
+              setIsLoading(false);
+            }, 300);
+            return;
+          } catch (recaptchaErr) {
+            console.error('Lỗi khi chuẩn bị reCAPTCHA mới:', recaptchaErr);
+            setError('Không thể tạo mới xác thực reCAPTCHA. Vui lòng tải lại trang.');
+            setIsLoading(false);
+            return;
+          }
+        }
+        
+        setIsLoading(false);
+        return;
       }
       
       // Clear any existing reCAPTCHA instances before showing new one
@@ -669,6 +819,12 @@ const Register: React.FC = () => {
               {error && (
                 <div className="p-2 bg-red-50 border border-red-200 rounded-md">
                   <p className="text-sm text-red-600 text-center">{error}</p>
+                </div>
+              )}
+              
+              {successMessage && (
+                <div className="p-2 bg-green-50 border border-green-200 rounded-md">
+                  <p className="text-sm text-green-600 text-center">{successMessage}</p>
                 </div>
               )}
               
