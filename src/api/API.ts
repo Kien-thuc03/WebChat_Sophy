@@ -870,101 +870,101 @@ export const forgotPassword = async (
 };
 
 // Xác thực mã OTP
-export const verifyPhoneOTP = async (
-  phone: string,
-  otp: string,
-  otpId: string
-): Promise<void> => {
-  try {
-    console.log("verifyPhoneOTP input params:", { phone, otp, otpId });
+// export const verifyPhoneOTP = async (
+//   phone: string,
+//   otp: string,
+//   otpId: string
+// ): Promise<void> => {
+//   try {
+//     console.log("verifyPhoneOTP input params:", { phone, otp, otpId });
     
-    if (!phone || !otp || !otpId) {
-      throw new Error("Thiếu thông tin cần thiết. Vui lòng kiểm tra lại.");
-    }
+//     if (!phone || !otp || !otpId) {
+//       throw new Error("Thiếu thông tin cần thiết. Vui lòng kiểm tra lại.");
+//     }
     
-    // Đảm bảo số điện thoại đúng định dạng (bắt đầu bằng 0 ở Việt Nam)
-    let formattedPhone = phone;
-    if (phone.startsWith("+84")) {
-      formattedPhone = "0" + phone.slice(3);
-    }
+//     // Đảm bảo số điện thoại đúng định dạng (bắt đầu bằng 0 ở Việt Nam)
+//     let formattedPhone = phone;
+//     if (phone.startsWith("+84")) {
+//       formattedPhone = "0" + phone.slice(3);
+//     }
     
-    const response = await apiClient.post("/api/auth/verify-phone-otp", {
-      phone: formattedPhone,
-      otp,
-      otpId,
-    });
+//     const response = await apiClient.post("/api/auth/verify-phone-otp", {
+//       phone: formattedPhone,
+//       otp,
+//       otpId,
+//     });
     
-    console.log("Verify phone OTP response:", response.data);
+//     console.log("Verify phone OTP response:", response.data);
     
-    // Kiểm tra phản hồi từ server bằng tiếng Anh và chuyển sang tiếng Việt
-    if (response.data.message !== "Phone verified successfully") {
-      switch (response.data.message) {
-        case "Invalid verification attempt":
-          throw new Error("Mã xác thực không hợp lệ. Vui lòng yêu cầu mã mới.");
-        case "Verification code expired":
-        case "OTP expired":
-          throw new Error("Mã OTP đã hết hạn. Vui lòng yêu cầu mã mới.");
-        case "Invalid verification code":
-        case "Invalid OTP":
-          throw new Error("Mã OTP không chính xác. Vui lòng kiểm tra lại.");
-        case "Too many failed attempts. Please request a new code.":
-          throw new Error("Quá nhiều lần nhập sai. Vui lòng yêu cầu mã mới.");
-        case "Phone number not found":
-          throw new Error("Không tìm thấy số điện thoại. Vui lòng kiểm tra lại.");
-        case "Invalid OTP ID":
-          throw new Error("Mã xác thực không hợp lệ. Vui lòng yêu cầu mã mới.");
-        case "Verification code not found":
-          throw new Error("Không tìm thấy mã xác thực. Vui lòng yêu cầu mã mới.");
-        default:
-          throw new Error(response.data.message || "Xác thực OTP thất bại");
-      }
-    }
-  } catch (error: any) {
-    console.error("verifyPhoneOTP error:", error);
-    if (error.response) {
-      console.error("Error response:", error.response.data);
-    }
+//     // Kiểm tra phản hồi từ server bằng tiếng Anh và chuyển sang tiếng Việt
+//     if (response.data.message !== "Phone verified successfully") {
+//       switch (response.data.message) {
+//         case "Invalid verification attempt":
+//           throw new Error("Mã xác thực không hợp lệ. Vui lòng yêu cầu mã mới.");
+//         case "Verification code expired":
+//         case "OTP expired":
+//           throw new Error("Mã OTP đã hết hạn. Vui lòng yêu cầu mã mới.");
+//         case "Invalid verification code":
+//         case "Invalid OTP":
+//           throw new Error("Mã OTP không chính xác. Vui lòng kiểm tra lại.");
+//         case "Too many failed attempts. Please request a new code.":
+//           throw new Error("Quá nhiều lần nhập sai. Vui lòng yêu cầu mã mới.");
+//         case "Phone number not found":
+//           throw new Error("Không tìm thấy số điện thoại. Vui lòng kiểm tra lại.");
+//         case "Invalid OTP ID":
+//           throw new Error("Mã xác thực không hợp lệ. Vui lòng yêu cầu mã mới.");
+//         case "Verification code not found":
+//           throw new Error("Không tìm thấy mã xác thực. Vui lòng yêu cầu mã mới.");
+//         default:
+//           throw new Error(response.data.message || "Xác thực OTP thất bại");
+//       }
+//     }
+//   } catch (error: any) {
+//     console.error("verifyPhoneOTP error:", error);
+//     if (error.response) {
+//       console.error("Error response:", error.response.data);
+//     }
     
-    // Nếu lỗi đã được xử lý trong khối try, chỉ cần ném lại
-    if (error.message && !error.response) {
-      throw error;
-    }
+//     // Nếu lỗi đã được xử lý trong khối try, chỉ cần ném lại
+//     if (error.message && !error.response) {
+//       throw error;
+//     }
     
-    // Xử lý lỗi từ API dựa trên mã lỗi HTTP
-    if (error.response?.status === 400) {
-      // Xử lý các loại lỗi 400 cụ thể
-      switch (error.response.data?.message) {
-        case "Invalid verification attempt":
-          throw new Error("Mã xác thực không hợp lệ. Vui lòng yêu cầu mã mới.");
-        case "Verification code expired":
-        case "OTP expired":
-          throw new Error("Mã OTP đã hết hạn. Vui lòng yêu cầu mã mới.");
-        case "Invalid verification code":
-        case "Invalid OTP":
-          throw new Error("Mã OTP không chính xác. Vui lòng kiểm tra lại.");
-        case "Too many failed attempts. Please request a new code.":
-          throw new Error("Quá nhiều lần nhập sai. Vui lòng yêu cầu mã mới.");
-        case "Phone number not found":
-          throw new Error("Không tìm thấy số điện thoại. Vui lòng kiểm tra lại.");
-        case "Invalid OTP ID":
-          throw new Error("Mã xác thực không hợp lệ. Vui lòng yêu cầu mã mới.");
-        case "Verification code not found":
-          throw new Error("Không tìm thấy mã xác thực. Vui lòng yêu cầu mã mới.");
-        default:
-          throw new Error(error.response.data?.message || "Thông tin xác thực không hợp lệ");
-      }
-    } else if (error.response?.status === 404) {
-      throw new Error("Không tìm thấy thông tin xác thực");
-    } else if (error.response?.status === 429) {
-      throw new Error("Quá nhiều lần xác thực. Vui lòng thử lại sau.");
-    } else if (error.response?.status === 500) {
-      throw new Error("Lỗi máy chủ. Vui lòng thử lại sau.");
-    } else if (!error.response) {
-      throw new Error("Lỗi kết nối tới máy chủ");
-    }
-    throw new Error(error.response?.data?.message || "Xác thực số điện thoại thất bại");
-  }
-};
+//     // Xử lý lỗi từ API dựa trên mã lỗi HTTP
+//     if (error.response?.status === 400) {
+//       // Xử lý các loại lỗi 400 cụ thể
+//       switch (error.response.data?.message) {
+//         case "Invalid verification attempt":
+//           throw new Error("Mã xác thực không hợp lệ. Vui lòng yêu cầu mã mới.");
+//         case "Verification code expired":
+//         case "OTP expired":
+//           throw new Error("Mã OTP đã hết hạn. Vui lòng yêu cầu mã mới.");
+//         case "Invalid verification code":
+//         case "Invalid OTP":
+//           throw new Error("Mã OTP không chính xác. Vui lòng kiểm tra lại.");
+//         case "Too many failed attempts. Please request a new code.":
+//           throw new Error("Quá nhiều lần nhập sai. Vui lòng yêu cầu mã mới.");
+//         case "Phone number not found":
+//           throw new Error("Không tìm thấy số điện thoại. Vui lòng kiểm tra lại.");
+//         case "Invalid OTP ID":
+//           throw new Error("Mã xác thực không hợp lệ. Vui lòng yêu cầu mã mới.");
+//         case "Verification code not found":
+//           throw new Error("Không tìm thấy mã xác thực. Vui lòng yêu cầu mã mới.");
+//         default:
+//           throw new Error(error.response.data?.message || "Thông tin xác thực không hợp lệ");
+//       }
+//     } else if (error.response?.status === 404) {
+//       throw new Error("Không tìm thấy thông tin xác thực");
+//     } else if (error.response?.status === 429) {
+//       throw new Error("Quá nhiều lần xác thực. Vui lòng thử lại sau.");
+//     } else if (error.response?.status === 500) {
+//       throw new Error("Lỗi máy chủ. Vui lòng thử lại sau.");
+//     } else if (!error.response) {
+//       throw new Error("Lỗi kết nối tới máy chủ");
+//     }
+//     throw new Error(error.response?.data?.message || "Xác thực số điện thoại thất bại");
+//   }
+// };
 
 // Upload avatar cho người dùng
 export const uploadAvatar = async (imageFile: File): Promise<string> => {
