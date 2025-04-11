@@ -22,7 +22,7 @@ interface ChatListProps {
 const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
   const { conversations, userCache, displayNames, userAvatars } =
     useConversations();
-  const { t } = useLanguage(); // Sử dụng context
+  const { t } = useLanguage();
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const [selectedConversation, setSelectedConversation] = useState<
     string | null
@@ -46,13 +46,11 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
     };
 
     document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   return (
-    <div className="chat-list w-80 bg-white border-r">
+    <div className="chat-list w-80 bg-white dark:bg-gray-900 border-r dark:border-gray-100">
       <Header />
       <ChatNav />
       <List
@@ -60,7 +58,7 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
         dataSource={conversations}
         renderItem={(chat) => (
           <List.Item
-            className="flex items-center gap-3 hover:bg-gray-50 cursor-pointer px-3 py-2"
+            className="flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer px-3 py-2"
             onClick={() => onSelectConversation(chat)}>
             {/* Avatar section */}
             <div className="relative shrink-0 pl-2">
@@ -85,21 +83,21 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
             {/* Content section */}
             <div className="flex-1 min-w-0">
               <div className="flex justify-between items-center relative group">
-                <span className="truncate font-semibold text-gray-900">
+                <span className="truncate font-semibold text-gray-900 dark:text-gray-100">
                   {displayNames[chat.conversationId] ||
                     chat.receiverId ||
                     t.private_chat ||
                     "Private Chat"}
                 </span>
                 <div className="flex items-center">
-                  <span className="text-xs text-gray-500 group-hover:opacity-0 transition-opacity duration-200">
+                  <span className="text-xs text-gray-500 dark:text-gray-400 group-hover:opacity-0 transition-opacity duration-200">
                     {chat.lastMessage &&
                       formatMessageTime(chat.lastMessage.createdAt)}
                   </span>
                   <div className="absolute right-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                     <button
                       ref={buttonRef}
-                      className="p-1 rounded hover:bg-gray-100"
+                      className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
                       title={t.more || "Thêm"}
                       onClick={(e) => {
                         e.stopPropagation();
@@ -111,19 +109,21 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
                       }}>
                       <FontAwesomeIcon
                         icon={faEllipsisH}
-                        className="fa fa-ellipsis-h text-gray-600"
+                        className="text-gray-600 dark:text-gray-300"
                       />
                     </button>
                     <div
                       ref={menuRef}
-                      className={`absolute z-20 w-50 bg-white shadow-lg rounded-md border border-gray-200 right-0 mt-1 ${activeMenu === chat.conversationId ? "block" : "hidden"}`}>
+                      className={`absolute z-20 w-50 bg-white dark:bg-gray-800 shadow-lg rounded-md border border-gray-200 dark:border-gray-600 right-0 mt-1 ${
+                        activeMenu === chat.conversationId ? "block" : "hidden"
+                      }`}>
                       <div className="py-1">
-                        <div className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer">
+                        <div className="px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer">
                           {t.pin_conversation || "Ghim hội thoại"}
                         </div>
-                        <div className="border-t border-gray-200"></div>
+                        <div className="border-t border-gray-200 dark:border-gray-600"></div>
                         <div
-                          className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer flex items-center justify-between"
+                          className="px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer flex items-center justify-between"
                           onClick={() => {
                             setSelectedConversation(chat.conversationId);
                             setIsLabelModalOpen(true);
@@ -135,12 +135,12 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
                             className="ml-1"
                           />
                         </div>
-                        <div className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer">
+                        <div className="px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer">
                           {t.mark_unread || "Đánh dấu chưa đọc"}
                         </div>
-                        <div className="border-t border-gray-200"></div>
+                        <div className="border-t border-gray-200 dark:border-gray-600"></div>
                         <div
-                          className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer flex items-center justify-between"
+                          className="px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer flex items-center justify-between"
                           onClick={() => {
                             setSelectedConversation(chat.conversationId);
                             setIsNotificationModalOpen(true);
@@ -154,11 +154,11 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
                             className="ml-1"
                           />
                         </div>
-                        <div className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer flex items-center justify-between">
+                        <div className="px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer flex items-center justify-between">
                           {t.hide_chat || "Ẩn trò chuyện"}
                         </div>
                         <div
-                          className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer flex items-center justify-between"
+                          className="px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer flex items-center justify-between"
                           onClick={() => {
                             setSelectedConversation(chat.conversationId);
                             setIsAutoDeleteModalOpen(true);
@@ -172,12 +172,12 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
                             className="ml-1"
                           />
                         </div>
-                        <div className="border-t border-gray-200"></div>
-                        <div className="px-4 py-2 text-sm text-red-500 hover:bg-gray-100 cursor-pointer">
+                        <div className="border-t border-gray-200 dark:border-gray-600"></div>
+                        <div className="px-4 py-2 text-sm text-red-500 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer">
                           {t.delete_conversation || "Xóa hội thoại"}
                         </div>
-                        <div className="border-t border-gray-200"></div>
-                        <div className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer">
+                        <div className="border-t border-gray-200 dark:border-gray-600"></div>
+                        <div className="px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer">
                           {t.report || "Báo xấu"}
                         </div>
                       </div>
@@ -185,7 +185,7 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
                   </div>
                 </div>
               </div>
-              <div className="flex items-center text-sm text-gray-500 truncate">
+              <div className="flex items-center text-sm text-gray-500 dark:text-gray-400 truncate">
                 {chat.lastMessage?.senderId && (
                   <span className="mr-1 truncate">
                     {userCache[chat.lastMessage.senderId]?.fullname ||
@@ -203,13 +203,13 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
 
             {/* Actions section */}
             <div className="shrink-0">
-              <i className="fa fa-ellipsis-h text-gray-400 cursor-pointer hover:text-gray-600"></i>
+              <i className="fa fa-ellipsis-h text-gray-400 dark:text-gray-300 cursor-pointer hover:text-gray-600 dark:hover:text-gray-100"></i>
             </div>
           </List.Item>
         )}
         locale={{
           emptyText: (
-            <div className="p-4 text-center text-gray-500">
+            <div className="p-4 text-center text-gray-500 dark:text-gray-400">
               {t.no_conversations || "Không có hội thoại nào"}
             </div>
           ),

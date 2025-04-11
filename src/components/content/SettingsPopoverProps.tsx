@@ -1,6 +1,5 @@
 import React from "react";
 import { useAuth } from "../../features/auth/hooks/useAuth";
-// import { User } from "../../features/auth/types/authTypes";
 import { logout } from "../../api/API";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faPenToSquare } from "@fortawesome/free-solid-svg-icons";
@@ -13,6 +12,7 @@ interface SettingsPopoverProps {
   onOpenModal: () => void;
   onUpgradeClick: () => void;
   openSettingsModal: () => void;
+  onClosePopover: () => void; // Thêm prop mới
 }
 
 const SettingsPopover: React.FC<SettingsPopoverProps> = ({
@@ -20,9 +20,10 @@ const SettingsPopover: React.FC<SettingsPopoverProps> = ({
   onOpenModal,
   onUpgradeClick,
   openSettingsModal,
+  onClosePopover,
 }) => {
   const { user } = useAuth();
-  const { t } = useLanguage(); // Sử dụng context
+  const { t } = useLanguage();
 
   const handleLogout = async () => {
     Modal.confirm({
@@ -34,7 +35,7 @@ const SettingsPopover: React.FC<SettingsPopoverProps> = ({
       onOk: async () => {
         try {
           await logout();
-          window.location.href = "/"; // Redirect directly after logout
+          window.location.href = "/";
         } catch (error: unknown) {
           Modal.error({
             title: t.logout_error_title || "Đăng xuất thất bại",
@@ -87,7 +88,10 @@ const SettingsPopover: React.FC<SettingsPopoverProps> = ({
           {t.settings || "Cài đặt"}
         </span>
       ),
-      onClick: openSettingsModal,
+      onClick: () => {
+        openSettingsModal();
+        onClosePopover(); // Đóng popover
+      },
     },
     { type: "divider" },
     {
@@ -105,7 +109,7 @@ const SettingsPopover: React.FC<SettingsPopoverProps> = ({
   ];
 
   return (
-    <div className="bg-white w-64 p-4 shadow-[0_0_15px_rgba(0,0,0,0.2)] ">
+    <div className="bg-white w-64 p-4 shadow-[0_0_15px_rgba(0,0,0,0.2)]">
       <Menu items={items} />
     </div>
   );

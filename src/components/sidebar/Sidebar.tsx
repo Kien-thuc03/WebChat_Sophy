@@ -9,12 +9,12 @@ import {
 } from "react-icons/fa";
 import { useAuth } from "../../features/auth/hooks/useAuth";
 import SettingsPopover from "../content/SettingsPopoverProps";
-import { useLanguage } from "../../features/auth/context/LanguageContext"; // Import context
+import { useLanguage } from "../../features/auth/context/LanguageContext";
 
 interface SidebarProps {
   onSettingsClick?: () => void;
   onOpenModal?: () => void;
-  openSettingsModal: () => void; // Remove the optional '?'
+  openSettingsModal: () => void;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
@@ -29,7 +29,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   const popoverRef = useRef<HTMLDivElement | null>(null);
   const settingsMenuRef = useRef<HTMLDivElement | null>(null);
   const settingsButtonRef = useRef<HTMLDivElement | null>(null);
-  const { t } = useLanguage(); // Sử dụng context (nếu cần tooltip)
+  const { t } = useLanguage();
 
   const handleClickOutside = useCallback(
     (event: MouseEvent) => {
@@ -104,6 +104,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                 setIsPopoverOpen(false);
               }}
               openSettingsModal={openSettingsModal}
+              onClosePopover={() => setIsPopoverOpen(false)}
             />
           </div>
         )}
@@ -111,19 +112,22 @@ const Sidebar: React.FC<SidebarProps> = ({
           <div
             className={`p-2 rounded-lg cursor-pointer ${active === "chat" ? "bg-white text-blue-600" : "text-white"}`}
             onClick={() => setActive("chat")}
-            title={t.messages}>
+            title={t.messages}
+          >
             <FaComments className="text-2xl" />
           </div>
           <div
             className={`p-2 rounded-lg cursor-pointer ${active === "friends" ? "bg-white text-blue-600" : "text-white"}`}
             onClick={() => setActive("friends")}
-            title={t.contacts}>
+            title={t.contacts}
+          >
             <FaUserFriends className="text-2xl" />
           </div>
           <div
             className={`p-2 rounded-lg cursor-pointer ${active === "tasks" ? "bg-white text-blue-600" : "text-white"}`}
             onClick={() => setActive("tasks")}
-            title={t.utilities}>
+            title={t.utilities}
+          >
             <FaTasks className="text-2xl" />
           </div>
         </div>
@@ -134,13 +138,15 @@ const Sidebar: React.FC<SidebarProps> = ({
           <div
             className={`p-2 rounded-lg cursor-pointer ${active === "cloud" ? "bg-white text-blue-600" : "text-white"}`}
             onClick={() => setActive("cloud")}
-            title={t.data}>
+            title={t.data}
+          >
             <FaCloud className="text-2xl" />
           </div>
           <div
             className={`p-2 rounded-lg cursor-pointer ${active === "briefcase" ? "bg-white text-blue-600" : "text-white"}`}
             onClick={() => setActive("briefcase")}
-            title={t.utilities}>
+            title={t.utilities}
+          >
             <FaBriefcase className="text-2xl" />
           </div>
           <div
@@ -151,7 +157,8 @@ const Sidebar: React.FC<SidebarProps> = ({
               toggleSettingsMenu();
               if (onSettingsClick) onSettingsClick();
             }}
-            title={t.settings}>
+            title={t.settings}
+          >
             <FaCog className="text-2xl" />
           </div>
         </div>
@@ -159,7 +166,8 @@ const Sidebar: React.FC<SidebarProps> = ({
           <div
             ref={settingsMenuRef}
             className="absolute bottom-16 left-16 z-50"
-            onClick={(event) => event.stopPropagation()}></div>
+            onClick={(event) => event.stopPropagation()}
+          ></div>
         )}
       </div>
     </div>

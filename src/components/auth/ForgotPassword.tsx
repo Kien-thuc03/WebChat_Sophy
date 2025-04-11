@@ -20,22 +20,43 @@ const ForgotPassword: React.FC = () => {
       return;
     }
 
-    if (!phoneNumber || phoneNumber.length < 10) {
+    // Kiểm tra định dạng số điện thoại
+    let formattedPhone = phoneNumber;
+    if (!phoneNumber || typeof phoneNumber !== "string") {
       setMessage("Vui lòng nhập số điện thoại hợp lệ");
       setMessageType("error");
       return;
     }
 
+    // Kiểm tra xem số điện thoại có định dạng quốc tế (+84) không
+    if (phoneNumber.startsWith("+84")) {
+      // Đảm bảo có 9 số sau mã quốc gia +84
+      if (phoneNumber.length !== 12) {
+        setMessage("Định dạng số điện thoại không hợp lệ.");
+        setMessageType("error");
+        return;
+      }
+      formattedPhone = "0" + phoneNumber.slice(3);
+    } else if (!phoneNumber.startsWith("0")) {
+      setMessage("Định dạng số điện thoại không hợp lệ.");
+      setMessageType("error");
+      return;
+    }
+
+    // Kiểm tra độ dài số điện thoại (10 số với số 0 đầu tiên)
+    if (formattedPhone.length !== 10) {
+      setMessage("Số điện thoại phải có 10 chữ số bắt đầu bằng số 0.");
+      setMessageType("error");
+      return;
+    }
+
     setIsSubmitting(true);
-    const formattedPhone = phoneNumber.startsWith("+84")
-      ? "0" + phoneNumber.substring(3)
-      : phoneNumber;
 
     try {
       const response = await sendOTPForgotPassword(formattedPhone);
       setMessage("Đã gửi mã OTP!");
       setMessageType("success");
-      
+
       setTimeout(() => {
         navigate("/verify-otp", {
           state: {
@@ -55,8 +76,6 @@ const ForgotPassword: React.FC = () => {
       setIsSubmitting(false);
     }
   };
-
-  // Remove the standalone button component
 
   const handlePhoneChange = (value: string | undefined) => {
     setMessage("");
@@ -78,7 +97,6 @@ const ForgotPassword: React.FC = () => {
               className="block text-sm font-medium text-gray-900">
               Nhập số điện thoại của bạn
             </label>
-
             <PhoneInput
               international
               defaultCountry="VN"
@@ -87,14 +105,40 @@ const ForgotPassword: React.FC = () => {
               onChange={handlePhoneChange}
               className="mt-2 w-full rounded-md border border-[#e0e0e0] px-3 py-2 focus:border-[#0066ff] focus:outline-none"
             />
+            <div className="mt-2 text-xs text-gray-500 space-y-1">
+              <p>Yêu cầu về số điện thoại:</p>
+              <ul className="space-y-1 pl-1">
+                <li className="flex items-start">
+                  <span className="mr-2">-</span>
+                  <span>Số điện thoại Việt Nam hợp lệ</span>
+                </li>
+                <li className="flex items-start">
+                  <span className="mr-2">-</span>
+                  <span>Có 9 chữ số sau mã quốc gia +84</span>
+                </li>
+                <li className="flex items-start">
+                  <span className="mr-2">-</span>
+                  <span>
+                    Có 10 chữ số với số 0 đầu tiên (không kể mã quốc gia)
+                  </span>
+                </li>
+              </ul>
+            </div>
           </div>
 
           {message && (
             <div
-              className={`text-sm text-center ${
-                messageType === "success" ? "text-green-500" : "text-red-500"
+              className={`p-2 rounded-md border ${
+                messageType === "success"
+                  ? "bg-green-50 border-green-200"
+                  : "bg-red-50 border-red-200"
               }`}>
-              {message}
+              <p
+                className={`text-sm text-center ${
+                  messageType === "success" ? "text-green-600" : "text-red-600"
+                }`}>
+                {message}
+              </p>
             </div>
           )}
 
