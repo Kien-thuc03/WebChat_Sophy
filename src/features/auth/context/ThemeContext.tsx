@@ -16,7 +16,6 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   useEffect(() => {
     localStorage.setItem("themeMode", themeMode);
 
-    // Xác định theme dựa trên themeMode
     const applyTheme = () => {
       const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
       const isDark = themeMode === "dark" || (themeMode === "system" && prefersDark);
@@ -29,7 +28,6 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     applyTheme();
 
-    // Theo dõi thay đổi chế độ hệ thống nếu chọn "system"
     const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
     const handleSystemThemeChange = () => {
       if (themeMode === "system") {
