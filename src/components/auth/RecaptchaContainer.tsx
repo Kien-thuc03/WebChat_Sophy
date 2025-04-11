@@ -111,6 +111,29 @@ const RecaptchaContainer: React.FC<RecaptchaContainerProps> = ({
   // Complete cleanup function to remove all reCAPTCHA artifacts
   const cleanupAllRecaptcha = () => {
     try {
+      // For development environments, just hide instead of removing elements
+      const isDevelopment = window.location.hostname === 'localhost' || 
+                            window.location.hostname === '127.0.0.1';
+                            
+      // If in development mode and verification has occurred, only do minimal cleanup
+      if (isDevelopment && isVerified) {
+        console.log('Skipping aggressive cleanup in development because verification already occurred');
+        
+        // Just hide extra elements but don't destroy
+        document.querySelectorAll('.grecaptcha-badge').forEach(el => {
+          try {
+            if (el.parentNode && !(el as Element).closest(`#${containerId}`)) {
+              (el as HTMLElement).style.visibility = 'hidden';
+            }
+          } catch (error) {
+            console.log('Error hiding badge element');
+          }
+        });
+        
+        // Don't clear the verifiers
+        return;
+      }
+      
       // Force cleanup all reCAPTCHA instances - only if fully loaded
       if (isGrecaptchaReady()) {
         // Check if any active reCAPTCHA clients exist before resetting
@@ -314,8 +337,15 @@ const RecaptchaContainer: React.FC<RecaptchaContainerProps> = ({
               }
               
               // Notify parent component of successful verification
+              // Use setTimeout to ensure this happens after verification is complete
               if (onVerified && appVerifier) {
-                onVerified(appVerifier);
+                // Use setTimeout to avoid recursive render issues
+                setTimeout(() => {
+                  // Ensure the verifier wasn't cleared in the meantime
+                  if (appVerifier && typeof appVerifier.clear === 'function') {
+                    onVerified(appVerifier);
+                  }
+                }, 0);
               }
             },
             'error-callback': (error: unknown) => {
@@ -401,10 +431,31 @@ const RecaptchaContainer: React.FC<RecaptchaContainerProps> = ({
     return () => {
       clearTimeout(initTimer);
       try {
-        cleanupAllRecaptcha();
-        // Reset the initialization flag when unmounted
-        isRecaptchaInitialized = false;
-        console.log("reCAPTCHA instance cleanup complete");
+        // Check if we're in development mode
+        const isDevelopment = window.location.hostname === 'localhost' || 
+                             window.location.hostname === '127.0.0.1';
+                             
+        // In development mode, if verification occurred, do minimal cleanup
+        if (isDevelopment && isVerified) {
+          console.log("Skipping aggressive reCAPTCHA cleanup in development because verification occurred");
+          
+          // Just hide any badges that might be showing outside our container
+          document.querySelectorAll('.grecaptcha-badge').forEach(el => {
+            try {
+              if (el.parentNode && !(el as Element).closest(`#${containerId}`)) {
+                (el as HTMLElement).style.visibility = 'hidden';
+              }
+            } catch (error) {
+              // Ignore cleanup errors
+            }
+          });
+        } else {
+          // If no verification occurred or we're in production, do full cleanup
+          cleanupAllRecaptcha();
+          // Reset the initialization flag when unmounted
+          isRecaptchaInitialized = false;
+          console.log("reCAPTCHA instance cleanup complete");
+        }
       } catch (unmountCleanupError) {
         console.log('Cleanup during unmount failed:', unmountCleanupError);
       }

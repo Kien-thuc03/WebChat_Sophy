@@ -60,53 +60,45 @@ const Register: React.FC = () => {
     recaptchaVerifierRef.current = verifier;
     setRecaptchaVerified(true);
     
-    try {
-      setIsLoading(true);
-      // Gửi OTP với verifier đã xác thực
-      const confirmationResult = await sendOtpToPhone(formattedPhoneNumber, verifier);
-      
-      // Lưu confirmation result để sử dụng khi xác thực OTP
-      confirmationResultRef.current = confirmationResult;
-      
-      // First hide the reCAPTCHA to prevent duplicate instances
-      setShowRecaptcha(false);
-      
-      // Force cleanup before navigation
+    // Set loading state
+    setIsLoading(true);
+    
+    // Use setTimeout to ensure reCAPTCHA has fully completed its verification
+    // before attempting to send the OTP
+    setTimeout(async () => {
       try {
-        if (window.recaptchaVerifier && typeof window.recaptchaVerifier.clear === 'function') {
-          window.recaptchaVerifier.clear();
-        }
+        // Gửi OTP với verifier đã xác thực - không ẩn reCAPTCHA trước khi gửi OTP
+        const confirmationResult = await sendOtpToPhone(formattedPhoneNumber, verifier);
         
-        // Remove any additional instances
-        document.querySelectorAll('.g-recaptcha').forEach(el => {
-          if (!el.closest('#inline-recaptcha-container')) {
-            (el as Element).remove();
+        // Lưu confirmation result để sử dụng khi xác thực OTP
+        confirmationResultRef.current = confirmationResult;
+        
+        // Chỉ ẩn reCAPTCHA sau khi gửi OTP thành công
+        setShowRecaptcha(false);
+        
+        // Chuyển sang bước nhập OTP
+        setTimeout(() => {
+          setStep('otp');
+          setResendTimer(60);
+          setIsPhoneUsed(false);
+          
+          // Hiển thị thông báo mã test trong môi trường development
+          if (isDevelopment && !successMessage) {
+            setSuccessMessage('Mã OTP đã được gửi đến số điện thoại của bạn. Trong môi trường development, hãy sử dụng mã: 123456');
+          } else if (!successMessage) {
+            setSuccessMessage('Mã OTP đã được gửi đến số điện thoại của bạn');
           }
-        });
-      } catch (cleanupError) {
-        console.log('Navigation cleanup error:', cleanupError);
+          
+          // Clear loading state
+          setIsLoading(false);
+        }, 300);
+      } catch (err: any) {
+        console.error('Lỗi khi gửi OTP:', err);
+        setShowRecaptcha(false);
+        handleOtpError(err);
+        setIsLoading(false);
       }
-      
-      // Chuyển sang bước nhập OTP after cleanup
-      setTimeout(() => {
-        setStep('otp');
-        setResendTimer(60);
-        setIsPhoneUsed(false);
-        
-        // Hiển thị thông báo mã test trong môi trường development
-        if (isDevelopment && !successMessage) {
-          setSuccessMessage('Mã OTP đã được gửi đến số điện thoại của bạn. Trong môi trường development, hãy sử dụng mã: 123456');
-        } else if (!successMessage) {
-          setSuccessMessage('Mã OTP đã được gửi đến số điện thoại của bạn');
-        }
-      }, 300); // Small delay to ensure cleanup is done
-    } catch (err: any) {
-      console.error('Lỗi khi gửi OTP:', err);
-      setShowRecaptcha(false);
-      handleOtpError(err);
-    } finally {
-      setIsLoading(false);
-    }
+    }, 500); // Give time for reCAPTCHA to fully complete
   };
 
   // Cleanup when changing steps
@@ -114,25 +106,28 @@ const Register: React.FC = () => {
     // Hide reCAPTCHA first
     setShowRecaptcha(false);
     
-    // Clean up any existing reCAPTCHA
-    try {
-      if (window.recaptchaVerifier && typeof window.recaptchaVerifier.clear === 'function') {
-        window.recaptchaVerifier.clear();
-        window.recaptchaVerifier = null;
-      }
-      
-      // Remove any reCAPTCHA iframes or containers
-      document.querySelectorAll('.g-recaptcha').forEach(el => {
-        try {
-          if (!el.closest('#inline-recaptcha-container')) {
-            (el as Element).remove();
-          }
-        } catch (error) {
-          console.log('Error during cleanup when changing steps');
+    // Only perform cleanup when not in the middle of verification
+    if (!recaptchaVerified && newStep !== 'otp') {
+      // Clean up any existing reCAPTCHA
+      try {
+        if (window.recaptchaVerifier && typeof window.recaptchaVerifier.clear === 'function') {
+          window.recaptchaVerifier.clear();
+          window.recaptchaVerifier = null;
         }
-      });
-    } catch (error) {
-      console.log('Error during reCAPTCHA cleanup on step change');
+        
+        // Remove any reCAPTCHA iframes or containers
+        document.querySelectorAll('.g-recaptcha').forEach(el => {
+          try {
+            if (!el.closest('#inline-recaptcha-container')) {
+              (el as Element).remove();
+            }
+          } catch (error) {
+            console.log('Error during cleanup when changing steps');
+          }
+        });
+      } catch (error) {
+        console.log('Error during reCAPTCHA cleanup on step change');
+      }
     }
     
     // Now set the new step

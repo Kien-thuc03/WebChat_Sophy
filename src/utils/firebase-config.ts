@@ -48,17 +48,17 @@ export const sendOtpToPhone = async (
     
     console.log('Gửi OTP đến số điện thoại:', formattedPhone);
     
-    // Đặt biến kiểm soát việc sử dụng OTP thật trong môi trường phát triển 
-    const useLiveOTPInDevelopment = true; // true = gửi OTP thật, false = dùng mã giả lập
+    // Kiểm tra môi trường phát triển
     const isDevelopment = window.location.hostname === 'localhost' || 
                          window.location.hostname === '127.0.0.1';
     
-    // Trong môi trường phát triển, có thể sử dụng mã giả lập
-    if (isDevelopment && !useLiveOTPInDevelopment) {
+    // Đối với môi trường phát triển, luôn sử dụng mã OTP giả lập để tránh các vấn đề reCAPTCHA
+    if (isDevelopment) {
         console.log('Môi trường phát triển: Sử dụng mã OTP giả lập 123456');
         return createFakeOtpHandler(formattedPhone);
     }
     
+    // Phần còn lại chỉ chạy trong môi trường production
     try {
         // Sử dụng verifier được truyền vào nếu có
         if (customVerifier) {
@@ -99,15 +99,10 @@ export const sendOtpToPhone = async (
             console.error('Lỗi khi gửi SMS:', error);
             
             // Xử lý lỗi auth/invalid-app-credential
-            if (error.code === 'auth/invalid-app-credential') {
-                console.warn('Lỗi auth/invalid-app-credential - Cần kiểm tra lại cấu hình Firebase');
+            if (error.code === 'auth/invalid-app-credential' || error.code === 'auth/internal-error') {
+                console.warn('Lỗi Firebase - Cần kiểm tra lại cấu hình Firebase');
                 console.log('Lỗi này thường do chưa cấu hình đúng Firebase hoặc chưa kích hoạt thanh toán');
                 console.log('Vui lòng kiểm tra tài khoản Firebase của bạn, đảm bảo Phone Authentication đã được bật và có phương thức thanh toán hợp lệ');
-                
-                if (isDevelopment) {
-                    // Trong môi trường phát triển, sử dụng OTP giả lập 
-                    return createFakeOtpHandler(formattedPhone);
-                }
             }
             
             // Chuyển tiếp lỗi cho UI xử lý
@@ -115,13 +110,6 @@ export const sendOtpToPhone = async (
         }
     } catch (error: any) {
         console.error('Lỗi khi gửi OTP:', error);
-        
-        // Nếu lỗi trong môi trường phát triển, sử dụng mã giả lập
-        if (isDevelopment) {
-            console.warn('Lỗi khi gửi OTP thật, sử dụng mã giả lập 123456 cho môi trường phát triển');
-            return createFakeOtpHandler(formattedPhone);
-        }
-        
         throw error;
     }
 };
