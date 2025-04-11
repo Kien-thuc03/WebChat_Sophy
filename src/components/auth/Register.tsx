@@ -325,29 +325,7 @@ const Register: React.FC = () => {
     // Global cleanup on initial mount
     const cleanupGlobalRecaptcha = () => {
       try {
-        // Clean up any global reCAPTCHA instances
-        if (isGrecaptchaReady()) {
-          try {
-            window.grecaptcha.reset();
-          } catch (resetError) {
-            console.log('No active reCAPTCHA clients to reset, continuing cleanup');
-          }
-        }
-        
-        if (window.recaptchaVerifier && typeof window.recaptchaVerifier.clear === 'function') {
-          try {
-            window.recaptchaVerifier.clear();
-          } catch (clearError) {
-            console.log('Error clearing recaptchaVerifier, continuing cleanup');
-          }
-          window.recaptchaVerifier = null;
-        }
-        
-        // Reset widget ID
-        if ('recaptchaWidgetId' in window) {
-          window.recaptchaWidgetId = null;
-        }
-        
+        // Clean up only UI-related reCAPTCHA elements
         // Remove any orphaned iframe elements or badges
         document.querySelectorAll('.grecaptcha-badge').forEach(el => {
           try {
@@ -359,30 +337,33 @@ const Register: React.FC = () => {
           }
         });
         
+        // Hide reCAPTCHA iframes but don't remove them to preserve functionality
         document.querySelectorAll('iframe[src*="recaptcha"]').forEach(iframe => {
           try {
             const parent = iframe.parentElement;
             if (parent && parent.parentElement && !parent.closest('#inline-recaptcha-container')) {
               const parentElement = parent.parentElement as HTMLElement;
-              parentElement.style.display = 'none';
+              parentElement.style.visibility = 'hidden'; // Use visibility instead of display to preserve functionality
             }
           } catch (error) {
             console.log('Error hiding iframe element, continuing cleanup');
           }
         });
         
-        // Clear containers with g-recaptcha class
+        // Only remove extra g-recaptcha elements that aren't in the main container
         document.querySelectorAll('.g-recaptcha').forEach(el => {
           try {
             if (!el.closest('#inline-recaptcha-container')) {
-              (el as Element).remove();
+              // Just hide instead of removing to maintain internal references
+              const element = el as HTMLElement;
+              element.style.visibility = 'hidden';
             }
           } catch (error) {
-            console.log('Error removing g-recaptcha element, continuing cleanup');
+            console.log('Error hiding g-recaptcha element, continuing cleanup');
           }
         });
       } catch (error) {
-        console.error('Error in global reCAPTCHA cleanup:', error);
+        console.error('Error in UI reCAPTCHA cleanup:', error);
       }
     };
 
