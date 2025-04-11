@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { useNavigate } from "react-router-dom";
-import { generateQRToken } from "../../api/API";
+import { generateQRToken, checkQRStatus } from "../../api/API";
 import io from "socket.io-client";
 
 const SOCKET_SERVER_URL = "http://localhost:3000";
@@ -85,16 +85,27 @@ const QRScanner: React.FC = () => {
       });
     });
 
-    socketIo.on("qrLoginConfirmed", (data) => {
+    socketIo.on("qrLoginConfirmed", async (data) => {
       console.log("QR login confirmed:", data);
-      setStatus("authenticated");
+      try {
+        const qrToken = data.token;
+        const response = await checkQRStatus(qrToken);
+        setStatus("authenticated");
 
-      // Lưu thông tin vào localStorage
-      localStorage.setItem("userId", data.userId);
-      localStorage.setItem("token", data.token);
+        // Lưu thông tin vào localStorage
+        localStorage.setItem("userId", response.userId);
+        localStorage.setItem("token", response.accessToken);
+        localStorage.setItem("refreshToken", response.refreshToken);
 
-      // Chuyển hướng ngay lập tức tới trang /main
-      navigate("/main");
+        // Chuyển hướng ngay lập tức tới trang /main
+        navigate("/main");
+      } catch (err) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Không thể xác thực login, vui lòng thử lại hoặc đăng nhập bằng mật khẩu."
+        );
+      }
     });
 
     socketIo.on("qrLoginRejected", (data) => {
@@ -106,10 +117,6 @@ const QRScanner: React.FC = () => {
       setError(data.message || "Lỗi không xác định.");
       setStatus("error");
     });
-
-    return () => {
-      socketIo.disconnect();
-    };
   }, [qrToken, status, navigate]);
 
   const handleRegenerateQR = async () => {
@@ -179,8 +186,7 @@ const QRScanner: React.FC = () => {
               <p>Mã QR đã hết hạn!</p>
               <button
                 onClick={handleRegenerateQR}
-                className="mt-4 text-blue-500"
-              >
+                className="mt-4 text-blue-500">
                 Tạo lại mã QR
               </button>
             </div>
@@ -197,8 +203,7 @@ const QRScanner: React.FC = () => {
               <p
                 className={`font-bold text-xl text-center mt-2 ${
                   isNearExpiration ? "text-red-500" : "text-black"
-                }`}
-              >
+                }`}>
                 {Math.ceil(timeLeft / 1000)} giây còn lại
               </p>
             </div>
@@ -209,8 +214,7 @@ const QRScanner: React.FC = () => {
           <button
             type="button"
             onClick={() => navigate("/")}
-            className="text-sm text-blue-500 transition-colors duration-200 hover:text-blue-600 underline hover:no-underline"
-          >
+            className="text-sm text-blue-500 transition-colors duration-200 hover:text-blue-600 underline hover:no-underline">
             Đăng nhập bằng mật khẩu
           </button>
         </div>
