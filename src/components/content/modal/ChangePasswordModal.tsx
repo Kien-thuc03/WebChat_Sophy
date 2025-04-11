@@ -38,6 +38,14 @@ const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
       return;
     }
 
+    // Add check for same old and new password
+    if (values.currentPassword === values.newPassword) {
+      message.error(
+        t.same_password_error || "Mật khẩu mới không được trùng với mật khẩu hiện tại"
+      );
+      return;
+    }
+
     setLoading(true);
     try {
       await changePassword(values.currentPassword, values.newPassword);

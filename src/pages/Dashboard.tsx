@@ -7,8 +7,6 @@ import UserModal from "../components/content/modal/UserModal";
 import SettingsModal from "../components/content/modal/SettingsModal";
 import MainContent from "../components/content/MainContent";
 import { Conversation } from "../features/chat/types/conversationTypes";
-// Remove the unused import
-// import { useLanguage } from "../features/auth/context/LanguageContext"; 
 
 const Dashboard: React.FC = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -16,16 +14,18 @@ const Dashboard: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const settingsRef = useRef<HTMLDivElement>(null);
-  
-  // Remove the unused variable
-  // const { t } = useLanguage();
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
+      // Kiểm tra xem mục tiêu nhấp chuột có nằm trong submenu của Menu không
+      const isMenuItem = (event.target as HTMLElement).closest(
+        ".ant-menu-item, .ant-menu-submenu, .ant-menu-submenu-title, .ant-menu"
+      );
       if (
         settingsRef.current &&
         !settingsRef.current.contains(event.target as Node) &&
-        !document.querySelector(".settings-modal")?.contains(event.target as Node)
+        !document.querySelector(".settings-modal")?.contains(event.target as Node) &&
+        !isMenuItem // Bỏ qua nếu nhấp vào mục Menu
       ) {
         console.log("Click outside SettingsMenu detected");
         setIsSettingsOpen(false);
@@ -88,10 +88,7 @@ const Dashboard: React.FC = () => {
               }
               groupMembers={selectedConversation.groupMembers}
             />
-            <div className="flex-1 bg-gray-50">
-              {/* Ví dụ thêm văn bản dịch */}
-              {/* <p>{t.chat_placeholder || "Chưa có tin nhắn nào"}</p> */}
-            </div>
+            <div className="flex-1 bg-gray-50"></div>
           </>
         ) : (
           <MainContent />

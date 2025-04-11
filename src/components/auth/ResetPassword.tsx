@@ -1,14 +1,16 @@
 import React, { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { forgotPassword } from "../../api/API";
-import { EyeInvisibleOutlined, EyeTwoTone } from '@ant-design/icons'; // Import icons
-import { Input } from 'antd'; // Import Ant Design Input
+import { EyeInvisibleOutlined, EyeTwoTone } from "@ant-design/icons";
+import { Input } from "antd";
 
 const ResetPassword: React.FC = () => {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [message, setMessage] = useState("");
-  const [messageType, setMessageType] = useState<"success" | "error">("success");
+  const [messageType, setMessageType] = useState<"success" | "error">(
+    "success"
+  );
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const location = useLocation();
@@ -26,8 +28,10 @@ const ResetPassword: React.FC = () => {
       return;
     }
 
-    if (!newPassword || newPassword.length < 6) {
-      setMessage("Mật khẩu phải có ít nhất 6 ký tự");
+    // Kiểm tra định dạng mật khẩu
+    const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{6,20}$/;
+    if (!passwordRegex.test(newPassword)) {
+      setMessage("Mật khẩu phải từ 6-20 ký tự, bao gồm chữ và số");
       setMessageType("error");
       return;
     }
@@ -79,8 +83,27 @@ const ResetPassword: React.FC = () => {
               className="mt-2 w-full rounded-md border border-[#e0e0e0] px-3 py-2 focus:border-[#0066ff] focus:outline-none"
               placeholder="Nhập mật khẩu mới"
               disabled={isSubmitting}
-              iconRender={visible => (visible ? <EyeTwoTone /> : <EyeInvisibleOutlined />)}
+              iconRender={(visible) =>
+                visible ? <EyeTwoTone /> : <EyeInvisibleOutlined />
+              }
             />
+            <div className="mt-2 text-xs text-gray-500 space-y-1">
+              <p>Yêu cầu về mật khẩu:</p>
+              <ul className="space-y-1 pl-1">
+                <li className="flex items-start">
+                  <span className="mr-2">-</span>
+                  <span>Mật khẩu phải từ 6-20 ký tự</span>
+                </li>
+                <li className="flex items-start">
+                  <span className="mr-2">-</span>
+                  <span>Phải chứa ít nhất 1 chữ cái</span>
+                </li>
+                <li className="flex items-start">
+                  <span className="mr-2">-</span>
+                  <span>Phải chứa ít nhất 1 chữ số</span>
+                </li>
+              </ul>
+            </div>
           </div>
 
           <div>
@@ -93,17 +116,25 @@ const ResetPassword: React.FC = () => {
               className="mt-2 w-full rounded-md border border-[#e0e0e0] px-3 py-2 focus:border-[#0066ff] focus:outline-none"
               placeholder="Nhập lại mật khẩu mới"
               disabled={isSubmitting}
-              iconRender={visible => (visible ? <EyeTwoTone /> : <EyeInvisibleOutlined />)}
+              iconRender={(visible) =>
+                visible ? <EyeTwoTone /> : <EyeInvisibleOutlined />
+              }
             />
           </div>
 
           {message && (
             <div
-              className={`text-sm text-center ${
-                messageType === "success" ? "text-green-500" : "text-red-500"
-              }`}
-            >
-              {message}
+              className={`p-2 rounded-md border ${
+                messageType === "success"
+                  ? "bg-green-50 border-green-200"
+                  : "bg-red-50 border-red-200"
+              }`}>
+              <p
+                className={`text-sm text-center ${
+                  messageType === "success" ? "text-green-600" : "text-red-600"
+                }`}>
+                {message}
+              </p>
             </div>
           )}
 
@@ -114,8 +145,7 @@ const ResetPassword: React.FC = () => {
               isSubmitting
                 ? "bg-[#99c2ff] cursor-not-allowed"
                 : "bg-[#0066ff] hover:bg-[#0051cc]"
-            } px-4 py-2 text-sm font-semibold text-white focus:outline-none focus:ring-2 focus:ring-[#0066ff] focus:ring-offset-2`}
-          >
+            } px-4 py-2 text-sm font-semibold text-white focus:outline-none focus:ring-2 focus:ring-[#0066ff] focus:ring-offset-2`}>
             {isSubmitting ? "Đang xử lý..." : "Xác nhận"}
           </button>
         </form>

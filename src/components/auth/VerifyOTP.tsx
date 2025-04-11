@@ -5,14 +5,17 @@ import { sendOTPForgotPassword, verifyOTPForgotPassword } from "../../api/API";
 const VerifyOTP: React.FC = () => {
   const [otp, setOtp] = useState("");
   const [message, setMessage] = useState("");
-  const [messageType, setMessageType] = useState<"success" | "error">("success");
+  const [messageType, setMessageType] = useState<"success" | "error">(
+    "success"
+  );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isResending, setIsResending] = useState(false);
   const [isRateLimited, setIsRateLimited] = useState(false);
 
   const location = useLocation();
   const navigate = useNavigate();
-  const { phoneNumber: initialPhoneNumber, otpId: initialOtpId } = location.state || {};
+  const { phoneNumber: initialPhoneNumber, otpId: initialOtpId } =
+    location.state || {};
   const [phoneNumber] = useState(initialPhoneNumber); // Giữ nguyên phoneNumber
   const [otpId, setOtpId] = useState(initialOtpId); // Cập nhật otpId khi gửi lại mã
 
@@ -27,7 +30,7 @@ const VerifyOTP: React.FC = () => {
       return;
     }
 
-    if (!otp || otp.length !== 6) {
+    if (!otp || otp.length !== 6 || !/^\d{6}$/.test(otp)) {
       setMessage("Vui lòng nhập mã OTP 6 số hợp lệ");
       setMessageType("error");
       return;
@@ -54,7 +57,8 @@ const VerifyOTP: React.FC = () => {
       if (error instanceof Error) {
         switch (error.message) {
           case "Invalid verification attempt":
-            errorMessage = "Yêu cầu xác thực không hợp lệ. Vui lòng gửi lại mã mới.";
+            errorMessage =
+              "Yêu cầu xác thực không hợp lệ. Vui lòng gửi lại mã mới.";
             break;
           case "Verification code expired":
             errorMessage = "Mã OTP đã hết hạn. Vui lòng gửi lại mã mới.";
@@ -133,6 +137,19 @@ const VerifyOTP: React.FC = () => {
               placeholder="Nhập mã OTP 6 số"
               disabled={isSubmitting || isRateLimited}
             />
+            <div className="mt-2 text-xs text-gray-500 space-y-1">
+              <p>Yêu cầu về mã OTP:</p>
+              <ul className="space-y-1 pl-1">
+                <li className="flex items-start">
+                  <span className="mr-2">-</span>
+                  <span>Mã OTP gồm 6 chữ số</span>
+                </li>
+                <li className="flex items-start">
+                  <span className="mr-2">-</span>
+                  <span>Mã không bao gồm ký tự</span>
+                </li>
+              </ul>
+            </div>
             <button
               type="button"
               onClick={handleResendOTP}
@@ -141,24 +158,28 @@ const VerifyOTP: React.FC = () => {
                 isResending || isRateLimited
                   ? "text-gray-400 cursor-not-allowed"
                   : "text-[#0066ff] hover:underline"
-              }`}
-            >
-              {isResending ? "Đang gửi..." : isRateLimited ? "Bị chặn" : "Gửi lại mã"}
+              }`}>
+              {isResending
+                ? "Đang gửi..."
+                : isRateLimited
+                  ? "Bị chặn"
+                  : "Gửi lại mã"}
             </button>
           </div>
 
           {message && (
             <div
-              className={`p-2 ${
-                messageType === "success" 
-                  ? "bg-green-50 border border-green-200" 
-                  : "bg-red-50 border border-red-200"
-              } rounded-md`}
-            >
-              <p className={`text-sm text-center ${
-                messageType === "success" ? "text-green-600" : "text-red-600"
+              className={`p-2 rounded-md border ${
+                messageType === "success"
+                  ? "bg-green-50 border-green-200"
+                  : "bg-red-50 border-red-200"
               }`}>
-              {message}
+
+              <p
+                className={`text-sm text-center ${
+                  messageType === "success" ? "text-green-600" : "text-red-600"
+                }`}>
+                {message}
               </p>
             </div>
           )}
@@ -170,8 +191,7 @@ const VerifyOTP: React.FC = () => {
               isSubmitting || isRateLimited
                 ? "bg-[#99c2ff] cursor-not-allowed"
                 : "bg-[#0066ff] hover:bg-[#0051cc]"
-            } px-4 py-2 text-sm font-semibold text-white focus:outline-none focus:ring-2 focus:ring-[#0066ff] focus:ring-offset-2`}
-          >
+            } px-4 py-2 text-sm font-semibold text-white focus:outline-none focus:ring-2 focus:ring-[#0066ff] focus:ring-offset-2`}>
             {isSubmitting ? "Đang xử lý..." : "Xác nhận"}
           </button>
         </form>
@@ -179,8 +199,7 @@ const VerifyOTP: React.FC = () => {
         <div className="mt-4 text-center">
           <Link
             to="/forgot-password"
-            className="text-sm text-[#0066ff] hover:underline"
-          >
+            className="text-sm text-[#0066ff] hover:underline">
             Quay lại
           </Link>
         </div>
