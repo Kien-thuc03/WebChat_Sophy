@@ -7,7 +7,7 @@ declare global {
   interface Window {
     recaptchaVerifier: any;
     recaptchaWidgetId: number | null;
-    grecaptcha: any;
+    // grecaptcha is already declared in recaptchaUtils.ts
   }
 }
 
@@ -39,44 +39,57 @@ function addGlobalReCaptchaStyle() {
     
     // CSS to hide duplicate reCAPTCHA containers
     styleEl.textContent = `
-      /* Hide any duplicate reCAPTCHA containers that appear outside our desired container */
+      /* Ẩn các reCAPTCHA container trùng lặp bên ngoài container chính */
       body > div.grecaptcha-badge,
       body > div > div > div.grecaptcha-badge {
         visibility: hidden !important;
         opacity: 0 !important;
-        pointer-events: none !important;
-        position: absolute !important;
-        left: -10000px !important;
       }
       
-      /* Hide any unwanted reCAPTCHA iframes */
-      body > div > div > iframe[src*="recaptcha"]:not([id*="recaptcha"]),
+      /* Ẩn các iframe không cần thiết */
       body > iframe[src*="recaptcha"]:not([id*="recaptcha"]) {
         position: absolute !important;
         left: -10000px !important;
-        visibility: hidden !important;
-        width: 0 !important;
-        height: 0 !important;
-        display: none !important;
       }
       
-      /* Ensure only our container is properly displayed */
+      /* Style cho container chính của reCAPTCHA để hiển thị đúng */
+      #inline-recaptcha-container,
+      #recaptcha-container {
+        display: block !important;
+        width: 100% !important;
+        height: auto !important;
+        min-height: 75px !important;
+        overflow: visible !important;
+      }
+      
+      /* Đảm bảo iframe bên trong container được hiển thị */
       #inline-recaptcha-container iframe[src*="recaptcha"],
-      #recaptcha-container iframe[src*="recaptcha"], 
-      #inline-recaptcha-container .g-recaptcha,
-      #recaptcha-container .g-recaptcha {
+      #recaptcha-container iframe[src*="recaptcha"] {
         display: block !important;
         margin: 0 auto !important;
         visibility: visible !important;
-        position: static !important;
+        position: relative !important;
         width: auto !important;
         height: auto !important;
       }
       
-      /* Add z-index to ensure our reCAPTCHA is shown above other elements */
+      /* Đảm bảo g-recaptcha được hiển thị đúng */
       #inline-recaptcha-container .g-recaptcha,
       #recaptcha-container .g-recaptcha {
+        display: flex !important;
+        justify-content: center !important;
+        width: 100% !important;
+        height: auto !important;
         z-index: 1000 !important;
+        transform: scale(0.95);
+        transform-origin: center;
+      }
+      
+      /* Fix lỗi che khuất content của reCAPTCHA */
+      .rc-anchor-normal {
+        visibility: visible !important;
+        position: relative !important;
+        display: block !important;
       }
     `;
     

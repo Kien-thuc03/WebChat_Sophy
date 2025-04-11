@@ -1,21 +1,7 @@
 // Khai báo kiểu dữ liệu cho grecaptcha
 declare global {
   interface Window {
-    grecaptcha: {
-      enterprise?: {
-        ready: (callback: () => void) => void;
-        execute: (
-          siteKey: string, 
-          options: { action: string }
-        ) => Promise<string>;
-      };
-      // Thêm khai báo cho reCAPTCHA thông thường
-      ready?: (callback: () => void) => void;
-      execute?: (
-        siteKey: string, 
-        options: { action: string }
-      ) => Promise<string>;
-    };
+    grecaptcha: any; // Use 'any' to avoid conflicts with other declarations
   }
 }
 
