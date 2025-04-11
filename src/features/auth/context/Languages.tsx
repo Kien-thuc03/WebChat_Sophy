@@ -171,6 +171,11 @@ const translations = {
     invalid_age_min: "Tuổi phải lớn hơn hoặc bằng 13",
     invalid_age_max: "Tuổi phải nhỏ hơn hoặc bằng 123",
     invalid_date: "Ngày sinh không hợp lệ",
+    light: "Sáng",
+    dark: "Tối",
+    system: "Hệ Thống",
+    chat_background: "Hình nền chat",
+    use_avatar_as_background: "Sử dụng Avatar làm hình nền",
   },
   en: {
     settings: "Settings",
@@ -342,6 +347,11 @@ const translations = {
     invalid_age_min: "Age must be at least 13",
     invalid_age_max: "Age must be at most 123",
     invalid_date: "Invalid birthdate",
+    light: "Light",
+    dark: "Dark",
+    system: "System",
+    chat_background: "Chat Background",
+    use_avatar_as_background: "Use Avatar as Chat Background",
   },
 };
 

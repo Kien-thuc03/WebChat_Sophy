@@ -8,7 +8,7 @@ import {
   MessageOutlined,
   AppstoreOutlined,
 } from "@ant-design/icons";
-import { useLanguage } from "../../../features/auth/context/LanguageContext"; // Import context
+import { useLanguage } from "../../../features/auth/context/LanguageContext";
 
 const SettingsModal: React.FC<{ visible: boolean; onClose: () => void }> = ({
   visible,
@@ -17,7 +17,45 @@ const SettingsModal: React.FC<{ visible: boolean; onClose: () => void }> = ({
   const [contactDisplay, setContactDisplay] = useState("active");
   const [selectedMenu, setSelectedMenu] = useState("general");
   const [isChangePasswordModalOpen, setIsChangePasswordModalOpen] = useState(false);
-  const { language, setLanguage, t } = useLanguage(); // Sử dụng context
+  const [themeMode, setThemeMode] = useState<"light" | "dark" | "system">(
+    (localStorage.getItem("themeMode") as "light" | "dark" | "system") || "system"
+  );
+  const [useAvatarAsBackground, setUseAvatarAsBackground] = useState(
+    localStorage.getItem("useAvatarAsBackground") === "true" || false
+  );
+  const { language, setLanguage, t } = useLanguage();
+
+  // Áp dụng chế độ giao diện khi themeMode thay đổi
+  useEffect(() => {
+    const applyTheme = () => {
+      if (themeMode === "system") {
+        const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+        document.documentElement.setAttribute("data-theme", prefersDark ? "dark" : "light");
+      } else {
+        document.documentElement.setAttribute("data-theme", themeMode);
+      }
+    };
+
+    applyTheme();
+    localStorage.setItem("themeMode", themeMode);
+
+    // Theo dõi thay đổi chế độ hệ thống nếu chọn "system"
+    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+    const handleSystemThemeChange = () => {
+      if (themeMode === "system") {
+        applyTheme();
+      }
+    };
+    mediaQuery.addEventListener("change", handleSystemThemeChange);
+    return () => mediaQuery.removeEventListener("change", handleSystemThemeChange);
+  }, [themeMode]);
+
+  // Lưu trạng thái "Use Avatar as Background"
+  useEffect(() => {
+    localStorage.setItem("useAvatarAsBackground", useAvatarAsBackground.toString());
+    // Ở đây bạn có thể thêm logic để áp dụng Avatar làm hình nền chat
+    console.log("Use Avatar as Background:", useAvatarAsBackground);
+  }, [useAvatarAsBackground]);
 
   const menuItems = [
     { key: "general", icon: <SettingOutlined />, label: t.general },
@@ -66,7 +104,7 @@ const SettingsModal: React.FC<{ visible: boolean; onClose: () => void }> = ({
                 <span className="text-sm text-gray-700">{t.change_language}</span>
                 <Select
                   value={language}
-                  onChange={(value) => setLanguage(value as "vi" | "en")} // Cập nhật ngôn ngữ toàn cục
+                  onChange={(value) => setLanguage(value as "vi" | "en")}
                   style={{ width: 120 }}
                   options={[
                     { value: "vi", label: t.vietnamese },
@@ -78,57 +116,59 @@ const SettingsModal: React.FC<{ visible: boolean; onClose: () => void }> = ({
             </div>
           </div>
         );
-        case "privacy":
-          return (
-            <div className="p-4">
-              <h3 className="text-base font-medium mb-2">{t.privacy}</h3>
-              <div className="space-y-6">
-                <div className="flex justify-between items-center">
-                  <div>
-                    <h4 className="text-sm font-medium">{t.show_birthdate}</h4>
-                    <p className="text-xs text-gray-500">{t.show_birthdate_desc}</p>
-                  </div>
-                  <Switch size="small" />
+      case "privacy":
+        return (
+          <div className="p-4">
+            <h3 className="text-base font-medium mb-2">{t.privacy}</h3>
+            <div className="space-y-6">
+              <div className="flex justify-between items-center">
+                <div>
+                  <h4 className="text-sm font-medium">{t.show_birthdate}</h4>
+                  <p className="text-xs text-gray-500">{t.show_birthdate_desc}</p>
                 </div>
-                <div className="flex justify-between items-center">
-                  <div>
-                    <h4 className="text-sm font-medium">{t.show_read_receipts}</h4>
-                    <p className="text-xs text-gray-500">{t.show_read_receipts_desc}</p>
-                  </div>
-                  <Switch size="small" />
+                <Switch size="small" />
+              </div>
+              <div className="flex justify-between items-center">
+                <div>
+                  <h4 className="text-sm font-medium">{t.show_read_receipts}</h4>
+                  <p className="text-xs text-gray-500">{t.show_read_receipts_desc}</p>
                 </div>
-                <div className="flex justify-between items-center">
-                  <div>
-                    <h4 className="text-sm font-medium">{t.allow_strangers_find}</h4>
-                    <p className="text-xs text-gray-500">{t.allow_strangers_find_desc}</p>
-                  </div>
-                  <Switch size="small" />
+                <Switch size="small" />
+              </div>
+              <div className="flex justify-between items-center">
+                <div>
+                  <h4 className="text-sm font-medium">{t.allow_strangers_find}</h4>
+                  <p className="text-xs text-gray-500">{t.allow_strangers_find_desc}</p>
                 </div>
-                <div className="flex justify-between items-center">
-                  <div>
-                    <h4 className="text-sm font-medium">{t.block_messages}</h4>
-                    <p className="text-xs text-gray-500">{t.block_messages_desc}</p>
-                  </div>
-                  <Button type="link" size="small">{t.block_list}</Button>
+                <Switch size="small" />
+              </div>
+              <div className="flex justify-between items-center">
+                <div>
+                  <h4 className="text-sm font-medium">{t.block_messages}</h4>
+                  <p className="text-xs text-gray-500">{t.block_messages_desc}</p>
                 </div>
-                <div className="flex justify-between items-center">
-                  <div>
-                    <h4 className="text-sm font-medium">{t.allow_strangers_connect}</h4>
-                    <p className="text-xs text-gray-500">{t.allow_strangers_connect_desc}</p>
-                  </div>
-                  <Checkbox.Group options={[
-                    { label: t.qr_code, value: 'qr' },
-                    { label: t.common_groups, value: 'groups' },
-                    { label: t.zalo_card, value: 'zalo_card' },
-                    { label: t.suggested_friends, value: 'suggested' },
-                  ]} />
+                <Button type="link" size="small">{t.block_list}</Button>
+              </div>
+              <div className="flex justify-between items-center">
+                <div>
+                  <h4 className="text-sm font-medium">{t.allow_strangers_connect}</h4>
+                  <p className="text-xs text-gray-500">{t.allow_strangers_connect_desc}</p>
                 </div>
+                <Checkbox.Group
+                  options={[
+                    { label: t.qr_code, value: "qr" },
+                    { label: t.common_groups, value: "groups" },
+                    { label: t.zalo_card, value: "zalo_card" },
+                    { label: t.suggested_friends, value: "suggested" },
+                  ]}
+                />
               </div>
             </div>
-          );
-        case "security":
-          return (
-            <div className="p-4">
+          </div>
+        );
+      case "security":
+        return (
+          <div className="p-4">
             <h3 className="text-base font-medium mb-2">{t.privacy}</h3>
             <div className="space-y-6">
               <div className="flex justify-between items-center">
@@ -156,7 +196,33 @@ const SettingsModal: React.FC<{ visible: boolean; onClose: () => void }> = ({
               </div>
             </div>
           </div>
-          );
+        );
+      case "interface":
+        return (
+          <div className="p-4">
+            <div className="mb-6">
+              <h3 className="text-base font-medium mb-2 text-gray-800">{t.interface}</h3>
+              <Radio.Group
+                value={themeMode}
+                onChange={(e) => setThemeMode(e.target.value)}
+                className="flex flex-col space-y-3"
+              >
+                <Radio value="light" className="text-sm text-gray-700">{t.light || "Light"}</Radio>
+                <Radio value="dark" className="text-sm text-gray-700">{t.dark || "Dark"}</Radio>
+                <Radio value="system" className="text-sm text-gray-700">{t.system || "System"}</Radio>
+              </Radio.Group>
+            </div>
+            <div>
+              <h3 className="text-base font-medium mb-2 text-gray-800">{t.chat_background || "Chat Background"}</h3>
+              <div className="flex items-center justify-between p-3 bg-white border border-gray-200 rounded-lg">
+                <span className="text-sm text-gray-700">
+                  {t.use_avatar_as_background || "Use Avatar as Chat Background"}
+                </span>
+                <Switch checked={useAvatarAsBackground} onChange={setUseAvatarAsBackground} />
+              </div>
+            </div>
+          </div>
+        );
       default:
         return null;
     }
@@ -178,7 +244,7 @@ const SettingsModal: React.FC<{ visible: boolean; onClose: () => void }> = ({
         title={<div className="flex items-center"><span className="text-lg font-semibold">{t.settings}</span></div>}
         open={visible}
         onCancel={handleCancel}
-        maskClosable={true} // Set maskClosable to true to close on outside click
+        maskClosable={true}
         destroyOnClose={true}
         footer={null}
         width={800}
