@@ -13,7 +13,7 @@ const QRScanner: React.FC = () => {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [status, setStatus] = useState<string>("");
-  const [timeLeft, setTimeLeft] = useState<number>(0);
+  const [timeLeft, setTimeLeft] = useState<number>(300000); // Khởi tạo 300 giây (300000ms)
   const [isExpired, setIsExpired] = useState<boolean>(false);
   const [isNearExpiration, setIsNearExpiration] = useState<boolean>(false);
   const [userInfo, setUserInfo] = useState<{
@@ -28,7 +28,14 @@ const QRScanner: React.FC = () => {
         setIsLoading(true);
         const response = await generateQRToken();
         setQRToken(response.qrToken);
-        setExpiresAt(new Date(response.expiresAt));
+        const expiresAtDate = new Date(response.expiresAt);
+        setExpiresAt(expiresAtDate);
+        // Tính toán thời gian còn lại ngay lập tức
+        const initialTimeLeft = Math.max(
+          0,
+          expiresAtDate.getTime() - new Date().getTime()
+        );
+        setTimeLeft(initialTimeLeft); // Cập nhật timeLeft ngay khi nhận được expiresAt
         setStatus("waiting");
         setIsExpired(false);
       } catch (err: unknown) {
@@ -45,9 +52,18 @@ const QRScanner: React.FC = () => {
     generateQR();
   }, []);
 
+  // Theo dõi trạng thái và thực hiện điều hướng
+  useEffect(() => {
+    if (status === "authenticated") {
+      navigate("/main");
+      window.location.reload();
+    }
+  }, [status, navigate]);
+
   // Cập nhật thời gian còn lại
   useEffect(() => {
     if (!expiresAt) return;
+
     const interval = setInterval(() => {
       const timeRemaining = Math.max(
         0,
@@ -90,15 +106,12 @@ const QRScanner: React.FC = () => {
       try {
         const qrToken = data.token;
         const response = await checkQRStatus(qrToken);
-        setStatus("authenticated");
 
-        // Lưu thông tin vào localStorage
         localStorage.setItem("userId", response.userId);
         localStorage.setItem("token", response.accessToken);
         localStorage.setItem("refreshToken", response.refreshToken);
 
-        // Chuyển hướng ngay lập tức tới trang /main
-        navigate("/main");
+        setStatus("authenticated");
       } catch (err) {
         setError(
           err instanceof Error
@@ -117,11 +130,23 @@ const QRScanner: React.FC = () => {
       setError(data.message || "Lỗi không xác định.");
       setStatus("error");
     });
-  }, [qrToken, status, navigate]);
+
+    socketIo.on("connect", () => {
+      console.log("WebSocket connected");
+    });
+
+    socketIo.on("disconnect", (reason) => {
+      console.log("WebSocket disconnected:", reason);
+    });
+
+    return () => {
+      socketIo.disconnect();
+    };
+  }, [qrToken, status]);
 
   const handleRegenerateQR = async () => {
     setIsExpired(false);
-    setTimeLeft(0);
+    setTimeLeft(300000); // Đặt lại timeLeft thành 300 giây
     setQRToken("");
     setExpiresAt(null);
     setStatus("waiting");
@@ -130,7 +155,13 @@ const QRScanner: React.FC = () => {
     try {
       const response = await generateQRToken();
       setQRToken(response.qrToken);
-      setExpiresAt(new Date(response.expiresAt));
+      const expiresAtDate = new Date(response.expiresAt);
+      setExpiresAt(expiresAtDate);
+      const initialTimeLeft = Math.max(
+        0,
+        expiresAtDate.getTime() - new Date().getTime()
+      );
+      setTimeLeft(initialTimeLeft); // Cập nhật timeLeft khi tạo lại QR
       setStatus("waiting");
     } catch (err) {
       setError(
@@ -166,7 +197,6 @@ const QRScanner: React.FC = () => {
           ) : error ? (
             <div className="text-center text-red-500">{error}</div>
           ) : status === "scanned" && userInfo ? (
-            // Hiển thị thông tin người dùng khi QR được quét
             <div className="text-center">
               <img
                 src={userInfo.urlavatar || "/images/default-avatar.png"}
