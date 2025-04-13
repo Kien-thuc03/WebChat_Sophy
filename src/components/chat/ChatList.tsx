@@ -14,6 +14,8 @@ import NotificationModal from "./modals/NotificationModal";
 import AutoDeleteModal from "./modals/AutoDeleteModal";
 import { Conversation } from "../../features/chat/types/conversationTypes";
 import { useLanguage } from "../../features/auth/context/LanguageContext";
+import { getUserById } from "../../api/API";
+import { User } from "../../features/auth/types/authTypes";
 
 interface ChatListProps {
   onSelectConversation: (conversation: Conversation) => void;
@@ -30,8 +32,89 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
   const [isLabelModalOpen, setIsLabelModalOpen] = useState(false);
   const [isNotificationModalOpen, setIsNotificationModalOpen] = useState(false);
   const [isAutoDeleteModalOpen, setIsAutoDeleteModalOpen] = useState(false);
+  const [localUserCache, setLocalUserCache] = useState<Record<string, User>>({});
   const menuRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
+
+  // USER == creator = receiver = receiverId
+  // USER == receiver = receiver = creatorId
+  
+  /**
+   * Gets the correct user ID to display for a conversation
+   * @param conversation The conversation object
+   * @returns The ID of the other user in the conversation
+   */
+  const getOtherUserId = (conversation: Conversation): string => {
+    // Get current user ID from localStorage (or any authentication method you use)
+    const currentUserId = localStorage.getItem('userId') || '';
+    
+    // If it's a group chat, there's no single "other user"
+    if (conversation.isGroup) {
+      return '';
+    }
+    
+    // If the current user is the creator, return the receiverId
+    if (currentUserId === conversation.creatorId) {
+      return conversation.receiverId || '';
+    }
+    
+    // If the current user is the receiver, return the creatorId
+    if (currentUserId === conversation.receiverId) {
+      return conversation.creatorId;
+    }
+    
+    // Fallback: Return receiverId if we can't determine
+    return conversation.receiverId || conversation.creatorId;
+  };
+
+  /**
+   * Gets the appropriate display name for a conversation
+   * @param conversation The conversation object
+   * @returns The display name to use for the conversation
+   */
+  const getConversationName = (conversation: Conversation): string => {
+    // For group chats, return the group name or display a formatted list of members
+    if (conversation.isGroup) {
+      if (conversation.groupName) {
+        return conversation.groupName;
+      }
+      
+      // Format group members (up to 3 names)
+      const memberNames = conversation.groupMembers
+        .slice(0, 3)
+        .map(memberId => {
+          const user = userCache[memberId] || localUserCache[memberId];
+          return user?.fullname || "User";
+        })
+        .join(", ");
+        
+      return conversation.groupMembers.length > 3
+        ? `${memberNames}...`
+        : memberNames || "Nhóm";
+    }
+    
+    // For individual chats, display the name of the other user
+    const otherUserId = getOtherUserId(conversation);
+    const user = userCache[otherUserId] || localUserCache[otherUserId];
+    return user?.fullname || otherUserId || t.private_chat || "Private Chat";
+  };
+
+  /**
+   * Gets the appropriate avatar URL for a conversation
+   * @param conversation The conversation object
+   * @returns The avatar URL to use for the conversation
+   */
+  const getConversationAvatar = (conversation: Conversation): string => {
+    // For group chats, return the group avatar URL if available
+    if (conversation.isGroup) {
+      return conversation.groupAvatarUrl || '';
+    }
+    
+    // For individual chats, return the avatar of the other user
+    const otherUserId = getOtherUserId(conversation);
+    const user = userCache[otherUserId] || localUserCache[otherUserId];
+    return user?.urlavatar || '';
+  };
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -48,6 +131,40 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  // Load other user data for conversations when needed
+  useEffect(() => {
+    const loadUserData = async () => {
+      // Get current user ID
+      const currentUserId = localStorage.getItem('userId') || '';
+      
+      // Process each conversation
+      for (const conversation of conversations) {
+        // For individual chats, load the other user's data
+        if (!conversation.isGroup) {
+          const otherUserId = getOtherUserId(conversation);
+          
+          // If we don't have this user's data in cache, fetch it
+          if (otherUserId && !userCache[otherUserId] && !localUserCache[otherUserId]) {
+            try {
+              const userData = await getUserById(otherUserId);
+              if (userData) {
+                // Add user to local cache
+                setLocalUserCache(prev => ({
+                  ...prev,
+                  [otherUserId]: userData
+                }));
+              }
+            } catch (error) {
+              console.error(`Failed to load data for user ${otherUserId}:`, error);
+            }
+          }
+        }
+      }
+    };
+    
+    loadUserData();
+  }, [conversations, userCache, localUserCache]);
 
   return (
     <div className="chat-list w-80 bg-white dark:bg-gray-900 border-r dark:border-gray-100">
@@ -72,8 +189,8 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
                 />
               ) : (
                 <Avatar
-                  name={userCache[chat.receiverId || ""]?.fullname || "User"}
-                  avatarUrl={userCache[chat.receiverId || ""]?.urlavatar}
+                  name={userCache[getOtherUserId(chat)]?.fullname || "User"}
+                  avatarUrl={getConversationAvatar(chat)}
                   size={40}
                   className="cursor-pointer"
                 />
@@ -84,10 +201,7 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
             <div className="flex-1 min-w-0">
               <div className="flex justify-between items-center relative group">
                 <span className="truncate font-semibold text-gray-900 dark:text-gray-100">
-                  {displayNames[chat.conversationId] ||
-                    chat.receiverId ||
-                    t.private_chat ||
-                    "Private Chat"}
+                  {getConversationName(chat)}
                 </span>
                 <div className="flex items-center">
                   <span className="text-xs text-gray-500 dark:text-gray-400 group-hover:opacity-0 transition-opacity duration-200">
@@ -173,11 +287,11 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
                           />
                         </div>
                         <div className="border-t border-gray-200 dark:border-gray-600"></div>
-                        <div className="px-4 py-2 text-sm text-red-500 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer">
+                        <div className="px-4 py-2 text-red-500 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer">
                           {t.delete_conversation || "Xóa hội thoại"}
                         </div>
                         <div className="border-t border-gray-200 dark:border-gray-600"></div>
-                        <div className="px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer">
+                        <div className="px-4 py-2 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer">
                           {t.report || "Báo xấu"}
                         </div>
                       </div>
@@ -188,9 +302,12 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
               <div className="flex items-center text-sm text-gray-500 dark:text-gray-400 truncate">
                 {chat.lastMessage?.senderId && (
                   <span className="mr-1 truncate">
-                    {userCache[chat.lastMessage.senderId]?.fullname ||
-                      chat.lastMessage.senderId}
-                    :
+                    {/* Display "You" if the sender is the current user */}
+                    {chat.lastMessage.senderId === localStorage.getItem('userId') 
+                      ? "Bạn" 
+                      : (userCache[chat.lastMessage.senderId]?.fullname || 
+                         localUserCache[chat.lastMessage.senderId]?.fullname || 
+                         "User")}:
                   </span>
                 )}
                 <span className="truncate">
