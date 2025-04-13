@@ -32,7 +32,7 @@ const GroupAvatar: React.FC<GroupAvatarProps> = ({
   if (groupAvatarUrl) {
     return (
       <div 
-        className={`rounded-lg overflow-hidden ${className}`}
+        className={`rounded-full overflow-hidden ${className}`}
         style={{ width: `${size}px`, height: `${size}px` }}
       >
         <img

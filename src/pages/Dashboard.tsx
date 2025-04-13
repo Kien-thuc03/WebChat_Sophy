@@ -16,6 +16,36 @@ const Dashboard: React.FC = () => {
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const settingsRef = useRef<HTMLDivElement>(null);
 
+  // Xử lý khi chọn cuộc trò chuyện
+  const handleSelectConversation = (conversation: Conversation) => {
+    // Kiểm tra xem conversation có hợp lệ không
+    if (!conversation) {
+      console.error("Cuộc trò chuyện không hợp lệ:", conversation);
+      return;
+    }
+    
+    // Kiểm tra xem conversation có ID và ID có đúng định dạng không
+    if (!conversation.conversationId || typeof conversation.conversationId !== 'string') {
+      console.error("ID cuộc trò chuyện không hợp lệ:", conversation);
+      return;
+    }
+    
+    // Kiểm tra định dạng (bắt đầu bằng 'conv')
+    if (!conversation.conversationId.startsWith('conv')) {
+      console.error(`Định dạng ID cuộc trò chuyện không hợp lệ: ${conversation.conversationId}`);
+      // Sửa ID nếu cần thiết
+      if (conversation.conversationId && !conversation.conversationId.startsWith('conv')) {
+        conversation = {
+          ...conversation,
+          conversationId: `conv${conversation.conversationId}`
+        };
+      }
+    }
+    
+    console.log("Đã chọn cuộc trò chuyện:", conversation.conversationId);
+    setSelectedConversation(conversation);
+  };
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       // Kiểm tra xem mục tiêu nhấp chuột có nằm trong submenu của Menu không
@@ -70,7 +100,7 @@ const Dashboard: React.FC = () => {
         onOpenModal={handleOpenModal}
         openSettingsModal={handleOpenSettingsModal}
       />
-      <ChatList onSelectConversation={setSelectedConversation} />
+      <ChatList onSelectConversation={handleSelectConversation} />
       <div className="flex-1 flex flex-col">
         {selectedConversation ? (
           <>

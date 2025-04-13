@@ -537,60 +537,119 @@ export const fetchConversations = async (): Promise<Conversation[]> => {
   }
 };
 
-// Lấy tin nhắn của một cuộc trò chuyện
-export const getMessages = async (
-  conversationId: string,
-  page: number = 1,
-  limit: number = 20
-): Promise<Message[]> => {
+// Utility function to log errors with more detail
+const logApiError = (endpoint: string, error: any) => {
+  console.error(`API Error in ${endpoint}:`, {
+    message: error.message,
+    status: error.response?.status,
+    statusText: error.response?.statusText,
+    data: error.response?.data,
+    requestURL: error.config?.url,
+    method: error.config?.method,
+    params: error.config?.params
+  });
+};
+
+// Get messages
+export const getMessages = async (conversationId: string, lastMessageTime?: string, limit = 20) => {
   try {
-    // Kiểm tra conversationId hợp lệ
-    if (!conversationId) {
-      console.error("getMessages: conversationId không hợp lệ");
-      return [];
+    console.log(`getMessages: Đang lấy tin nhắn cho cuộc trò chuyện ${conversationId}`);
+    console.log(`API URL: /api/conversations/${conversationId}`);
+    console.log('Parameters:', { lastMessageTime, limit });
+    
+    if (!conversationId || conversationId === 'undefined') {
+      console.log('getMessages: conversationId không hợp lệ');
+      return { messages: [], hasMore: false, nextCursor: null };
     }
-
-    const token = getAuthToken();
-    if (!token) {
-      console.error("getMessages: Không có token xác thực");
-      throw new Error("Không có token xác thực");
+    
+    // Xây dựng tham số query
+    const params: any = { limit };
+    if (lastMessageTime) {
+      params.lastMessageTime = lastMessageTime;
     }
-
+    
     // Thêm timeout để tránh treo vô hạn
     const response = await apiClient.get(
-      `/api/conversations/${conversationId}/messages`,
+      `/api/messages/${conversationId}`,
       {
-        params: {
-          page,
-          limit,
-        },
+        params,
         timeout: 10000, // Timeout 10 giây
       }
     );
 
-    // Kiểm tra dữ liệu phản hồi
-    if (!response || !response.data) {
-      console.error("getMessages: Phản hồi rỗng hoặc không hợp lệ");
-      return [];
+    console.log(`getMessages: Nhận được phản hồi với status ${response.status}`);
+    
+    // Kiểm tra và xử lý dữ liệu trả về
+    if (!response.data) {
+      console.error('getMessages: Không có dữ liệu từ server');
+      return { messages: [], hasMore: false, nextCursor: null };
     }
-
-    if (!Array.isArray(response.data)) {
-      console.error("getMessages: Định dạng dữ liệu không hợp lệ:", response.data);
-      return [];
+    
+    console.log('getMessages: Cấu trúc dữ liệu nhận được:', {
+      isArray: Array.isArray(response.data),
+      hasMessages: !!response.data.messages,
+      hasConversationId: !!response.data.conversationId,
+      keys: Object.keys(response.data)
+    });
+    
+    // Xử lý nhiều trường hợp định dạng dữ liệu khác nhau
+    let messages = [];
+    let hasMore = false;
+    let nextCursor = null;
+    
+    if (Array.isArray(response.data)) {
+      // Trường hợp 1: Dữ liệu trả về là mảng tin nhắn trực tiếp
+      console.log('getMessages: Dữ liệu trả về là mảng tin nhắn');
+      messages = response.data;
+    } else if (response.data && response.data.messages && Array.isArray(response.data.messages)) {
+      // Trường hợp 2: Dữ liệu nằm trong property messages
+      console.log('getMessages: Dữ liệu trả về chứa mảng messages');
+      messages = response.data.messages;
+      hasMore = response.data.hasMore || false;
+      nextCursor = response.data.nextCursor || null;
+    } else if (response.data && Array.isArray(response.data.data)) {
+      // Trường hợp 3: Dữ liệu nằm trong property data
+      console.log('getMessages: Dữ liệu trả về chứa mảng data');
+      messages = response.data.data;
+      hasMore = response.data.hasMore || false;
+      nextCursor = response.data.nextCursor || null;
+    } else if (response.data && response.data.messageList && Array.isArray(response.data.messageList)) {
+      // Trường hợp 4: Dữ liệu nằm trong property messageList
+      console.log('getMessages: Dữ liệu trả về chứa mảng messageList');
+      messages = response.data.messageList;
+      hasMore = response.data.hasMore || false;
+      nextCursor = response.data.nextCursor || null;
+    } else if (response.data && response.data.conversationId) {
+      // Trường hợp 5: Nhận được đối tượng conversation
+      console.log('getMessages: Nhận được đối tượng conversation');
+      // Kiểm tra xem đối tượng conversation có chứa tin nhắn không
+      if (response.data.messages && Array.isArray(response.data.messages)) {
+        messages = response.data.messages;
+        hasMore = response.data.hasMore || false;
+        nextCursor = response.data.nextCursor || null;
+      } else {
+        // Nếu không có tin nhắn trong đối tượng conversation, trả về mảng rỗng
+        console.log('getMessages: Không tìm thấy tin nhắn trong đối tượng conversation');
+        messages = [];
+      }
+    } else {
+      // Trường hợp không xác định: Log và trả về mảng rỗng
+      console.error('getMessages: Định dạng dữ liệu không hợp lệ:', response.data);
     }
-
-    // Kiểm tra từng tin nhắn có hợp lệ không
-    const validMessages = response.data.filter(msg => 
-      msg && typeof msg === 'object' && msg.messageId && msg.senderId
-    );
-
-    return validMessages;
-  } catch (error) {
-    console.error("Lỗi khi lấy tin nhắn:", error);
-    if (error instanceof Error) {
-      console.error("Error message:", error.message);
-    }
-    return [];
+    
+    // Chuẩn hóa các trường trong tin nhắn để phù hợp với frontend
+    const normalizedMessages = messages.map((msg: any) => {
+      // Đảm bảo mỗi tin nhắn có messageId (dùng messageDetailId nếu cần)
+      if (!msg.messageId && msg.messageDetailId) {
+        return { ...msg, messageId: msg.messageDetailId };
+      }
+      return msg;
+    });
+    
+    return { messages: normalizedMessages, hasMore, nextCursor };
+  } catch (error: any) {
+    logApiError('getMessages', error);
+    return { messages: [], hasMore: false, nextCursor: null };
   }
 };
 
@@ -634,11 +693,17 @@ export const sendMessage = async (
 
     // Kiểm tra dữ liệu tin nhắn có đầy đủ các trường cần thiết không
     const message = response.data;
-    if (!message.messageId || !message.senderId) {
+    // Hỗ trợ cả messageId và messageDetailId
+    const messageId = message.messageId || message.messageDetailId;
+    if (!messageId || !message.senderId) {
       throw new Error("Dữ liệu tin nhắn không hợp lệ");
     }
 
-    return message;
+    // Chuẩn hóa dữ liệu để phù hợp với frontend
+    return {
+      ...message,
+      messageId: messageId
+    };
   } catch (error: any) {
     console.error("Lỗi khi gửi tin nhắn:", error);
     
