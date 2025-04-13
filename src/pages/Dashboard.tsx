@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import Sidebar from "../components/sidebar/Sidebar";
 import ChatList from "../components/chat/ChatList";
 import ChatHeader from "../components/chat/ChatHeader";
+import ChatArea from "../components/chat/ChatArea";
 import SettingsMenu from "../components/content/SettingsMenu";
 import UserModal from "../components/content/modal/UserModal";
 import SettingsModal from "../components/content/modal/SettingsModal";
@@ -14,6 +15,36 @@ const Dashboard: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const settingsRef = useRef<HTMLDivElement>(null);
+
+  // Xử lý khi chọn cuộc trò chuyện
+  const handleSelectConversation = (conversation: Conversation) => {
+    // Kiểm tra xem conversation có hợp lệ không
+    if (!conversation) {
+      console.error("Cuộc trò chuyện không hợp lệ:", conversation);
+      return;
+    }
+    
+    // Kiểm tra xem conversation có ID và ID có đúng định dạng không
+    if (!conversation.conversationId || typeof conversation.conversationId !== 'string') {
+      console.error("ID cuộc trò chuyện không hợp lệ:", conversation);
+      return;
+    }
+    
+    // Kiểm tra định dạng (bắt đầu bằng 'conv')
+    if (!conversation.conversationId.startsWith('conv')) {
+      console.error(`Định dạng ID cuộc trò chuyện không hợp lệ: ${conversation.conversationId}`);
+      // Sửa ID nếu cần thiết
+      if (conversation.conversationId && !conversation.conversationId.startsWith('conv')) {
+        conversation = {
+          ...conversation,
+          conversationId: `conv${conversation.conversationId}`
+        };
+      }
+    }
+    
+    console.log("Đã chọn cuộc trò chuyện:", conversation.conversationId);
+    setSelectedConversation(conversation);
+  };
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -63,14 +94,14 @@ const Dashboard: React.FC = () => {
   };
 
   return (
-    <div className="flex h-screen relative">
+    <div className="flex h-screen overflow-hidden">
       <Sidebar
         onSettingsClick={handleToggleSettings}
         onOpenModal={handleOpenModal}
         openSettingsModal={handleOpenSettingsModal}
       />
-      <ChatList onSelectConversation={setSelectedConversation} />
-      <div className="flex-1 flex flex-col">
+      <ChatList onSelectConversation={handleSelectConversation} />
+      <div className="flex-1 flex flex-col h-full overflow-hidden">
         {selectedConversation ? (
           <>
             <ChatHeader
@@ -88,7 +119,9 @@ const Dashboard: React.FC = () => {
               }
               groupMembers={selectedConversation.groupMembers}
             />
-            <div className="flex-1 bg-gray-50"></div>
+            <div className="flex-1 overflow-hidden">
+              <ChatArea conversation={selectedConversation} />
+            </div>
           </>
         ) : (
           <MainContent />

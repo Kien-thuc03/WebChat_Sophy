@@ -537,37 +537,126 @@ export const fetchConversations = async (): Promise<Conversation[]> => {
   }
 };
 
-// Lấy tin nhắn của một cuộc trò chuyện
-export const getMessages = async (
-  conversationId: string,
-  page: number = 1,
-  limit: number = 20
-): Promise<Message[]> => {
-  try {
-    const token = getAuthToken();
-    if (!token) {
-      throw new Error("Không có token xác thực");
-    }
+// Utility function to log errors with more detail
+const logApiError = (endpoint: string, error: any) => {
+  console.error(`API Error in ${endpoint}:`, {
+    message: error.message,
+    status: error.response?.status,
+    statusText: error.response?.statusText,
+    data: error.response?.data,
+    requestURL: error.config?.url,
+    method: error.config?.method,
+    params: error.config?.params
+  });
+};
 
+// Get messages
+export const getMessages = async (conversationId: string, lastMessageTime?: string, limit = 20) => {
+  try {
+    console.log(`getMessages: Đang lấy tin nhắn cho cuộc trò chuyện ${conversationId}`);
+    console.log(`API URL: /api/conversations/${conversationId}`);
+    console.log('Parameters:', { lastMessageTime, limit });
+    
+    if (!conversationId || conversationId === 'undefined') {
+      console.log('getMessages: conversationId không hợp lệ');
+      return { messages: [], hasMore: false, nextCursor: null };
+    }
+    
+    // Xây dựng tham số query
+    const params: any = { limit };
+    if (lastMessageTime) {
+      params.lastMessageTime = lastMessageTime;
+    }
+    
+    // Thêm timeout để tránh treo vô hạn
     const response = await apiClient.get(
-      `/api/conversations/${conversationId}/messages`,
+      `/api/messages/${conversationId}`,
       {
-        params: {
-          page,
-          limit,
-        },
+        params,
+        timeout: 10000, // Timeout 10 giây
       }
     );
 
-    if (!Array.isArray(response.data)) {
-      console.error("Invalid messages data format:", response.data);
-      return [];
+    console.log(`getMessages: Nhận được phản hồi với status ${response.status}`);
+    
+    // Kiểm tra và xử lý dữ liệu trả về
+    if (!response.data) {
+      console.error('getMessages: Không có dữ liệu từ server');
+      return { messages: [], hasMore: false, nextCursor: null };
     }
-
-    return response.data;
-  } catch (error) {
-    console.error("Lỗi khi lấy tin nhắn:", error);
-    return [];
+    
+    console.log('getMessages: Cấu trúc dữ liệu nhận được:', {
+      isArray: Array.isArray(response.data),
+      hasMessages: !!response.data.messages,
+      hasConversationId: !!response.data.conversationId,
+      keys: Object.keys(response.data)
+    });
+    
+    // Xử lý nhiều trường hợp định dạng dữ liệu khác nhau
+    let messages = [];
+    let hasMore = false;
+    let nextCursor = null;
+    
+    if (Array.isArray(response.data)) {
+      // Trường hợp 1: Dữ liệu trả về là mảng tin nhắn trực tiếp
+      console.log('getMessages: Dữ liệu trả về là mảng tin nhắn');
+      messages = response.data;
+    } else if (response.data && response.data.messages && Array.isArray(response.data.messages)) {
+      // Trường hợp 2: Dữ liệu nằm trong property messages
+      console.log('getMessages: Dữ liệu trả về chứa mảng messages');
+      messages = response.data.messages;
+      hasMore = response.data.hasMore || false;
+      nextCursor = response.data.nextCursor || null;
+    } else if (response.data && Array.isArray(response.data.data)) {
+      // Trường hợp 3: Dữ liệu nằm trong property data
+      console.log('getMessages: Dữ liệu trả về chứa mảng data');
+      messages = response.data.data;
+      hasMore = response.data.hasMore || false;
+      nextCursor = response.data.nextCursor || null;
+    } else if (response.data && response.data.messageList && Array.isArray(response.data.messageList)) {
+      // Trường hợp 4: Dữ liệu nằm trong property messageList
+      console.log('getMessages: Dữ liệu trả về chứa mảng messageList');
+      messages = response.data.messageList;
+      hasMore = response.data.hasMore || false;
+      nextCursor = response.data.nextCursor || null;
+    } else if (response.data && response.data.conversationId) {
+      // Trường hợp 5: Nhận được đối tượng conversation
+      console.log('getMessages: Nhận được đối tượng conversation');
+      // Kiểm tra xem đối tượng conversation có chứa tin nhắn không
+      if (response.data.messages && Array.isArray(response.data.messages)) {
+        messages = response.data.messages;
+        hasMore = response.data.hasMore || false;
+        nextCursor = response.data.nextCursor || null;
+      } else {
+        // Nếu không có tin nhắn trong đối tượng conversation, trả về mảng rỗng
+        console.log('getMessages: Không tìm thấy tin nhắn trong đối tượng conversation');
+        messages = [];
+      }
+    } else {
+      // Trường hợp không xác định: Log và trả về mảng rỗng
+      console.error('getMessages: Định dạng dữ liệu không hợp lệ:', response.data);
+    }
+    
+    // Chuẩn hóa các trường trong tin nhắn để phù hợp với frontend
+    const normalizedMessages = messages.map((msg: any) => {
+      // Đảm bảo mỗi tin nhắn có messageId (dùng messageDetailId nếu cần)
+      if (!msg.messageId && msg.messageDetailId) {
+        return { ...msg, messageId: msg.messageDetailId };
+      }
+      return msg;
+    });
+    
+    // Sắp xếp tin nhắn theo timestamp (cũ -> mới)
+    const sortedMessages = normalizedMessages.sort((a: any, b: any) => {
+      const timeA = new Date(a.createdAt || 0).getTime();
+      const timeB = new Date(b.createdAt || 0).getTime();
+      return timeA - timeB; // Sắp xếp tăng dần theo thời gian
+    });
+    
+    return { messages: sortedMessages, hasMore, nextCursor };
+  } catch (error: any) {
+    logApiError('getMessages', error);
+    return { messages: [], hasMore: false, nextCursor: null };
   }
 };
 
@@ -578,23 +667,71 @@ export const sendMessage = async (
   type: string = "text"
 ): Promise<Message> => {
   try {
+    // Kiểm tra tham số đầu vào
+    if (!conversationId) {
+      throw new Error("ID cuộc trò chuyện không hợp lệ");
+    }
+
+    if (!content || content.trim() === '') {
+      throw new Error("Nội dung tin nhắn không được để trống");
+    }
+
     const token = getAuthToken();
     if (!token) {
       throw new Error("Không có token xác thực");
     }
 
+    // Gửi yêu cầu với timeout để tránh treo vô hạn
     const response = await apiClient.post(
       `/api/conversations/${conversationId}/messages`,
       {
         content,
         type,
+      },
+      {
+        timeout: 10000, // Timeout 10 giây
       }
     );
 
-    return response.data;
+    // Kiểm tra phản hồi hợp lệ
+    if (!response || !response.data) {
+      throw new Error("Phản hồi không hợp lệ từ server");
+    }
+
+    // Kiểm tra dữ liệu tin nhắn có đầy đủ các trường cần thiết không
+    const message = response.data;
+    // Hỗ trợ cả messageId và messageDetailId
+    const messageId = message.messageId || message.messageDetailId;
+    if (!messageId || !message.senderId) {
+      throw new Error("Dữ liệu tin nhắn không hợp lệ");
+    }
+
+    // Chuẩn hóa dữ liệu để phù hợp với frontend
+    return {
+      ...message,
+      messageId: messageId
+    };
   } catch (error: any) {
     console.error("Lỗi khi gửi tin nhắn:", error);
-    throw new Error(error.response?.data?.message || "Không thể gửi tin nhắn");
+    
+    // Xử lý các loại lỗi cụ thể
+    if (error.response) {
+      if (error.response.status === 401) {
+        throw new Error("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.");
+      } else if (error.response.status === 403) {
+        throw new Error("Bạn không có quyền gửi tin nhắn vào cuộc trò chuyện này.");
+      } else if (error.response.status === 404) {
+        throw new Error("Không tìm thấy cuộc trò chuyện.");
+      } else if (error.response.data?.message) {
+        throw new Error(error.response.data.message);
+      }
+    }
+    
+    if (error.code === 'ECONNABORTED') {
+      throw new Error("Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối mạng.");
+    }
+    
+    throw new Error(error.message || "Không thể gửi tin nhắn. Vui lòng thử lại sau.");
   }
 };
 

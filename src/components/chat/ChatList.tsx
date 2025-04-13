@@ -167,11 +167,13 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
   }, [conversations, userCache, localUserCache]);
 
   return (
-    <div className="chat-list w-80 bg-white dark:bg-gray-900 border-r dark:border-gray-100">
-      <Header />
-      <ChatNav />
+    <div className="chat-list w-80 bg-white dark:bg-gray-900 border-r dark:border-gray-100 h-full flex flex-col overflow-hidden">
+      <div className="flex-shrink-0">
+        <Header />
+        <ChatNav />
+      </div>
       <List
-        className="overflow-y-auto h-[calc(100vh-64px)]"
+        className="overflow-y-auto flex-1"
         dataSource={conversations}
         renderItem={(chat) => (
           <List.Item
