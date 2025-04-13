@@ -1,8 +1,19 @@
 import { FaSearch, FaUserPlus, FaUsers } from "react-icons/fa";
 import { useLanguage } from "../../features/auth/context/LanguageContext";
+import { useState } from "react";
+import AddFriendModal from "./modal/AddFriendModal"; // Import the modal component
 
 const Header = () => {
   const { t } = useLanguage();
+  const [isAddFriendModalVisible, setIsAddFriendModalVisible] = useState(false); // State for modal visibility
+
+  const handleAddFriendClick = () => {
+    setIsAddFriendModalVisible(true); // Show modal on button click
+  };
+
+  const handleCloseModal = () => {
+    setIsAddFriendModalVisible(false); // Close modal
+  };
 
   return (
     <div
@@ -24,7 +35,9 @@ const Header = () => {
       <button
         type="button"
         title={t?.add_friend || "Thêm bạn"}
-        className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-gray-300 dark:hover:bg-gray-600">
+        className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-gray-300 dark:hover:bg-gray-600"
+        onClick={handleAddFriendClick} // Add click handler
+      >
         <FaUserPlus className="text-gray-600 dark:text-gray-300" />
       </button>
 
@@ -34,6 +47,11 @@ const Header = () => {
         className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-gray-300 dark:hover:bg-gray-600">
         <FaUsers className="text-gray-600 dark:text-gray-300" />
       </button>
+
+      {/* Render the modal conditionally */}
+      {isAddFriendModalVisible && (
+        <AddFriendModal visible={isAddFriendModalVisible} onClose={handleCloseModal} />
+      )}
     </div>
   );
 };

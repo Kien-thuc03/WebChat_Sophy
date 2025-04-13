@@ -546,82 +546,95 @@ const logApiError = (endpoint: string, error: any) => {
     data: error.response?.data,
     requestURL: error.config?.url,
     method: error.config?.method,
-    params: error.config?.params
+    params: error.config?.params,
   });
 };
 
 // Get messages
-export const getMessages = async (conversationId: string, lastMessageTime?: string, limit = 20) => {
+export const getMessages = async (
+  conversationId: string,
+  lastMessageTime?: string,
+  limit = 20
+) => {
   try {
-    console.log(`getMessages: Đang lấy tin nhắn cho cuộc trò chuyện ${conversationId}`);
+    console.log(
+      `getMessages: Đang lấy tin nhắn cho cuộc trò chuyện ${conversationId}`
+    );
     console.log(`API URL: /api/conversations/${conversationId}`);
-    console.log('Parameters:', { lastMessageTime, limit });
-    
-    if (!conversationId || conversationId === 'undefined') {
-      console.log('getMessages: conversationId không hợp lệ');
+    console.log("Parameters:", { lastMessageTime, limit });
+
+    if (!conversationId || conversationId === "undefined") {
+      console.log("getMessages: conversationId không hợp lệ");
       return { messages: [], hasMore: false, nextCursor: null };
     }
-    
+
     // Xây dựng tham số query
     const params: any = { limit };
     if (lastMessageTime) {
       params.lastMessageTime = lastMessageTime;
     }
-    
+
     // Thêm timeout để tránh treo vô hạn
-    const response = await apiClient.get(
-      `/api/messages/${conversationId}`,
-      {
-        params,
-        timeout: 10000, // Timeout 10 giây
-      }
+    const response = await apiClient.get(`/api/messages/${conversationId}`, {
+      params,
+      timeout: 10000, // Timeout 10 giây
+    });
+
+    console.log(
+      `getMessages: Nhận được phản hồi với status ${response.status}`
     );
 
-    console.log(`getMessages: Nhận được phản hồi với status ${response.status}`);
-    
     // Kiểm tra và xử lý dữ liệu trả về
     if (!response.data) {
-      console.error('getMessages: Không có dữ liệu từ server');
+      console.error("getMessages: Không có dữ liệu từ server");
       return { messages: [], hasMore: false, nextCursor: null };
     }
-    
-    console.log('getMessages: Cấu trúc dữ liệu nhận được:', {
+
+    console.log("getMessages: Cấu trúc dữ liệu nhận được:", {
       isArray: Array.isArray(response.data),
       hasMessages: !!response.data.messages,
       hasConversationId: !!response.data.conversationId,
-      keys: Object.keys(response.data)
+      keys: Object.keys(response.data),
     });
-    
+
     // Xử lý nhiều trường hợp định dạng dữ liệu khác nhau
     let messages = [];
     let hasMore = false;
     let nextCursor = null;
-    
+
     if (Array.isArray(response.data)) {
       // Trường hợp 1: Dữ liệu trả về là mảng tin nhắn trực tiếp
-      console.log('getMessages: Dữ liệu trả về là mảng tin nhắn');
+      console.log("getMessages: Dữ liệu trả về là mảng tin nhắn");
       messages = response.data;
-    } else if (response.data && response.data.messages && Array.isArray(response.data.messages)) {
+    } else if (
+      response.data &&
+      response.data.messages &&
+      Array.isArray(response.data.messages)
+    ) {
       // Trường hợp 2: Dữ liệu nằm trong property messages
-      console.log('getMessages: Dữ liệu trả về chứa mảng messages');
+      console.log("getMessages: Dữ liệu trả về chứa mảng messages");
       messages = response.data.messages;
       hasMore = response.data.hasMore || false;
       nextCursor = response.data.nextCursor || null;
     } else if (response.data && Array.isArray(response.data.data)) {
       // Trường hợp 3: Dữ liệu nằm trong property data
-      console.log('getMessages: Dữ liệu trả về chứa mảng data');
+      console.log("getMessages: Dữ liệu trả về chứa mảng data");
       messages = response.data.data;
       hasMore = response.data.hasMore || false;
       nextCursor = response.data.nextCursor || null;
-    } else if (response.data && response.data.messageList && Array.isArray(response.data.messageList)) {
+    } else if (
+      response.data &&
+      response.data.messageList &&
+      Array.isArray(response.data.messageList)
+    ) {
       // Trường hợp 4: Dữ liệu nằm trong property messageList
-      console.log('getMessages: Dữ liệu trả về chứa mảng messageList');
+      console.log("getMessages: Dữ liệu trả về chứa mảng messageList");
       messages = response.data.messageList;
       hasMore = response.data.hasMore || false;
       nextCursor = response.data.nextCursor || null;
     } else if (response.data && response.data.conversationId) {
       // Trường hợp 5: Nhận được đối tượng conversation
-      console.log('getMessages: Nhận được đối tượng conversation');
+      console.log("getMessages: Nhận được đối tượng conversation");
       // Kiểm tra xem đối tượng conversation có chứa tin nhắn không
       if (response.data.messages && Array.isArray(response.data.messages)) {
         messages = response.data.messages;
@@ -629,14 +642,19 @@ export const getMessages = async (conversationId: string, lastMessageTime?: stri
         nextCursor = response.data.nextCursor || null;
       } else {
         // Nếu không có tin nhắn trong đối tượng conversation, trả về mảng rỗng
-        console.log('getMessages: Không tìm thấy tin nhắn trong đối tượng conversation');
+        console.log(
+          "getMessages: Không tìm thấy tin nhắn trong đối tượng conversation"
+        );
         messages = [];
       }
     } else {
       // Trường hợp không xác định: Log và trả về mảng rỗng
-      console.error('getMessages: Định dạng dữ liệu không hợp lệ:', response.data);
+      console.error(
+        "getMessages: Định dạng dữ liệu không hợp lệ:",
+        response.data
+      );
     }
-    
+
     // Chuẩn hóa các trường trong tin nhắn để phù hợp với frontend
     const normalizedMessages = messages.map((msg: any) => {
       // Đảm bảo mỗi tin nhắn có messageId (dùng messageDetailId nếu cần)
@@ -645,17 +663,17 @@ export const getMessages = async (conversationId: string, lastMessageTime?: stri
       }
       return msg;
     });
-    
+
     // Sắp xếp tin nhắn theo timestamp (cũ -> mới)
     const sortedMessages = normalizedMessages.sort((a: any, b: any) => {
       const timeA = new Date(a.createdAt || 0).getTime();
       const timeB = new Date(b.createdAt || 0).getTime();
       return timeA - timeB; // Sắp xếp tăng dần theo thời gian
     });
-    
+
     return { messages: sortedMessages, hasMore, nextCursor };
   } catch (error: any) {
-    logApiError('getMessages', error);
+    logApiError("getMessages", error);
     return { messages: [], hasMore: false, nextCursor: null };
   }
 };
@@ -672,7 +690,7 @@ export const sendMessage = async (
       throw new Error("ID cuộc trò chuyện không hợp lệ");
     }
 
-    if (!content || content.trim() === '') {
+    if (!content || content.trim() === "") {
       throw new Error("Nội dung tin nhắn không được để trống");
     }
 
@@ -709,29 +727,35 @@ export const sendMessage = async (
     // Chuẩn hóa dữ liệu để phù hợp với frontend
     return {
       ...message,
-      messageId: messageId
+      messageId: messageId,
     };
   } catch (error: any) {
     console.error("Lỗi khi gửi tin nhắn:", error);
-    
+
     // Xử lý các loại lỗi cụ thể
     if (error.response) {
       if (error.response.status === 401) {
         throw new Error("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.");
       } else if (error.response.status === 403) {
-        throw new Error("Bạn không có quyền gửi tin nhắn vào cuộc trò chuyện này.");
+        throw new Error(
+          "Bạn không có quyền gửi tin nhắn vào cuộc trò chuyện này."
+        );
       } else if (error.response.status === 404) {
         throw new Error("Không tìm thấy cuộc trò chuyện.");
       } else if (error.response.data?.message) {
         throw new Error(error.response.data.message);
       }
     }
-    
-    if (error.code === 'ECONNABORTED') {
-      throw new Error("Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối mạng.");
+
+    if (error.code === "ECONNABORTED") {
+      throw new Error(
+        "Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối mạng."
+      );
     }
-    
-    throw new Error(error.message || "Không thể gửi tin nhắn. Vui lòng thử lại sau.");
+
+    throw new Error(
+      error.message || "Không thể gửi tin nhắn. Vui lòng thử lại sau."
+    );
   }
 };
 
@@ -1199,6 +1223,82 @@ export const uploadAvatar = async (imageFile: File): Promise<string> => {
     console.error("Error uploading avatar:", error);
     throw new Error(
       error instanceof Error ? error.message : "Lỗi không xác định khi tải ảnh"
+    );
+  }
+};
+// Gửi yêu cầu kết bạn
+export const sendFriendRequest = async (
+  receiverId: string
+): Promise<{ success: boolean; message: string }> => {
+  try {
+    const token = getAuthToken();
+    if (!token) {
+      throw new Error("Không có token xác thực");
+    }
+
+    const response = await apiClient.post(
+      `/api/friend-requests/send-request/${receiverId}`
+    );
+
+    return response.data;
+  } catch (error: unknown) {
+    console.error("Lỗi khi gửi yêu cầu kết bạn:", error);
+
+    if (error instanceof AxiosError && error.response) {
+      if (error.response.status === 400) {
+        if (error.response.data?.message === "Friend request already sent") {
+          throw new Error("Đã gửi lời mời kết bạn trước đó");
+        } else if (
+          error.response.data?.message === "Users are already friends"
+        ) {
+          throw new Error("Các bạn đã là bạn bè");
+        } else if (
+          error.response.data?.message ===
+          "Cannot send friend request to yourself"
+        ) {
+          throw new Error("Không thể gửi lời mời kết bạn cho chính mình");
+        }
+        throw new Error(error.response.data?.message || "Yêu cầu không hợp lệ");
+      } else if (error.response.status === 401) {
+        throw new Error("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.");
+      } else if (error.response.status === 404) {
+        throw new Error("Không tìm thấy người dùng");
+      } else if (error.response.status === 429) {
+        throw new Error("Quá nhiều yêu cầu. Vui lòng thử lại sau.");
+      }
+    }
+
+    throw new Error("Không thể gửi yêu cầu kết bạn. Vui lòng thử lại sau.");
+  }
+};
+// Hàm lấy danh sách bạn bè
+export const fetchFriends = async () => {
+  try {
+    const token = getAuthToken();
+    if (!token) {
+      throw new Error("Không có token xác thực");
+    }
+
+    const response = await apiClient.get("/api/friends");
+
+    if (!Array.isArray(response.data)) {
+      console.error("Invalid friends data format:", response.data);
+      return [];
+    }
+
+    console.log("Fetched friends:", response.data);
+    return response.data;
+  } catch (error) {
+    console.error("Lỗi khi lấy danh sách bạn bè:", error);
+    const apiError = error as AxiosError<{ message?: string }>;
+    if (apiError.response?.status === 401) {
+      throw new Error("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.");
+    }
+    if (apiError.response?.status === 404) {
+      return []; // Return empty array if no friends found
+    }
+    throw new Error(
+      apiError.response?.data?.message || "Không thể lấy danh sách bạn bè"
     );
   }
 };
