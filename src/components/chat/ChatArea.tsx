@@ -90,8 +90,6 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
       
       console.log(`Đang tải tin nhắn cho cuộc trò chuyện: ${conversation.conversationId}`);
       
-      // Không cần kiểm tra conversation trước vì getMessages đã làm điều đó
-      
       // Lấy tin nhắn với phân trang nếu có
       const result = await getMessages(conversation.conversationId, lastMessageTime);
       console.log('Kết quả API getMessages:', result);
@@ -144,16 +142,21 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
       
       console.log(`Đã chuyển đổi thành ${displayMessages.length} tin nhắn hiển thị`);
       
+      // Sắp xếp tin nhắn theo thời gian (cũ nhất lên đầu, mới nhất ở cuối)
+      const sortedMessages = displayMessages.sort((a, b) => 
+        new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+      );
+      
       // Cập nhật danh sách tin nhắn
       if (lastMessageTime) {
         // Thêm tin nhắn cũ vào đầu danh sách nếu đang tải thêm
-        setMessages(prev => [...displayMessages, ...prev]);
+        setMessages(prev => [...sortedMessages, ...prev]);
       } else {
         // Thay thế hoàn toàn nếu là lần tải đầu tiên
-        setMessages(displayMessages);
+        setMessages(sortedMessages);
       }
       
-      console.log(`Đã tải ${displayMessages.length} tin nhắn`);
+      console.log(`Đã tải ${sortedMessages.length} tin nhắn`);
     } catch (error: any) {
       console.error('Lỗi khi tải tin nhắn:', error);
       
@@ -226,7 +229,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
       isRead: false
     };
     
-    // Hiển thị tin nhắn tạm thời
+    // Hiển thị tin nhắn tạm thời (luôn đặt ở cuối - tin nhắn mới nhất)
     setMessages(prev => [...prev, tempMessage]);
     scrollToBottom();
     

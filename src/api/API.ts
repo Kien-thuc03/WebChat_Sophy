@@ -646,7 +646,14 @@ export const getMessages = async (conversationId: string, lastMessageTime?: stri
       return msg;
     });
     
-    return { messages: normalizedMessages, hasMore, nextCursor };
+    // Sắp xếp tin nhắn theo timestamp (cũ -> mới)
+    const sortedMessages = normalizedMessages.sort((a: any, b: any) => {
+      const timeA = new Date(a.createdAt || 0).getTime();
+      const timeB = new Date(b.createdAt || 0).getTime();
+      return timeA - timeB; // Sắp xếp tăng dần theo thời gian
+    });
+    
+    return { messages: sortedMessages, hasMore, nextCursor };
   } catch (error: any) {
     logApiError('getMessages', error);
     return { messages: [], hasMore: false, nextCursor: null };
