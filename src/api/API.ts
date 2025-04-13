@@ -544,11 +544,19 @@ export const getMessages = async (
   limit: number = 20
 ): Promise<Message[]> => {
   try {
+    // Kiểm tra conversationId hợp lệ
+    if (!conversationId) {
+      console.error("getMessages: conversationId không hợp lệ");
+      return [];
+    }
+
     const token = getAuthToken();
     if (!token) {
+      console.error("getMessages: Không có token xác thực");
       throw new Error("Không có token xác thực");
     }
 
+    // Thêm timeout để tránh treo vô hạn
     const response = await apiClient.get(
       `/api/conversations/${conversationId}/messages`,
       {
@@ -556,17 +564,32 @@ export const getMessages = async (
           page,
           limit,
         },
+        timeout: 10000, // Timeout 10 giây
       }
     );
 
-    if (!Array.isArray(response.data)) {
-      console.error("Invalid messages data format:", response.data);
+    // Kiểm tra dữ liệu phản hồi
+    if (!response || !response.data) {
+      console.error("getMessages: Phản hồi rỗng hoặc không hợp lệ");
       return [];
     }
 
-    return response.data;
+    if (!Array.isArray(response.data)) {
+      console.error("getMessages: Định dạng dữ liệu không hợp lệ:", response.data);
+      return [];
+    }
+
+    // Kiểm tra từng tin nhắn có hợp lệ không
+    const validMessages = response.data.filter(msg => 
+      msg && typeof msg === 'object' && msg.messageId && msg.senderId
+    );
+
+    return validMessages;
   } catch (error) {
     console.error("Lỗi khi lấy tin nhắn:", error);
+    if (error instanceof Error) {
+      console.error("Error message:", error.message);
+    }
     return [];
   }
 };
@@ -578,23 +601,65 @@ export const sendMessage = async (
   type: string = "text"
 ): Promise<Message> => {
   try {
+    // Kiểm tra tham số đầu vào
+    if (!conversationId) {
+      throw new Error("ID cuộc trò chuyện không hợp lệ");
+    }
+
+    if (!content || content.trim() === '') {
+      throw new Error("Nội dung tin nhắn không được để trống");
+    }
+
     const token = getAuthToken();
     if (!token) {
       throw new Error("Không có token xác thực");
     }
 
+    // Gửi yêu cầu với timeout để tránh treo vô hạn
     const response = await apiClient.post(
       `/api/conversations/${conversationId}/messages`,
       {
         content,
         type,
+      },
+      {
+        timeout: 10000, // Timeout 10 giây
       }
     );
 
-    return response.data;
+    // Kiểm tra phản hồi hợp lệ
+    if (!response || !response.data) {
+      throw new Error("Phản hồi không hợp lệ từ server");
+    }
+
+    // Kiểm tra dữ liệu tin nhắn có đầy đủ các trường cần thiết không
+    const message = response.data;
+    if (!message.messageId || !message.senderId) {
+      throw new Error("Dữ liệu tin nhắn không hợp lệ");
+    }
+
+    return message;
   } catch (error: any) {
     console.error("Lỗi khi gửi tin nhắn:", error);
-    throw new Error(error.response?.data?.message || "Không thể gửi tin nhắn");
+    
+    // Xử lý các loại lỗi cụ thể
+    if (error.response) {
+      if (error.response.status === 401) {
+        throw new Error("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.");
+      } else if (error.response.status === 403) {
+        throw new Error("Bạn không có quyền gửi tin nhắn vào cuộc trò chuyện này.");
+      } else if (error.response.status === 404) {
+        throw new Error("Không tìm thấy cuộc trò chuyện.");
+      } else if (error.response.data?.message) {
+        throw new Error(error.response.data.message);
+      }
+    }
+    
+    if (error.code === 'ECONNABORTED') {
+      throw new Error("Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối mạng.");
+    }
+    
+    throw new Error(error.message || "Không thể gửi tin nhắn. Vui lòng thử lại sau.");
   }
 };
 
