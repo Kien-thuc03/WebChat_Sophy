@@ -6,7 +6,7 @@ declare global {
 }
 
 // Site key của reCAPTCHA
-export const RECAPTCHA_SITE_KEY = '6LfBuBMrAAAAAKEtW7E-BdJyvgLTl6ywfO4avdCT';
+export const RECAPTCHA_SITE_KEY = import.meta.env.VITE_RECAPTCHA_SITE_KEY;
 
 /**
  * Chuẩn bị reCAPTCHA container cho Firebase Phone Auth
