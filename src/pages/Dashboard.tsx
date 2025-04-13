@@ -94,14 +94,14 @@ const Dashboard: React.FC = () => {
   };
 
   return (
-    <div className="flex h-screen relative">
+    <div className="flex h-screen overflow-hidden">
       <Sidebar
         onSettingsClick={handleToggleSettings}
         onOpenModal={handleOpenModal}
         openSettingsModal={handleOpenSettingsModal}
       />
       <ChatList onSelectConversation={handleSelectConversation} />
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col h-full overflow-hidden">
         {selectedConversation ? (
           <>
             <ChatHeader
@@ -119,7 +119,9 @@ const Dashboard: React.FC = () => {
               }
               groupMembers={selectedConversation.groupMembers}
             />
-            <ChatArea conversation={selectedConversation} />
+            <div className="flex-1 overflow-hidden">
+              <ChatArea conversation={selectedConversation} />
+            </div>
           </>
         ) : (
           <MainContent />

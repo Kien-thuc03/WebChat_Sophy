@@ -334,7 +334,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
   }
 
   return (
-    <div className="w-full">
+    <div className="w-full h-full flex flex-col">
       <div className="flex flex-col h-full overflow-hidden bg-white rounded-lg relative">
         {/* Khu vực hiển thị tin nhắn */}
         <div className="flex-1 overflow-y-auto p-4 bg-gray-50">
@@ -466,7 +466,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
         
         {/* Khu vực nhập tin nhắn (ẩn nếu không tìm thấy cuộc trò chuyện) */}
         {!notFound && (
-          <div className="mt-auto p-4 border-t border-gray-200">
+          <div className="flex-shrink-0 p-4 border-t border-gray-200 bg-white">
             <div className="flex items-center">
               <Input
                 className="flex-1 rounded-lg py-2 text-base"
