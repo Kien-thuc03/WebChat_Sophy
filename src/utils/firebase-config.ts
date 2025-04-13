@@ -11,13 +11,13 @@ declare global {
 }
 
 export const firebaseConfig = {
-    apiKey: "AIzaSyC9c6CCt_qpQyXzcqLaAqezM7h9PfJNuFg",
-    authDomain: "webchatsophy.firebaseapp.com",
-    projectId: "webchatsophy",
-    storageBucket: "webchatsophy.firebasestorage.app",
-    messagingSenderId: "789633891442",
-    appId: "1:789633891442:web:ab3adb096ed0d880ac56eb",
-    measurementId: "G-5KT8Z4NDH2"
+    apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+    appId: import.meta.env.VITE_FIREBASE_APP_ID,
+    measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
 
 // Initialize Firebase

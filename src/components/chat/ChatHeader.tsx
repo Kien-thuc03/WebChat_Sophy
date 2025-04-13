@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { SearchOutlined, VideoCameraOutlined, UserAddOutlined, RightOutlined } from '@ant-design/icons';
 import { ChatHeaderProps } from '../../features/chat/types/chatTypes';
 import { Conversation } from '../../features/chat/types/conversationTypes';
@@ -6,6 +6,8 @@ import GroupAvatar from './GroupAvatar';
 import { useConversations } from '../../features/chat/hooks/useConversations';
 import { Avatar } from '../common/Avatar';
 import { useLanguage } from "../../features/auth/context/LanguageContext";
+import { getUserById } from "../../api/API";
+import { User } from "../../features/auth/types/authTypes";
 
 interface ExtendedChatHeaderProps extends ChatHeaderProps {
   conversation: Conversation;
@@ -18,7 +20,61 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({ conversation }) => {
   const groupName = conversation.groupName;
   const groupAvatarUrl = conversation.groupAvatarUrl;
   const groupMembers = conversation.groupMembers;
-  const receiverInfo = conversation.receiverId ? userCache[conversation.receiverId] : null;
+  const [localUserCache, setLocalUserCache] = useState<Record<string, User>>({});
+
+  /**
+   * Gets the correct user ID to display for a conversation
+   * @param conversation The conversation object
+   * @returns The ID of the other user in the conversation
+   */
+  const getOtherUserId = (conversation: Conversation): string => {
+    // Get current user ID from localStorage (or any authentication method you use)
+    const currentUserId = localStorage.getItem('userId') || '';
+    
+    // If it's a group chat, there's no single "other user"
+    if (conversation.isGroup) {
+      return '';
+    }
+    
+    // If the current user is the creator, return the receiverId
+    if (currentUserId === conversation.creatorId) {
+      return conversation.receiverId || '';
+    }
+    
+    // If the current user is the receiver, return the creatorId
+    if (currentUserId === conversation.receiverId) {
+      return conversation.creatorId;
+    }
+    
+    // Fallback: Return receiverId if we can't determine
+    return conversation.receiverId || conversation.creatorId;
+  };
+
+  // Get the other user's ID using our helper function
+  const otherUserId = getOtherUserId(conversation);
+  // Get user info from either the global or local cache
+  const otherUserInfo = userCache[otherUserId] || localUserCache[otherUserId];
+
+  // Load user data if not already in cache
+  useEffect(() => {
+    const loadUserData = async () => {
+      if (!isGroup && otherUserId && !userCache[otherUserId] && !localUserCache[otherUserId]) {
+        try {
+          const userData = await getUserById(otherUserId);
+          if (userData) {
+            setLocalUserCache(prev => ({
+              ...prev,
+              [otherUserId]: userData
+            }));
+          }
+        } catch (error) {
+          console.error(`Failed to load data for user ${otherUserId}:`, error);
+        }
+      }
+    };
+    
+    loadUserData();
+  }, [isGroup, otherUserId, userCache, localUserCache]);
 
   return (
     <header className="flex items-center justify-between px-4 py-2 bg-white border-b">
@@ -35,8 +91,8 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({ conversation }) => {
             />
           ) : (
             <Avatar
-              name={receiverInfo?.fullname || 'User'}
-              avatarUrl={userCache[conversation.receiverId || ""]?.urlavatar}
+              name={otherUserInfo?.fullname || 'User'}
+              avatarUrl={otherUserInfo?.urlavatar}
               size={40}
               className="rounded-lg"
             />
@@ -47,7 +103,7 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({ conversation }) => {
         <div className="flex-1 min-w-0">
           <div className="flex items-center">
             <h2 className="text-lg font-semibold truncate">
-              {isGroup ? groupName : (receiverInfo?.fullname || t.loading || 'Đang tải...')}
+              {isGroup ? groupName : (otherUserInfo?.fullname || t.loading || 'Đang tải...')}
             </h2>
             <button
               className="ml-2 p-1 rounded-full hover:bg-gray-100"
@@ -67,7 +123,7 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({ conversation }) => {
                 </div>
               </>
             ) : (
-              <span className="text-gray-500">{receiverInfo?.phone || conversation.receiverId}</span>
+              <span className="text-gray-500">{otherUserInfo?.phone || otherUserId}</span>
             )}
           </div>
         </div>
