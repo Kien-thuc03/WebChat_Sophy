@@ -6,7 +6,7 @@ import { getMessages, sendMessage, fetchConversations, getConversationDetail } f
 import { useLanguage } from '../../features/auth/context/LanguageContext';
 import { formatMessageTime } from '../../utils/dateUtils';
 import { Avatar } from '../common/Avatar';
-import { useConversations } from '../../features/chat/hooks/useConversations';
+import { useConversationContext } from '../../features/chat/context/ConversationContext';
 import { BsEmojiSmile } from 'react-icons/bs';
 import { PiPaperclipBold } from 'react-icons/pi';
 
@@ -26,6 +26,12 @@ interface DisplayMessage {
   fileSize?: number;
   isRead?: boolean;
   isError?: boolean;
+  attachments?: Array<{
+    url: string;
+    type: string;
+    name?: string;
+    size?: number;
+  }>;
 }
 
 interface ChatAreaProps {
@@ -37,14 +43,21 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
   const [inputValue, setInputValue] = useState('');
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [loadingNewer, setLoadingNewer] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [hasMore, setHasMore] = useState(false);
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [hasNewer, setHasNewer] = useState(false);
+  const [oldestCursor, setOldestCursor] = useState<string | null>(null);
+  const [newestCursor, setNewestCursor] = useState<string | null>(null);
+  const [attachments, setAttachments] = useState<Array<File>>([]);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const { t } = useLanguage();
-  const { userCache } = useConversations();
+  const { userCache, updateConversationWithNewMessage } = useConversationContext();
   const currentUserId = localStorage.getItem('userId') || '';
 
   // Kiểm tra xem conversation có hợp lệ không
@@ -59,7 +72,9 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
     setError(null);
     setNotFound(false);
     setHasMore(false);
-    setNextCursor(null);
+    setHasNewer(false);
+    setOldestCursor(null);
+    setNewestCursor(null);
     
     // Chỉ tải tin nhắn khi conversation hợp lệ
     if (isValidConversation) {
@@ -70,35 +85,55 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
     }
   }, [conversation?.conversationId]);
 
-  const fetchMessages = async (lastMessageTime?: string) => {
+  const fetchMessages = async (cursor?: string, direction: 'before' | 'after' = 'before') => {
     if (!isValidConversation) {
       setError('Không thể tải tin nhắn. ID cuộc trò chuyện không hợp lệ.');
       return;
     }
     
     try {
-      if (lastMessageTime) {
-        setLoadingMore(true);
+      if (cursor) {
+        if (direction === 'before') {
+          setLoadingMore(true);
+        } else {
+          setLoadingNewer(true);
+        }
       } else {
         setLoading(true);
       }
       setError(null);
       
-      if (!lastMessageTime) {
+      if (!cursor) {
         setNotFound(false);
       }
       
       console.log(`Đang tải tin nhắn cho cuộc trò chuyện: ${conversation.conversationId}`);
+      console.log(`Hướng tải: ${direction}, Cursor: ${cursor || 'none'}`);
       
-      // Lấy tin nhắn với phân trang nếu có
-      const result = await getMessages(conversation.conversationId, lastMessageTime);
+      // Lấy vị trí cuộn hiện tại để khôi phục sau khi tải thêm tin nhắn cũ
+      const scrollContainer = messagesContainerRef.current;
+      const scrollPosition = scrollContainer ? scrollContainer.scrollTop : 0;
+      const scrollHeight = scrollContainer ? scrollContainer.scrollHeight : 0;
+      
+      // Lấy tin nhắn với phân trang và hướng tải
+      const result = await getMessages(conversation.conversationId, cursor, 20, direction);
       console.log('Kết quả API getMessages:', result);
       
       const messagesData = result.messages;
+      const resultDirection = result.direction || direction;
       
-      // Cập nhật trạng thái phân trang
-      setHasMore(result.hasMore || false);
-      setNextCursor(result.nextCursor);
+      // Cập nhật trạng thái phân trang theo hướng tải
+      if (resultDirection === 'before') {
+        setHasMore(result.hasMore || false);
+        if (result.nextCursor) {
+          setOldestCursor(result.nextCursor);
+        }
+      } else {
+        setHasNewer(result.hasMore || false);
+        if (result.nextCursor) {
+          setNewestCursor(result.nextCursor);
+        }
+      }
       
       // Kiểm tra dữ liệu trả về
       if (!Array.isArray(messagesData)) {
@@ -109,7 +144,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
       
       console.log(`Nhận được ${messagesData.length} tin nhắn từ API`);
       
-      if (messagesData.length === 0 && !lastMessageTime) {
+      if (messagesData.length === 0 && !cursor) {
         console.log('Không có tin nhắn nào trong cuộc trò chuyện');
         setMessages([]);
         return;
@@ -126,7 +161,8 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
         
         const sender = userCache[msg.senderId] || { fullname: 'Người dùng', urlavatar: '' };
         
-        return {
+        // Tạo đối tượng tin nhắn hiển thị
+        const displayMessage: DisplayMessage = {
           id: messageId,
           content: msg.content || '',
           timestamp: msg.createdAt || new Date().toISOString(),
@@ -138,25 +174,59 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
           type: (msg.type as 'text' | 'image' | 'file') || 'text',
           isRead: true // Giả sử tất cả tin nhắn đã đọc
         };
+        
+        // Xử lý cho tin nhắn hình ảnh và tập tin
+        if (msg.type === 'image' && msg.attachments && msg.attachments.length > 0) {
+          displayMessage.fileUrl = msg.attachments[0].url;
+        } else if (msg.type === 'file' && msg.attachments && msg.attachments.length > 0) {
+          displayMessage.fileUrl = msg.attachments[0].url;
+          displayMessage.fileName = msg.attachments[0].name;
+          displayMessage.fileSize = msg.attachments[0].size;
+        }
+        
+        // Thêm thông tin đính kèm
+        if (msg.attachments && msg.attachments.length > 0) {
+          displayMessage.attachments = msg.attachments;
+        }
+        
+        return displayMessage;
       }).filter(Boolean) as DisplayMessage[]; // Lọc bỏ các tin nhắn null
       
       console.log(`Đã chuyển đổi thành ${displayMessages.length} tin nhắn hiển thị`);
       
-      // Sắp xếp tin nhắn theo thời gian (cũ nhất lên đầu, mới nhất ở cuối)
-      const sortedMessages = displayMessages.sort((a, b) => 
+      // Sắp xếp tin nhắn theo thời gian tăng dần (cũ nhất lên đầu, mới nhất xuống cuối)
+      const sortedMessages = [...displayMessages].sort((a, b) => 
         new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
       );
       
-      // Cập nhật danh sách tin nhắn
-      if (lastMessageTime) {
-        // Thêm tin nhắn cũ vào đầu danh sách nếu đang tải thêm
-        setMessages(prev => [...sortedMessages, ...prev]);
+      // Cập nhật danh sách tin nhắn dựa trên hướng tải
+      if (cursor) {
+        if (direction === 'before') {
+          // Thêm tin nhắn cũ vào đầu danh sách khi kéo lên
+          setMessages(prev => [...sortedMessages, ...prev]);
+          
+          // Khôi phục vị trí cuộn sau khi thêm tin nhắn cũ để tránh nhảy vị trí
+          setTimeout(() => {
+            if (scrollContainer) {
+              const newScrollHeight = scrollContainer.scrollHeight;
+              const heightDifference = newScrollHeight - scrollHeight;
+              scrollContainer.scrollTop = scrollPosition + heightDifference;
+            }
+          }, 10);
+        } else {
+          // Thêm tin nhắn mới vào cuối danh sách khi kéo xuống
+          setMessages(prev => [...prev, ...sortedMessages]);
+          scrollToBottom();
+        }
       } else {
-        // Thay thế hoàn toàn nếu là lần tải đầu tiên
+        // Thay thế hoàn toàn nếu là lần tải đầu tiên, đảm bảo tin nhắn cũ lên đầu
         setMessages(sortedMessages);
+        
+        // Cuộn xuống sau khi tải xong
+        setTimeout(scrollToBottom, 100);
       }
       
-      console.log(`Đã tải ${sortedMessages.length} tin nhắn`);
+      console.log(`Đã tải ${displayMessages.length} tin nhắn`);
     } catch (error: any) {
       console.error('Lỗi khi tải tin nhắn:', error);
       
@@ -194,51 +264,155 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
     } finally {
       setLoading(false);
       setLoadingMore(false);
-      
-      // Chỉ cuộn xuống dưới khi tải mới, không cuộn khi tải thêm
-      if (!lastMessageTime && messages.length > 0) {
-        setTimeout(scrollToBottom, 100);
-      }
+      setLoadingNewer(false);
     }
   };
 
   // Hàm tải thêm tin nhắn cũ hơn
   const loadMoreMessages = () => {
-    if (hasMore && nextCursor) {
-      fetchMessages(nextCursor);
+    if (hasMore && oldestCursor) {
+      fetchMessages(oldestCursor, 'before');
+    }
+  };
+  
+  // Hàm tải thêm tin nhắn mới hơn
+  const loadNewerMessages = () => {
+    if (hasNewer && newestCursor) {
+      fetchMessages(newestCursor, 'after');
     }
   };
 
+  // Kiểm soát cuộn và tự động tải thêm tin nhắn
+  useEffect(() => {
+    const scrollContainer = messagesContainerRef.current;
+    if (!scrollContainer) return;
+    
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = scrollContainer;
+      
+      // Khi cuộn gần lên đầu, tải thêm tin nhắn cũ
+      if (scrollTop < 50 && hasMore && !loadingMore && oldestCursor) {
+        loadMoreMessages();
+      }
+      
+      // Khi cuộn gần xuống cuối, tải thêm tin nhắn mới (nếu có)
+      if (scrollHeight - scrollTop - clientHeight < 50 && hasNewer && !loadingNewer && newestCursor) {
+        loadNewerMessages();
+      }
+    };
+    
+    scrollContainer.addEventListener('scroll', handleScroll);
+    return () => scrollContainer.removeEventListener('scroll', handleScroll);
+  }, [hasMore, loadingMore, oldestCursor, hasNewer, loadingNewer, newestCursor]);
+
+  // Xử lý chọn tập tin đính kèm
+  const handleAttachmentClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  // Xử lý khi tập tin được chọn
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    // Thêm tập tin vào danh sách đính kèm
+    const newFiles = Array.from(files);
+    setAttachments(prev => [...prev, ...newFiles]);
+    
+    // Reset input để có thể chọn lại cùng tập tin
+    e.target.value = '';
+  };
+
+  // Xóa tập tin khỏi danh sách đính kèm
+  const handleRemoveAttachment = (index: number) => {
+    setAttachments(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // Gửi tin nhắn với tập tin đính kèm
   const handleSendMessage = async () => {
-    if (!inputValue.trim() || !isValidConversation) return;
+    // Kiểm tra xem có nội dung gì để gửi không (văn bản hoặc tập tin)
+    if ((!inputValue.trim() && attachments.length === 0) || !isValidConversation) return;
     
     const tempContent = inputValue;
     setInputValue(''); // Reset input ngay lập tức
     
+    // Xác định loại tin nhắn
+    let messageType = 'text';
+    if (attachments.length > 0) {
+      // Nếu có nhiều tập tin hoặc không phải hình ảnh, thì là 'file'
+      if (attachments.length > 1) {
+        messageType = 'file';
+      } else {
+        // Nếu chỉ có 1 tập tin, kiểm tra xem có phải là hình ảnh không
+        const fileType = attachments[0].type;
+        messageType = fileType.startsWith('image/') ? 'image' : 'file';
+      }
+    }
+    
     // Tạo tin nhắn tạm thời để hiển thị ngay
     const tempMessage: DisplayMessage = {
       id: `temp-${Date.now()}`,
-      content: tempContent,
+      content: tempContent || (messageType === 'image' ? 'Đang gửi hình ảnh...' : 'Đang gửi tập tin...'),
       timestamp: new Date().toISOString(),
       sender: {
         id: currentUserId,
         name: 'Bạn',
         avatar: userCache[currentUserId]?.urlavatar || ''
       },
-      type: 'text',
-      isRead: false
+      type: messageType as 'text' | 'image' | 'file',
+      isRead: false,
+      ...(messageType === 'file' && attachments.length > 0 ? {
+        fileName: attachments[0].name,
+        fileSize: attachments[0].size
+      } : {})
     };
     
-    // Hiển thị tin nhắn tạm thời (luôn đặt ở cuối - tin nhắn mới nhất)
+    // Hiển thị tin nhắn tạm thời - Thêm vào cuối danh sách
     setMessages(prev => [...prev, tempMessage]);
     scrollToBottom();
     
     try {
-      // Gửi tin nhắn thực tế
+      setIsUploading(true);
+      
+      // Chuẩn bị mảng attachments để gửi lên server
+      const attachmentData = [];
+      
+      // Nếu có tập tin đính kèm, xử lý tải lên
+      if (attachments.length > 0) {
+        // Tùy thuộc vào API của bạn, bạn có thể cần tải lên tập tin trước
+        // Và sau đó gửi đường dẫn trong mảng attachments
+        // Ví dụ đơn giản:
+        for (const file of attachments) {
+          // Tạo một đối tượng FormData để tải lên tập tin
+          const formData = new FormData();
+          formData.append('file', file);
+          
+          // Tải lên tập tin và lấy URL từ server
+          // Đây là ví dụ, bạn cần thay thế bằng API thực tế của bạn
+          // const uploadResponse = await uploadFile(formData);
+          // attachmentData.push({
+          //   url: uploadResponse.fileUrl,
+          //   type: file.type,
+          //   name: file.name,
+          //   size: file.size
+          // });
+          
+          // Giả lập trong trường hợp chưa có API tải lên
+          attachmentData.push({
+            url: URL.createObjectURL(file),
+            type: file.type,
+            name: file.name,
+            size: file.size
+          });
+        }
+      }
+      
+      // Gửi tin nhắn với tập tin đính kèm
       const newMessage = await sendMessage(
         conversation.conversationId,
         tempContent,
-        'text'
+        messageType,
+        attachmentData
       );
       
       if (!newMessage || !newMessage.messageId) {
@@ -256,25 +430,44 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
           name: sender.fullname,
           avatar: sender.urlavatar
         },
-        type: 'text',
-        isRead: false
+        type: messageType as 'text' | 'image' | 'file',
+        isRead: false,
+        attachments: newMessage.attachments || attachmentData
       };
       
+      // Thêm thông tin tập tin nếu là tin nhắn tập tin
+      if (messageType === 'file' && attachments.length > 0) {
+        realMessage.fileName = attachments[0].name;
+        realMessage.fileSize = attachments[0].size;
+        realMessage.fileUrl = attachmentData[0]?.url;
+      } else if (messageType === 'image' && attachments.length > 0) {
+        realMessage.fileUrl = attachmentData[0]?.url;
+      }
+      
+      // Cập nhật tin nhắn trong danh sách
       setMessages(prev => 
         prev.map(msg => msg.id === tempMessage.id ? realMessage : msg)
       );
       
-    } catch (error) {
+      // Cập nhật ChatList với tin nhắn mới
+      updateConversationWithNewMessage(conversation.conversationId, newMessage);
+      
+      // Xóa danh sách tập tin đính kèm sau khi gửi
+      setAttachments([]);
+      
+    } catch (error: any) {
       console.error('Lỗi khi gửi tin nhắn:', error);
       // Đánh dấu tin nhắn tạm là lỗi
       setMessages(prev => 
         prev.map(msg => 
           msg.id === tempMessage.id 
-            ? {...msg, content: msg.content + ' (Không gửi được)', isError: true} 
+            ? {...msg, content: error.message ? `${msg.content} (${error.message})` : `${msg.content} (Không gửi được)`, isError: true} 
             : msg
         )
       );
-      message.error('Không thể gửi tin nhắn');
+      message.error(error.message || 'Không thể gửi tin nhắn');
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -340,8 +533,11 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
     <div className="w-full h-full flex flex-col">
       <div className="flex flex-col h-full overflow-hidden bg-white rounded-lg relative">
         {/* Khu vực hiển thị tin nhắn */}
-        <div className="flex-1 overflow-y-auto p-4 bg-gray-50">
-          {/* Nút tải thêm tin nhắn */}
+        <div 
+          ref={messagesContainerRef}
+          className="flex-1 overflow-y-auto p-4 bg-gray-50"
+        >
+          {/* Nút tải thêm tin nhắn cũ hơn */}
           {hasMore && (
             <div className="text-center pb-2">
               <Button 
@@ -350,7 +546,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
                 icon={<DownOutlined rotate={180} />}
                 size="small"
               >
-                Tải thêm tin nhắn
+                Tải thêm tin nhắn cũ hơn
               </Button>
             </div>
           )}
@@ -465,20 +661,82 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
             })}
             <div ref={messagesEndRef} />
           </div>
+          
+          {/* Nút tải thêm tin nhắn mới hơn */}
+          {hasNewer && (
+            <div className="text-center pt-2">
+              <Button 
+                onClick={loadNewerMessages} 
+                loading={loadingNewer}
+                icon={<DownOutlined />}
+                size="small"
+              >
+                Tải thêm tin nhắn mới hơn
+              </Button>
+            </div>
+          )}
+          
+          {loadingNewer && (
+            <div className="text-center py-2">
+              <Spin size="small" /> <span className="text-xs text-gray-500 ml-2">Đang tải tin nhắn mới hơn...</span>
+            </div>
+          )}
         </div>
         
         {/* Khu vực nhập tin nhắn (ẩn nếu không tìm thấy cuộc trò chuyện) */}
         {!notFound && (
           <div className="flex-shrink-0 p-4 border-t border-gray-200 bg-white">
+            {/* Hiển thị danh sách tập tin đính kèm */}
+            {attachments.length > 0 && (
+              <div className="flex flex-wrap gap-2 mb-2">
+                {attachments.map((file, index) => (
+                  <div 
+                    key={index} 
+                    className="flex items-center gap-1 bg-gray-100 rounded px-2 py-1"
+                  >
+                    {file.type.startsWith('image/') ? (
+                      <img 
+                        src={URL.createObjectURL(file)} 
+                        alt={file.name} 
+                        className="w-10 h-10 object-cover rounded"
+                      />
+                    ) : (
+                      <i className="fas fa-file text-gray-500"></i>
+                    )}
+                    <span className="text-xs truncate max-w-32">{file.name}</span>
+                    <button 
+                      onClick={() => handleRemoveAttachment(index)}
+                      className="text-gray-500 hover:text-red-500"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            
             <div className="flex items-center">
               <Input
                 className="flex-1 rounded-lg py-2 text-base"
-                placeholder="Type a message..."
+                placeholder={isUploading ? "Đang tải lên..." : "Type a message..."}
                 variant="outlined"
+                disabled={isUploading}
                 suffix={
                   <div className="flex items-center gap-2 text-gray-500">
                     <BsEmojiSmile className="text-xl cursor-pointer hover:text-primary" />
-                    <PiPaperclipBold className="text-xl cursor-pointer hover:text-primary" />
+                    <PiPaperclipBold 
+                      className="text-xl cursor-pointer hover:text-primary" 
+                      onClick={handleAttachmentClick}
+                    />
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      onChange={handleFileChange}
+                      className="hidden"
+                      multiple
+                      accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
+                      aria-label="Tải lên tập tin đính kèm"
+                    />
                   </div>
                 }
                 value={inputValue}
@@ -490,6 +748,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
                 shape="circle"
                 icon={<SendOutlined />}
                 onClick={handleSendMessage}
+                loading={isUploading}
                 className="ml-2"
               />
             </div>

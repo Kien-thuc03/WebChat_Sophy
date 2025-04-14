@@ -4,6 +4,12 @@ export interface Message {
   content: string;
   type: string;
   createdAt: string;
+  attachments?: Array<{
+    url: string;
+    type: string;
+    name?: string;
+    size?: number;
+  }>;
 }
 
 interface UnreadCount {

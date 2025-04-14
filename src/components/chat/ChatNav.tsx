@@ -5,27 +5,27 @@ import {
   faEllipsisH,
   faTag,
 } from "@fortawesome/free-solid-svg-icons";
-import {
-  useConversations,
-  TabType,
-} from "../../features/chat/hooks/useConversations";
+import { TabType } from "../../features/chat/hooks/useConversations";
+import { useConversationContext } from "../../features/chat/context/ConversationContext";
 import { useLanguage } from "../../features/auth/context/LanguageContext"; // Import context
 
 const ChatNav: React.FC = () => {
-  const {
-    activeTab,
-    labels,
-    isLabelMenuOpen,
-    isMoreMenuOpen,
-    handleTabChange,
-    handleLabelSelect,
-    handleMarkAsRead,
-    handleManageLabels,
-    toggleLabelMenu,
-    toggleMoreMenu,
-    handleClickOutside,
-  } = useConversations();
   const { t } = useLanguage(); // Sử dụng context
+  const [activeTab, setActiveTab] = useState<TabType>("all");
+  const [isLabelMenuOpen, setIsLabelMenuOpen] = useState(false);
+  const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
+  // Chỉ sử dụng các biến đã được dùng trong component
+  const { } = useConversationContext();
+  
+  // Định nghĩa các nhãn cố định
+  const [labels, setLabels] = useState([
+    { id: "customer", name: "Khách hàng", color: "rgb(217, 27, 27)", selected: false },
+    { id: "family", name: "Gia đình", color: "rgb(75, 195, 119)", selected: false },
+    { id: "work", name: "Công việc", color: "rgb(255, 105, 5)", selected: false },
+    { id: "friends", name: "Bạn bè", color: "rgb(111, 63, 207)", selected: false },
+    { id: "reply_later", name: "Trả lời sau", color: "rgb(250, 192, 0)", selected: false },
+    { id: "stranger", name: "Tin nhắn từ người lạ", color: "#666", selected: false },
+  ]);
 
   const tabsRef = useRef<Record<TabType, HTMLDivElement | null>>({
     all: null,
@@ -41,21 +41,38 @@ const ChatNav: React.FC = () => {
     left: 0,
   });
 
+  // Xử lý khi người dùng click bên ngoài menu
+  const handleClickOutside = (event: MouseEvent) => {
+    if (
+      labelMenuRef.current &&
+      !labelMenuRef.current.contains(event.target as Node) &&
+      labelButtonRef.current &&
+      !labelButtonRef.current.contains(event.target as Node) &&
+      isLabelMenuOpen
+    ) {
+      setIsLabelMenuOpen(false);
+    }
+
+    if (
+      moreMenuRef.current &&
+      !moreMenuRef.current.contains(event.target as Node) &&
+      moreButtonRef.current &&
+      !moreButtonRef.current.contains(event.target as Node) &&
+      isMoreMenuOpen
+    ) {
+      setIsMoreMenuOpen(false);
+    }
+  };
+
   useEffect(() => {
     const handleOutsideClick = (event: MouseEvent) => {
-      handleClickOutside(
-        event,
-        labelMenuRef,
-        labelButtonRef,
-        moreMenuRef,
-        moreButtonRef
-      );
+      handleClickOutside(event);
     };
     document.addEventListener("mousedown", handleOutsideClick);
     return () => {
       document.removeEventListener("mousedown", handleOutsideClick);
     };
-  }, [handleClickOutside]);
+  }, [isLabelMenuOpen, isMoreMenuOpen]);
 
   useEffect(() => {
     const activeTabElement = tabsRef.current[activeTab];
@@ -67,8 +84,36 @@ const ChatNav: React.FC = () => {
     }
   }, [activeTab]);
 
-  const handleTabClick = (tab: TabType) => {
-    handleTabChange(tab);
+  const handleTabChange = (tab: TabType) => {
+    setActiveTab(tab);
+  };
+
+  const handleLabelSelect = (labelId: string) => {
+    setLabels(prevLabels => 
+      prevLabels.map(label => 
+        label.id === labelId ? { ...label, selected: !label.selected } : label
+      )
+    );
+  };
+
+  const handleMarkAsRead = () => {
+    // TODO: Implement mark as read functionality
+    console.log("Đánh dấu đã đọc");
+  };
+
+  const handleManageLabels = () => {
+    // TODO: Implement manage labels functionality
+    console.log("Quản lý thẻ phân loại");
+  };
+
+  const toggleLabelMenu = () => {
+    setIsLabelMenuOpen(!isLabelMenuOpen);
+    if (isMoreMenuOpen) setIsMoreMenuOpen(false);
+  };
+
+  const toggleMoreMenu = () => {
+    setIsMoreMenuOpen(!isMoreMenuOpen);
+    if (isLabelMenuOpen) setIsLabelMenuOpen(false);
   };
 
   return (
@@ -80,7 +125,7 @@ const ChatNav: React.FC = () => {
           <div
             ref={(el) => (tabsRef.current.all = el)}
             className={`px-2 py-2 cursor-pointer ${activeTab === "all" ? "selected" : ""}`}
-            onClick={() => handleTabClick("all")}>
+            onClick={() => handleTabChange("all")}>
             <div
               className={`${activeTab === "all" ? "text-blue-500 font-semibold" : "text-gray-500"} text-sm`}>
               {t?.all || "Tất cả"}
@@ -90,7 +135,7 @@ const ChatNav: React.FC = () => {
           <div
             ref={(el) => (tabsRef.current.unread = el)}
             className={`px-2 py-2 cursor-pointer ${activeTab === "unread" ? "selected" : ""}`}
-            onClick={() => handleTabClick("unread")}>
+            onClick={() => handleTabChange("unread")}>
             <div
               className={`${activeTab === "unread" ? "text-blue-500 font-semibold" : "text-gray-500"} text-sm`}>
               {t?.unread || "Chưa đọc"}
