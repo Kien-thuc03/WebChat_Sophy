@@ -563,31 +563,6 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
     }
   };
 
-  // Hàm debug để kiểm tra các biến trạng thái phân trang
-  const debugPagination = () => {
-    console.log('Debug pagination state:', {
-      hasMore,
-      hasNewer,
-      oldestCursor,
-      newestCursor,
-      messageCount: messages.length
-    });
-  };
-
-  // Hàm debug để tải thêm tin nhắn ngay cả khi hasMore là false
-  const forceLoadMoreMessages = useCallback(async () => {
-    if (loadingMore || !oldestCursor) return;
-    try {
-      setLoadingMore(true);
-      await fetchMessages(oldestCursor, 'before');
-    } catch (error) {
-      message.error("Lỗi khi tải thêm tin nhắn!");
-      console.error("Error force loading more messages:", error);
-    } finally {
-      setLoadingMore(false);
-    }
-  }, [loadingMore, oldestCursor, fetchMessages]);
-
   // Nếu không có conversation hợp lệ, hiển thị thông báo
   if (!isValidConversation) {
     return (
@@ -617,21 +592,6 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
                 size="small"
               >
                 Tải thêm
-              </Button>
-            </div>
-          )}
-          
-          {/* Debug button - chỉ hiện trong môi trường development */}
-          {process.env.NODE_ENV === 'development' && messages.length > 0 && (
-            <div className="load-more-container">
-              <Button 
-                onClick={forceLoadMoreMessages} 
-                loading={loadingMore}
-                icon={<DownOutlined />}
-                size="small"
-                danger
-              >
-                Debug: Force Load More
               </Button>
             </div>
           )}
@@ -839,19 +799,6 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
                 className="ml-2"
               />
             </div>
-            
-            {/* Debug button - Only show in development environment */}
-            {process.env.NODE_ENV === 'development' && (
-              <div className="mt-2 text-right">
-                <Button 
-                  size="small" 
-                  type="link" 
-                  onClick={debugPagination}
-                >
-                  Debug Pagination
-                </Button>
-              </div>
-            )}
           </div>
         )}
       </div>
