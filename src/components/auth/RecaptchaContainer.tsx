@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { RecaptchaVerifier } from 'firebase/auth';
 import { auth } from '../../utils/firebase-config';
+import { useAuth } from '../../features/auth/hooks/useAuth';
 
 // Define the window interface extension
 declare global {
@@ -42,6 +43,15 @@ function addGlobalReCaptchaStyle() {
       /* Ẩn các reCAPTCHA container trùng lặp bên ngoài container chính */
       body > div.grecaptcha-badge,
       body > div > div > div.grecaptcha-badge {
+        visibility: hidden !important;
+        opacity: 0 !important;
+      }
+      
+      /* Ẩn tất cả các thành phần reCAPTCHA khi đã đăng nhập */
+      body.user-logged-in .grecaptcha-badge,
+      body.user-logged-in .g-recaptcha,
+      body.user-logged-in iframe[src*="recaptcha"] {
+        display: none !important;
         visibility: hidden !important;
         opacity: 0 !important;
       }
@@ -107,6 +117,7 @@ const RecaptchaContainer: React.FC<RecaptchaContainerProps> = ({
   });
   const [isVerified, setIsVerified] = useState(false);
   const verifierRef = useRef<RecaptchaVerifier | null>(null);
+  const { user } = useAuth();
 
   // Complete cleanup function to remove all reCAPTCHA artifacts
   const cleanupAllRecaptcha = () => {
@@ -461,6 +472,11 @@ const RecaptchaContainer: React.FC<RecaptchaContainerProps> = ({
       }
     };
   }, [onVerified, containerId]);
+
+  // Nếu người dùng đã đăng nhập, không hiển thị reCAPTCHA
+  if (user) {
+    return null;
+  }
 
   // Only show messages when needed
   return isVerified ? (

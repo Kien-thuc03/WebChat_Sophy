@@ -4,7 +4,7 @@ import { faEllipsisH, faChevronRight } from "@fortawesome/free-solid-svg-icons";
 import { List } from "antd";
 import Header from "../header/Header";
 import { Avatar } from "../common/Avatar";
-import { useConversations } from "../../features/chat/hooks/useConversations";
+import { useConversationContext } from "../../features/chat/context/ConversationContext";
 import ErrorBoundary from "../common/ErrorBoundary";
 import { formatMessageTime } from "../../utils/dateUtils";
 import ChatNav from "./ChatNav";
@@ -23,7 +23,7 @@ interface ChatListProps {
 
 const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
   const { conversations, userCache, displayNames, userAvatars } =
-    useConversations();
+    useConversationContext();
   const { t } = useLanguage();
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const [selectedConversation, setSelectedConversation] = useState<

@@ -1,9 +1,22 @@
 @import "tailwindcss";
-
 html[data-theme="dark"] {
-  /* Các quy tắc tùy chỉnh cho dark mode nếu cần */
+    /* Các quy tắc tùy chỉnh cho dark mode nếu cần */
 }
 
 html[data-theme="light"] {
-  /* Các quy tắc tùy chỉnh cho light mode nếu cần */
+    /* Các quy tắc tùy chỉnh cho light mode nếu cần */
+}
+
+
+/* Ẩn reCAPTCHA khi đã đăng nhập */
+
+body.user-logged-in .grecaptcha-badge,
+body.user-logged-in .g-recaptcha,
+body.user-logged-in iframe[src*="recaptcha"],
+body.user-logged-in div[style*="z-index: 2000000000"] {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    z-index: -9999 !important;
 }

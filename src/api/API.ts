@@ -554,26 +554,27 @@ const logApiError = (endpoint: string, error: any) => {
 export const getMessages = async (
   conversationId: string,
   lastMessageTime?: string,
-  limit = 20
+  limit = 20,
+  direction: 'before' | 'after' = 'before'
 ) => {
   try {
     console.log(
       `getMessages: Đang lấy tin nhắn cho cuộc trò chuyện ${conversationId}`
     );
-    console.log(`API URL: /api/conversations/${conversationId}`);
-    console.log("Parameters:", { lastMessageTime, limit });
+    console.log(`API URL: /api/messages/${conversationId}`);
+    console.log("Parameters:", { lastMessageTime, limit, direction });
 
     if (!conversationId || conversationId === "undefined") {
       console.log("getMessages: conversationId không hợp lệ");
-      return { messages: [], hasMore: false, nextCursor: null };
+      return { messages: [], hasMore: false, nextCursor: null, direction };
     }
 
     // Xây dựng tham số query
-    const params: any = { limit };
+    const params: any = {};
     if (lastMessageTime) {
       params.lastMessageTime = lastMessageTime;
+      params.direction = direction;
     }
-
     // Thêm timeout để tránh treo vô hạn
     const response = await apiClient.get(`/api/messages/${conversationId}`, {
       params,
@@ -584,10 +585,13 @@ export const getMessages = async (
       `getMessages: Nhận được phản hồi với status ${response.status}`
     );
 
+    // Log the entire response for debugging
+    console.log("getMessages: Raw response data:", response.data);
+
     // Kiểm tra và xử lý dữ liệu trả về
     if (!response.data) {
       console.error("getMessages: Không có dữ liệu từ server");
-      return { messages: [], hasMore: false, nextCursor: null };
+      return { messages: [], hasMore: false, nextCursor: null, direction };
     }
 
     console.log("getMessages: Cấu trúc dữ liệu nhận được:", {
@@ -601,6 +605,7 @@ export const getMessages = async (
     let messages = [];
     let hasMore = false;
     let nextCursor = null;
+    let responseDirection = direction;
 
     if (Array.isArray(response.data)) {
       // Trường hợp 1: Dữ liệu trả về là mảng tin nhắn trực tiếp
@@ -614,14 +619,25 @@ export const getMessages = async (
       // Trường hợp 2: Dữ liệu nằm trong property messages
       console.log("getMessages: Dữ liệu trả về chứa mảng messages");
       messages = response.data.messages;
-      hasMore = response.data.hasMore || false;
-      nextCursor = response.data.nextCursor || null;
+      
+      // Sử dụng nullish coalescing để đảm bảo giá trị boolean chính xác
+      hasMore = response.data.hasMore ?? false;
+      nextCursor = response.data.nextCursor ?? null;
+      responseDirection = response.data.direction || direction;
+      
+      // Log pagination info
+      console.log("getMessages: Thông tin phân trang:", {
+        hasMore, 
+        nextCursor, 
+        direction: responseDirection
+      });
     } else if (response.data && Array.isArray(response.data.data)) {
       // Trường hợp 3: Dữ liệu nằm trong property data
       console.log("getMessages: Dữ liệu trả về chứa mảng data");
       messages = response.data.data;
-      hasMore = response.data.hasMore || false;
-      nextCursor = response.data.nextCursor || null;
+      hasMore = response.data.hasMore ?? false;
+      nextCursor = response.data.nextCursor ?? null;
+      responseDirection = response.data.direction || direction;
     } else if (
       response.data &&
       response.data.messageList &&
@@ -630,16 +646,18 @@ export const getMessages = async (
       // Trường hợp 4: Dữ liệu nằm trong property messageList
       console.log("getMessages: Dữ liệu trả về chứa mảng messageList");
       messages = response.data.messageList;
-      hasMore = response.data.hasMore || false;
-      nextCursor = response.data.nextCursor || null;
+      hasMore = response.data.hasMore ?? false;
+      nextCursor = response.data.nextCursor ?? null;
+      responseDirection = response.data.direction || direction;
     } else if (response.data && response.data.conversationId) {
       // Trường hợp 5: Nhận được đối tượng conversation
       console.log("getMessages: Nhận được đối tượng conversation");
       // Kiểm tra xem đối tượng conversation có chứa tin nhắn không
       if (response.data.messages && Array.isArray(response.data.messages)) {
         messages = response.data.messages;
-        hasMore = response.data.hasMore || false;
-        nextCursor = response.data.nextCursor || null;
+        hasMore = response.data.hasMore ?? false;
+        nextCursor = response.data.nextCursor ?? null;
+        responseDirection = response.data.direction || direction;
       } else {
         // Nếu không có tin nhắn trong đối tượng conversation, trả về mảng rỗng
         console.log(
@@ -664,17 +682,22 @@ export const getMessages = async (
       return msg;
     });
 
-    // Sắp xếp tin nhắn theo timestamp (cũ -> mới)
-    const sortedMessages = normalizedMessages.sort((a: any, b: any) => {
-      const timeA = new Date(a.createdAt || 0).getTime();
-      const timeB = new Date(b.createdAt || 0).getTime();
-      return timeA - timeB; // Sắp xếp tăng dần theo thời gian
+    console.log("getMessages: Kết quả trả về:", {
+      messages: normalizedMessages.length,
+      hasMore,
+      nextCursor,
+      direction: responseDirection
     });
 
-    return { messages: sortedMessages, hasMore, nextCursor };
+    return { 
+      messages: normalizedMessages, 
+      hasMore, 
+      nextCursor, 
+      direction: responseDirection 
+    };
   } catch (error: any) {
     logApiError("getMessages", error);
-    return { messages: [], hasMore: false, nextCursor: null };
+    return { messages: [], hasMore: false, nextCursor: null, direction };
   }
 };
 
@@ -682,7 +705,8 @@ export const getMessages = async (
 export const sendMessage = async (
   conversationId: string,
   content: string,
-  type: string = "text"
+  type: string = "text",
+  attachments: any[] = []
 ): Promise<Message> => {
   try {
     // Kiểm tra tham số đầu vào
@@ -701,10 +725,12 @@ export const sendMessage = async (
 
     // Gửi yêu cầu với timeout để tránh treo vô hạn
     const response = await apiClient.post(
-      `/api/conversations/${conversationId}/messages`,
+      `/api/messages/send`,
       {
+        conversationId,
         content,
         type,
+        attachments
       },
       {
         timeout: 10000, // Timeout 10 giây
@@ -738,7 +764,7 @@ export const sendMessage = async (
         throw new Error("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.");
       } else if (error.response.status === 403) {
         throw new Error(
-          "Bạn không có quyền gửi tin nhắn vào cuộc trò chuyện này."
+          error.response.data?.message || "Bạn không có quyền gửi tin nhắn vào cuộc trò chuyện này."
         );
       } else if (error.response.status === 404) {
         throw new Error("Không tìm thấy cuộc trò chuyện.");
