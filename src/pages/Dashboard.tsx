@@ -7,13 +7,20 @@ import SettingsMenu from "../components/content/SettingsMenu";
 import UserModal from "../components/content/modal/UserModal";
 import SettingsModal from "../components/content/modal/SettingsModal";
 import MainContent from "../components/content/MainContent";
+import ContactList from "../components/contact/ContactList";
+import FriendList from "../components/contact/FriendList";
+import RequestList from "../components/contact/RequestList";
 import { Conversation } from "../features/chat/types/conversationTypes";
+import { useLanguage } from "../features/auth/context/LanguageContext";
 
 const Dashboard: React.FC = () => {
+  const { t } = useLanguage();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
+  const [activeSection, setActiveSection] = useState<string>("chat");
+  const [contactOption, setContactOption] = useState<string>("friends");
   const settingsRef = useRef<HTMLDivElement>(null);
 
   // Xử lý khi chọn cuộc trò chuyện
@@ -93,16 +100,62 @@ const Dashboard: React.FC = () => {
     setIsSettingsModalOpen(false);
   };
 
+  const handleSectionChange = (section: string) => {
+    // Only update activeSection for the top section icons
+    if (["chat", "friends", "tasks"].includes(section)) {
+      setActiveSection(section);
+      
+      // Reset selected conversation when switching to a non-chat section
+      if (section !== "chat") {
+        setSelectedConversation(null);
+      }
+    }
+    // For bottom section icons, we don't change the activeSection
+  };
+
+  const handleContactOptionSelect = (option: string) => {
+    setContactOption(option);
+    console.log("Selected contact option:", option);
+  };
+
+  const handleFriendSelect = (friendId: string) => {
+    console.log("Selected friend:", friendId);
+    // Here you would typically fetch the conversation with this friend
+    // and then set it as the selected conversation
+  };
+
   return (
     <div className="flex h-screen overflow-hidden">
       <Sidebar
         onSettingsClick={handleToggleSettings}
         onOpenModal={handleOpenModal}
         openSettingsModal={handleOpenSettingsModal}
+        onSectionChange={handleSectionChange}
       />
-      <ChatList onSelectConversation={handleSelectConversation} />
+      
+      {/* Left panel - changes based on active section */}
+      {activeSection === "chat" && (
+        <ChatList onSelectConversation={handleSelectConversation} />
+      )}
+      
+      {activeSection === "friends" && (
+        <ContactList onSelectOption={handleContactOptionSelect} />
+      )}
+      
+      {activeSection === "tasks" && (
+        <div className="w-80 bg-white dark:bg-gray-900 border-r dark:border-gray-700 h-full flex flex-col overflow-hidden">
+          <div className="p-4 border-b dark:border-gray-700">
+            <h2 className="text-lg font-semibold">{t.utilities || "Tiện ích"}</h2>
+          </div>
+          <div className="p-4">
+            <p className="text-gray-500">{t.utilities || "Danh sách tiện ích"}</p>
+          </div>
+        </div>
+      )}
+      
+      {/* Main content area */}
       <div className="flex-1 flex flex-col h-full overflow-hidden">
-        {selectedConversation ? (
+        {activeSection === "chat" && selectedConversation ? (
           <>
             <ChatHeader
               conversation={selectedConversation}
@@ -123,6 +176,21 @@ const Dashboard: React.FC = () => {
               <ChatArea conversation={selectedConversation} />
             </div>
           </>
+        ) : activeSection === "friends" && contactOption === "friends" ? (
+          <FriendList onSelectFriend={handleFriendSelect} />
+        ) : activeSection === "friends" && contactOption === "friendRequests" ? (
+          <RequestList onSelectFriend={handleFriendSelect} />
+        ) : activeSection === "friends" && contactOption !== "friends" && contactOption !== "friendRequests" ? (
+          <div className="flex items-center justify-center h-full bg-gray-50 dark:bg-gray-800">
+            <p className="text-gray-500 dark:text-gray-400">
+              {contactOption === "groups" && (t.group_community_list || "Danh sách nhóm và cộng đồng")}
+              {contactOption === "groupInvites" && (t.group_invites || "Lời mời vào nhóm và cộng đồng")}
+            </p>
+          </div>
+        ) : activeSection === "tasks" ? (
+          <div className="flex items-center justify-center h-full bg-gray-50 dark:bg-gray-800">
+            <p className="text-gray-500 dark:text-gray-400">{t.utilities || "Tiện ích"}</p>
+          </div>
         ) : (
           <MainContent />
         )}

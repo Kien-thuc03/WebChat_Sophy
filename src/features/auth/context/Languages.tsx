@@ -177,6 +177,11 @@ const translations = {
     chat_background: "Hình nền chat",
     use_avatar_as_background: "Sử dụng Avatar làm hình nền",
     same_password_error: "Mật khẩu mới không được trùng với mật khẩu hiện tại",
+
+    friend_list: "Danh sách bạn bè",
+    group_community_list: "Danh sách nhóm và cộng đồng",
+    friend_requests: "Lời mời kết bạn",
+    group_invites: "Lời mời vào nhóm và cộng đồng",
   },
   en: {
     settings: "Settings",
@@ -354,6 +359,10 @@ const translations = {
     chat_background: "Chat Background",
     use_avatar_as_background: "Use Avatar as Chat Background",
     same_password_error: "New password cannot be the same as current password",
+    friend_list: "Friends List",
+    group_community_list: "Groups and Communities List",
+    friend_requests: "Friend Requests",
+    group_invites: "Group and Community Invites",
   },
 };
 
