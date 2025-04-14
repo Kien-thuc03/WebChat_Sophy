@@ -12,6 +12,10 @@ import FriendList from "../components/contact/FriendList";
 import RequestList from "../components/contact/RequestList";
 import { Conversation } from "../features/chat/types/conversationTypes";
 import { useLanguage } from "../features/auth/context/LanguageContext";
+import ChatInfo from "../components/chat/ChatInfo";
+import { Layout } from 'antd';
+
+const { Content, Sider } = Layout;
 
 const Dashboard: React.FC = () => {
   const { t } = useLanguage();
@@ -21,6 +25,7 @@ const Dashboard: React.FC = () => {
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const [activeSection, setActiveSection] = useState<string>("chat");
   const [contactOption, setContactOption] = useState<string>("friends");
+  const [showChatInfo, setShowChatInfo] = useState(true); // Default to true
   const settingsRef = useRef<HTMLDivElement>(null);
 
   // Xử lý khi chọn cuộc trò chuyện
@@ -124,6 +129,10 @@ const Dashboard: React.FC = () => {
     // and then set it as the selected conversation
   };
 
+  const handleToggleChatInfo = () => {
+    setShowChatInfo(prev => !prev);
+  };
+
   return (
     <div className="flex h-screen overflow-hidden">
       <Sidebar
@@ -154,28 +163,29 @@ const Dashboard: React.FC = () => {
       )}
       
       {/* Main content area */}
-      <div className="flex-1 flex flex-col h-full overflow-hidden">
+      <Layout className="flex-1 h-full">
         {activeSection === "chat" && selectedConversation ? (
-          <>
-            <ChatHeader
-              conversation={selectedConversation}
-              isGroup={selectedConversation.isGroup}
-              groupName={
-                selectedConversation.isGroup
-                  ? selectedConversation.groupName
-                  : selectedConversation.receiverId
-              }
-              groupAvatarUrl={
-                selectedConversation.isGroup
-                  ? selectedConversation.groupAvatarUrl || "/images/group-avatar.png"
-                  : "/images/default-avatar.png"
-              }
-              groupMembers={selectedConversation.groupMembers}
-            />
-            <div className="flex-1 overflow-hidden">
-              <ChatArea conversation={selectedConversation} />
-            </div>
-          </>
+          <Layout>
+            <Layout className="flex flex-col">
+              <ChatHeader
+                conversation={selectedConversation}
+                isGroup={selectedConversation.isGroup}
+                groupName={selectedConversation.groupName}
+                groupAvatarUrl={selectedConversation.groupAvatarUrl}
+                groupMembers={selectedConversation.groupMembers}
+                onInfoClick={handleToggleChatInfo}
+                showInfo={showChatInfo}
+              />
+              <Content className="flex-1 overflow-hidden">
+                <ChatArea conversation={selectedConversation} />
+              </Content>
+            </Layout>
+            {showChatInfo && (
+              <Sider width={300} theme="light" className="border-l border-gray-200">
+                <ChatInfo conversation={selectedConversation} />
+              </Sider>
+            )}
+          </Layout>
         ) : activeSection === "friends" && contactOption === "friends" ? (
           <FriendList onSelectFriend={handleFriendSelect} />
         ) : activeSection === "friends" && contactOption === "friendRequests" ? (
@@ -194,7 +204,7 @@ const Dashboard: React.FC = () => {
         ) : (
           <MainContent />
         )}
-      </div>
+      </Layout>
 
       {isSettingsOpen && (
         <div ref={settingsRef}>

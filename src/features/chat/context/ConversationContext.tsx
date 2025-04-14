@@ -10,6 +10,8 @@ interface ConversationContextType {
   displayNames: Record<string, string>;
   updateConversationWithNewMessage: (conversationId: string, message: Message) => void;
   refreshConversations: () => Promise<void>;
+  selectedConversation: Conversation | null;
+  setSelectedConversation: React.Dispatch<React.SetStateAction<Conversation | null>>;
 }
 
 const ConversationContext = createContext<ConversationContextType | undefined>(undefined);
@@ -19,6 +21,7 @@ export const ConversationProvider: React.FC<{ children: ReactNode }> = ({ childr
   const [userCache, setUserCache] = useState<Record<string, User>>({});
   const [displayNames, setDisplayNames] = useState<Record<string, string>>({});
   const [userAvatars, setUserAvatars] = useState<Record<string, string>>({});
+  const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
 
   // Định dạng tên nhóm chat dựa trên danh sách thành viên
   const formatGroupName = (members: string[] = []) => {
@@ -176,7 +179,9 @@ export const ConversationProvider: React.FC<{ children: ReactNode }> = ({ childr
     userAvatars,
     displayNames,
     updateConversationWithNewMessage,
-    refreshConversations
+    refreshConversations,
+    selectedConversation,
+    setSelectedConversation
   };
 
   return (
