@@ -41,6 +41,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
+  // Thêm class vào body để ẩn reCAPTCHA khi người dùng đã đăng nhập
+  useEffect(() => {
+    if (user) {
+      document.body.classList.add('user-logged-in');
+      
+      // Ẩn tất cả các thành phần reCAPTCHA
+      const recaptchaElements = document.querySelectorAll('.grecaptcha-badge, .g-recaptcha, iframe[src*="recaptcha"]');
+      recaptchaElements.forEach(element => {
+        if (element instanceof HTMLElement) {
+          element.style.display = 'none';
+          element.style.visibility = 'hidden';
+          element.style.opacity = '0';
+        }
+      });
+    } else {
+      document.body.classList.remove('user-logged-in');
+    }
+  }, [user]);
+
   const login = useCallback(
     async (form: { phone: string; password: string }) => {
       try {
