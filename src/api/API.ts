@@ -570,12 +570,11 @@ export const getMessages = async (
     }
 
     // Xây dựng tham số query
-    const params: any = { limit };
+    const params: any = {};
     if (lastMessageTime) {
       params.lastMessageTime = lastMessageTime;
       params.direction = direction;
     }
-
     // Thêm timeout để tránh treo vô hạn
     const response = await apiClient.get(`/api/messages/${conversationId}`, {
       params,
@@ -585,6 +584,9 @@ export const getMessages = async (
     console.log(
       `getMessages: Nhận được phản hồi với status ${response.status}`
     );
+
+    // Log the entire response for debugging
+    console.log("getMessages: Raw response data:", response.data);
 
     // Kiểm tra và xử lý dữ liệu trả về
     if (!response.data) {
@@ -617,15 +619,24 @@ export const getMessages = async (
       // Trường hợp 2: Dữ liệu nằm trong property messages
       console.log("getMessages: Dữ liệu trả về chứa mảng messages");
       messages = response.data.messages;
-      hasMore = response.data.hasMore || false;
-      nextCursor = response.data.nextCursor || null;
+      
+      // Sử dụng nullish coalescing để đảm bảo giá trị boolean chính xác
+      hasMore = response.data.hasMore ?? false;
+      nextCursor = response.data.nextCursor ?? null;
       responseDirection = response.data.direction || direction;
+      
+      // Log pagination info
+      console.log("getMessages: Thông tin phân trang:", {
+        hasMore, 
+        nextCursor, 
+        direction: responseDirection
+      });
     } else if (response.data && Array.isArray(response.data.data)) {
       // Trường hợp 3: Dữ liệu nằm trong property data
       console.log("getMessages: Dữ liệu trả về chứa mảng data");
       messages = response.data.data;
-      hasMore = response.data.hasMore || false;
-      nextCursor = response.data.nextCursor || null;
+      hasMore = response.data.hasMore ?? false;
+      nextCursor = response.data.nextCursor ?? null;
       responseDirection = response.data.direction || direction;
     } else if (
       response.data &&
@@ -635,8 +646,8 @@ export const getMessages = async (
       // Trường hợp 4: Dữ liệu nằm trong property messageList
       console.log("getMessages: Dữ liệu trả về chứa mảng messageList");
       messages = response.data.messageList;
-      hasMore = response.data.hasMore || false;
-      nextCursor = response.data.nextCursor || null;
+      hasMore = response.data.hasMore ?? false;
+      nextCursor = response.data.nextCursor ?? null;
       responseDirection = response.data.direction || direction;
     } else if (response.data && response.data.conversationId) {
       // Trường hợp 5: Nhận được đối tượng conversation
@@ -644,8 +655,8 @@ export const getMessages = async (
       // Kiểm tra xem đối tượng conversation có chứa tin nhắn không
       if (response.data.messages && Array.isArray(response.data.messages)) {
         messages = response.data.messages;
-        hasMore = response.data.hasMore || false;
-        nextCursor = response.data.nextCursor || null;
+        hasMore = response.data.hasMore ?? false;
+        nextCursor = response.data.nextCursor ?? null;
         responseDirection = response.data.direction || direction;
       } else {
         // Nếu không có tin nhắn trong đối tượng conversation, trả về mảng rỗng
@@ -671,14 +682,12 @@ export const getMessages = async (
       return msg;
     });
 
-    // Sắp xếp tin nhắn theo timestamp (cũ -> mới)
-    // Chỉ sắp xếp lại nếu dữ liệu từ API không được sắp xếp sẵn
-    // Không cần sắp xếp lại vì API đã sắp xếp theo đúng thứ tự rồi
-    // const sortedMessages = normalizedMessages.sort((a: any, b: any) => {
-    //   const timeA = new Date(a.createdAt || 0).getTime();
-    //   const timeB = new Date(b.createdAt || 0).getTime();
-    //   return timeA - timeB; // Sắp xếp tăng dần theo thời gian
-    // });
+    console.log("getMessages: Kết quả trả về:", {
+      messages: normalizedMessages.length,
+      hasMore,
+      nextCursor,
+      direction: responseDirection
+    });
 
     return { 
       messages: normalizedMessages, 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Input, Button, message, Alert, Empty, Spin } from 'antd';
 import { SendOutlined, PaperClipOutlined, SmileOutlined, ReloadOutlined, DownOutlined } from '@ant-design/icons';
 import { Conversation, Message } from '../../features/chat/types/conversationTypes';
@@ -78,7 +78,8 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
     
     // Chỉ tải tin nhắn khi conversation hợp lệ
     if (isValidConversation) {
-      fetchMessages();
+      // Tải tin nhắn gần nhất với hướng 'before' và không có cursor
+      fetchMessages(undefined, 'before');
     } else if (conversation && conversation.conversationId) {
       console.error(`Conversation ID không hợp lệ: ${conversation.conversationId}`);
       setError(`ID cuộc trò chuyện không hợp lệ. Vui lòng thử lại hoặc chọn cuộc trò chuyện khác.`);
@@ -116,21 +117,36 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
       const scrollHeight = scrollContainer ? scrollContainer.scrollHeight : 0;
       
       // Lấy tin nhắn với phân trang và hướng tải
+      // Sử dụng limit=20 để lấy 20 tin nhắn gần nhất
       const result = await getMessages(conversation.conversationId, cursor, 20, direction);
       console.log('Kết quả API getMessages:', result);
+      
+      // Log phân trang để debug
+      console.log('Thông tin phân trang từ API:', {
+        hasMore: result.hasMore,
+        nextCursor: result.nextCursor,
+        direction: result.direction
+      });
       
       const messagesData = result.messages;
       const resultDirection = result.direction || direction;
       
       // Cập nhật trạng thái phân trang theo hướng tải
+      // Sử dụng nullish coalescing để đảm bảo giá trị boolean chính xác
       if (resultDirection === 'before') {
-        setHasMore(result.hasMore || false);
+        const hasMoreValue = result.hasMore ?? false;
+        console.log(`Cập nhật hasMore = ${hasMoreValue} cho hướng 'before'`);
+        setHasMore(hasMoreValue);
         if (result.nextCursor) {
+          console.log(`Cập nhật oldestCursor = ${result.nextCursor}`);
           setOldestCursor(result.nextCursor);
         }
       } else {
-        setHasNewer(result.hasMore || false);
+        const hasMoreValue = result.hasMore ?? false;
+        console.log(`Cập nhật hasNewer = ${hasMoreValue} cho hướng 'after'`);
+        setHasNewer(hasMoreValue);
         if (result.nextCursor) {
+          console.log(`Cập nhật newestCursor = ${result.nextCursor}`);
           setNewestCursor(result.nextCursor);
         }
       }
@@ -203,7 +219,12 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
       if (cursor) {
         if (direction === 'before') {
           // Thêm tin nhắn cũ vào đầu danh sách khi kéo lên
-          setMessages(prev => [...sortedMessages, ...prev]);
+          setMessages(prev => {
+            // Get unique message IDs to avoid duplicates
+            const existingIds = new Set(prev.map(msg => msg.id));
+            const uniqueNewMessages = sortedMessages.filter(msg => !existingIds.has(msg.id));
+            return [...uniqueNewMessages, ...prev];
+          });
           
           // Khôi phục vị trí cuộn sau khi thêm tin nhắn cũ để tránh nhảy vị trí
           setTimeout(() => {
@@ -215,15 +236,20 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
           }, 10);
         } else {
           // Thêm tin nhắn mới vào cuối danh sách khi kéo xuống
-          setMessages(prev => [...prev, ...sortedMessages]);
-          scrollToBottom();
+          setMessages(prev => {
+            // Get unique message IDs to avoid duplicates
+            const existingIds = new Set(prev.map(msg => msg.id));
+            const uniqueNewMessages = sortedMessages.filter(msg => !existingIds.has(msg.id));
+            return [...prev, ...uniqueNewMessages];
+          });
+          scrollToBottomSmooth();
         }
       } else {
         // Thay thế hoàn toàn nếu là lần tải đầu tiên, đảm bảo tin nhắn cũ lên đầu
         setMessages(sortedMessages);
         
-        // Cuộn xuống sau khi tải xong
-        setTimeout(scrollToBottom, 100);
+        // Cuộn xuống sau khi tải xong - giảm thời gian đợi để cuộn ngay lập tức
+        setTimeout(scrollToBottom, 10);
       }
       
       console.log(`Đã tải ${displayMessages.length} tin nhắn`);
@@ -269,16 +295,26 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
   };
 
   // Hàm tải thêm tin nhắn cũ hơn
-  const loadMoreMessages = () => {
-    if (hasMore && oldestCursor) {
-      fetchMessages(oldestCursor, 'before');
+  const loadMoreMessages = useCallback(async () => {
+    if (loadingMore || !hasMore || !oldestCursor) return;
+    try {
+      setLoadingMore(true);
+      await fetchMessages(oldestCursor, 'before');
+    } catch (error) {
+      message.error("Lỗi khi tải thêm tin nhắn cũ hơn!");
+      console.error("Error loading more messages:", error);
+    } finally {
+      setLoadingMore(false);
     }
-  };
-  
+  }, [loadingMore, hasMore, oldestCursor, fetchMessages]);
+
   // Hàm tải thêm tin nhắn mới hơn
   const loadNewerMessages = () => {
     if (hasNewer && newestCursor) {
+      console.log(`Tải thêm tin nhắn mới hơn với cursor: ${newestCursor}`);
       fetchMessages(newestCursor, 'after');
+    } else {
+      console.log('Không thể tải thêm tin nhắn mới hơn:', { hasNewer, newestCursor });
     }
   };
 
@@ -291,19 +327,21 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
       const { scrollTop, scrollHeight, clientHeight } = scrollContainer;
       
       // Khi cuộn gần lên đầu, tải thêm tin nhắn cũ
-      if (scrollTop < 50 && hasMore && !loadingMore && oldestCursor) {
+      if (scrollTop < 100 && hasMore && !loadingMore && oldestCursor) {
+        console.log('Đang cuộn gần đầu, tải thêm tin nhắn cũ');
         loadMoreMessages();
       }
       
       // Khi cuộn gần xuống cuối, tải thêm tin nhắn mới (nếu có)
       if (scrollHeight - scrollTop - clientHeight < 50 && hasNewer && !loadingNewer && newestCursor) {
+        console.log('Đang cuộn gần cuối, tải thêm tin nhắn mới');
         loadNewerMessages();
       }
     };
     
     scrollContainer.addEventListener('scroll', handleScroll);
     return () => scrollContainer.removeEventListener('scroll', handleScroll);
-  }, [hasMore, loadingMore, oldestCursor, hasNewer, loadingNewer, newestCursor]);
+  }, [hasMore, loadingMore, oldestCursor, hasNewer, loadingNewer, newestCursor, loadMoreMessages, loadNewerMessages]);
 
   // Xử lý chọn tập tin đính kèm
   const handleAttachmentClick = () => {
@@ -351,7 +389,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
     
     // Tạo tin nhắn tạm thời để hiển thị ngay
     const tempMessage: DisplayMessage = {
-      id: `temp-${Date.now()}`,
+      id: `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       content: tempContent || (messageType === 'image' ? 'Đang gửi hình ảnh...' : 'Đang gửi tập tin...'),
       timestamp: new Date().toISOString(),
       sender: {
@@ -369,7 +407,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
     
     // Hiển thị tin nhắn tạm thời - Thêm vào cuối danh sách
     setMessages(prev => [...prev, tempMessage]);
-    scrollToBottom();
+    scrollToBottomSmooth();
     
     try {
       setIsUploading(true);
@@ -473,6 +511,13 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
 
   const scrollToBottom = () => {
     if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'auto' });
+    }
+  };
+
+  // Thêm hàm scrollToBottomSmooth để cuộn mượt trong các trường hợp cần thiết
+  const scrollToBottomSmooth = () => {
+    if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   };
@@ -518,6 +563,31 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
     }
   };
 
+  // Hàm debug để kiểm tra các biến trạng thái phân trang
+  const debugPagination = () => {
+    console.log('Debug pagination state:', {
+      hasMore,
+      hasNewer,
+      oldestCursor,
+      newestCursor,
+      messageCount: messages.length
+    });
+  };
+
+  // Hàm debug để tải thêm tin nhắn ngay cả khi hasMore là false
+  const forceLoadMoreMessages = useCallback(async () => {
+    if (loadingMore || !oldestCursor) return;
+    try {
+      setLoadingMore(true);
+      await fetchMessages(oldestCursor, 'before');
+    } catch (error) {
+      message.error("Lỗi khi tải thêm tin nhắn!");
+      console.error("Error force loading more messages:", error);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [loadingMore, oldestCursor, fetchMessages]);
+
   // Nếu không có conversation hợp lệ, hiển thị thông báo
   if (!isValidConversation) {
     return (
@@ -538,15 +608,30 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
           className="flex-1 overflow-y-auto p-4 bg-gray-50"
         >
           {/* Nút tải thêm tin nhắn cũ hơn */}
-          {hasMore && (
-            <div className="text-center pb-2">
+          {hasMore && messages.length > 0 && (
+            <div className="load-more-container">
               <Button 
                 onClick={loadMoreMessages} 
                 loading={loadingMore}
-                icon={<DownOutlined rotate={180} />}
+                icon={<DownOutlined />}
                 size="small"
               >
-                Tải thêm tin nhắn cũ hơn
+                Tải thêm
+              </Button>
+            </div>
+          )}
+          
+          {/* Debug button - chỉ hiện trong môi trường development */}
+          {process.env.NODE_ENV === 'development' && messages.length > 0 && (
+            <div className="load-more-container">
+              <Button 
+                onClick={forceLoadMoreMessages} 
+                loading={loadingMore}
+                icon={<DownOutlined />}
+                size="small"
+                danger
+              >
+                Debug: Force Load More
               </Button>
             </div>
           )}
@@ -610,7 +695,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
               const showSender = showAvatar;
               
               return (
-                <div key={message.id} className={`flex mb-2 ${isOwn ? 'justify-end' : 'justify-start'}`}>
+                <div key={`${message.id}-${index}`} className={`flex mb-2 ${isOwn ? 'justify-end' : 'justify-start'}`}>
                   {!isOwn && showAvatar && (
                     <div className="flex-shrink-0 mr-2">
                       <Avatar 
@@ -670,6 +755,8 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
                 loading={loadingNewer}
                 icon={<DownOutlined />}
                 size="small"
+                type="primary"
+                ghost
               >
                 Tải thêm tin nhắn mới hơn
               </Button>
@@ -752,6 +839,19 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
                 className="ml-2"
               />
             </div>
+            
+            {/* Debug button - Only show in development environment */}
+            {process.env.NODE_ENV === 'development' && (
+              <div className="mt-2 text-right">
+                <Button 
+                  size="small" 
+                  type="link" 
+                  onClick={debugPagination}
+                >
+                  Debug Pagination
+                </Button>
+              </div>
+            )}
           </div>
         )}
       </div>
