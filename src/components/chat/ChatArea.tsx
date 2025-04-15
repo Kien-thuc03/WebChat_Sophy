@@ -534,8 +534,23 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
 
   // Kiểm tra xem có nên hiển thị avatar cho tin nhắn này không
   const shouldShowAvatar = (index: number, senderId: string) => {
+    // Always show for first message
     if (index === 0) return true;
+    
+    // Show if sender changes from previous message
     if (index > 0 && messages[index - 1].sender.id !== senderId) return true;
+    
+    // Also show avatar if there's a timestamp separator between this message and the previous one
+    if (index > 0) {
+      const currentMsg = messages[index];
+      const prevMsg = messages[index - 1];
+      
+      // If messages have a significant time gap (which would trigger a timestamp separator)
+      if (shouldShowTimestampSeparator(currentMsg, prevMsg)) {
+        return true;
+      }
+    }
+    
     return false;
   };
 
@@ -561,6 +576,38 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
     } finally {
       setRefreshing(false);
     }
+  };
+
+  // Format date for timestamp separator
+  const formatDateForSeparator = (timestamp: string) => {
+    const date = new Date(timestamp);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    
+    // Check if date is today
+    if (date.toDateString() === today.toDateString()) {
+      return `Hôm nay, ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+    }
+    // Check if date is yesterday
+    else if (date.toDateString() === yesterday.toDateString()) {
+      return `Hôm qua, ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+    }
+    // Otherwise show full date
+    else {
+      return `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getFullYear()}, ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+    }
+  };
+
+  // Check if a timestamp separator should be shown between messages
+  const shouldShowTimestampSeparator = (currentMsg: DisplayMessage, prevMsg: DisplayMessage | null) => {
+    if (!prevMsg) return true; // Always show for first message
+    
+    const currentTime = new Date(currentMsg.timestamp).getTime();
+    const prevTime = new Date(prevMsg.timestamp).getTime();
+    
+    // Show separator if time difference is 5 minutes (300000 ms) or more
+    return (currentTime - prevTime) >= 300000;
   };
 
   // Nếu không có conversation hợp lệ, hiển thị thông báo
@@ -652,61 +699,78 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
               
               const isOwn = isOwnMessage(message.sender.id);
               const showAvatar = !isOwn && shouldShowAvatar(index, message.sender.id);
-              const showSender = showAvatar;
+              // Chỉ hiển thị tên người gửi trong nhóm, không hiển thị trong chat 1-1
+              const showSender = showAvatar && conversation.isGroup;
+              
+              // Determine if timestamp separator should be shown
+              const prevMessage = index > 0 ? messages[index - 1] : null;
+              const showTimestamp = shouldShowTimestampSeparator(message, prevMessage);
               
               return (
-                <div key={`${message.id}-${index}`} className={`flex mb-2 ${isOwn ? 'justify-end' : 'justify-start'}`}>
-                  {!isOwn && showAvatar && (
-                    <div className="flex-shrink-0 mr-2">
-                      <Avatar 
-                        name={message.sender.name}
-                        avatarUrl={message.sender.avatar}
-                        size={30}
-                        className="rounded-full"
-                      />
+                <React.Fragment key={`${message.id}-${index}`}>
+                  {/* Timestamp separator */}
+                  {showTimestamp && (
+                    <div className="flex justify-center my-2">
+                      <div className="bg-gray-200 text-gray-600 text-xs px-3 py-1 rounded-full">
+                        {formatDateForSeparator(message.timestamp)}
+                      </div>
                     </div>
                   )}
                   
-                  <div className="flex flex-col" style={{ maxWidth: 'min(80%)' }}>
-                    {showSender && !isOwn && (
-                      <div className="text-xs mb-1 ml-1 text-gray-600 truncate">
-                        {message.sender.name}
+                  {/* Message bubble */}
+                  <div className={`flex mb-2 ${isOwn ? 'justify-end' : 'justify-start'}`}>
+                    {!isOwn && (
+                      <div className={`flex-shrink-0 mr-2 ${showAvatar ? 'visible' : 'invisible'}`}>
+                        <Avatar 
+                          name={message.sender.name}
+                          avatarUrl={message.sender.avatar}
+                          size={30}
+                          className="rounded-full"
+                        />
                       </div>
                     )}
                     
-                    <div 
-                      className={`px-3 py-2 rounded-2xl ${
-                        isOwn 
-                          ? message.isError ? 'bg-red-100 text-red-800' : 'bg-blue-500 text-white rounded-tr-none' 
-                          : 'bg-gray-100 text-gray-800 rounded-tl-none'
-                      } overflow-hidden`}
-                      style={{ wordBreak: 'break-word', maxWidth: '100%' }}
-                    >
-                      {/* Hiển thị nội dung tin nhắn dựa vào loại */}
-                      {message.type === 'image' ? (
-                        <img src={message.fileUrl || message.content} alt="Hình ảnh" className="max-w-full max-h-60 rounded-lg" />
-                      ) : message.type === 'file' ? (
-                        <div className="flex items-center gap-2">
-                          <i className="fas fa-file text-gray-500"></i>
-                          <span className="truncate">{message.fileName || message.content}</span>
-                        </div>
-                      ) : (
-                        <div className="relative">
-                          <p className="text-sm whitespace-pre-wrap break-words">
-                            {message.content}
-                          </p>
+                    <div className="flex flex-col" style={{ maxWidth: 'min(80%)' }}>
+                      {showSender && !isOwn && (
+                        <div className="text-xs mb-1 ml-1 text-gray-600 truncate">
+                          {message.sender.name}
                         </div>
                       )}
-                    </div>
-                    
-                    <div className={`flex text-xs text-gray-500 mt-1 ${isOwn ? 'justify-end' : 'justify-start'}`}>
-                      <span>{formatMessageTime(message.timestamp)}</span>
-                      {isOwn && message.isRead && (
-                        <span className="ml-1 text-blue-500">✓✓</span>
-                      )}
+                      
+                      <div 
+                        className={`px-3 py-2 rounded-2xl ${
+                          isOwn 
+                            ? message.isError ? 'bg-red-100 text-red-800' : 'bg-blue-500 text-white rounded-tr-none' 
+                            : 'bg-gray-100 text-gray-800 rounded-tl-none'
+                        } overflow-hidden`}
+                        style={{ wordBreak: 'break-word', maxWidth: '100%' }}
+                      >
+                        {/* Hiển thị nội dung tin nhắn dựa vào loại */}
+                        {message.type === 'image' ? (
+                          <img src={message.fileUrl || message.content} alt="Hình ảnh" className="max-w-full max-h-60 rounded-lg" />
+                        ) : message.type === 'file' ? (
+                          <div className="flex items-center gap-2">
+                            <i className="fas fa-file text-gray-500"></i>
+                            <span className="truncate">{message.fileName || message.content}</span>
+                          </div>
+                        ) : (
+                          <div className="relative">
+                            <p className="text-sm whitespace-pre-wrap break-words">
+                              {message.content}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                      
+                      <div className={`flex text-xs text-gray-500 mt-1 ${isOwn ? 'justify-end' : 'justify-start'}`}>
+                        <span>{formatMessageTime(message.timestamp)}</span>
+                        {isOwn && message.isRead && (
+                          <span className="ml-1 text-blue-500">✓✓</span>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
+                </React.Fragment>
               );
             })}
             <div ref={messagesEndRef} />
