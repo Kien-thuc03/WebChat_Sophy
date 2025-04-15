@@ -706,6 +706,14 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
               const prevMessage = index > 0 ? messages[index - 1] : null;
               const showTimestamp = shouldShowTimestampSeparator(message, prevMessage);
               
+              // Determine if this is the last message in a sequence from this sender
+              // Show timestamp only for the last message in a sequence
+              const nextMessage = index < messages.length - 1 ? messages[index + 1] : null;
+              const isLastInSequence = 
+                !nextMessage || // It's the last message overall
+                nextMessage.sender.id !== message.sender.id || // Next message is from different sender
+                shouldShowTimestampSeparator(nextMessage, message); // There's a time separator after this message
+              
               return (
                 <React.Fragment key={`${message.id}-${index}`}>
                   {/* Timestamp separator */}
@@ -762,12 +770,15 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
                         )}
                       </div>
                       
-                      <div className={`flex text-xs text-gray-500 mt-1 ${isOwn ? 'justify-end' : 'justify-start'}`}>
-                        <span>{formatMessageTime(message.timestamp)}</span>
-                        {isOwn && message.isRead && (
-                          <span className="ml-1 text-blue-500">✓✓</span>
-                        )}
-                      </div>
+                      {/* Only show timestamp for the last message in a sequence */}
+                      {isLastInSequence && (
+                        <div className={`flex text-xs text-gray-500 mt-1 ${isOwn ? 'justify-end' : 'justify-start'}`}>
+                          <span>{formatMessageTime(message.timestamp)}</span>
+                          {isOwn && message.isRead && (
+                            <span className="ml-1 text-blue-500">✓✓</span>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </React.Fragment>
