@@ -1,12 +1,12 @@
 import React, { useState, useRef, useEffect } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faEllipsisH, faChevronRight } from "@fortawesome/free-solid-svg-icons";
-import { List } from "antd";
+import { List, Spin } from "antd";
 import Header from "../header/Header";
 import { Avatar } from "../common/Avatar";
 import { useConversationContext } from "../../features/chat/context/ConversationContext";
 import ErrorBoundary from "../common/ErrorBoundary";
-import { formatMessageTime } from "../../utils/dateUtils";
+import { formatRelativeTime } from "../../utils/dateUtils";
 import ChatNav from "./ChatNav";
 import GroupAvatar from "./GroupAvatar";
 import LabelModal from "./modals/LabelModal";
@@ -22,7 +22,7 @@ interface ChatListProps {
 }
 
 const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
-  const { conversations, userCache, displayNames, userAvatars } =
+  const { conversations, userCache, displayNames, userAvatars, isLoading } =
     useConversationContext();
   const { t } = useLanguage();
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
@@ -172,168 +172,182 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
         <Header />
         <ChatNav />
       </div>
-      <List
-        className="overflow-y-auto flex-1"
-        dataSource={conversations}
-        renderItem={(chat) => (
-          <List.Item
-            className="flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer px-3 py-2"
-            onClick={() => onSelectConversation(chat)}>
-            {/* Avatar section */}
-            <div className="relative shrink-0 pl-2">
-              {chat.isGroup && chat.groupMembers.length > 0 ? (
-                <GroupAvatar
-                  members={chat.groupMembers}
-                  userAvatars={userAvatars}
-                  size={40}
-                  className="cursor-pointer"
-                  groupAvatarUrl={chat.groupAvatarUrl || undefined}
-                />
-              ) : (
-                <Avatar
-                  name={userCache[getOtherUserId(chat)]?.fullname || "User"}
-                  avatarUrl={getConversationAvatar(chat)}
-                  size={40}
-                  className="cursor-pointer"
-                />
-              )}
-            </div>
+      
+      {isLoading ? (
+        <div className="flex-1 flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-800">
+          <Spin size="large" />
+          <p className="mt-4 text-gray-600 dark:text-gray-300">Đang tải danh sách hội thoại...</p>
+        </div>
+      ) : (
+        <List
+          className="overflow-y-auto flex-1"
+          dataSource={conversations}
+          renderItem={(chat) => (
+            <List.Item
+              className="flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer px-3 py-2"
+              onClick={() => onSelectConversation(chat)}>
+              {/* Avatar section */}
+              <div className="relative shrink-0 pl-2">
+                {chat.isGroup && chat.groupMembers.length > 0 ? (
+                  <GroupAvatar
+                    members={chat.groupMembers}
+                    userAvatars={userAvatars}
+                    size={40}
+                    className="cursor-pointer"
+                    groupAvatarUrl={chat.groupAvatarUrl || undefined}
+                  />
+                ) : (
+                  <Avatar
+                    name={userCache[getOtherUserId(chat)]?.fullname || "User"}
+                    avatarUrl={getConversationAvatar(chat)}
+                    size={40}
+                    className="cursor-pointer"
+                  />
+                )}
+              </div>
 
-            {/* Content section */}
-            <div className="flex-1 min-w-0">
-              <div className="flex justify-between items-center relative group">
-                <span className="truncate font-semibold text-gray-900 dark:text-gray-100">
-                  {getConversationName(chat)}
-                </span>
-                <div className="flex items-center">
-                  <span className="text-xs text-gray-500 dark:text-gray-400 group-hover:opacity-0 transition-opacity duration-200">
-                    {chat.lastMessage &&
-                      formatMessageTime(chat.lastMessage.createdAt)}
+              {/* Content section */}
+              <div className="flex-1 min-w-0">
+                <div className="flex justify-between items-center relative group">
+                  <span className="truncate font-semibold text-gray-900 dark:text-gray-100">
+                    {getConversationName(chat)}
                   </span>
-                  <div className="absolute right-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                    <button
-                      ref={buttonRef}
-                      className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
-                      title={t.more || "Thêm"}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setActiveMenu(
-                          activeMenu === chat.conversationId
-                            ? null
-                            : chat.conversationId
-                        );
-                      }}>
-                      <FontAwesomeIcon
-                        icon={faEllipsisH}
-                        className="text-gray-600 dark:text-gray-300"
-                      />
-                    </button>
-                    <div
-                      ref={menuRef}
-                      className={`absolute z-20 w-50 bg-white dark:bg-gray-800 shadow-lg rounded-md border border-gray-200 dark:border-gray-600 right-0 mt-1 ${
-                        activeMenu === chat.conversationId ? "block" : "hidden"
-                      }`}>
-                      <div className="py-1">
-                        <div className="px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer">
-                          {t.pin_conversation || "Ghim hội thoại"}
-                        </div>
-                        <div className="border-t border-gray-200 dark:border-gray-600"></div>
-                        <div
-                          className="px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer flex items-center justify-between"
-                          onClick={() => {
-                            setSelectedConversation(chat.conversationId);
-                            setIsLabelModalOpen(true);
-                            setActiveMenu(null);
-                          }}>
-                          <span>{t.label || "Phân loại"}</span>
-                          <FontAwesomeIcon
-                            icon={faChevronRight}
-                            className="ml-1"
-                          />
-                        </div>
-                        <div className="px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer">
-                          {t.mark_unread || "Đánh dấu chưa đọc"}
-                        </div>
-                        <div className="border-t border-gray-200 dark:border-gray-600"></div>
-                        <div
-                          className="px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer flex items-center justify-between"
-                          onClick={() => {
-                            setSelectedConversation(chat.conversationId);
-                            setIsNotificationModalOpen(true);
-                            setActiveMenu(null);
-                          }}>
-                          <span>
-                            {t.turn_off_notifications || "Tắt thông báo"}
-                          </span>
-                          <FontAwesomeIcon
-                            icon={faChevronRight}
-                            className="ml-1"
-                          />
-                        </div>
-                        <div className="px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer flex items-center justify-between">
-                          {t.hide_chat || "Ẩn trò chuyện"}
-                        </div>
-                        <div
-                          className="px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer flex items-center justify-between"
-                          onClick={() => {
-                            setSelectedConversation(chat.conversationId);
-                            setIsAutoDeleteModalOpen(true);
-                            setActiveMenu(null);
-                          }}>
-                          <span>
-                            {t.auto_delete_messages || "Tin nhắn tự xóa"}
-                          </span>
-                          <FontAwesomeIcon
-                            icon={faChevronRight}
-                            className="ml-1"
-                          />
-                        </div>
-                        <div className="border-t border-gray-200 dark:border-gray-600"></div>
-                        <div className="px-4 py-2 text-red-500 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer">
-                          {t.delete_conversation || "Xóa hội thoại"}
-                        </div>
-                        <div className="border-t border-gray-200 dark:border-gray-600"></div>
-                        <div className="px-4 py-2 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer">
-                          {t.report || "Báo xấu"}
+                  <div className="flex items-center">
+                    <span className="text-xs text-gray-500 dark:text-gray-400 group-hover:opacity-0 transition-opacity duration-200">
+                      {chat.lastMessage &&
+                        formatRelativeTime(chat.lastMessage.createdAt)}
+                    </span>
+                    <div className="absolute right-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                      <button
+                        ref={buttonRef}
+                        className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+                        title={t.more || "Thêm"}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActiveMenu(
+                            activeMenu === chat.conversationId
+                              ? null
+                              : chat.conversationId
+                          );
+                        }}>
+                        <FontAwesomeIcon
+                          icon={faEllipsisH}
+                          className="text-gray-600 dark:text-gray-300"
+                        />
+                      </button>
+                      <div
+                        ref={menuRef}
+                        className={`absolute z-20 w-50 bg-white dark:bg-gray-800 shadow-lg rounded-md border border-gray-200 dark:border-gray-600 right-0 mt-1 ${
+                          activeMenu === chat.conversationId ? "block" : "hidden"
+                        }`}>
+                        <div className="py-1">
+                          <div className="px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer">
+                            {t.pin_conversation || "Ghim hội thoại"}
+                          </div>
+                          <div className="border-t border-gray-200 dark:border-gray-600"></div>
+                          <div
+                            className="px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer flex items-center justify-between"
+                            onClick={() => {
+                              setSelectedConversation(chat.conversationId);
+                              setIsLabelModalOpen(true);
+                              setActiveMenu(null);
+                            }}>
+                            <span>{t.label || "Phân loại"}</span>
+                            <FontAwesomeIcon
+                              icon={faChevronRight}
+                              className="ml-1"
+                            />
+                          </div>
+                          <div className="px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer">
+                            {t.mark_unread || "Đánh dấu chưa đọc"}
+                          </div>
+                          <div className="border-t border-gray-200 dark:border-gray-600"></div>
+                          <div
+                            className="px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer flex items-center justify-between"
+                            onClick={() => {
+                              setSelectedConversation(chat.conversationId);
+                              setIsNotificationModalOpen(true);
+                              setActiveMenu(null);
+                            }}>
+                            <span>
+                              {t.turn_off_notifications || "Tắt thông báo"}
+                            </span>
+                            <FontAwesomeIcon
+                              icon={faChevronRight}
+                              className="ml-1"
+                            />
+                          </div>
+                          <div className="px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer flex items-center justify-between">
+                            {t.hide_chat || "Ẩn trò chuyện"}
+                          </div>
+                          <div
+                            className="px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer flex items-center justify-between"
+                            onClick={() => {
+                              setSelectedConversation(chat.conversationId);
+                              setIsAutoDeleteModalOpen(true);
+                              setActiveMenu(null);
+                            }}>
+                            <span>
+                              {t.auto_delete_messages || "Tin nhắn tự xóa"}
+                            </span>
+                            <FontAwesomeIcon
+                              icon={faChevronRight}
+                              className="ml-1"
+                            />
+                          </div>
+                          <div className="border-t border-gray-200 dark:border-gray-600"></div>
+                          <div className="px-4 py-2 text-red-500 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer">
+                            {t.delete_conversation || "Xóa hội thoại"}
+                          </div>
+                          <div className="border-t border-gray-200 dark:border-gray-600"></div>
+                          <div className="px-4 py-2 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer">
+                            {t.report || "Báo xấu"}
+                          </div>
                         </div>
                       </div>
                     </div>
                   </div>
                 </div>
-              </div>
-              <div className="flex items-center text-sm text-gray-500 dark:text-gray-400 truncate">
-                {chat.lastMessage?.senderId && (
-                  <span className="mr-1 truncate">
-                    {/* Display "You" if the sender is the current user */}
-                    {chat.lastMessage.senderId === localStorage.getItem('userId') 
-                      ? "Bạn" 
-                      : (userCache[chat.lastMessage.senderId]?.fullname || 
-                         localUserCache[chat.lastMessage.senderId]?.fullname || 
-                         "User")}:
+                <div className="flex items-center text-sm text-gray-500 dark:text-gray-400 truncate">
+                  {chat.lastMessage?.senderId && (
+                    <span className="mr-1 truncate">
+                      {/* Display "You" if the sender is the current user */}
+                      {chat.lastMessage.senderId === localStorage.getItem('userId') 
+                        ? "Bạn" 
+                        : (userCache[chat.lastMessage.senderId]?.fullname || 
+                           localUserCache[chat.lastMessage.senderId]?.fullname || 
+                           "User")}:
+                    </span>
+                  )}
+                  <span className="truncate">
+                    {chat.lastMessage?.content ||
+                      t.no_messages ||
+                      "Chưa có tin nhắn"}
                   </span>
-                )}
-                <span className="truncate">
-                  {chat.lastMessage?.content ||
-                    t.no_messages ||
-                    "Chưa có tin nhắn"}
-                </span>
+                </div>
               </div>
-            </div>
 
-            {/* Actions section */}
-            <div className="shrink-0">
-              <i className="fa fa-ellipsis-h text-gray-400 dark:text-gray-300 cursor-pointer hover:text-gray-600 dark:hover:text-gray-100"></i>
-            </div>
-          </List.Item>
-        )}
-        locale={{
-          emptyText: (
-            <div className="p-4 text-center text-gray-500 dark:text-gray-400">
-              {t.no_conversations || "Không có hội thoại nào"}
-            </div>
-          ),
-        }}
-      />
+              {/* Actions section */}
+              <div className="shrink-0">
+                <i className="fa fa-ellipsis-h text-gray-400 dark:text-gray-300 cursor-pointer hover:text-gray-600 dark:hover:text-gray-100"></i>
+              </div>
+            </List.Item>
+          )}
+          locale={{
+            emptyText: (
+              <div className="p-8 text-center text-gray-500 dark:text-gray-400 flex flex-col items-center">
+                <p className="mb-2">{t.no_conversations || "Không có hội thoại nào"}</p>
+                <button
+                  onClick={() => window.location.reload()}
+                  className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 mt-2"
+                >
+                  Tải lại
+                </button>
+              </div>
+            ),
+          }}
+        />
+      )}
 
       {/* Modals */}
       <LabelModal

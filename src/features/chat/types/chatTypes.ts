@@ -14,3 +14,35 @@ export interface Label {
   color: string;
   selected: boolean;
 }
+
+export interface DisplayMessage {
+  id: string;
+  content: string;
+  timestamp: string;
+  sender: {
+    id: string;
+    name: string;
+    avatar?: string;
+  };
+  type: "text" | "image" | "file";
+  fileUrl?: string;
+  fileName?: string;
+  fileSize?: number;
+  isRead?: boolean;
+  isError?: boolean;
+  sendStatus?: string;
+  readBy?: string[];
+  deliveredTo?: string[];
+  attachments?: Array<{
+    url: string;
+    type: string;
+    name?: string;
+    size?: number;
+  }>;
+  attachment?: {
+    url: string;
+    type: string;
+    name?: string;
+    size?: number;
+  };
+}

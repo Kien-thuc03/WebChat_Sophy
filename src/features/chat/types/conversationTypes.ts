@@ -1,3 +1,10 @@
+export interface Attachment {
+  url: string;
+  type: string;
+  name?: string;
+  size?: number;
+}
+
 export interface Message {
   messageDetailId: string;
   senderId: string;
@@ -14,7 +21,8 @@ export interface Message {
   isPinned: boolean;
   pinnedAt: string | null;
   reactions: string[];
-  attachments: string | null;
+  attachments: Attachment[] | string | null;
+  attachment?: Attachment;
   poll: string | null;
   linkPreview: string | null;
   deliveredTo: string[];

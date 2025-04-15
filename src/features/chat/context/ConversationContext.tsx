@@ -1,7 +1,20 @@
 import React, { createContext, useState, useContext, useEffect, useCallback, ReactNode } from 'react';
 import { fetchConversations, getUserById } from '../../../api/API';
-import { Conversation, Message } from '../types/conversationTypes';
+import { Conversation } from '../types/conversationTypes';
 import { User } from '../../auth/types/authTypes';
+
+// Extended Message type to handle different message ID field names
+interface Message {
+  content: string;
+  type: string;
+  senderId: string;
+  createdAt: string;
+  messageDetailId?: string; // Used in ChatArea.tsx
+  messageId?: string;       // Used elsewhere
+  id?: string;              // Fallback
+  readBy?: string[];
+  deliveredTo?: string[];
+}
 
 interface ConversationContextType {
   conversations: Conversation[];
@@ -12,6 +25,7 @@ interface ConversationContextType {
   refreshConversations: () => Promise<void>;
   selectedConversation: Conversation | null;
   setSelectedConversation: React.Dispatch<React.SetStateAction<Conversation | null>>;
+  isLoading: boolean;
 }
 
 const ConversationContext = createContext<ConversationContextType | undefined>(undefined);
@@ -22,6 +36,8 @@ export const ConversationProvider: React.FC<{ children: ReactNode }> = ({ childr
   const [displayNames, setDisplayNames] = useState<Record<string, string>>({});
   const [userAvatars, setUserAvatars] = useState<Record<string, string>>({});
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [userId, setUserId] = useState<string | null>(localStorage.getItem('userId'));
 
   // Định dạng tên nhóm chat dựa trên danh sách thành viên
   const formatGroupName = (members: string[] = []) => {
@@ -61,8 +77,20 @@ export const ConversationProvider: React.FC<{ children: ReactNode }> = ({ childr
 
   // Tải danh sách hội thoại
   const loadConversations = async () => {
+    // Check if user is logged in
+    const currentUserId = localStorage.getItem('userId');
+    if (!currentUserId) {
+      console.log("Không có ID người dùng, không thể tải hội thoại");
+      setIsLoading(false);
+      return;
+    }
+
+    setIsLoading(true);
     try {
+      console.log("Đang tải danh sách hội thoại...");
       const data = await fetchConversations();
+      console.log("Đã nhận được dữ liệu hội thoại:", data.length, "hội thoại");
+      
       // Sắp xếp theo thời gian tin nhắn cuối cùng, mới nhất lên đầu
       const sortedConversations = data.sort((a, b) => {
         const timeA = a.lastMessage?.createdAt ? new Date(a.lastMessage.createdAt).getTime() : 0;
@@ -72,6 +100,8 @@ export const ConversationProvider: React.FC<{ children: ReactNode }> = ({ childr
       setConversations(sortedConversations);
     } catch (error) {
       console.error("Lỗi khi tải danh sách hội thoại:", error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -88,17 +118,19 @@ export const ConversationProvider: React.FC<{ children: ReactNode }> = ({ childr
       // Tạo một bản sao của danh sách conversations
       const updatedConversations = [...prevConversations];
       
-      // Cập nhật tin nhắn cuối cùng cho conversation
+      // Cập nhật tin nhắn cuối cùng cho conversation - handle different message id property names
+      const messageId = message.messageDetailId || message.messageId || message.id || '';
+      
       const updatedConversation: Conversation = {
         ...updatedConversations[conversationIndex],
         lastMessage: {
-          messageId: message.messageId,
+          messageId,
           content: message.content,
           type: message.type,
           senderId: message.senderId,
           createdAt: message.createdAt
         },
-        newestMessageId: message.messageId,
+        newestMessageId: messageId,
         lastChange: message.createdAt
       };
       
@@ -112,6 +144,7 @@ export const ConversationProvider: React.FC<{ children: ReactNode }> = ({ childr
 
   // Làm mới danh sách cuộc trò chuyện
   const refreshConversations = useCallback(async () => {
+    setIsLoading(true);
     await loadConversations();
   }, []);
 
@@ -168,9 +201,50 @@ export const ConversationProvider: React.FC<{ children: ReactNode }> = ({ childr
     fetchUserInfo();
   }, [conversations]);
 
+  // Check for auth changes
+  useEffect(() => {
+    const checkAuthStatus = () => {
+      const currentUserId = localStorage.getItem('userId');
+      
+      // If user ID has changed or we got a user ID when we didn't have one before
+      if (currentUserId !== userId) {
+        setUserId(currentUserId);
+        if (currentUserId) {
+          console.log("Đã phát hiện đăng nhập mới, đang tải lại hội thoại...");
+          loadConversations();
+        } else {
+          // User logged out
+          setConversations([]);
+        }
+      }
+    };
+    
+    // Check immediately
+    checkAuthStatus();
+    
+    // Set up interval to check periodically
+    const interval = setInterval(checkAuthStatus, 2000);
+    
+    return () => clearInterval(interval);
+  }, [userId]);
+
   // Tải dữ liệu khi khởi tạo
   useEffect(() => {
-    loadConversations();
+    const initializeData = async () => {
+      // Make sure to set loading state before attempting to load conversations
+      setIsLoading(true);
+      
+      const currentUserId = localStorage.getItem('userId');
+      if (currentUserId) {
+        console.log("Khởi tạo dữ liệu hội thoại cho người dùng:", currentUserId);
+        await loadConversations();
+      } else {
+        console.log("Chưa đăng nhập, sẽ tải dữ liệu sau khi đăng nhập");
+        setIsLoading(false);
+      }
+    };
+    
+    initializeData();
   }, []);
 
   const value = {
@@ -181,7 +255,8 @@ export const ConversationProvider: React.FC<{ children: ReactNode }> = ({ childr
     updateConversationWithNewMessage,
     refreshConversations,
     selectedConversation,
-    setSelectedConversation
+    setSelectedConversation,
+    isLoading
   };
 
   return (

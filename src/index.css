@@ -20,3 +20,67 @@ body.user-logged-in div[style*="z-index: 2000000000"] {
     pointer-events: none !important;
     z-index: -9999 !important;
 }
+
+
+/* Add transition animations */
+
+.page-transition-enter {
+    opacity: 0;
+}
+
+.page-transition-enter-active {
+    opacity: 1;
+    transition: opacity 300ms;
+}
+
+.page-transition-exit {
+    opacity: 1;
+}
+
+.page-transition-exit-active {
+    opacity: 0;
+    transition: opacity 300ms;
+}
+
+
+/* Loading animation */
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes slideUp {
+    from {
+        transform: translateY(20px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.loading-screen {
+    animation: fadeIn 0.5s ease-out;
+}
+
+.loading-content {
+    animation: slideUp 0.8s ease-out;
+}
+
+
+/* Loading spinner rotation */
+
+@keyframes spin {
+    0% {
+        transform: rotate(0deg);
+    }
+    100% {
+        transform: rotate(360deg);
+    }
+}
