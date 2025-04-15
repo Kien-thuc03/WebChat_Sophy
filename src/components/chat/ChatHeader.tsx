@@ -24,6 +24,8 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({ conversation, onInfoCli
   const groupAvatarUrl = conversation.groupAvatarUrl;
   const groupMembers = conversation.groupMembers;
   const [localUserCache, setLocalUserCache] = useState<Record<string, User>>({});
+  const [activityStatus, setActivityStatus] = useState<string>('Offline');
+  const [isOnline, setIsOnline] = useState<boolean>(false);
 
   /**
    * Gets the correct user ID to display for a conversation
@@ -58,6 +60,37 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({ conversation, onInfoCli
   // Get user info from either the global or local cache
   const otherUserInfo = userCache[otherUserId] || localUserCache[otherUserId];
 
+  // Check user's activity status
+  const checkActivityStatus = () => {
+    if (!otherUserInfo || isGroup) return;
+    
+    const lastActive = otherUserInfo.lastActive; // Assuming lastActive exists in user object
+    if (!lastActive) {
+      setActivityStatus('Offline');
+      setIsOnline(false);
+      return;
+    }
+    
+    const lastActiveTime = new Date(lastActive).getTime();
+    const currentTime = new Date().getTime();
+    const minutesDiff = Math.floor((currentTime - lastActiveTime) / (1000 * 60));
+    
+    if (minutesDiff < 5) {
+      setActivityStatus('Vừa mới truy cập');
+      setIsOnline(true);
+    } else if (minutesDiff < 60) {
+      setActivityStatus(`Hoạt động ${minutesDiff} phút trước`);
+      setIsOnline(false);
+    } else if (minutesDiff < 24 * 60) {
+      const hours = Math.floor(minutesDiff / 60);
+      setActivityStatus(`Hoạt động ${hours} giờ trước`);
+      setIsOnline(false);
+    } else {
+      setActivityStatus('Đang ngoại tuyến');
+      setIsOnline(false);
+    }
+  };
+
   // Load user data if not already in cache
   useEffect(() => {
     const loadUserData = async () => {
@@ -79,6 +112,17 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({ conversation, onInfoCli
     loadUserData();
   }, [isGroup, otherUserId, userCache, localUserCache]);
 
+  // Update activity status periodically
+  useEffect(() => {
+    checkActivityStatus();
+    
+    // Set up interval to check activity status every minute
+    const intervalId = setInterval(checkActivityStatus, 60000);
+    
+    // Clean up interval on unmount
+    return () => clearInterval(intervalId);
+  }, [otherUserInfo]);
+
   return (
     <header className="flex items-center justify-between px-4 py-2 bg-white border-b">
       <div className="flex items-center flex-1 group">
@@ -93,12 +137,17 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({ conversation, onInfoCli
               groupAvatarUrl={groupAvatarUrl || undefined}
             />
           ) : (
-            <Avatar
-              name={otherUserInfo?.fullname || 'User'}
-              avatarUrl={otherUserInfo?.urlavatar}
-              size={40}
-              className="rounded-lg"
-            />
+            <div className="relative">
+              <Avatar
+                name={otherUserInfo?.fullname || 'User'}
+                avatarUrl={otherUserInfo?.urlavatar}
+                size={40}
+                className="rounded-lg"
+              />
+              {isOnline && (
+                <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white"></div>
+              )}
+            </div>
           )}
         </div>
 
@@ -126,7 +175,12 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({ conversation, onInfoCli
                 </div>
               </>
             ) : (
-              <span className="text-gray-500">{otherUserInfo?.phone || otherUserId}</span>
+              <div className="flex items-center">
+                {isOnline && (
+                  <div className="w-2 h-2 bg-green-500 rounded-full mr-1"></div>
+                )}
+                <span className="text-gray-500">{activityStatus}</span>
+              </div>
             )}
           </div>
         </div>

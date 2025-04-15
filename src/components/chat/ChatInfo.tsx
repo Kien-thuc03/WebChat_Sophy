@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Avatar } from '../common/Avatar';
-import { Button, Tooltip, Collapse, Badge, Switch, Modal } from 'antd';
+import { Button, Tooltip, Collapse, Badge, Switch, Modal, Divider } from 'antd';
 import { 
   BellOutlined,
   PushpinOutlined,
@@ -15,7 +15,8 @@ import {
   FileImageOutlined,
   FileOutlined,
   LinkOutlined,
-  TeamOutlined
+  TeamOutlined,
+  RightOutlined
 } from '@ant-design/icons';
 import { Conversation } from '../../features/chat/types/conversationTypes';
 import { useConversations } from '../../features/chat/hooks/useConversations';
@@ -29,7 +30,7 @@ interface ChatInfoProps {
 }
 
 const ChatInfo: React.FC<ChatInfoProps> = ({ conversation }) => {
-  const [activeKeys, setActiveKeys] = useState<string[]>(['reminders', 'media', 'files', 'links', 'security']);
+  const [activeKeys, setActiveKeys] = useState<string[]>([]);
   const [isEditNameModalVisible, setIsEditNameModalVisible] = useState(false);
   const [localName, setLocalName] = useState('');
   const [isMuted, setIsMuted] = useState(false);
@@ -148,15 +149,15 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation }) => {
     <div className="chat-info flex flex-col h-full bg-white">
       {/* Header - Fixed */}
       <div className="flex-none p-4 border-b border-gray-200">
-        <h2 className="text-lg font-semibold">
-          {isGroup ? 'Thông tin nhóm' : 'Thông tin hội thoại'}
+        <h2 className="text-lg font-semibold text-center">
+          Thông tin hội thoại
         </h2>
       </div>
 
       {/* Main content - Scrollable */}
       <div className="flex-1 overflow-y-auto">
         {/* User Info Section */}
-        <div className="p-4 border-b border-gray-200">
+        <div className="py-6 text-center border-b border-gray-100">
           <div className="flex flex-col items-center">
             {isGroup ? (
               <GroupAvatar
@@ -174,215 +175,186 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation }) => {
                 className="rounded-full mb-3"
               />
             )}
-            <div className="flex items-center gap-2 mb-1">
+            <div className="flex items-center justify-center gap-2 mb-1">
               <h3 className="text-lg font-semibold">
                 {displayName}
               </h3>
-              <Button
-                type="text"
-                icon={<EditOutlined />}
-                size="small"
+              <EditOutlined 
                 onClick={handleEditName}
-                className="text-gray-500 hover:text-blue-500"
+                className="text-gray-500 hover:text-blue-500 cursor-pointer"
               />
             </div>
-            <p className="text-sm text-gray-500 mb-4">{onlineStatus}</p>
-            {!isGroup && otherUserInfo?.phone && (
-              <p className="text-sm text-gray-500 mb-4">{otherUserInfo.phone}</p>
-            )}
 
             {/* Quick Actions */}
-            <div className="flex justify-around w-full mb-4">
-              <Tooltip title="Tắt thông báo">
+            <div className="flex justify-center gap-8 w-full mt-4">
+              <div className="flex flex-col items-center">
                 <Button
                   type="text"
-                  icon={<BellOutlined className={isMuted ? 'text-blue-500' : ''} />}
+                  shape="circle"
+                  icon={<BellOutlined className={isMuted ? 'text-blue-500' : 'text-gray-500'} />}
                   onClick={handleToggleMute}
-                  className="flex flex-col items-center"
-                >
-                  <span className="text-xs mt-1">Thông báo</span>
-                </Button>
-              </Tooltip>
-              <Tooltip title="Ghim hội thoại">
+                  className="flex items-center justify-center h-10 w-10 bg-gray-100"
+                />
+                <span className="text-xs mt-1">Tắt thông báo</span>
+              </div>
+              
+              <div className="flex flex-col items-center">
                 <Button
                   type="text"
-                  icon={<PushpinOutlined className={isPinned ? 'text-blue-500' : ''} />}
+                  shape="circle"
+                  icon={<PushpinOutlined className={isPinned ? 'text-blue-500' : 'text-gray-500'} />}
                   onClick={handleTogglePin}
-                  className="flex flex-col items-center"
-                >
-                  <span className="text-xs mt-1">Ghim</span>
-                </Button>
-              </Tooltip>
-              <Tooltip title="Tạo nhóm">
+                  className="flex items-center justify-center h-10 w-10 bg-gray-100"
+                />
+                <span className="text-xs mt-1">Ghim hội thoại</span>
+              </div>
+              
+              <div className="flex flex-col items-center">
                 <Button
                   type="text"
-                  icon={<UsergroupAddOutlined />}
-                  className="flex flex-col items-center"
-                >
-                  <span className="text-xs mt-1">Tạo nhóm</span>
-                </Button>
-              </Tooltip>
+                  shape="circle"
+                  icon={<UsergroupAddOutlined className="text-gray-500" />}
+                  className="flex items-center justify-center h-10 w-10 bg-gray-100"
+                />
+                <span className="text-xs mt-1">Tạo nhóm</span>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Collapsible Sections */}
-        <Collapse 
-          activeKey={activeKeys}
-          onChange={handlePanelChange}
-          className="chat-info-collapse"
-          bordered={false}
-        >
-          {/* Reminders Section */}
-          <Collapse.Panel 
-            header={
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <ClockCircleOutlined />
-                  <span>Nhắc hẹn</span>
-                </div>
-                <Button type="text" icon={<PlusOutlined />} size="small" />
+        {/* Button Sections */}
+        <div className="mt-4 mb-4">
+          {/* Danh sách nhắc hẹn - Simple Button */}
+          <div className="px-4 py-3 hover:bg-gray-50 cursor-pointer">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <ClockCircleOutlined className="text-gray-500 mr-3" />
+                <span>Danh sách nhắc hẹn</span>
               </div>
-            }
-            key="reminders"
-          >
-            <div className="text-sm text-gray-500 text-center py-2">
-              Chưa có nhắc hẹn nào
             </div>
-          </Collapse.Panel>
+          </div>
 
-          {/* Shared Groups */}
+          {/* Nhóm chung - Simple Button */}
           {!isGroup && (
-            <Collapse.Panel
-              header={
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <TeamOutlined />
-                    <span>Nhóm chung</span>
-                    <Badge count={0} size="small" />
-                  </div>
-                </div>
-              }
-              key="shared-groups"
-            >
-              <div className="space-y-2">
-                <div className="text-sm text-gray-500 text-center py-2">
-                  Không có nhóm chung nào
+            <div className="px-4 py-3 hover:bg-gray-50 cursor-pointer">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <TeamOutlined className="text-gray-500 mr-3" />
+                  <span>20 nhóm chung</span>
                 </div>
               </div>
-            </Collapse.Panel>
+            </div>
           )}
+        </div>
 
-          {/* Media Section */}
-          <Collapse.Panel 
-            header={
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <FileImageOutlined />
-                  <span>Ảnh/Video</span>
-                </div>
-                <Button type="text" icon={<SearchOutlined />} size="small" />
+        {/* Divider */}
+        <div className="h-2 bg-gray-100"></div>
+
+        {/* Expandable Sections in Zalo style */}
+        <div className="px-0 mt-2">
+          {/* Ảnh/Video section */}
+          <div className="cursor-pointer hover:bg-gray-50" onClick={() => setActiveKeys(prev => prev.includes("media") ? prev.filter(k => k !== "media") : [...prev, "media"])}>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+              <div className="flex items-center">
+                <FileImageOutlined className="text-gray-500 mr-3" />
+                <span>Ảnh/Video</span>
               </div>
-            }
-            key="media"
-          >
-            <div className="grid grid-cols-3 gap-2">
-              {/* Media items would go here */}
-              <div className="text-sm text-gray-500 text-center py-2 col-span-3">
-                Chưa có ảnh/video nào
+              <RightOutlined className={`text-gray-400 transition-transform ${activeKeys.includes("media") ? 'transform rotate-90' : ''}`} />
+            </div>
+            {activeKeys.includes("media") && (
+              <div className="p-4 border-b border-gray-100 bg-gray-50">
+                <div className="text-sm text-gray-500 text-center py-2">
+                  Chưa có ảnh/video nào
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* File section */}
+          <div className="cursor-pointer hover:bg-gray-50" onClick={() => setActiveKeys(prev => prev.includes("files") ? prev.filter(k => k !== "files") : [...prev, "files"])}>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+              <div className="flex items-center">
+                <FileOutlined className="text-gray-500 mr-3" />
+                <span>File</span>
+              </div>
+              <RightOutlined className={`text-gray-400 transition-transform ${activeKeys.includes("files") ? 'transform rotate-90' : ''}`} />
+            </div>
+            {activeKeys.includes("files") && (
+              <div className="p-4 border-b border-gray-100 bg-gray-50">
+                <div className="text-sm text-gray-500 text-center py-2">
+                  Chưa có file nào
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Link section */}
+          <div className="cursor-pointer hover:bg-gray-50" onClick={() => setActiveKeys(prev => prev.includes("links") ? prev.filter(k => k !== "links") : [...prev, "links"])}>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+              <div className="flex items-center">
+                <LinkOutlined className="text-gray-500 mr-3" />
+                <span>Link</span>
+              </div>
+              <RightOutlined className={`text-gray-400 transition-transform ${activeKeys.includes("links") ? 'transform rotate-90' : ''}`} />
+            </div>
+            {activeKeys.includes("links") && (
+              <div className="p-4 border-b border-gray-100 bg-gray-50">
+                <div className="text-sm text-gray-500 text-center py-2">
+                  Chưa có link nào
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Divider */}
+        <div className="h-2 bg-gray-100 mt-2 mb-2"></div>
+
+        {/* Thiết lập bảo mật section */}
+        <div className="cursor-pointer hover:bg-gray-50" onClick={() => setActiveKeys(prev => prev.includes("security") ? prev.filter(k => k !== "security") : [...prev, "security"])}>
+          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+            <div className="flex items-center">
+              <EyeInvisibleOutlined className="text-gray-500 mr-3" />
+              <span>Thiết lập bảo mật</span>
+            </div>
+            <RightOutlined className={`text-gray-400 transition-transform ${activeKeys.includes("security") ? 'transform rotate-90' : ''}`} />
+          </div>
+          {activeKeys.includes("security") && (
+            <div className="p-4 border-b border-gray-100 bg-gray-50">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium">Tin nhắn tự xóa</p>
+                    <p className="text-sm text-gray-500">Không bao giờ</p>
+                  </div>
+                  <Switch checked={false} size="small" />
+                </div>
+                
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium">Ẩn trò chuyện</p>
+                    <p className="text-sm text-gray-500">Yêu cầu mật khẩu để xem</p>
+                  </div>
+                  <Switch checked={isHidden} onChange={handleToggleHidden} size="small" />
+                </div>
               </div>
             </div>
-          </Collapse.Panel>
+          )}
+        </div>
 
-          {/* Files Section */}
-          <Collapse.Panel 
-            header={
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <FileOutlined />
-                  <span>File</span>
-                </div>
-                <Button type="text" icon={<SearchOutlined />} size="small" />
-              </div>
-            }
-            key="files"
-          >
-            <div className="space-y-2">
-              <div className="text-sm text-gray-500 text-center py-2">
-                Chưa có file nào
-              </div>
-            </div>
-          </Collapse.Panel>
-
-          {/* Links Section */}
-          <Collapse.Panel 
-            header={
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <LinkOutlined />
-                  <span>Link</span>
-                </div>
-                <Button type="text" icon={<SearchOutlined />} size="small" />
-              </div>
-            }
-            key="links"
-          >
-            <div className="space-y-2">
-              <div className="text-sm text-gray-500 text-center py-2">
-                Chưa có link nào
-              </div>
-            </div>
-          </Collapse.Panel>
-
-          {/* Security Settings */}
-          <Collapse.Panel 
-            header={
-              <div className="flex items-center gap-2">
-                <EyeInvisibleOutlined />
-                <span>Thiết lập bảo mật</span>
-              </div>
-            }
-            key="security"
-          >
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium">Tin nhắn tự xóa</p>
-                  <p className="text-sm text-gray-500">Không bao giờ</p>
-                </div>
-                <Button type="text" size="small">Thay đổi</Button>
-              </div>
-              
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium">Ẩn trò chuyện</p>
-                  <p className="text-sm text-gray-500">Yêu cầu mật khẩu để xem</p>
-                </div>
-                <Switch checked={isHidden} onChange={handleToggleHidden} />
-              </div>
-            </div>
-          </Collapse.Panel>
-        </Collapse>
+        {/* Divider */}
+        <div className="h-2 bg-gray-100 mt-2"></div>
 
         {/* Report and Delete Section */}
-        <div className="p-4 space-y-4">
-          <Button
-            icon={<WarningOutlined />}
-            danger
-            type="text"
-            className="w-full text-left h-auto py-2"
-          >
-            Báo xấu
-          </Button>
-          <Button
-            icon={<DeleteOutlined />}
-            danger
-            type="text"
-            className="w-full text-left h-auto py-2"
-            onClick={handleDeleteChat}
-          >
-            Xóa lịch sử trò chuyện
-          </Button>
+        <div className="mt-2">
+          <div className="flex items-center text-red-500 px-4 py-3 cursor-pointer hover:bg-gray-50">
+            <WarningOutlined className="mr-3" />
+            <span>Báo xấu</span>
+          </div>
+          <div className="flex items-center text-red-500 px-4 py-3 cursor-pointer hover:bg-gray-50" onClick={handleDeleteChat}>
+            <DeleteOutlined className="mr-3" />
+            <span>Xóa lịch sử trò chuyện</span>
+          </div>
         </div>
       </div>
 
