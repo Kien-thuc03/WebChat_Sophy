@@ -667,9 +667,9 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
                     </div>
                   )}
                   
-                  <div className={`flex flex-col max-w-[70%]`}>
+                  <div className="flex flex-col" style={{ maxWidth: 'min(80%)' }}>
                     {showSender && !isOwn && (
-                      <div className="text-xs mb-1 ml-1 text-gray-600">
+                      <div className="text-xs mb-1 ml-1 text-gray-600 truncate">
                         {message.sender.name}
                       </div>
                     )}
@@ -679,18 +679,23 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
                         isOwn 
                           ? message.isError ? 'bg-red-100 text-red-800' : 'bg-blue-500 text-white rounded-tr-none' 
                           : 'bg-gray-100 text-gray-800 rounded-tl-none'
-                      }`}
+                      } overflow-hidden`}
+                      style={{ wordBreak: 'break-word', maxWidth: '100%' }}
                     >
                       {/* Hiển thị nội dung tin nhắn dựa vào loại */}
                       {message.type === 'image' ? (
-                        <img src={message.fileUrl || message.content} alt="Hình ảnh" className="max-w-xs max-h-60 rounded-lg" />
+                        <img src={message.fileUrl || message.content} alt="Hình ảnh" className="max-w-full max-h-60 rounded-lg" />
                       ) : message.type === 'file' ? (
                         <div className="flex items-center gap-2">
                           <i className="fas fa-file text-gray-500"></i>
-                          <span>{message.fileName || message.content}</span>
+                          <span className="truncate">{message.fileName || message.content}</span>
                         </div>
                       ) : (
-                        <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
+                        <div className="relative">
+                          <p className="text-sm whitespace-pre-wrap break-words">
+                            {message.content}
+                          </p>
+                        </div>
                       )}
                     </div>
                     

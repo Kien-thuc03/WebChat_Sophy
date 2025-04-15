@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Avatar } from '../common/Avatar';
 import { formatMessageTime } from '../../utils/dateUtils';
 import { CheckOutlined } from '@ant-design/icons';
@@ -18,6 +18,7 @@ interface ChatMessageProps {
     fileName?: string;
     fileSize?: number;
     isRead?: boolean;
+    isError?: boolean;
   };
   isOwnMessage: boolean;
   showAvatar?: boolean;
@@ -30,6 +31,17 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
   showAvatar = true,
   showSender = false,
 }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [isOverflowing, setIsOverflowing] = useState(false);
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (contentRef.current) {
+      const element = contentRef.current;
+      setIsOverflowing(element.scrollHeight > element.clientHeight);
+    }
+  }, [message.content]);
+
   // Format file size
   const formatFileSize = (bytes?: number): string => {
     if (!bytes) return '0 Bytes';
@@ -60,40 +72,69 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
         );
       case 'text':
       default:
-        return <div className="message-text">{message.content}</div>;
+        return (
+          <div className="message-text relative">
+            <div 
+              ref={contentRef}
+              className={`overflow-hidden ${isExpanded ? '' : 'max-h-32'}`}
+            >
+              <p className="whitespace-pre-wrap break-words">{message.content}</p>
+            </div>
+            {isOverflowing && !isExpanded && (
+              <>
+                <div className={`absolute bottom-0 left-0 right-0 h-8 ${
+                  isOwnMessage 
+                    ? message.isError ? 'bg-gradient-to-t from-red-100 to-transparent' 
+                    : 'bg-gradient-to-t from-blue-500 to-transparent' 
+                    : 'bg-gradient-to-t from-gray-100 to-transparent'
+                } pointer-events-none`}></div>
+                <div className="text-center mt-1">
+                  <button
+                    onClick={() => setIsExpanded(true)}
+                    className={`text-xs ${isOwnMessage && !message.isError ? 'text-white' : 'text-blue-500'} hover:underline`}
+                  >
+                    Xem thêm
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        );
     }
   };
 
   return (
-    <div className={`chat-message flex mb-2 ${isOwnMessage ? 'justify-end' : 'justify-start'}`}>
+    <div className={`flex mb-2 ${isOwnMessage ? 'justify-end' : 'justify-start'}`}>
       {!isOwnMessage && showAvatar && (
-        <div className="avatar-container mr-2 flex-shrink-0">
+        <div className="flex-shrink-0 mr-2">
           <Avatar 
             name={message.sender.name} 
             avatarUrl={message.sender.avatar}
-            size={32}
+            size={30}
             className="rounded-full"
           />
         </div>
       )}
       
-      <div className={`message-container max-w-[70%]`}>
+      <div className={`flex flex-col max-w-[70%]`}>
         {showSender && !isOwnMessage && (
-          <div className="sender-name text-xs mb-1 ml-1">{message.sender.name}</div>
+          <div className="text-xs mb-1 ml-1 text-gray-600">
+            {message.sender.name}
+          </div>
         )}
         
-        <div className={`message-bubble p-2 rounded-lg ${
+        <div className={`px-3 py-2 rounded-2xl ${
           isOwnMessage 
-            ? 'bg-blue-500 text-white rounded-tr-none' 
+            ? message.isError ? 'bg-red-100 text-red-800' : 'bg-blue-500 text-white rounded-tr-none' 
             : 'bg-gray-100 text-gray-800 rounded-tl-none'
         }`}>
           {renderMessageContent()}
         </div>
         
-        <div className={`message-info flex items-center mt-1 text-xs text-gray-500 ${
+        <div className={`flex text-xs text-gray-500 mt-1 ${
           isOwnMessage ? 'justify-end' : 'justify-start'
         }`}>
-          <span className="timestamp">{formatMessageTime(message.timestamp)}</span>
+          <span>{formatMessageTime(message.timestamp)}</span>
           {isOwnMessage && message.isRead && (
             <span className="ml-1 text-blue-500">
               <CheckOutlined style={{ fontSize: '12px' }} />

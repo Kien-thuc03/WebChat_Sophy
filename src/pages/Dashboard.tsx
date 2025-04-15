@@ -15,8 +15,6 @@ import { useLanguage } from "../features/auth/context/LanguageContext";
 import ChatInfo from "../components/chat/ChatInfo";
 import { Layout } from 'antd';
 
-const { Content, Sider } = Layout;
-
 const Dashboard: React.FC = () => {
   const { t } = useLanguage();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -163,10 +161,11 @@ const Dashboard: React.FC = () => {
       )}
       
       {/* Main content area */}
-      <Layout className="flex-1 h-full">
+      <div className="flex flex-1 h-full">
         {activeSection === "chat" && selectedConversation ? (
-          <Layout>
-            <Layout className="flex flex-col">
+          <div className="flex flex-1 h-full">
+            {/* Left side - Chat Area */}
+            <div className="flex flex-col flex-1 min-w-0">
               <ChatHeader
                 conversation={selectedConversation}
                 isGroup={selectedConversation.isGroup}
@@ -176,16 +175,18 @@ const Dashboard: React.FC = () => {
                 onInfoClick={handleToggleChatInfo}
                 showInfo={showChatInfo}
               />
-              <Content className="flex-1 overflow-hidden">
+              <div className="flex-1 overflow-hidden">
                 <ChatArea conversation={selectedConversation} />
-              </Content>
-            </Layout>
+              </div>
+            </div>
+
+            {/* Right side - Chat Info */}
             {showChatInfo && (
-              <Sider width={300} theme="light" className="border-l border-gray-200">
+              <div className="w-[350px] border-l border-gray-200 flex-shrink-0 overflow-hidden">
                 <ChatInfo conversation={selectedConversation} />
-              </Sider>
+              </div>
             )}
-          </Layout>
+          </div>
         ) : activeSection === "friends" && contactOption === "friends" ? (
           <FriendList onSelectFriend={handleFriendSelect} />
         ) : activeSection === "friends" && contactOption === "friendRequests" ? (
@@ -204,7 +205,7 @@ const Dashboard: React.FC = () => {
         ) : (
           <MainContent />
         )}
-      </Layout>
+      </div>
 
       {isSettingsOpen && (
         <div ref={settingsRef}>
