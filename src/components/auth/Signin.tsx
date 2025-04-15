@@ -5,13 +5,16 @@ import "react-phone-number-input/style.css";
 import PhoneInput from "react-phone-number-input";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faEyeSlash, faEye } from "@fortawesome/free-solid-svg-icons";
+import { useConversationContext } from "../../features/chat/context/ConversationContext";
 // import { generateQRToken, verifyQRToken } from "../../api/API";
 
 const Signin: React.FC = () => {
   const { login } = useAuth();
+  const { refreshConversations } = useConversationContext();
   const [formData, setFormData] = useState({ phone: "", password: "" });
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -31,10 +34,12 @@ const Signin: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(""); // Clear previous errors
+    setIsSubmitting(true); // Disable form
 
     try {
       if (!formData.phone || !formData.password) {
         setError("Vui lòng nhập đầy đủ thông tin");
+        setIsSubmitting(false);
         return;
       }
 
@@ -46,15 +51,18 @@ const Signin: React.FC = () => {
         password: formData.password,
       };
 
-      console.log("Formatted phone:", formattedData.phone);
-      console.log("Password:", formattedData.password);
-
       // Attempt login
       await login(formattedData);
-
-      // Navigate to main page on success
+      
+      // Start loading conversations
+      refreshConversations();
+      
+      // Navigate to main page right away
       navigate("/main");
+      
     } catch (error: unknown) {
+      setIsSubmitting(false);
+      
       // Narrow the error type
       if (error instanceof Error) {
         console.error("Login error details:", error);
@@ -159,8 +167,11 @@ const Signin: React.FC = () => {
 
           <button
             type="submit"
-            className="w-full rounded-md bg-blue-500 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
-            Đăng nhập
+            disabled={isSubmitting}
+            className={`w-full rounded-md bg-blue-500 px-4 py-2 text-sm font-semibold text-white ${
+              isSubmitting ? "opacity-70 cursor-not-allowed" : "hover:bg-blue-600"
+            } focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2`}>
+            {isSubmitting ? "Đang xử lý..." : "Đăng nhập"}
           </button>
           
           <div className="mt-15 flex justify-between" >

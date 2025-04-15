@@ -13,10 +13,12 @@ import RequestList from "../components/contact/RequestList";
 import { Conversation } from "../features/chat/types/conversationTypes";
 import { useLanguage } from "../features/auth/context/LanguageContext";
 import ChatInfo from "../components/chat/ChatInfo";
-import { Layout } from 'antd';
+import { Layout, Spin, Button } from 'antd';
+import { useConversationContext } from "../features/chat/context/ConversationContext";
 
 const Dashboard: React.FC = () => {
   const { t } = useLanguage();
+  const { isLoading, refreshConversations, conversations } = useConversationContext();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -131,6 +133,22 @@ const Dashboard: React.FC = () => {
     setShowChatInfo(prev => !prev);
   };
 
+  // Add useEffect to check if conversations loaded correctly
+  useEffect(() => {
+    // After component mounts, if we're logged in and have no conversations after 5 seconds, try to refresh
+    const userId = localStorage.getItem('userId');
+    if (userId) {
+      const timer = setTimeout(() => {
+        if (conversations.length === 0 && !isLoading) {
+          console.log("Không có hội thoại nào sau khi tải, thử tải lại...");
+          refreshConversations();
+        }
+      }, 5000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [isLoading, conversations, refreshConversations]);
+
   return (
     <div className="flex h-screen overflow-hidden">
       <Sidebar
@@ -162,7 +180,23 @@ const Dashboard: React.FC = () => {
       
       {/* Main content area */}
       <div className="flex flex-1 h-full">
-        {activeSection === "chat" && selectedConversation ? (
+        {isLoading && activeSection === "chat" ? (
+          <div className="flex flex-1 items-center justify-center bg-gray-50 dark:bg-gray-800">
+            <div className="text-center">
+              <Spin size="large" />
+              <p className="mt-4 text-gray-600 dark:text-gray-300">Đang tải dữ liệu hội thoại...</p>
+              <p className="text-sm text-gray-500 mt-2">Vui lòng đợi trong giây lát</p>
+              
+              <Button 
+                type="primary" 
+                className="mt-4"
+                onClick={() => refreshConversations()}
+              >
+                Tải lại thủ công
+              </Button>
+            </div>
+          </div>
+        ) : activeSection === "chat" && selectedConversation ? (
           <div className="flex flex-1 h-full">
             {/* Left side - Chat Area */}
             <div className="flex flex-col flex-1 min-w-0">
