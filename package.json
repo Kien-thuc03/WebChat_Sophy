@@ -11,6 +11,8 @@
   },
   "dependencies": {
     "@ant-design/icons": "^6.0.0",
+    "@emoji-mart/data": "^1.2.1",
+    "@emoji-mart/react": "^1.1.1",
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.0",
     "@fortawesome/fontawesome-svg-core": "^6.7.2",
@@ -24,6 +26,7 @@
     "axios": "^1.8.2",
     "bcryptjs": "^3.0.2",
     "date-fns": "^4.1.0",
+    "emoji-mart": "^5.6.0",
     "firebase": "^11.6.0",
     "postcss": "^8.5.3",
     "qr-scanner": "^1.4.2",
