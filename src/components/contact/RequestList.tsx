@@ -3,6 +3,7 @@ import { Tabs, Button, message } from "antd";
 import { Avatar } from "../common/Avatar";
 import { useLanguage } from "../../features/auth/context/LanguageContext";
 import ErrorBoundary from "../common/ErrorBoundary";
+import UserInfoHeaderModal, { UserResult } from "../header/modal/UserInfoHeaderModal";
 import { 
   getFriendRequestsReceived, 
   getFriendRequestsSent, 
@@ -42,6 +43,8 @@ const RequestList: React.FC<RequestListProps> = ({ onSelectFriend, onRequestsUpd
   const [sentRequests, setSentRequests] = useState<FriendRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedUser, setSelectedUser] = useState<UserResult | null>(null);
+  const [isModalVisible, setIsModalVisible] = useState(false);
 
   // Format date for display
   const formatDate = (dateString: string) => {
@@ -152,6 +155,37 @@ const RequestList: React.FC<RequestListProps> = ({ onSelectFriend, onRequestsUpd
     }
   };
 
+  const handleUserClick = (user: { userId: string; fullname: string; urlavatar?: string }) => {
+    setSelectedUser({
+      userId: user.userId,
+      fullname: user.fullname,
+      phone: "",
+      avatar: user.urlavatar
+    });
+    setIsModalVisible(true);
+  };
+
+  const handleModalClose = () => {
+    setIsModalVisible(false);
+    setSelectedUser(null);
+  };
+
+  const isCurrentUser = (userId: string): boolean => {
+    const currentUserId = localStorage.getItem('userId');
+    return userId === currentUserId;
+  };
+
+  const isFriend = (userId: string): boolean => {
+    // Check if the user is in received or sent requests
+    const isInReceived = receivedRequests.some(
+      request => request.senderId.userId === userId || request.receiverId.userId === userId
+    );
+    const isInSent = sentRequests.some(
+      request => request.senderId.userId === userId || request.receiverId.userId === userId
+    );
+    return isInReceived || isInSent;
+  };
+
   return (
     <div className="request-list w-full h-full flex flex-col bg-white dark:bg-gray-900">
       <div className="p-4 border-b dark:border-gray-700">
@@ -167,14 +201,13 @@ const RequestList: React.FC<RequestListProps> = ({ onSelectFriend, onRequestsUpd
           ) : receivedRequests.length === 0 ? (
             <div className="p-4 text-center">Không có lời mời nào</div>
           ) : (
-            // Update the received requests section
             <div className="overflow-y-auto">
               {receivedRequests.map(request => (
                 <div key={request.friendRequestId} className="p-4 border-b dark:border-gray-700">
                   <div className="flex items-start">
                     <div 
                       className="cursor-pointer flex-shrink-0 mr-3"
-                      onClick={() => handleFriendClick(request.senderId.userId)}
+                      onClick={() => handleUserClick(request.senderId)}
                     >
                       <Avatar 
                         name={request.senderId.fullname} 
@@ -187,7 +220,7 @@ const RequestList: React.FC<RequestListProps> = ({ onSelectFriend, onRequestsUpd
                       <div className="flex flex-col">
                         <div 
                           className="font-medium text-lg cursor-pointer hover:underline"
-                          onClick={() => handleFriendClick(request.senderId.userId)}
+                          onClick={() => handleUserClick(request.senderId)}
                         >
                           {request.senderId.fullname}
                         </div>
@@ -238,7 +271,7 @@ const RequestList: React.FC<RequestListProps> = ({ onSelectFriend, onRequestsUpd
                     <div className="flex items-center">
                       <div 
                         className="cursor-pointer mr-3"
-                        onClick={() => handleFriendClick(request.receiverId.userId)}
+                        onClick={() => handleUserClick(request.receiverId)}
                       >
                         <Avatar 
                           name={request.receiverId.fullname} 
@@ -249,7 +282,7 @@ const RequestList: React.FC<RequestListProps> = ({ onSelectFriend, onRequestsUpd
                       <div>
                         <div 
                           className="font-medium cursor-pointer hover:underline"
-                          onClick={() => handleFriendClick(request.receiverId.userId)}
+                          onClick={() => handleUserClick(request.receiverId)}
                         >
                           {request.receiverId.fullname}
                         </div>
@@ -271,6 +304,19 @@ const RequestList: React.FC<RequestListProps> = ({ onSelectFriend, onRequestsUpd
           )}
         </TabPane>
       </Tabs>
+
+      <UserInfoHeaderModal
+        visible={isModalVisible}
+        onCancel={handleModalClose}
+        searchResult={selectedUser}
+        isCurrentUser={isCurrentUser}
+        isFriend={isFriend}
+        handleUpdate={() => {}}
+        handleMessage={handleFriendClick}
+        handleSendFriendRequest={() => {}}
+        isSending={false}
+        onRequestsUpdate={onRequestsUpdate}
+      />
     </div>
   );
 };
