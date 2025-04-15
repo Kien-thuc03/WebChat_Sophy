@@ -1290,9 +1290,13 @@ export const sendFriendRequest = async (
       if (status === 400) {
         switch (data.message) {
           case "You cannot send a friend request to yourself":
-            throw new Error("Bạn không thể gửi yêu cầu kết bạn cho chính mình.");
+            throw new Error(
+              "Bạn không thể gửi yêu cầu kết bạn cho chính mình."
+            );
           case "A pending friend request already exists between you and this user":
-            throw new Error("Đã có yêu cầu kết bạn đang chờ giữa bạn và người này.");
+            throw new Error(
+              "Đã có yêu cầu kết bạn đang chờ giữa bạn và người này."
+            );
           case "You are already friends with this user":
             throw new Error("Bạn đã là bạn bè với người này.");
           case "You cannot send a friend request to this user":
@@ -1316,43 +1320,6 @@ export const sendFriendRequest = async (
     throw new Error("Không thể gửi yêu cầu kết bạn. Vui lòng thử lại sau.");
   }
 };
-// Kiểm tra xem đã gửi yêu cầu kết bạn tới receiverId hay chưa
-export const checkSentFriendRequest = async (receiverId: string): Promise<{ hasSent: boolean; requestId?: string }> => {
-  try {
-    const token = getAuthToken();
-    if (!token) {
-      throw new Error("Không có token xác thực");
-    }
-
-    // Updated endpoint to match backend route
-    const response = await apiClient.get(`/api/users/friend-requests-sent`);
-    console.log("Check sent friend request response:", response.data);
-
-    // Check if there's a pending request to this user
-    if (Array.isArray(response.data)) {
-      const pendingRequest = response.data.find(
-        (req: any) => req.receiverId === receiverId && req.status === "pending"
-      );
-      
-      if (pendingRequest) {
-        return { 
-          hasSent: true, 
-          requestId: pendingRequest.friendRequestId 
-        };
-      }
-    }
-    
-    return { hasSent: false };
-  } catch (error: any) {
-    console.error("Lỗi khi kiểm tra yêu cầu kết bạn đã gửi:", error);
-    
-    if (error.response?.status === 401) {
-      throw new Error("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.");
-    }
-    
-    return { hasSent: false }; // Return a default value instead of throwing an error
-  }
-};
 // Lấy danh sách yêu cầu kết bạn đã nhận
 export const getFriendRequestsReceived = async () => {
   try {
@@ -1361,126 +1328,138 @@ export const getFriendRequestsReceived = async () => {
       throw new Error("Không có token xác thực");
     }
 
-    // Updated endpoint to match backend route
     const response = await apiClient.get("/api/users/friend-requests-received");
-    console.log("Friend requests received:", response.data);
-    return response.data;
+    console.log("Friend requests received response:", response.data);
+    
+    // Transform the data to match our frontend interface
+    const transformedData = response.data.map((request: any) => ({
+      friendRequestId: request.friendRequestId,
+      senderId: {
+        userId: request.senderId,
+        fullname: "Unknown User", // This will be updated when we get sender info
+        urlavatar: undefined
+      },
+      receiverId: {
+        userId: request.receiverId.userId,
+        fullname: request.receiverId.fullname,
+        urlavatar: request.receiverId.urlavatar
+      },
+      status: request.status,
+      message: request.message || "",
+      createdAt: request.createdAt,
+      updatedAt: request.updatedAt
+    }));
+
+    return transformedData;
   } catch (error: unknown) {
     console.error("Lỗi khi lấy danh sách yêu cầu kết bạn đã nhận:", error);
     if (error instanceof AxiosError && error.response) {
-      if (error.response.status === 401) {
-        throw new Error("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.");
-      }
+      console.error("Server error details:", error.response.data);
     }
-    return []; // Return empty array on error
+    return [];
+  }
+};
+
+// Lấy danh sách yêu cầu kết bạn đã gửi
+export const getFriendRequestsSent = async () => {
+  try {
+    const token = getAuthToken();
+    if (!token) {
+      throw new Error("Không có token xác thực");
+    }
+
+    // Check if this endpoint matches your backend route
+    const response = await apiClient.get("/api/users/friend-requests-sent");
+    console.log("Friend requests sent response:", response.data);
+    return response.data;
+  } catch (error: unknown) {
+    console.error("Lỗi khi lấy danh sách yêu cầu kết bạn đã gửi:", error);
+    if (error instanceof AxiosError && error.response) {
+      console.error("Server error details:", error.response.data);
+    }
+    // Return empty array instead of throwing error to prevent UI from breaking
+    return [];
   }
 };
 
 // Chấp nhận yêu cầu kết bạn
-export const acceptFriendRequest = async (friendRequestId: string): Promise<{ success: boolean; message: string }> => {
+export const acceptFriendRequest = async (requestId: string) => {
   try {
     const token = getAuthToken();
     if (!token) {
       throw new Error("Không có token xác thực");
     }
 
-    const response = await apiClient.post("/api/users/friend-requests/accept", { friendRequestId });
+    const response = await apiClient.put(
+      `/api/users/friend-requests/accept-request/${requestId}`
+    );
     console.log("Accept friend request response:", response.data);
-
-    return {
-      success: true,
-      message: response.data.message || "Đã chấp nhận lời mời kết bạn"
-    };
+    return response.data;
   } catch (error: unknown) {
     console.error("Lỗi khi chấp nhận yêu cầu kết bạn:", error);
-    
     if (error instanceof AxiosError && error.response) {
-      const { status, data } = error.response;
-      
-      if (status === 404) {
+      if (error.response.status === 401) {
+        throw new Error("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.");
+      }
+      if (error.response.status === 404) {
         throw new Error("Không tìm thấy yêu cầu kết bạn");
-      } else if (status === 403) {
-        throw new Error("Bạn không có quyền chấp nhận yêu cầu kết bạn này");
-      } else if (status === 400) {
-        throw new Error(data.message || "Yêu cầu không hợp lệ");
       }
     }
-    
-    throw new Error("Không thể chấp nhận yêu cầu kết bạn. Vui lòng thử lại sau.");
+    throw new Error("Không thể chấp nhận yêu cầu kết bạn");
   }
 };
 
 // Từ chối yêu cầu kết bạn
-export const rejectFriendRequest = async (friendRequestId: string): Promise<{ success: boolean; message: string }> => {
+export const rejectFriendRequest = async (requestId: string) => {
   try {
     const token = getAuthToken();
     if (!token) {
       throw new Error("Không có token xác thực");
     }
 
-    const response = await apiClient.post("/api/users/friend-requests/reject", { friendRequestId });
+    const response = await apiClient.put(
+      `/api/users/friend-requests/reject-request/${requestId}`
+    );
     console.log("Reject friend request response:", response.data);
-
-    return {
-      success: true,
-      message: response.data.message || "Đã từ chối lời mời kết bạn"
-    };
+    return response.data;
   } catch (error: unknown) {
     console.error("Lỗi khi từ chối yêu cầu kết bạn:", error);
-    
     if (error instanceof AxiosError && error.response) {
-      const { status, data } = error.response;
-      
-      if (status === 404) {
+      if (error.response.status === 401) {
+        throw new Error("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.");
+      }
+      if (error.response.status === 404) {
         throw new Error("Không tìm thấy yêu cầu kết bạn");
-      } else if (status === 403) {
-        throw new Error("Bạn không có quyền từ chối yêu cầu kết bạn này");
       }
     }
-    
-    throw new Error("Không thể từ chối yêu cầu kết bạn. Vui lòng thử lại sau.");
+    throw new Error("Không thể từ chối yêu cầu kết bạn");
   }
 };
-// Hủy yêu cầu kết bạn
-export const cancelFriendRequest = async (requestId: string): Promise<{ success: boolean; message: string }> => {
+
+// Thu hồi yêu cầu kết bạn
+export const cancelFriendRequest = async (requestId: string) => {
   try {
     const token = getAuthToken();
     if (!token) {
       throw new Error("Không có token xác thực");
     }
 
-    if (!requestId) {
-      throw new Error("ID yêu cầu kết bạn không hợp lệ");
-    }
-
-    const response = await apiClient.post(`/api/users/friend-requests/retrieve/${requestId}`);
-
+    const response = await apiClient.delete(
+      `/api/users/friend-requests/retrieve-request/${requestId}`
+    );
     console.log("Cancel friend request response:", response.data);
-
-    return {
-      success: true,
-      message: response.data.message || "Thu hồi yêu cầu kết bạn thành công",
-    };
+    return response.data;
   } catch (error: unknown) {
     console.error("Lỗi khi thu hồi yêu cầu kết bạn:", error);
-
     if (error instanceof AxiosError && error.response) {
-      const { status, data } = error.response;
-      console.error("Error details:", { status, data });
-      if (status === 400) {
-        throw new Error(data.message || "Yêu cầu kết bạn đã được xử lý trước đó");
-      } else if (status === 401) {
+      if (error.response.status === 401) {
         throw new Error("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.");
-      } else if (status === 403) {
-        throw new Error("Bạn không có quyền thu hồi yêu cầu kết bạn này");
-      } else if (status === 404) {
+      }
+      if (error.response.status === 404) {
         throw new Error("Không tìm thấy yêu cầu kết bạn");
-      } else if (status === 500) {
-        throw new Error("Lỗi hệ thống, vui lòng thử lại sau");
       }
     }
-
-    throw new Error("Không thể thu hồi yêu cầu kết bạn. Vui lòng thử lại sau.");
+    throw new Error("Không thể thu hồi yêu cầu kết bạn");
   }
 };
 // Hàm lấy danh sách bạn bè

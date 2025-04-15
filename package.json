@@ -23,6 +23,7 @@
     "autoprefixer": "^10.4.20",
     "axios": "^1.8.2",
     "bcryptjs": "^3.0.2",
+    "date-fns": "^4.1.0",
     "firebase": "^11.6.0",
     "postcss": "^8.5.3",
     "qr-scanner": "^1.4.2",
