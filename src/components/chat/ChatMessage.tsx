@@ -23,6 +23,7 @@ interface ChatMessageProps {
   isOwnMessage: boolean;
   showAvatar?: boolean;
   showSender?: boolean;
+  isGroupChat?: boolean;
 }
 
 const ChatMessage: React.FC<ChatMessageProps> = ({
@@ -30,6 +31,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
   isOwnMessage,
   showAvatar = true,
   showSender = false,
+  isGroupChat = false,
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isOverflowing, setIsOverflowing] = useState(false);
@@ -104,9 +106,9 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
   };
 
   return (
-    <div className={`flex mb-2 ${isOwnMessage ? 'justify-end' : 'justify-start'}`}>
+    <div className={`flex mb-1.5 ${isOwnMessage ? 'justify-end' : 'justify-start'}`}>
       {!isOwnMessage && showAvatar && (
-        <div className="flex-shrink-0 mr-2">
+        <div className="flex-shrink-0 mr-2 mt-auto">
           <Avatar 
             name={message.sender.name} 
             avatarUrl={message.sender.avatar}
@@ -131,7 +133,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
           {renderMessageContent()}
         </div>
         
-        <div className={`flex text-xs text-gray-500 mt-1 ${
+        <div className={`flex text-xs text-gray-500 mt-0.5 ${
           isOwnMessage ? 'justify-end' : 'justify-start'
         }`}>
           <span>{formatMessageTime(message.timestamp)}</span>
