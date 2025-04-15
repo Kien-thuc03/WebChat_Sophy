@@ -6,7 +6,7 @@ import Header from "../header/Header";
 import { Avatar } from "../common/Avatar";
 import { useConversationContext } from "../../features/chat/context/ConversationContext";
 import ErrorBoundary from "../common/ErrorBoundary";
-import { formatMessageTime } from "../../utils/dateUtils";
+import { formatRelativeTime } from "../../utils/dateUtils";
 import ChatNav from "./ChatNav";
 import GroupAvatar from "./GroupAvatar";
 import LabelModal from "./modals/LabelModal";
@@ -215,7 +215,7 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
                   <div className="flex items-center">
                     <span className="text-xs text-gray-500 dark:text-gray-400 group-hover:opacity-0 transition-opacity duration-200">
                       {chat.lastMessage &&
-                        formatMessageTime(chat.lastMessage.createdAt)}
+                        formatRelativeTime(chat.lastMessage.createdAt)}
                     </span>
                     <div className="absolute right-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                       <button
