@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Avatar } from '../common/Avatar';
 import { Button, Tooltip, Collapse, Badge, Switch, Modal } from 'antd';
 import { 
@@ -18,6 +18,11 @@ import {
   TeamOutlined
 } from '@ant-design/icons';
 import { Conversation } from '../../features/chat/types/conversationTypes';
+import { useConversations } from '../../features/chat/hooks/useConversations';
+import { getUserById } from "../../api/API";
+import { User } from "../../features/auth/types/authTypes";
+import GroupAvatar from './GroupAvatar';
+import { useLanguage } from "../../features/auth/context/LanguageContext";
 
 interface ChatInfoProps {
   conversation: Conversation;
@@ -30,6 +35,67 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation }) => {
   const [isMuted, setIsMuted] = useState(false);
   const [isPinned, setIsPinned] = useState(false);
   const [isHidden, setIsHidden] = useState(false);
+  const [localUserCache, setLocalUserCache] = useState<Record<string, User>>({});
+  const { userCache, userAvatars } = useConversations();
+  const { t } = useLanguage();
+
+  // Determine if this is a group conversation
+  const isGroup = conversation.isGroup;
+  const groupName = conversation.groupName;
+  const groupAvatarUrl = conversation.groupAvatarUrl;
+  const groupMembers = conversation.groupMembers || [];
+
+  /**
+   * Gets the ID of the other user in a one-on-one conversation
+   */
+  const getOtherUserId = (conversation: Conversation): string => {
+    // Get current user ID from localStorage (or any authentication method you use)
+    const currentUserId = localStorage.getItem('userId') || '';
+    
+    // If it's a group chat, there's no single "other user"
+    if (conversation.isGroup) {
+      return '';
+    }
+    
+    // If the current user is the creator, return the receiverId
+    if (currentUserId === conversation.creatorId) {
+      return conversation.receiverId || '';
+    }
+    
+    // If the current user is the receiver, return the creatorId
+    if (currentUserId === conversation.receiverId) {
+      return conversation.creatorId;
+    }
+    
+    // Fallback: Return receiverId if we can't determine
+    return conversation.receiverId || conversation.creatorId;
+  };
+
+  // Get the other user's ID using our helper function
+  const otherUserId = getOtherUserId(conversation);
+  // Get user info from either the global or local cache
+  const otherUserInfo = userCache[otherUserId] || localUserCache[otherUserId];
+
+  // Load user data if not already in cache
+  useEffect(() => {
+    const loadUserData = async () => {
+      if (!isGroup && otherUserId && !userCache[otherUserId] && !localUserCache[otherUserId]) {
+        try {
+          const userData = await getUserById(otherUserId);
+          if (userData) {
+            setLocalUserCache(prev => ({
+              ...prev,
+              [otherUserId]: userData
+            }));
+          }
+        } catch (error) {
+          console.error(`Failed to load data for user ${otherUserId}:`, error);
+        }
+      }
+    };
+    
+    loadUserData();
+  }, [isGroup, otherUserId, userCache, localUserCache]);
 
   const handlePanelChange = (keys: string | string[]) => {
     setActiveKeys(Array.isArray(keys) ? keys : [keys]);
@@ -48,6 +114,7 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation }) => {
   };
 
   const handleEditName = () => {
+    setLocalName(isGroup ? groupName || '' : otherUserInfo?.fullname || '');
     setIsEditNameModalVisible(true);
   };
 
@@ -69,12 +136,20 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation }) => {
     });
   };
 
+  // Determine the display name based on whether it's a group or individual conversation
+  const displayName = isGroup 
+    ? groupName || 'Nhóm chat' 
+    : otherUserInfo?.fullname || t.loading || 'Đang tải...';
+
+  // Determine online status
+  const onlineStatus = isGroup ? `${groupMembers.length} thành viên` : 'Online';
+
   return (
     <div className="chat-info flex flex-col h-full bg-white">
       {/* Header - Fixed */}
       <div className="flex-none p-4 border-b border-gray-200">
         <h2 className="text-lg font-semibold">
-          {conversation.isGroup ? 'Thông tin nhóm' : 'Thông tin hội thoại'}
+          {isGroup ? 'Thông tin nhóm' : 'Thông tin hội thoại'}
         </h2>
       </div>
 
@@ -83,15 +158,25 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation }) => {
         {/* User Info Section */}
         <div className="p-4 border-b border-gray-200">
           <div className="flex flex-col items-center">
-            <Avatar 
-              name={conversation.groupName || 'User'}
-              avatarUrl={conversation.groupAvatarUrl || undefined}
-              size={80}
-              className="rounded-full mb-3"
-            />
+            {isGroup ? (
+              <GroupAvatar
+                members={groupMembers}
+                userAvatars={userAvatars}
+                size={80}
+                className="mb-3 border-2 border-white"
+                groupAvatarUrl={groupAvatarUrl || undefined}
+              />
+            ) : (
+              <Avatar 
+                name={otherUserInfo?.fullname || 'User'}
+                avatarUrl={otherUserInfo?.urlavatar}
+                size={80}
+                className="rounded-full mb-3"
+              />
+            )}
             <div className="flex items-center gap-2 mb-1">
               <h3 className="text-lg font-semibold">
-                {conversation.groupName || 'User Name'}
+                {displayName}
               </h3>
               <Button
                 type="text"
@@ -101,7 +186,10 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation }) => {
                 className="text-gray-500 hover:text-blue-500"
               />
             </div>
-            <p className="text-sm text-gray-500 mb-4">Online</p>
+            <p className="text-sm text-gray-500 mb-4">{onlineStatus}</p>
+            {!isGroup && otherUserInfo?.phone && (
+              <p className="text-sm text-gray-500 mb-4">{otherUserInfo.phone}</p>
+            )}
 
             {/* Quick Actions */}
             <div className="flex justify-around w-full mb-4">
@@ -164,22 +252,26 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation }) => {
           </Collapse.Panel>
 
           {/* Shared Groups */}
-          <Collapse.Panel
-            header={
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <TeamOutlined />
-                  <span>Nhóm chung</span>
-                  <Badge count={20} size="small" />
+          {!isGroup && (
+            <Collapse.Panel
+              header={
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <TeamOutlined />
+                    <span>Nhóm chung</span>
+                    <Badge count={0} size="small" />
+                  </div>
+                </div>
+              }
+              key="shared-groups"
+            >
+              <div className="space-y-2">
+                <div className="text-sm text-gray-500 text-center py-2">
+                  Không có nhóm chung nào
                 </div>
               </div>
-            }
-            key="shared-groups"
-          >
-            <div className="space-y-2">
-              {/* List of shared groups would go here */}
-            </div>
-          </Collapse.Panel>
+            </Collapse.Panel>
+          )}
 
           {/* Media Section */}
           <Collapse.Panel 
@@ -196,6 +288,9 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation }) => {
           >
             <div className="grid grid-cols-3 gap-2">
               {/* Media items would go here */}
+              <div className="text-sm text-gray-500 text-center py-2 col-span-3">
+                Chưa có ảnh/video nào
+              </div>
             </div>
           </Collapse.Panel>
 
@@ -213,7 +308,9 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation }) => {
             key="files"
           >
             <div className="space-y-2">
-              {/* File items would go here */}
+              <div className="text-sm text-gray-500 text-center py-2">
+                Chưa có file nào
+              </div>
             </div>
           </Collapse.Panel>
 
@@ -231,7 +328,9 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation }) => {
             key="links"
           >
             <div className="space-y-2">
-              {/* Link items would go here */}
+              <div className="text-sm text-gray-500 text-center py-2">
+                Chưa có link nào
+              </div>
             </div>
           </Collapse.Panel>
 

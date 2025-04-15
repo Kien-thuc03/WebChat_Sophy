@@ -182,7 +182,7 @@ const Dashboard: React.FC = () => {
 
             {/* Right side - Chat Info */}
             {showChatInfo && (
-              <div className="w-[300px] border-l border-gray-200 flex-shrink-0 overflow-hidden">
+              <div className="w-[350px] border-l border-gray-200 flex-shrink-0 overflow-hidden">
                 <ChatInfo conversation={selectedConversation} />
               </div>
             )}
