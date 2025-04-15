@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Input, Button, message, Alert, Empty, Spin } from 'antd';
+import { Input, Button, message, Alert, Empty, Spin, Popover } from 'antd';
 import { SendOutlined, PaperClipOutlined, SmileOutlined, ReloadOutlined, DownOutlined } from '@ant-design/icons';
 import { Conversation, Message } from '../../features/chat/types/conversationTypes';
 import { getMessages, sendMessage, fetchConversations, getConversationDetail } from '../../api/API';
@@ -9,6 +9,8 @@ import { Avatar } from '../common/Avatar';
 import { useConversationContext } from '../../features/chat/context/ConversationContext';
 import { BsEmojiSmile } from 'react-icons/bs';
 import { PiPaperclipBold } from 'react-icons/pi';
+import data from '@emoji-mart/data';
+import Picker from '@emoji-mart/react';
 
 // Chuyển đổi Message từ API sang định dạng tin nhắn cần hiển thị
 interface DisplayMessage {
@@ -53,6 +55,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
   const [newestCursor, setNewestCursor] = useState<string | null>(null);
   const [attachments, setAttachments] = useState<Array<File>>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const [emojiPickerVisible, setEmojiPickerVisible] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -610,6 +613,61 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
     return (currentTime - prevTime) >= 300000;
   };
 
+  // Handle emoji selection
+  const handleEmojiSelect = (emoji: any) => {
+    setInputValue(prev => prev + emoji.native);
+    setEmojiPickerVisible(false);
+  };
+
+  // Toggle emoji picker visibility
+  const toggleEmojiPicker = () => {
+    setEmojiPickerVisible(!emojiPickerVisible);
+  };
+
+  // Close emoji picker
+  const closeEmojiPicker = useCallback(() => {
+    setEmojiPickerVisible(false);
+  }, []);
+
+  // Add click outside handler for emoji picker
+  useEffect(() => {
+    if (emojiPickerVisible) {
+      const handleClickOutside = (event: MouseEvent) => {
+        const target = event.target as Node;
+        const emojiPicker = document.querySelector('.emoji-picker-container');
+        const emojiButton = document.querySelector('.emoji-button');
+        
+        if (emojiPicker && 
+            emojiButton && 
+            !emojiPicker.contains(target) && 
+            !emojiButton.contains(target)) {
+          closeEmojiPicker();
+        }
+      };
+      
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [emojiPickerVisible, closeEmojiPicker]);
+
+  // Custom CSS for emoji picker to fix nested container issues
+  useEffect(() => {
+    // Add style to fix emoji-mart nested container issues
+    if (emojiPickerVisible) {
+      // Add a small delay to ensure the element is in the DOM
+      setTimeout(() => {
+        const emojiPickerElement = document.querySelector('.emoji-picker-container em-emoji-picker');
+        if (emojiPickerElement) {
+          (emojiPickerElement as HTMLElement).style.border = 'none';
+          (emojiPickerElement as HTMLElement).style.boxShadow = 'none';
+          (emojiPickerElement as HTMLElement).style.height = '350px';
+        }
+      }, 50);
+    }
+  }, [emojiPickerVisible]);
+
   // Nếu không có conversation hợp lệ, hiển thị thông báo
   if (!isValidConversation) {
     return (
@@ -850,7 +908,23 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
                 disabled={isUploading}
                 suffix={
                   <div className="flex items-center gap-2 text-gray-500">
-                    <BsEmojiSmile className="text-xl cursor-pointer hover:text-primary" />
+                    <div className="relative">
+                      <BsEmojiSmile 
+                        className="text-xl cursor-pointer hover:text-primary emoji-button" 
+                        onClick={toggleEmojiPicker}
+                      />
+                      {emojiPickerVisible && (
+                        <div className="absolute bottom-10 right-0 z-50 emoji-picker-container 
+                                        rounded-lg shadow-lg border border-gray-200 bg-white overflow-hidden">
+                          <Picker 
+                            data={data} 
+                            onEmojiSelect={handleEmojiSelect}
+                            theme="light"
+                            previewPosition="none"
+                          />
+                        </div>
+                      )}
+                    </div>
                     <PiPaperclipBold 
                       className="text-xl cursor-pointer hover:text-primary" 
                       onClick={handleAttachmentClick}
@@ -886,4 +960,4 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
   );
 };
 
-export default ChatArea; 
+export default ChatArea;
