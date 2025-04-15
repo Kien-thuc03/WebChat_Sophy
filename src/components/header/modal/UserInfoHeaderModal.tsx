@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Modal, Button, message } from "antd";
 import { ArrowLeftOutlined, EditOutlined, CloseOutlined } from "@ant-design/icons";
 import { 
-  checkSentFriendRequest, 
+  getFriendRequestsSent, 
   cancelFriendRequest, 
   getFriendRequestsReceived,
   acceptFriendRequest,
@@ -58,7 +58,7 @@ const UserInfoHeaderModal: React.FC<UserInfoHeaderModalProps> = ({
       if (searchResult && !isCurrentUser(searchResult.userId) && !isFriend(searchResult.userId)) {
         try {
           // Check if we sent a request
-          const sentResult = await checkSentFriendRequest(searchResult.userId);
+          const sentResult = await getFriendRequestsSent();
           setHasSentFriendRequest(sentResult.hasSent);
           setFriendRequestId(sentResult.requestId);
           

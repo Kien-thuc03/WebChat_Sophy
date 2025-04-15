@@ -3,15 +3,30 @@ import { Tabs, Button, message } from "antd";
 import { Avatar } from "../common/Avatar";
 import { useLanguage } from "../../features/auth/context/LanguageContext";
 import ErrorBoundary from "../common/ErrorBoundary";
+import { 
+  getFriendRequestsReceived, 
+  getFriendRequestsSent, 
+  acceptFriendRequest, 
+  rejectFriendRequest, 
+  cancelFriendRequest 
+} from "../../api/API";
 
 interface FriendRequest {
-  id: string;
-  userId: string;
-  name: string;
-  avatarUrl?: string;
-  message?: string;
-  date?: string;
-  source?: string; // How they found the user (e.g., "Từ gợi ý kết bạn", "Từ số điện thoại")
+  friendRequestId: string;
+  senderId: {
+    userId: string;
+    fullname: string;
+    urlavatar?: string;
+  };
+  receiverId: {
+    userId: string;
+    fullname: string;
+    urlavatar?: string;
+  };
+  status: string;
+  message: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 interface RequestListProps {
@@ -27,62 +42,52 @@ const RequestList: React.FC<RequestListProps> = ({ onSelectFriend }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Format date for display
+  const formatDate = (dateString: string) => {
+    try {
+      const date = new Date(dateString);
+      const now = new Date();
+      const diffMs = now.getTime() - date.getTime();
+      const diffSecs = Math.floor(diffMs / 1000);
+      const diffMins = Math.floor(diffSecs / 60);
+      const diffHours = Math.floor(diffMins / 60);
+      const diffDays = Math.floor(diffHours / 24);
+      
+      if (diffSecs < 60) {
+        return "vừa xong";
+      } else if (diffMins < 60) {
+        return `${diffMins} phút trước`;
+      } else if (diffHours < 24) {
+        return `${diffHours} giờ trước`;
+      } else if (diffDays < 30) {
+        return `${diffDays} ngày trước`;
+      } else {
+        const day = date.getDate().toString().padStart(2, '0');
+        const month = (date.getMonth() + 1).toString().padStart(2, '0');
+        const year = date.getFullYear();
+        return `${day}/${month}/${year}`;
+      }
+    } catch (error) {
+      console.error("Error formatting date:", error);
+      return dateString;
+    }
+  };
+
   useEffect(() => {
     const getRequests = async () => {
       try {
         setLoading(true);
-        // In a real implementation, you would fetch from your API
-        // For now, we'll use mock data similar to the image
         
-        // Mock data for received requests
-        const mockReceivedRequests: FriendRequest[] = [
-          {
-            id: "1",
-            userId: "user1",
-            name: "Đặng Phan",
-            avatarUrl: "https://randomuser.me/api/portraits/men/32.jpg",
-            message: "Xin chào, mình là Đặng Phan. Kết bạn với mình nhé!",
-            date: "16/02",
-            source: "Từ gợi ý kết bạn"
-          },
-          {
-            id: "2",
-            userId: "user2",
-            name: "Susan",
-            avatarUrl: "https://randomuser.me/api/portraits/women/44.jpg",
-            message: "Xin chào, mình là Susan. Kết bạn với mình nhé!",
-            date: "21/01",
-            source: "Từ số điện thoại"
-          }
-        ];
+        // Fetch received requests
+        const receivedData = await getFriendRequestsReceived();
+        console.log("Received requests data:", receivedData);
         
-        // Mock data for sent requests
-        const mockSentRequests: FriendRequest[] = [
-          {
-            id: "3",
-            userId: "user3",
-            name: "Hothanh Hhh",
-            avatarUrl: "https://randomuser.me/api/portraits/men/45.jpg",
-            date: "10/03"
-          },
-          {
-            id: "4",
-            userId: "user4",
-            name: "Nguyễn Xuân Thiện",
-            avatarUrl: "https://randomuser.me/api/portraits/men/22.jpg",
-            date: "05/03"
-          },
-          {
-            id: "5",
-            userId: "user5",
-            name: "Nguyễn Hữu Quốc",
-            avatarUrl: "https://randomuser.me/api/portraits/men/67.jpg",
-            date: "01/03"
-          }
-        ];
-        
-        setReceivedRequests(mockReceivedRequests);
-        setSentRequests(mockSentRequests);
+        // Fetch sent requests
+        const sentData = await getFriendRequestsSent();
+        console.log("Sent requests data:", sentData);
+
+        setReceivedRequests(receivedData);
+        setSentRequests(sentData);
         setError(null);
       } catch (err) {
         console.error("Error fetching friend requests:", err);
@@ -97,47 +102,37 @@ const RequestList: React.FC<RequestListProps> = ({ onSelectFriend }) => {
 
   const handleAccept = async (requestId: string) => {
     try {
-      // In a real implementation, call your API
-      // await acceptFriendRequest(requestId);
-      
-      // Update UI
-      setReceivedRequests(prev => prev.filter(req => req.id !== requestId));
+      await acceptFriendRequest(requestId);
+      setReceivedRequests(prev => prev.filter(req => req.friendRequestId !== requestId));
       message.success("Đã chấp nhận lời mời kết bạn");
     } catch (error) {
       console.error("Error accepting friend request:", error);
-      message.error("Không thể chấp nhận lời mời kết bạn");
+      message.error(error instanceof Error ? error.message : "Không thể chấp nhận lời mời kết bạn");
     }
   };
 
   const handleReject = async (requestId: string) => {
     try {
-      // In a real implementation, call your API
-      // await rejectFriendRequest(requestId);
-      
-      // Update UI
-      setReceivedRequests(prev => prev.filter(req => req.id !== requestId));
+      await rejectFriendRequest(requestId);
+      setReceivedRequests(prev => prev.filter(req => req.friendRequestId !== requestId));
       message.success("Đã từ chối lời mời kết bạn");
     } catch (error) {
       console.error("Error rejecting friend request:", error);
-      message.error("Không thể từ chối lời mời kết bạn");
+      message.error(error instanceof Error ? error.message : "Không thể từ chối lời mời kết bạn");
     }
   };
 
   const handleCancel = async (requestId: string) => {
     try {
-      // In a real implementation, call your API
-      // await cancelFriendRequest(requestId);
-      
-      // Update UI
-      setSentRequests(prev => prev.filter(req => req.id !== requestId));
+      await cancelFriendRequest(requestId);
+      setSentRequests(prev => prev.filter(req => req.friendRequestId !== requestId));
       message.success("Đã thu hồi lời mời kết bạn");
     } catch (error) {
       console.error("Error canceling friend request:", error);
-      message.error("Không thể thu hồi lời mời kết bạn");
+      message.error(error instanceof Error ? error.message : "Không thể thu hồi lời mời kết bạn");
     }
   };
 
-  // Add a function to handle clicking on a friend
   const handleFriendClick = (userId: string) => {
     if (onSelectFriend) {
       onSelectFriend(userId);
@@ -159,18 +154,18 @@ const RequestList: React.FC<RequestListProps> = ({ onSelectFriend }) => {
           ) : receivedRequests.length === 0 ? (
             <div className="p-4 text-center">Không có lời mời nào</div>
           ) : (
-            // In the received requests section
+            // Update the received requests section
             <div className="overflow-y-auto">
               {receivedRequests.map(request => (
-                <div key={request.id} className="p-4 border-b dark:border-gray-700">
+                <div key={request.friendRequestId} className="p-4 border-b dark:border-gray-700">
                   <div className="flex items-start">
                     <div 
                       className="cursor-pointer flex-shrink-0 mr-3"
-                      onClick={() => handleFriendClick(request.userId)}
+                      onClick={() => handleFriendClick(request.senderId.userId)}
                     >
                       <Avatar 
-                        name={request.name} 
-                        avatarUrl={request.avatarUrl} 
+                        name={request.senderId.fullname} 
+                        avatarUrl={request.senderId.urlavatar} 
                         size={60}
                         className="flex-shrink-0"
                       />
@@ -179,12 +174,12 @@ const RequestList: React.FC<RequestListProps> = ({ onSelectFriend }) => {
                       <div className="flex flex-col">
                         <div 
                           className="font-medium text-lg cursor-pointer hover:underline"
-                          onClick={() => handleFriendClick(request.userId)}
+                          onClick={() => handleFriendClick(request.senderId.userId)}
                         >
-                          {request.name}
+                          {request.senderId.fullname}
                         </div>
                         <div className="text-sm text-gray-500">
-                          {request.date} - {request.source}
+                          {formatDate(request.createdAt)}
                         </div>
                         {request.message && (
                           <div className="mt-2 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
@@ -195,13 +190,13 @@ const RequestList: React.FC<RequestListProps> = ({ onSelectFriend }) => {
                           <Button 
                             type="primary" 
                             className="flex-1 bg-blue-600 hover:bg-blue-700"
-                            onClick={() => handleAccept(request.id)}
+                            onClick={() => handleAccept(request.friendRequestId)}
                           >
                             {t.agree || "Đồng ý"}
                           </Button>
                           <Button 
                             className="flex-1"
-                            onClick={() => handleReject(request.id)}
+                            onClick={() => handleReject(request.friendRequestId)}
                           >
                             {t.cancel || "Từ chối"}
                           </Button>
@@ -225,34 +220,34 @@ const RequestList: React.FC<RequestListProps> = ({ onSelectFriend }) => {
           ) : (
             <div className="overflow-y-auto">
               {sentRequests.map(request => (
-                <div key={request.id} className="p-4 border-b dark:border-gray-700">
+                <div key={request.friendRequestId} className="p-4 border-b dark:border-gray-700">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center">
                       <div 
                         className="cursor-pointer mr-3"
-                        onClick={() => handleFriendClick(request.userId)}
+                        onClick={() => handleFriendClick(request.senderId.userId)}
                       >
                         <Avatar 
-                          name={request.name} 
-                          avatarUrl={request.avatarUrl} 
+                          name={request.senderId.fullname} 
+                          avatarUrl={request.senderId.urlavatar} 
                           size={50}
                         />
                       </div>
                       <div>
                         <div 
                           className="font-medium cursor-pointer hover:underline"
-                          onClick={() => handleFriendClick(request.userId)}
+                          onClick={() => handleFriendClick(request.senderId.userId)}
                         >
-                          {request.name}
+                          {request.senderId.fullname}
                         </div>
                         <div className="text-sm text-gray-500">
-                          Bạn đã gửi lời mời
+                          Bạn đã gửi lời mời {formatDate(request.createdAt)}
                         </div>
                       </div>
                     </div>
                     <Button 
                       className="w-full max-w-xs"
-                      onClick={() => handleCancel(request.id)}
+                      onClick={() => handleCancel(request.friendRequestId)}
                     >
                       Thu hồi lời mời
                     </Button>
