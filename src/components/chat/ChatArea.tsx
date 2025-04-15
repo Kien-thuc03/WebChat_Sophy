@@ -212,13 +212,42 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
             fullname: "Người dùng",
             urlavatar: "",
           };
+          
+          // Chuẩn hóa các trường attachments và attachment
+          // 1. Xử lý các trường attachments nếu nó là string (chuyển từ JSON)
+          let parsedAttachments: Array<{ url: string; type: string; name?: string; size?: number }> = [];
+          if (typeof msg.attachments === 'string' && msg.attachments) {
+            try {
+              const parsed = JSON.parse(msg.attachments);
+              if (Array.isArray(parsed)) {
+                parsedAttachments = parsed;
+              }
+            } catch (e) {
+              console.error('Failed to parse attachments string:', e);
+            }
+          } else if (Array.isArray(msg.attachments)) {
+            parsedAttachments = msg.attachments;
+          }
+          
+          // 2. Đảm bảo cả hai trường attachment và attachments đều có giá trị nhất quán
+          let mainAttachment = msg.attachment || (parsedAttachments.length > 0 ? parsedAttachments[0] : null);
+          
+          // Nếu có attachment nhưng không có attachments, tạo attachments từ attachment
+          if (mainAttachment && parsedAttachments.length === 0) {
+            parsedAttachments = [mainAttachment];
+          }
+          
+          // Nếu có attachments nhưng không có attachment, lấy attachment từ attachments
+          if (!mainAttachment && parsedAttachments.length > 0) {
+            mainAttachment = parsedAttachments[0];
+          }
         
           // Tạo đối tượng tin nhắn hiển thị
           const displayMessage: DisplayMessage = {
-          id: messageId,
+            id: messageId,
             content: msg.content || "",
-          timestamp: msg.createdAt || new Date().toISOString(),
-          sender: {
+            timestamp: msg.createdAt || new Date().toISOString(),
+            sender: {
               id: msg.senderId || "",
               name: sender.fullname || "Người dùng",
               avatar: sender.urlavatar || "",
@@ -229,27 +258,39 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
             deliveredTo: msg.deliveredTo || [],
             sendStatus: determineMessageStatus(msg, currentUserId),
           };
-
-          // Xử lý cho tin nhắn hình ảnh và tập tin
-          if (
-            msg.type === "image" &&
-            msg.attachments &&
-            msg.attachments.length > 0
-          ) {
-            displayMessage.fileUrl = msg.attachments[0].url;
-          } else if (
-            msg.type === "file" &&
-            msg.attachments &&
-            msg.attachments.length > 0
-          ) {
-            displayMessage.fileUrl = msg.attachments[0].url;
-            displayMessage.fileName = msg.attachments[0].name;
-            displayMessage.fileSize = msg.attachments[0].size;
+          
+          // Gán cả hai trường attachment và attachments cho tin nhắn hiển thị
+          if (parsedAttachments.length > 0) {
+            displayMessage.attachments = parsedAttachments;
           }
-
-          // Thêm thông tin đính kèm
-          if (msg.attachments && msg.attachments.length > 0) {
-            displayMessage.attachments = msg.attachments;
+          
+          if (mainAttachment) {
+            displayMessage.attachment = mainAttachment;
+          }
+          
+          // Xử lý dựa trên loại tin nhắn để thiết lập các trường fileUrl, fileName, fileSize
+          if (msg.type === "image") {
+            // Đặt fileUrl từ attachment hoặc attachments
+            if (mainAttachment && mainAttachment.url) {
+              displayMessage.fileUrl = mainAttachment.url;
+              // Logging để kiểm tra
+              console.log(`Đã thiết lập fileUrl cho ảnh từ attachment: ${mainAttachment.url}`);
+            }
+          } else if (msg.type === "file") {
+            if (mainAttachment && mainAttachment.url) {
+              displayMessage.fileUrl = mainAttachment.url;
+              displayMessage.fileName = mainAttachment.name;
+              displayMessage.fileSize = mainAttachment.size;
+            }
+          }
+          
+          // Thêm log để kiểm tra dữ liệu
+          if (msg.type === "image") {
+            console.log(`Tin nhắn hình ảnh ${messageId}:`, {
+              hasAttachment: !!displayMessage.attachment,
+              hasAttachments: !!displayMessage.attachments,
+              fileUrl: displayMessage.fileUrl
+            });
           }
 
           return displayMessage;
@@ -449,44 +490,105 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
   const handleSendImage = async (imageFile: File) => {
     if (!isValidConversation) return;
     
-    // Create a temporary message to show immediately
-    const tempMessage: DisplayMessage = {
-      id: `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      content: "Đang gửi hình ảnh...",
+    // Create and display a local message while sending
+    const tempId = `temp-${Date.now()}`;
+    const localImageUrl = URL.createObjectURL(imageFile);
+    
+    // Tạo đối tượng attachment nhất quán
+    const attachmentObj = {
+      url: localImageUrl,
+      type: imageFile.type,
+      name: imageFile.name,
+      size: imageFile.size,
+    };
+    
+    // Tạo tin nhắn tạm thời với cả hai trường attachment và attachments
+    const localMessage: DisplayMessage = {
+      id: tempId,
+      content: "",
       timestamp: new Date().toISOString(),
       sender: {
         id: currentUserId,
-        name: "Bạn",
+        name: "You",
         avatar: userCache[currentUserId]?.urlavatar || "",
       },
       type: "image",
-      isRead: false,
       sendStatus: "sending",
-      readBy: [],
-      deliveredTo: [],
-      fileUrl: URL.createObjectURL(imageFile),
+      // Đặt cả hai trường
+      attachments: [attachmentObj],
+      attachment: attachmentObj,
+      // Đặt fileUrl cho hiển thị ngay lập tức
+      fileUrl: localImageUrl,
     };
 
-    // Add temporary message to the list
-    setMessages((prev) => [...prev, tempMessage]);
+    // Thêm log kiểm tra
+    console.log("Tin nhắn tạm thời:", {
+      tempId,
+      fileUrl: localMessage.fileUrl,
+      attachmentUrl: localMessage.attachment?.url,
+      attachmentsUrl: localMessage.attachments?.[0]?.url
+    });
+
+    // Thêm tin nhắn tạm thời vào danh sách
+    setMessages((prev) => [...prev, localMessage]);
     scrollToBottomSmooth();
 
     try {
       setIsUploading(true);
       
-      // Send the image using the new API
+      // Gửi ảnh bằng API
       const newMessage = await sendImageMessage(conversation.conversationId, imageFile);
 
       if (!newMessage || !newMessage.messageDetailId) {
         throw new Error("Không nhận được phản hồi hợp lệ từ server");
       }
 
-      // Replace temporary message with real message
+      console.log("Phản hồi từ server khi gửi ảnh:", newMessage);
+
+      // Tạo sender từ cache
       const sender = userCache[currentUserId] || {
         fullname: "Bạn",
         urlavatar: "",
       };
       
+      // Chuẩn hóa dữ liệu attachment và attachments từ phản hồi của server
+      let mainAttachment = null;
+      let attachmentsArray: Array<{ url: string; type: string; name?: string; size?: number }> = [];
+      
+      // Xử lý trường attachment
+      if (newMessage.attachment && typeof newMessage.attachment === 'object' && 'url' in newMessage.attachment) {
+        mainAttachment = newMessage.attachment;
+      }
+      
+      // Xử lý trường attachments
+      if (newMessage.attachments) {
+        // Nếu là string, parse thành array
+        if (typeof newMessage.attachments === 'string') {
+          try {
+            const parsed = JSON.parse(newMessage.attachments);
+            if (Array.isArray(parsed)) {
+              attachmentsArray = parsed;
+            }
+          } catch (e) {
+            console.error('Lỗi parse attachments string:', e);
+          }
+        } 
+        // Nếu đã là array, sử dụng trực tiếp
+        else if (Array.isArray(newMessage.attachments)) {
+          attachmentsArray = newMessage.attachments;
+        }
+      }
+      
+      // Đảm bảo cả hai trường đều có dữ liệu nhất quán
+      if (!mainAttachment && attachmentsArray.length > 0) {
+        mainAttachment = attachmentsArray[0];
+      }
+      
+      if (mainAttachment && attachmentsArray.length === 0) {
+        attachmentsArray = [mainAttachment];
+      }
+      
+      // Tạo tin nhắn thực từ phản hồi server
       const realMessage: DisplayMessage = {
         id: newMessage.messageDetailId,
         content: newMessage.content || "Hình ảnh",
@@ -501,40 +603,35 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
         readBy: newMessage.readBy || [],
         deliveredTo: newMessage.deliveredTo || [],
         sendStatus: determineMessageStatus(newMessage, currentUserId),
-        fileUrl: tempMessage.fileUrl,
       };
-
-      // Try to extract the file URL from the response if available
-      try {
-        // Check if response contains attachment data in a non-standard format
-        const responseObj = newMessage as any; // Type assertion to bypass type checking
-        
-        if (responseObj.attachment && responseObj.attachment.url) {
-          // Direct attachment object with URL
-          realMessage.fileUrl = responseObj.attachment.url;
-        } else if (responseObj.attachments) {
-          // Try to handle attachments in various formats
-          if (typeof responseObj.attachments === 'string') {
-            // If it's a JSON string, parse it
-            try {
-              const parsedAttachments = JSON.parse(responseObj.attachments);
-              if (Array.isArray(parsedAttachments) && parsedAttachments.length > 0) {
-                realMessage.fileUrl = parsedAttachments[0].url || tempMessage.fileUrl;
-              }
-            } catch {}
-          } else if (Array.isArray(responseObj.attachments) && responseObj.attachments.length > 0) {
-            // If it's already an array
-            realMessage.fileUrl = responseObj.attachments[0].url || tempMessage.fileUrl;
-          }
-        }
-      } catch (error) {
-        console.warn('Could not extract attachment URL:', error);
-        // Keep using the temporary URL if extraction fails
+      
+      // Đặt các trường liên quan đến hình ảnh
+      if (mainAttachment && mainAttachment.url) {
+        realMessage.fileUrl = mainAttachment.url;
+        realMessage.attachment = mainAttachment;
+      } else {
+        // Nếu không có URL từ server, giữ URL tạm thời
+        realMessage.fileUrl = localImageUrl;
+        realMessage.attachment = attachmentObj;
       }
+      
+      if (attachmentsArray.length > 0) {
+        realMessage.attachments = attachmentsArray;
+      } else {
+        realMessage.attachments = [attachmentObj];
+      }
+      
+      // Log kiểm tra tin nhắn thực
+      console.log("Tin nhắn thực từ server:", {
+        id: realMessage.id,
+        fileUrl: realMessage.fileUrl,
+        attachmentUrl: realMessage.attachment?.url,
+        attachmentsUrl: realMessage.attachments?.[0]?.url
+      });
 
       // Update message in the list
       setMessages((prev) =>
-        prev.map((msg) => (msg.id === tempMessage.id ? realMessage : msg))
+        prev.map((msg) => (msg.id === tempId ? realMessage : msg))
       );
 
       // Update conversation list with new message
@@ -545,7 +642,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
       // Mark temporary message as error
       setMessages((prev) =>
         prev.map((msg) =>
-          msg.id === tempMessage.id
+          msg.id === tempId
             ? {
                 ...msg,
                 content: error.message
@@ -690,13 +787,34 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
         sendStatus: determineMessageStatus(newMessage, currentUserId),
       };
 
-      // Thêm thông tin tập tin nếu là tin nhắn tập tin
-      if (messageType === "file" && attachments.length > 0) {
-        realMessage.fileName = attachments[0].name;
-        realMessage.fileSize = attachments[0].size;
+      // Thêm thông tin tập tin đính kèm
+      if ((messageType === "file" || messageType === "image") && attachments.length > 0) {
+        // Tạo đối tượng attachment cho các loại tin nhắn có file đính kèm
+        const attachmentObj = {
+          url: attachmentData[0]?.url,
+          type: attachments[0].type,
+          name: attachments[0].name,
+          size: attachments[0].size,
+        };
+
+        // Thiết lập các trường cụ thể dựa trên loại tin nhắn
+        if (messageType === "file") {
+          realMessage.fileName = attachments[0].name;
+          realMessage.fileSize = attachments[0].size;
+        }
+        
+        // Thiết lập fileUrl và đảm bảo cả hai trường attachment và attachments
         realMessage.fileUrl = attachmentData[0]?.url;
-      } else if (messageType === "image" && attachments.length > 0) {
-        realMessage.fileUrl = attachmentData[0]?.url;
+        realMessage.attachment = attachmentObj;
+        realMessage.attachments = [attachmentObj];
+        
+        // Log để kiểm tra
+        console.log(`Tin nhắn ${messageType} thực từ server:`, {
+          id: realMessage.id,
+          fileUrl: realMessage.fileUrl,
+          attachmentUrl: realMessage.attachment?.url,
+          attachmentsArray: realMessage.attachments
+        });
       }
 
       // Cập nhật tin nhắn trong danh sách

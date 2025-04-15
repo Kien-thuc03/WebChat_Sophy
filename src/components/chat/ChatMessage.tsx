@@ -20,6 +20,8 @@ interface ChatMessageProps {
     isRead?: boolean;
     isError?: boolean;
     sendStatus?: string;
+    attachments?: { url: string }[];
+    attachment?: { url: string; name?: string; size?: number; type?: string };
   };
   isOwnMessage: boolean;
   showAvatar?: boolean;
@@ -79,7 +81,18 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
       case 'image':
         return (
           <div className="message-image">
-            <img src={message.fileUrl} alt="Image" className="rounded-md max-w-xs max-h-60 object-cover" />
+            <img 
+              src={message.fileUrl || 
+                (message.attachments && message.attachments.length > 0 
+                  ? message.attachments[0].url 
+                  : message.attachment?.url || undefined)}
+              alt="Image" 
+              className="rounded-md max-w-xs max-h-60 object-cover" 
+              onError={(e) => {
+                e.currentTarget.onerror = null; 
+                e.currentTarget.src = '/images/image-placeholder.png';
+              }}
+            />
           </div>
         );
       case 'file':

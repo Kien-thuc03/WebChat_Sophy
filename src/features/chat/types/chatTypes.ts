@@ -39,4 +39,10 @@ export interface DisplayMessage {
     name?: string;
     size?: number;
   }>;
+  attachment?: {
+    url: string;
+    type: string;
+    name?: string;
+    size?: number;
+  };
 }

@@ -751,10 +751,39 @@ export const sendMessage = async (
     }
 
     // Chuẩn hóa dữ liệu để phù hợp với frontend
-    return {
+    let result = {
       ...message,
       messageId: messageId,
     };
+
+    // Xử lý nhất quán trường attachment và attachments
+    if (type === "image" || type === "file") {
+      // Nếu có attachments nhưng không phải array, chuyển đổi sang array
+      if (message.attachments && typeof message.attachments === 'string') {
+        try {
+          result.attachments = JSON.parse(message.attachments);
+          // Nếu có dữ liệu attachments nhưng không có attachment, tạo attachment từ phần tử đầu tiên
+          if (result.attachments && Array.isArray(result.attachments) && result.attachments.length > 0 && !result.attachment) {
+            result.attachment = result.attachments[0];
+          }
+        } catch (e) {
+          console.error("Lỗi parse attachments:", e);
+        }
+      }
+      
+      // Nếu có attachment nhưng không có attachments, tạo attachments từ attachment
+      if (message.attachment && (!message.attachments || (Array.isArray(message.attachments) && message.attachments.length === 0))) {
+        result.attachments = [message.attachment];
+      }
+      
+      // Nếu có attachments (dạng array) nhưng không có attachment, tạo attachment từ phần tử đầu tiên
+      if (Array.isArray(message.attachments) && message.attachments.length > 0 && !message.attachment) {
+        result.attachment = message.attachments[0];
+      }
+    }
+    
+    console.log("Normalized message for sending:", result);
+    return result;
   } catch (error: any) {
     console.error("Lỗi khi gửi tin nhắn:", error);
 
@@ -1303,10 +1332,24 @@ export const sendImageMessage = async (
     console.log("Image message sent successfully:", message);
 
     // Chuẩn hóa dữ liệu để phù hợp với frontend
-    return {
+    // Chuyển đổi từ cấu trúc backend sang frontend
+    let result = {
       ...message,
       messageId: message.messageDetailId || message.messageId,
     };
+
+    // Đảm bảo rằng dữ liệu ảnh được trả về đúng định dạng
+    if (message.attachment && !result.attachment) {
+      result.attachment = message.attachment;
+    }
+
+    // Tương thích ngược: đảm bảo rằng cả attachments cũng được định nghĩa đúng
+    if (message.attachment && !result.attachments) {
+      result.attachments = Array.isArray(message.attachments) ? message.attachments : [message.attachment];
+    }
+
+    console.log("Normalized message:", result);
+    return result;
   } catch (error: any) {
     console.error("Lỗi khi gửi ảnh:", error);
 
