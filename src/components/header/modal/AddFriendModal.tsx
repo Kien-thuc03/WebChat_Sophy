@@ -1,15 +1,21 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Modal, Button, message } from "antd";
 import PhoneInput from "react-phone-number-input";
 import "react-phone-number-input/style.css";
-import { getUserByPhone, sendFriendRequest } from "../../../api/API";
+import {
+  getUserByPhone,
+  sendFriendRequest,
+  fetchFriends,
+} from "../../../api/API";
+import UserInfoHeaderModal, { UserResult } from "./UserInfoHeaderModal";
+import UserModal from "../../content/modal/UserModal";
 
 interface AddFriendModalProps {
   visible: boolean;
   onClose: () => void;
 }
 
-interface UserResult {
+interface Friend {
   userId: string;
   fullname: string;
   phone: string;
@@ -25,6 +31,35 @@ const AddFriendModal: React.FC<AddFriendModalProps> = ({ visible, onClose }) => 
   const [isSearching, setIsSearching] = useState(false);
   const [searchResult, setSearchResult] = useState<UserResult | null>(null);
   const [isSending, setIsSending] = useState(false);
+  const [friendMessage, setFriendMessage] = useState("");
+  const [friends, setFriends] = useState<Friend[]>([]);
+  const [infoModalVisible, setInfoModalVisible] = useState(false);
+
+  // Lấy userId của người dùng hiện tại từ localStorage
+  const currentUserId = localStorage.getItem("userId");
+
+  // Lấy danh sách bạn bè khi component mount
+  useEffect(() => {
+    const loadFriends = async () => {
+      try {
+        const friendsList = await fetchFriends();
+        setFriends(friendsList);
+      } catch (error) {
+        console.error("Lỗi khi lấy danh sách bạn bè:", error);
+      }
+    };
+    loadFriends();
+  }, []);
+
+  // Kiểm tra xem người dùng có phải là bạn bè không
+  const isFriend = (userId: string) => {
+    return friends.some((friend) => friend.userId === userId);
+  };
+
+  // Kiểm tra xem người dùng có phải là chính mình không
+  const isCurrentUser = (userId: string) => {
+    return userId === currentUserId;
+  };
 
   const handleSearch = async () => {
     if (!phone || phone.trim() === "") {
@@ -36,19 +71,29 @@ const AddFriendModal: React.FC<AddFriendModalProps> = ({ visible, onClose }) => 
     setSearchResult(null);
 
     try {
-      // Format phone number if needed
       let formattedPhone = phone;
       if (phone.startsWith("+84")) {
         formattedPhone = "0" + phone.slice(3);
       }
 
       const userData = await getUserByPhone(formattedPhone);
+      if (!userData?.userId) {
+        throw new Error("Không tìm thấy thông tin người dùng");
+      }
+
+      console.log("User data from getUserByPhone:", userData);
+
       setSearchResult({
         userId: userData.userId,
         fullname: userData.fullname,
         phone: userData.phone,
-        avatar: userData.avatar
+        avatar: userData.urlavatar,
+        isMale: userData.isMale,
+        birthday: userData.birthday,
       });
+
+      // Hiển thị modal thông tin người dùng
+      setInfoModalVisible(true);
     } catch (error: unknown) {
       const err = error as ApiError;
       message.error(err.message || "Không tìm thấy người dùng");
@@ -58,10 +103,29 @@ const AddFriendModal: React.FC<AddFriendModalProps> = ({ visible, onClose }) => 
   };
 
   const handleSendFriendRequest = async (userId: string) => {
+    if (!userId) {
+      message.error("ID người dùng không hợp lệ");
+      return;
+    }
+
     setIsSending(true);
     try {
-      await sendFriendRequest(userId);
-      message.success("Đã gửi lời mời kết bạn thành công");
+      const response = await sendFriendRequest(userId, friendMessage);
+      message.success(response.message || "Đã gửi lời mời kết bạn thành công");
+
+      // Cập nhật lại danh sách bạn bè
+      setFriends([
+        ...friends,
+        {
+          userId,
+          fullname: searchResult!.fullname,
+          phone: searchResult!.phone,
+        },
+      ]);
+      setInfoModalVisible(false);
+      setSearchResult(null);
+      setPhone("");
+      setFriendMessage("");
     } catch (error: unknown) {
       const err = error as ApiError;
       message.error(err.message || "Không thể gửi lời mời kết bạn");
@@ -70,72 +134,80 @@ const AddFriendModal: React.FC<AddFriendModalProps> = ({ visible, onClose }) => 
     }
   };
 
-  return (
-    <Modal
-      title="Thêm bạn"
-      visible={visible}
-      onCancel={onClose}
-      footer={[
-        <Button key="cancel" onClick={onClose}>
-          Hủy
-        </Button>,
-        <Button 
-          key="submit" 
-          type="primary" 
-          onClick={handleSearch}
-          loading={isSearching}
-        >
-          Tìm kiếm
-        </Button>,
-      ]}
-    >
-      <p>Nhập số điện thoại để tìm kiếm bạn bè.</p>
-      <PhoneInput
-        international
-        defaultCountry="VN"
-        placeholder="Nhập số điện thoại"
-        value={phone}
-        onChange={value => setPhone(value || '')}
-        className="mt-2 w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none"
-      />
+  const handleMessage = (userId: string) => {
+    message.info(`Đang mở cuộc trò chuyện với người dùng ID: ${userId}`);
+    setInfoModalVisible(false);
+    onClose();
+  };
 
-      {searchResult && (
-        <div className="mt-4 border-t pt-4">
-          <h3 className="text-sm font-medium mb-2">Kết quả tìm kiếm</h3>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center">
-              <div className="w-10 h-10 rounded-full bg-gray-200 overflow-hidden mr-3">
-                {searchResult.avatar ? (
-                  <img 
-                    src={searchResult.avatar} 
-                    alt={searchResult.fullname} 
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).src = "/images/default-avatar.png";
-                    }}
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-blue-500 text-white">
-                    {searchResult.fullname.charAt(0).toUpperCase()}
-                  </div>
-                )}
-              </div>
-              <div>
-                <p className="font-medium">{searchResult.fullname}</p>
-                <p className="text-sm text-gray-500">{searchResult.phone}</p>
-              </div>
-            </div>
-            <Button 
-              type="primary"
-              onClick={() => handleSendFriendRequest(searchResult.userId)}
-              loading={isSending}
-            >
-              Kết bạn
-            </Button>
-          </div>
-        </div>
+  const handleUpdate = () => {
+    message.info("Chức năng cập nhật thông tin đang được phát triển!");
+    setInfoModalVisible(false);
+    onClose();
+  };
+
+  return (
+    <>
+      {/* Modal nhập số điện thoại */}
+      <Modal
+        title="Thêm bạn"
+        visible={visible}
+        onCancel={onClose}
+        footer={[
+          <Button key="cancel" onClick={onClose}>
+            Hủy
+          </Button>,
+          <Button
+            key="submit"
+            type="primary"
+            onClick={handleSearch}
+            loading={isSearching}
+          >
+            Tìm kiếm
+          </Button>,
+        ]}
+      >
+        <p>Nhập số điện thoại để tìm kiếm bạn bè.</p>
+        <PhoneInput
+          international
+          defaultCountry="VN"
+          placeholder="Nhập số điện thoại"
+          value={phone}
+          onChange={(value) => setPhone(value || "")}
+          className="mt-2 w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none"
+        />
+      </Modal>
+
+      {/* Modal thông tin người dùng */}
+      {searchResult && isCurrentUser(searchResult.userId) ? (
+        <UserModal
+          isOpen={infoModalVisible}
+          onClose={() => {
+            setInfoModalVisible(false);
+            setSearchResult(null);
+            setPhone("");
+            setFriendMessage("");
+          }}
+        />
+      ) : (
+        <UserInfoHeaderModal
+          visible={infoModalVisible}
+          onCancel={() => {
+            setInfoModalVisible(false);
+            setSearchResult(null);
+            setPhone("");
+            setFriendMessage("");
+          }}
+          searchResult={searchResult}
+          isCurrentUser={isCurrentUser}
+          isFriend={isFriend}
+          handleUpdate={handleUpdate}
+          handleMessage={handleMessage}
+          handleSendFriendRequest={handleSendFriendRequest}
+          isSending={isSending}
+        />
       )}
-    </Modal>
+    </>
   );
 };
 
