@@ -1,15 +1,25 @@
 export interface Message {
-  messageId: string;
+  messageDetailId: string;
   senderId: string;
-  content: string;
+  conversationId: string;
   type: string;
+  content: string;
   createdAt: string;
-  attachments?: Array<{
-    url: string;
-    type: string;
-    name?: string;
-    size?: number;
-  }>;
+  sendStatus: string;
+  hiddenFrom: string[];
+  isRecall: boolean;
+  isReply: boolean;
+  messageReplyId: string | null;
+  replyData: string | null;
+  isPinned: boolean;
+  pinnedAt: string | null;
+  reactions: string[];
+  attachments: string | null;
+  poll: string | null;
+  linkPreview: string | null;
+  deliveredTo: string[];
+  readBy: string[];
+  deletedFor: string[];
 }
 
 interface UnreadCount {

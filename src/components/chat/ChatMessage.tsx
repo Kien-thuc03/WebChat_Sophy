@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Avatar } from '../common/Avatar';
 import { formatMessageTime } from '../../utils/dateUtils';
-import { CheckOutlined } from '@ant-design/icons';
+import { CheckOutlined, ClockCircleOutlined } from '@ant-design/icons';
 
 interface ChatMessageProps {
   message: {
@@ -19,6 +19,7 @@ interface ChatMessageProps {
     fileSize?: number;
     isRead?: boolean;
     isError?: boolean;
+    sendStatus?: string;
   };
   isOwnMessage: boolean;
   showAvatar?: boolean;
@@ -51,6 +52,25 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
     const sizes = ['Bytes', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+  // Get message status text
+  const getMessageStatusText = (): string => {
+    if (!isOwnMessage) return '';
+    if (message.isError) return 'Gửi lỗi';
+    
+    switch (message.sendStatus) {
+      case 'sending':
+        return 'Đang gửi';
+      case 'sent':
+        return 'Đã gửi';
+      case 'delivered':
+        return 'Đã nhận';
+      case 'read':
+        return 'Đã xem';
+      default:
+        return 'Đã gửi';
+    }
   };
 
   // Render message content based on message type
@@ -125,26 +145,42 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
           </div>
         )}
         
-        <div className={`px-3 py-2 rounded-2xl ${
+        <div className={`relative px-3 py-2 rounded-2xl ${
           isOwnMessage 
             ? message.isError ? 'bg-red-100 text-red-800' : 'bg-blue-500 text-white rounded-tr-none' 
             : 'bg-gray-100 text-gray-800 rounded-tl-none'
         }`}>
           {renderMessageContent()}
-        </div>
-        
-        <div className={`flex text-xs text-gray-500 mt-0.5 ${
-          isOwnMessage ? 'justify-end' : 'justify-start'
-        }`}>
-          <span>{formatMessageTime(message.timestamp)}</span>
-          {isOwnMessage && message.isRead && (
-            <span className="ml-1 text-blue-500">
-              <CheckOutlined style={{ fontSize: '12px' }} />
-              <CheckOutlined style={{ fontSize: '12px', marginLeft: '-4px' }} />
+          
+          {/* Message footer with timestamp and status inside the bubble */}
+          <div className="flex justify-between items-center mt-1 pt-1 text-xs">
+            <span className={isOwnMessage ? 'text-blue-200' : 'text-gray-500'}>
+              {formatMessageTime(message.timestamp)}
             </span>
-          )}
+            
+            {isOwnMessage && (
+              <span className={`ml-4 ${
+                message.sendStatus === 'read' ? 'text-blue-200' : 
+                message.isError ? 'text-red-400' : 'text-blue-200'
+              }`}>
+                {message.sendStatus === 'sending' && <ClockCircleOutlined className="mr-1" style={{ fontSize: '10px' }} />}
+                {getMessageStatusText()}
+              </span>
+            )}
+          </div>
         </div>
       </div>
+      
+      {/* Like/thumbs up button that appears in the UI */}
+      {isOwnMessage && (
+        <div className="flex items-end ml-2">
+          <div className="text-gray-400 opacity-0 hover:opacity-100 transition-opacity">
+            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" strokeWidth="2" fill="none">
+              <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"></path>
+            </svg>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
