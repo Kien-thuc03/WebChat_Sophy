@@ -15,6 +15,11 @@ export const formatRelativeTime = (timestamp: string) => {
   const now = new Date();
   const diff = now.getTime() - date.getTime();
   
+  //Less than 1 minute
+  if (diff < 60000) {
+    return "Vừa xong";
+  }
+  
   // Less than 1 hour
   if (diff < 3600000) {
     const minutes = Math.floor(diff / 60000);

@@ -18,24 +18,24 @@ const App = () => {
       <LanguageProvider>
         <SocketProvider>
           <ConversationProvider>
-            <Router>
-              <Routes>
-                <Route path="/" element={<Signin />} />
-                <Route path="/qr-signin" element={<QRScanner />} />
-                <Route path="/register" element={<Register />} />
-                <Route
-                  path="/main"
-                  element={
-                    <PrivateRoute>
-                      <Dashboard />
-                    </PrivateRoute>
-                  }
-                />
-                <Route path="/forgot-password" element={<ForgotPassword />} />
-                <Route path="/verify-otp" element={<VerifyOTP />} />
-                <Route path="/reset-password" element={<ResetPassword />} />
-              </Routes>
-            </Router>
+          <Router>
+            <Routes>
+              <Route path="/" element={<Signin />} />
+              <Route path="/qr-signin" element={<QRScanner />} />
+              <Route path="/register" element={<Register />} />
+              <Route
+                path="/main"
+                element={
+                  <PrivateRoute>
+                    <Dashboard />
+                  </PrivateRoute>
+                }
+              />
+              <Route path="/forgot-password" element={<ForgotPassword />} />
+              <Route path="/verify-otp" element={<VerifyOTP />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
+            </Routes>
+          </Router>
           </ConversationProvider>
         </SocketProvider>
       </LanguageProvider>

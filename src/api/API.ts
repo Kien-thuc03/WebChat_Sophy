@@ -1253,6 +1253,86 @@ export const uploadAvatar = async (imageFile: File): Promise<string> => {
     );
   }
 };
+
+// Gửi ảnh trong cuộc trò chuyện
+export const sendImageMessage = async (
+  conversationId: string,
+  imageFile: File
+): Promise<Message> => {
+  try {
+    if (!conversationId) {
+      throw new Error("ID cuộc trò chuyện không hợp lệ");
+    }
+
+    if (!imageFile) {
+      throw new Error("Không có tập tin ảnh được chọn");
+    }
+
+    // Kiểm tra xem tập tin có phải là hình ảnh không
+    if (!imageFile.type.startsWith('image/')) {
+      throw new Error("Tập tin không phải là hình ảnh hợp lệ");
+    }
+
+    const token = getAuthToken();
+    if (!token) {
+      throw new Error("Không có token xác thực");
+    }
+
+    const formData = new FormData();
+    formData.append("image", imageFile);
+    formData.append("conversationId", conversationId);
+
+    // Sử dụng fetch API để xử lý tốt hơn với FormData
+    const response = await fetch(
+      `${API_BASE_URL}/api/messages/send-image`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      }
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || "Gửi ảnh thất bại");
+    }
+
+    const message = await response.json();
+    console.log("Image message sent successfully:", message);
+
+    // Chuẩn hóa dữ liệu để phù hợp với frontend
+    return {
+      ...message,
+      messageId: message.messageDetailId || message.messageId,
+    };
+  } catch (error: any) {
+    console.error("Lỗi khi gửi ảnh:", error);
+
+    if (error.response) {
+      if (error.response.status === 401) {
+        throw new Error("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.");
+      } else if (error.response.status === 403) {
+        throw new Error("Bạn không có quyền gửi ảnh vào cuộc trò chuyện này.");
+      } else if (error.response.status === 404) {
+        throw new Error("Không tìm thấy cuộc trò chuyện.");
+      } else if (error.response.status === 413) {
+        throw new Error("Ảnh quá lớn. Vui lòng chọn ảnh có kích thước nhỏ hơn.");
+      } else if (error.response.data?.message) {
+        throw new Error(error.response.data.message);
+      }
+    }
+
+    // Handle error object appropriately
+    if (error instanceof Error) {
+      throw error;
+    } else {
+      throw new Error("Không thể gửi ảnh. Vui lòng thử lại sau.");
+    }
+  }
+};
+
 // Gửi yêu cầu kết bạn
 export const sendFriendRequest = async (
   receiverId: string,

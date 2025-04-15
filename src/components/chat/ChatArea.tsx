@@ -19,6 +19,8 @@ import {
   PaperClipOutlined,
   ReloadOutlined,
   DownOutlined,
+  SmileOutlined,
+  PictureOutlined,
 } from "@ant-design/icons";
 import {
   Conversation,
@@ -27,43 +29,21 @@ import {
 import {
   getMessages,
   sendMessage,
+  sendImageMessage,
   fetchConversations,
   getConversationDetail,
 } from "../../api/API";
 import { useLanguage } from "../../features/auth/context/LanguageContext";
 import { formatMessageTime } from "../../utils/dateUtils";
 import { Avatar } from "../common/Avatar";
+import { DisplayMessage } from "../../features/chat/types/chatTypes";
 import { useConversationContext } from "../../features/chat/context/ConversationContext";
 import { BsEmojiSmile } from "react-icons/bs";
 import data from "@emoji-mart/data";
 import Picker from "@emoji-mart/react";
 
 // Chuyển đổi Message từ API sang định dạng tin nhắn cần hiển thị
-interface DisplayMessage {
-  id: string;
-  content: string;
-  timestamp: string;
-  sender: {
-    id: string;
-    name: string;
-    avatar?: string;
-  };
-  type: "text" | "image" | "file";
-  fileUrl?: string;
-  fileName?: string;
-  fileSize?: number;
-  isRead?: boolean;
-  isError?: boolean;
-  sendStatus?: string;
-  readBy?: string[];
-  deliveredTo?: string[];
-  attachments?: Array<{
-    url: string;
-    type: string;
-    name?: string;
-    size?: number;
-  }>;
-}
+
 
 interface ChatAreaProps {
   conversation: Conversation;
@@ -100,7 +80,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
   // Kiểm tra xem conversation có hợp lệ không
   const isValidConversation =
     conversation &&
-    conversation.conversationId &&
+                             conversation.conversationId && 
     typeof conversation.conversationId === "string" &&
     conversation.conversationId.startsWith("conv");
 
@@ -113,7 +93,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
     setHasNewer(false);
     setOldestCursor(null);
     setNewestCursor(null);
-
+    
     // Chỉ tải tin nhắn khi conversation hợp lệ
     if (isValidConversation) {
       // Tải tin nhắn gần nhất với hướng 'before' và không có cursor
@@ -136,11 +116,11 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
       setError("Không thể tải tin nhắn. ID cuộc trò chuyện không hợp lệ.");
       return;
     }
-
+    
     try {
       if (cursor) {
         if (direction === "before") {
-          setLoadingMore(true);
+        setLoadingMore(true);
         } else {
           setLoadingNewer(true);
         }
@@ -148,11 +128,11 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
         setLoading(true);
       }
       setError(null);
-
+      
       if (!cursor) {
         setNotFound(false);
       }
-
+      
       console.log(
         `Đang tải tin nhắn cho cuộc trò chuyện: ${conversation.conversationId}`
       );
@@ -179,7 +159,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
         nextCursor: result.nextCursor,
         direction: result.direction,
       });
-
+      
       const messagesData = result.messages;
       const resultDirection = result.direction || direction;
 
@@ -202,43 +182,43 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
           setNewestCursor(result.nextCursor);
         }
       }
-
+      
       // Kiểm tra dữ liệu trả về
       if (!Array.isArray(messagesData)) {
         console.error("Dữ liệu tin nhắn không hợp lệ:", messagesData);
         setError("Không thể tải tin nhắn. Dữ liệu không hợp lệ.");
         return;
       }
-
+      
       console.log(`Nhận được ${messagesData.length} tin nhắn từ API`);
-
+      
       if (messagesData.length === 0 && !cursor) {
         console.log("Không có tin nhắn nào trong cuộc trò chuyện");
         setMessages([]);
         return;
       }
-
+      
       // Chuyển đổi Message từ API sang định dạng tin nhắn hiển thị
       const displayMessages: DisplayMessage[] = messagesData
         .map((msg) => {
-          // Kiểm tra tin nhắn hợp lệ và hỗ trợ cả messageId và messageDetailId
-          const messageId = msg.messageId || msg.messageDetailId;
-          if (!msg || !messageId) {
+        // Kiểm tra tin nhắn hợp lệ và hỗ trợ cả messageId và messageDetailId
+        const messageId = msg.messageId || msg.messageDetailId;
+        if (!msg || !messageId) {
             console.warn("Tin nhắn không hợp lệ:", msg);
-            return null;
-          }
-
+          return null;
+        }
+        
           const sender = userCache[msg.senderId] || {
             fullname: "Người dùng",
             urlavatar: "",
           };
-
+        
           // Tạo đối tượng tin nhắn hiển thị
           const displayMessage: DisplayMessage = {
-            id: messageId,
+          id: messageId,
             content: msg.content || "",
-            timestamp: msg.createdAt || new Date().toISOString(),
-            sender: {
+          timestamp: msg.createdAt || new Date().toISOString(),
+          sender: {
               id: msg.senderId || "",
               name: sender.fullname || "Người dùng",
               avatar: sender.urlavatar || "",
@@ -283,9 +263,9 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
       // Sắp xếp tin nhắn theo thời gian tăng dần (cũ nhất lên đầu, mới nhất xuống cuối)
       const sortedMessages = [...displayMessages].sort(
         (a, b) =>
-          new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+        new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
       );
-
+      
       // Cập nhật danh sách tin nhắn dựa trên hướng tải
       if (cursor) {
         if (direction === "before") {
@@ -307,7 +287,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
               scrollContainer.scrollTop = scrollPosition + heightDifference;
             }
           }, 10);
-        } else {
+      } else {
           // Thêm tin nhắn mới vào cuối danh sách khi kéo xuống
           setMessages((prev) => {
             // Get unique message IDs to avoid duplicates
@@ -326,20 +306,20 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
         // Cuộn xuống sau khi tải xong - giảm thời gian đợi để cuộn ngay lập tức
         setTimeout(scrollToBottom, 10);
       }
-
+      
       console.log(`Đã tải ${displayMessages.length} tin nhắn`);
     } catch (error: any) {
       console.error("Lỗi khi tải tin nhắn:", error);
-
+      
       let errorMessage = "Không thể tải tin nhắn. Vui lòng thử lại sau.";
-
+      
       // Hiển thị lỗi chi tiết hơn nếu có
       if (error.response) {
         console.error("Chi tiết lỗi từ server:", {
           status: error.response.status,
           data: error.response.data,
         });
-
+        
         if (error.response.status === 404) {
           errorMessage =
             "Không tìm thấy cuộc trò chuyện. Cuộc trò chuyện có thể đã bị xóa.";
@@ -352,7 +332,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
       } else if (error.message) {
         // Hiển thị thông báo lỗi cụ thể
         errorMessage = error.message;
-
+        
         // Kiểm tra xem có phải lỗi không tìm thấy không
         if (
           error.message.includes("not found") ||
@@ -362,7 +342,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
           setNotFound(true);
         }
       }
-
+      
       setError(errorMessage);
       message.error(errorMessage);
     } finally {
@@ -448,12 +428,138 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    // Thêm tập tin vào danh sách đính kèm
+    // Check if these are image files being uploaded directly
+    const imageFiles = Array.from(files).filter(file => file.type.startsWith('image/'));
+    
+    // If images are selected and they're coming from the image input, send them directly
+    if (imageFiles.length > 0 && e.target.accept === 'image/*') {
+      handleSendImage(imageFiles[0]);
+      return;
+    }
+
+    // For non-image files or mixed files, add to attachments as before
     const newFiles = Array.from(files);
     setAttachments((prev) => [...prev, ...newFiles]);
 
     // Reset input để có thể chọn lại cùng tập tin
     e.target.value = "";
+  };
+
+  // Handle direct image uploads using the new API
+  const handleSendImage = async (imageFile: File) => {
+    if (!isValidConversation) return;
+    
+    // Create a temporary message to show immediately
+    const tempMessage: DisplayMessage = {
+      id: `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      content: "Đang gửi hình ảnh...",
+      timestamp: new Date().toISOString(),
+      sender: {
+        id: currentUserId,
+        name: "Bạn",
+        avatar: userCache[currentUserId]?.urlavatar || "",
+      },
+      type: "image",
+      isRead: false,
+      sendStatus: "sending",
+      readBy: [],
+      deliveredTo: [],
+      fileUrl: URL.createObjectURL(imageFile),
+    };
+
+    // Add temporary message to the list
+    setMessages((prev) => [...prev, tempMessage]);
+    scrollToBottomSmooth();
+
+    try {
+      setIsUploading(true);
+      
+      // Send the image using the new API
+      const newMessage = await sendImageMessage(conversation.conversationId, imageFile);
+
+      if (!newMessage || !newMessage.messageDetailId) {
+        throw new Error("Không nhận được phản hồi hợp lệ từ server");
+      }
+
+      // Replace temporary message with real message
+      const sender = userCache[currentUserId] || {
+        fullname: "Bạn",
+        urlavatar: "",
+      };
+      
+      const realMessage: DisplayMessage = {
+        id: newMessage.messageDetailId,
+        content: newMessage.content || "Hình ảnh",
+        timestamp: newMessage.createdAt,
+        sender: {
+          id: newMessage.senderId,
+          name: sender.fullname,
+          avatar: sender.urlavatar,
+        },
+        type: "image",
+        isRead: Array.isArray(newMessage.readBy) && newMessage.readBy.length > 0,
+        readBy: newMessage.readBy || [],
+        deliveredTo: newMessage.deliveredTo || [],
+        sendStatus: determineMessageStatus(newMessage, currentUserId),
+        fileUrl: tempMessage.fileUrl,
+      };
+
+      // Try to extract the file URL from the response if available
+      try {
+        // Check if response contains attachment data in a non-standard format
+        const responseObj = newMessage as any; // Type assertion to bypass type checking
+        
+        if (responseObj.attachment && responseObj.attachment.url) {
+          // Direct attachment object with URL
+          realMessage.fileUrl = responseObj.attachment.url;
+        } else if (responseObj.attachments) {
+          // Try to handle attachments in various formats
+          if (typeof responseObj.attachments === 'string') {
+            // If it's a JSON string, parse it
+            try {
+              const parsedAttachments = JSON.parse(responseObj.attachments);
+              if (Array.isArray(parsedAttachments) && parsedAttachments.length > 0) {
+                realMessage.fileUrl = parsedAttachments[0].url || tempMessage.fileUrl;
+              }
+            } catch {}
+          } else if (Array.isArray(responseObj.attachments) && responseObj.attachments.length > 0) {
+            // If it's already an array
+            realMessage.fileUrl = responseObj.attachments[0].url || tempMessage.fileUrl;
+          }
+        }
+      } catch (error) {
+        console.warn('Could not extract attachment URL:', error);
+        // Keep using the temporary URL if extraction fails
+      }
+
+      // Update message in the list
+      setMessages((prev) =>
+        prev.map((msg) => (msg.id === tempMessage.id ? realMessage : msg))
+      );
+
+      // Update conversation list with new message
+      updateConversationWithNewMessage(conversation.conversationId, newMessage);
+      
+    } catch (error: any) {
+      console.error("Lỗi khi gửi hình ảnh:", error);
+      // Mark temporary message as error
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === tempMessage.id
+            ? {
+                ...msg,
+                content: error.message
+                  ? `Hình ảnh (${error.message})`
+                  : `Hình ảnh (Không gửi được)`,
+                isError: true,
+              }
+            : msg
+        )
+      );
+      message.error(error.message || "Không thể gửi hình ảnh");
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   // Xóa tập tin khỏi danh sách đính kèm
@@ -469,7 +575,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
       !isValidConversation
     )
       return;
-
+    
     const tempContent = inputValue;
     setInputValue(""); // Reset input ngay lập tức
 
@@ -485,7 +591,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
         messageType = fileType.startsWith("image/") ? "image" : "file";
       }
     }
-
+    
     // Tạo tin nhắn tạm thời để hiển thị ngay
     const tempMessage: DisplayMessage = {
       id: `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -558,11 +664,11 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
         messageType,
         attachmentData
       );
-
+      
       if (!newMessage || !newMessage.messageDetailId) {
         throw new Error("Không nhận được phản hồi hợp lệ từ server");
       }
-
+      
       // Thay thế tin nhắn tạm bằng tin nhắn thật
       const sender = userCache[currentUserId] || {
         fullname: "Bạn",
@@ -608,7 +714,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
       // Đánh dấu tin nhắn tạm là lỗi
       setMessages((prev) =>
         prev.map((msg) =>
-          msg.id === tempMessage.id
+          msg.id === tempMessage.id 
             ? {
                 ...msg,
                 content: error.message
@@ -674,16 +780,16 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
   const handleRefreshConversations = async () => {
     try {
       setRefreshing(true);
-
+      
       // Gọi API trực tiếp để lấy lại danh sách cuộc trò chuyện
       await fetchConversations();
-
+      
       // Thông báo cho người dùng
       message.success("Đã làm mới danh sách cuộc trò chuyện");
-
+      
       // Thiết lập lại trạng thái not-found
       setNotFound(false);
-
+      
       // Thông báo cho người dùng chọn cuộc trò chuyện mới
       setError("Vui lòng chọn lại cuộc trò chuyện từ danh sách.");
     } catch (error) {
@@ -850,8 +956,8 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
           {/* Nút tải thêm tin nhắn cũ hơn */}
           {hasMore && messages.length > 0 && (
             <div className="load-more-container">
-              <Button
-                onClick={loadMoreMessages}
+              <Button 
+                onClick={loadMoreMessages} 
                 loading={loadingMore}
                 icon={<DownOutlined />}
                 size="small"
@@ -860,7 +966,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
               </Button>
             </div>
           )}
-
+          
           {loadingMore && (
             <div className="text-center py-2">
               <Spin size="small" />{" "}
@@ -869,11 +975,11 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
               </span>
             </div>
           )}
-
+          
           {loading && (
             <div className="text-center py-4">{t.loading || "Đang tải..."}</div>
           )}
-
+          
           {notFound && (
             <div className="flex flex-col items-center justify-center py-8">
               <Empty
@@ -885,9 +991,9 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
                   Cuộc trò chuyện có thể đã bị xóa hoặc bạn không còn là thành
                   viên.
                 </p>
-                <Button
-                  type="primary"
-                  icon={<ReloadOutlined />}
+                <Button 
+                  type="primary" 
+                  icon={<ReloadOutlined />} 
                   loading={refreshing}
                   onClick={handleRefreshConversations}
                 >
@@ -896,7 +1002,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
               </div>
             </div>
           )}
-
+          
           {error && !notFound && (
             <div className="text-center py-2">
               <Alert
@@ -912,18 +1018,18 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
               </div>
             </div>
           )}
-
+          
           {messages.length === 0 && !loading && !error && !notFound && (
             <div className="text-center text-gray-500 py-10">
               {t.no_messages ||
                 "Chưa có tin nhắn nào. Hãy bắt đầu cuộc trò chuyện!"}
             </div>
           )}
-
+          
           <div className="space-y-3">
             {messages.map((message, index) => {
               if (!message) return null;
-
+              
               const isOwn = isOwnMessage(message.sender.id);
               const showAvatar =
                 !isOwn && shouldShowAvatar(index, message.sender.id);
@@ -945,7 +1051,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
                 !nextMessage || // It's the last message overall
                 nextMessage.sender.id !== message.sender.id || // Next message is from different sender
                 shouldShowTimestampSeparator(nextMessage, message); // There's a time separator after this message
-
+              
               return (
                 <React.Fragment key={`${message.id}-${index}`}>
                   {/* Timestamp separator */}
@@ -965,36 +1071,36 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
                       <div
                         className={`flex-shrink-0 mr-2 ${showAvatar ? "visible" : "invisible"}`}
                       >
-                        <Avatar
-                          name={message.sender.name}
-                          avatarUrl={message.sender.avatar}
-                          size={30}
-                          className="rounded-full"
-                        />
-                      </div>
-                    )}
-
+                      <Avatar 
+                        name={message.sender.name}
+                        avatarUrl={message.sender.avatar}
+                        size={30}
+                        className="rounded-full"
+                      />
+                    </div>
+                  )}
+                  
                     <div
                       className="flex flex-col"
                       style={{ maxWidth: "min(80%)" }}
                     >
-                      {showSender && !isOwn && (
+                    {showSender && !isOwn && (
                         <div className="text-xs mb-1 ml-1 text-gray-600 truncate">
-                          {message.sender.name}
-                        </div>
-                      )}
-
-                      <div
-                        className={`px-3 py-2 rounded-2xl ${
-                          isOwn
+                        {message.sender.name}
+                      </div>
+                    )}
+                    
+                    <div 
+                      className={`px-3 py-2 rounded-2xl ${
+                        isOwn 
                             ? message.isError
                               ? "bg-red-100 text-red-800"
                               : "bg-blue-500 text-white rounded-tr-none"
                             : "bg-gray-100 text-gray-800 rounded-tl-none"
                         } overflow-hidden`}
                         style={{ wordBreak: "break-word", maxWidth: "100%" }}
-                      >
-                        {/* Hiển thị nội dung tin nhắn dựa vào loại */}
+                    >
+                      {/* Hiển thị nội dung tin nhắn dựa vào loại */}
                         {message.type === "image" ? (
                           <img
                             src={message.fileUrl || message.content}
@@ -1002,34 +1108,34 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
                             className="max-w-full max-h-60 rounded-lg"
                           />
                         ) : message.type === "file" ? (
-                          <div className="flex items-center gap-2">
-                            <i className="fas fa-file text-gray-500"></i>
+                        <div className="flex items-center gap-2">
+                          <i className="fas fa-file text-gray-500"></i>
                             <span className="truncate">
                               {message.fileName || message.content}
                             </span>
-                          </div>
-                        ) : (
+                        </div>
+                      ) : (
                           <div className="relative">
                             <p className="text-sm whitespace-pre-wrap break-words">
                               {message.content}
                             </p>
                           </div>
-                        )}
-                      </div>
-
+                      )}
+                    </div>
+                    
                       {/* Only show timestamp for the last message in a sequence */}
                       {isLastInSequence && (
                         <div
                           className={`flex text-xs text-gray-500 mt-1 ${isOwn ? "justify-end" : "justify-start"}`}
                         >
-                          <span>{formatMessageTime(message.timestamp)}</span>
-                          {isOwn && message.isRead && (
-                            <span className="ml-1 text-blue-500">✓✓</span>
-                          )}
-                        </div>
+                      <span>{formatMessageTime(message.timestamp)}</span>
+                      {isOwn && message.isRead && (
+                        <span className="ml-1 text-blue-500">✓✓</span>
                       )}
                     </div>
+                      )}
                   </div>
+                </div>
                 </React.Fragment>
               );
             })}
@@ -1061,7 +1167,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
             </div>
           )}
         </div>
-
+        
         {/* Khu vực nhập tin nhắn (ẩn nếu không tìm thấy cuộc trò chuyện) */}
         {!notFound && (
           <div className="flex-shrink-0 border-t border-gray-100 bg-white">
@@ -1146,15 +1252,17 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
                 onChange={(e) => setInputValue(e.target.value)}
                 onPressEnter={handleKeyPress}
               />
-              <BsEmojiSmile
-                className="text-xl cursor-pointer hover:text-primary text-gray-500 emoji-button"
-                onClick={toggleEmojiPicker}
-              />
+              <Tooltip title="Sticker">
+                <SmileOutlined className="text-lg text-gray-600 cursor-pointer hover:text-blue-500" />
+              </Tooltip>
+              <Tooltip title="Ảnh/Video">
+                <PictureOutlined className="text-lg text-gray-600 cursor-pointer hover:text-blue-500" onClick={() => imageInputRef.current?.click()} />
+              </Tooltip>
 
               {inputValue.trim() || attachments.length > 0 ? (
                 <SendOutlined
                   className="text-xl cursor-pointer hover:text-primary text-blue-500"
-                  onClick={handleSendMessage}
+                onClick={handleSendMessage}
                 />
               ) : (
                 <button
@@ -1270,4 +1378,4 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
   );
 };
 
-export default ChatArea;
+export default ChatArea; 
