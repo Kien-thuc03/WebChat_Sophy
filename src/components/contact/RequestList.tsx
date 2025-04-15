@@ -3,6 +3,7 @@ import { Tabs, Button, message } from "antd";
 import { Avatar } from "../common/Avatar";
 import { useLanguage } from "../../features/auth/context/LanguageContext";
 import ErrorBoundary from "../common/ErrorBoundary";
+import UserInfoHeaderModal, { UserResult } from "../header/modal/UserInfoHeaderModal";
 import { 
   getFriendRequestsReceived, 
   getFriendRequestsSent, 
@@ -31,16 +32,19 @@ interface FriendRequest {
 
 interface RequestListProps {
   onSelectFriend?: (friendId: string) => void;
+  onRequestsUpdate?: () => void; // Add this prop
 }
 
 const { TabPane } = Tabs;
 
-const RequestList: React.FC<RequestListProps> = ({ onSelectFriend }) => {
+const RequestList: React.FC<RequestListProps> = ({ onSelectFriend, onRequestsUpdate }) => {
   const { t } = useLanguage();
   const [receivedRequests, setReceivedRequests] = useState<FriendRequest[]>([]);
   const [sentRequests, setSentRequests] = useState<FriendRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedUser, setSelectedUser] = useState<UserResult | null>(null);
+  const [isModalVisible, setIsModalVisible] = useState(false);
 
   // Format date for display
   const formatDate = (dateString: string) => {
@@ -78,17 +82,15 @@ const RequestList: React.FC<RequestListProps> = ({ onSelectFriend }) => {
       try {
         setLoading(true);
         
-        // Fetch received requests
         const receivedData = await getFriendRequestsReceived();
-        console.log("Received requests data:", receivedData);
-        
-        // Fetch sent requests
         const sentData = await getFriendRequestsSent();
-        console.log("Sent requests data:", sentData);
 
         setReceivedRequests(receivedData);
         setSentRequests(sentData);
         setError(null);
+        
+        // Notify parent component about the update
+        onRequestsUpdate?.();
       } catch (err) {
         console.error("Error fetching friend requests:", err);
         setError(err instanceof Error ? err.message : "Không thể tải lời mời kết bạn");
@@ -98,13 +100,14 @@ const RequestList: React.FC<RequestListProps> = ({ onSelectFriend }) => {
     };
 
     getRequests();
-  }, []);
+  }, [onRequestsUpdate]);
 
   const handleAccept = async (requestId: string) => {
     try {
       await acceptFriendRequest(requestId);
       setReceivedRequests(prev => prev.filter(req => req.friendRequestId !== requestId));
       message.success("Đã chấp nhận lời mời kết bạn");
+      onRequestsUpdate?.();
     } catch (error) {
       console.error("Error accepting friend request:", error);
       message.error(error instanceof Error ? error.message : "Không thể chấp nhận lời mời kết bạn");
@@ -116,6 +119,7 @@ const RequestList: React.FC<RequestListProps> = ({ onSelectFriend }) => {
       await rejectFriendRequest(requestId);
       setReceivedRequests(prev => prev.filter(req => req.friendRequestId !== requestId));
       message.success("Đã từ chối lời mời kết bạn");
+      onRequestsUpdate?.();
     } catch (error) {
       console.error("Error rejecting friend request:", error);
       message.error(error instanceof Error ? error.message : "Không thể từ chối lời mời kết bạn");
@@ -124,12 +128,24 @@ const RequestList: React.FC<RequestListProps> = ({ onSelectFriend }) => {
 
   const handleCancel = async (requestId: string) => {
     try {
+      message.loading({ content: "Đang xử lý...", key: "cancelRequest" });
       await cancelFriendRequest(requestId);
       setSentRequests(prev => prev.filter(req => req.friendRequestId !== requestId));
-      message.success("Đã thu hồi lời mời kết bạn");
+      message.success({ 
+        content: "Đã thu hồi lời mời kết bạn", 
+        key: "cancelRequest",
+        duration: 2 
+      });
+      onRequestsUpdate?.();
     } catch (error) {
       console.error("Error canceling friend request:", error);
-      message.error(error instanceof Error ? error.message : "Không thể thu hồi lời mời kết bạn");
+      
+      // Show error message
+      message.error({ 
+        content: error instanceof Error ? error.message : "Không thể thu hồi lời mời kết bạn",
+        key: "cancelRequest",
+        duration: 3
+      });
     }
   };
 
@@ -137,6 +153,37 @@ const RequestList: React.FC<RequestListProps> = ({ onSelectFriend }) => {
     if (onSelectFriend) {
       onSelectFriend(userId);
     }
+  };
+
+  const handleUserClick = (user: { userId: string; fullname: string; urlavatar?: string }) => {
+    setSelectedUser({
+      userId: user.userId,
+      fullname: user.fullname,
+      phone: "",
+      avatar: user.urlavatar
+    });
+    setIsModalVisible(true);
+  };
+
+  const handleModalClose = () => {
+    setIsModalVisible(false);
+    setSelectedUser(null);
+  };
+
+  const isCurrentUser = (userId: string): boolean => {
+    const currentUserId = localStorage.getItem('userId');
+    return userId === currentUserId;
+  };
+
+  const isFriend = (userId: string): boolean => {
+    // Check if the user is in received or sent requests
+    const isInReceived = receivedRequests.some(
+      request => request.senderId.userId === userId || request.receiverId.userId === userId
+    );
+    const isInSent = sentRequests.some(
+      request => request.senderId.userId === userId || request.receiverId.userId === userId
+    );
+    return isInReceived || isInSent;
   };
 
   return (
@@ -154,14 +201,13 @@ const RequestList: React.FC<RequestListProps> = ({ onSelectFriend }) => {
           ) : receivedRequests.length === 0 ? (
             <div className="p-4 text-center">Không có lời mời nào</div>
           ) : (
-            // Update the received requests section
             <div className="overflow-y-auto">
               {receivedRequests.map(request => (
                 <div key={request.friendRequestId} className="p-4 border-b dark:border-gray-700">
                   <div className="flex items-start">
                     <div 
                       className="cursor-pointer flex-shrink-0 mr-3"
-                      onClick={() => handleFriendClick(request.senderId.userId)}
+                      onClick={() => handleUserClick(request.senderId)}
                     >
                       <Avatar 
                         name={request.senderId.fullname} 
@@ -174,7 +220,7 @@ const RequestList: React.FC<RequestListProps> = ({ onSelectFriend }) => {
                       <div className="flex flex-col">
                         <div 
                           className="font-medium text-lg cursor-pointer hover:underline"
-                          onClick={() => handleFriendClick(request.senderId.userId)}
+                          onClick={() => handleUserClick(request.senderId)}
                         >
                           {request.senderId.fullname}
                         </div>
@@ -225,20 +271,20 @@ const RequestList: React.FC<RequestListProps> = ({ onSelectFriend }) => {
                     <div className="flex items-center">
                       <div 
                         className="cursor-pointer mr-3"
-                        onClick={() => handleFriendClick(request.senderId.userId)}
+                        onClick={() => handleUserClick(request.receiverId)}
                       >
                         <Avatar 
-                          name={request.senderId.fullname} 
-                          avatarUrl={request.senderId.urlavatar} 
+                          name={request.receiverId.fullname} 
+                          avatarUrl={request.receiverId.urlavatar} 
                           size={50}
                         />
                       </div>
                       <div>
                         <div 
                           className="font-medium cursor-pointer hover:underline"
-                          onClick={() => handleFriendClick(request.senderId.userId)}
+                          onClick={() => handleUserClick(request.receiverId)}
                         >
-                          {request.senderId.fullname}
+                          {request.receiverId.fullname}
                         </div>
                         <div className="text-sm text-gray-500">
                           Bạn đã gửi lời mời {formatDate(request.createdAt)}
@@ -258,6 +304,19 @@ const RequestList: React.FC<RequestListProps> = ({ onSelectFriend }) => {
           )}
         </TabPane>
       </Tabs>
+
+      <UserInfoHeaderModal
+        visible={isModalVisible}
+        onCancel={handleModalClose}
+        searchResult={selectedUser}
+        isCurrentUser={isCurrentUser}
+        isFriend={isFriend}
+        handleUpdate={() => {}}
+        handleMessage={handleFriendClick}
+        handleSendFriendRequest={() => {}}
+        isSending={false}
+        onRequestsUpdate={onRequestsUpdate}
+      />
     </div>
   );
 };
