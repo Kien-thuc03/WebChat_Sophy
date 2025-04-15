@@ -47,22 +47,27 @@ const FriendList: React.FC<FriendListProps> = ({ onSelectFriend }) => {
     const getFriends = async () => {
       try {
         setLoading(true);
-        const friendsData = await fetchFriends() as FriendApiResponse[];
-        
-        // Transform API data to match our Friend interface
-        const formattedFriends: Friend[] = friendsData.map((friend: FriendApiResponse) => ({
-          id: friend.id || friend.userId || friend._id || "",
-          name: friend.name || friend.fullname || friend.username || "",
-          avatarUrl: friend.avatarUrl || friend.urlavatar || friend.avatar,
-          status: friend.status || "offline",
-          lastSeen: friend.lastSeen || friend.lastActive
-        }));
-        
+        const friendsData = (await fetchFriends()) as FriendApiResponse[];
+        console.log("Raw friends data:", friendsData);
+
+        const formattedFriends: Friend[] = friendsData.map(
+          (friend: FriendApiResponse) => ({
+            id: friend.userId || friend._id || "",
+            name: friend.fullname || friend.username || "Unknown",
+            avatarUrl: friend.avatarUrl || friend.urlavatar,
+            status: friend.status || "offline",
+            lastSeen: friend.lastActive,
+          })
+        );
+
+        console.log("Formatted friends:", formattedFriends);
         setFriends(formattedFriends);
         setError(null);
       } catch (err) {
         console.error("Error fetching friends:", err);
-        setError(err instanceof Error ? err.message : "Không thể tải danh sách bạn bè");
+        setError(
+          err instanceof Error ? err.message : "Không thể tải danh sách bạn bè"
+        );
       } finally {
         setLoading(false);
       }
@@ -75,19 +80,22 @@ const FriendList: React.FC<FriendListProps> = ({ onSelectFriend }) => {
     setSearchText(e.target.value);
   };
 
-  const filteredFriends = friends.filter(friend => 
+  const filteredFriends = friends.filter((friend) =>
     friend.name.toLowerCase().includes(searchText.toLowerCase())
   );
 
   // Group friends by first letter for A-Z display
-  const groupedFriends = filteredFriends.reduce((acc, friend) => {
-    const firstLetter = friend.name.charAt(0).toUpperCase();
-    if (!acc[firstLetter]) {
-      acc[firstLetter] = [];
-    }
-    acc[firstLetter].push(friend);
-    return acc;
-  }, {} as Record<string, Friend[]>);
+  const groupedFriends = filteredFriends.reduce(
+    (acc, friend) => {
+      const firstLetter = friend.name.charAt(0).toUpperCase();
+      if (!acc[firstLetter]) {
+        acc[firstLetter] = [];
+      }
+      acc[firstLetter].push(friend);
+      return acc;
+    },
+    {} as Record<string, Friend[]>
+  );
 
   // Sort the letters
   const sortedLetters = Object.keys(groupedFriends).sort();
@@ -100,14 +108,16 @@ const FriendList: React.FC<FriendListProps> = ({ onSelectFriend }) => {
 
   const sortOptions = [
     { key: "A-Z", label: "Tên (A-Z)" },
-    { key: "All", label: "Tất cả" }
+    { key: "All", label: "Tất cả" },
   ];
 
   return (
     <div className="friend-list w-full h-full flex flex-col bg-white dark:bg-gray-900">
       <div className="p-4 border-b dark:border-gray-700">
         <h2 className="text-lg font-semibold mb-2 flex items-center">
-          <span className="mr-2">{t.friend_list || "Bạn bè"} ({friends.length})</span>
+          <span className="mr-2">
+            {t.friend_list || "Bạn bè"} ({friends.length})
+          </span>
         </h2>
         <Input
           placeholder={t.search || "Tìm bạn"}
@@ -121,28 +131,22 @@ const FriendList: React.FC<FriendListProps> = ({ onSelectFriend }) => {
       <div className="flex justify-between items-center px-4 py-2 border-b dark:border-gray-700">
         <Dropdown
           menu={{
-            items: sortOptions.map(option => ({
+            items: sortOptions.map((option) => ({
               key: option.key,
               label: option.key === "A-Z" ? "Tên (A-Z)" : t.all || "Tất cả",
-              onClick: () => setSortOrder(option.key as "A-Z" | "All")
-            }))
-          }}
-        >
+              onClick: () => setSortOrder(option.key as "A-Z" | "All"),
+            })),
+          }}>
           <Button type="text">
             {sortOrder === "A-Z" ? "Tên (A-Z)" : t.all || "Tất cả"}
           </Button>
         </Dropdown>
-        
+
         <Dropdown
           menu={{
-            items: [
-              { key: "all", label: t.all || "Tất cả" }
-            ]
-          }}
-        >
-          <Button type="text">
-            {t.all || "Tất cả"}
-          </Button>
+            items: [{ key: "all", label: t.all || "Tất cả" }],
+          }}>
+          <Button type="text">{t.all || "Tất cả"}</Button>
         </Dropdown>
       </div>
 
@@ -152,24 +156,25 @@ const FriendList: React.FC<FriendListProps> = ({ onSelectFriend }) => {
         ) : error ? (
           <div className="p-4 text-center text-red-500">{error}</div>
         ) : filteredFriends.length === 0 ? (
-          <div className="p-4 text-center">{t.no_conversations || "Không tìm thấy bạn bè"}</div>
+          <div className="p-4 text-center">
+            {t.no_conversations || "Không tìm thấy bạn bè"}
+          </div>
         ) : sortOrder === "A-Z" ? (
-          sortedLetters.map(letter => (
+          sortedLetters.map((letter) => (
             <div key={letter}>
               <div className="sticky top-0 bg-gray-100 dark:bg-gray-800 px-4 py-1 font-semibold">
                 {letter}
               </div>
               <List
                 dataSource={groupedFriends[letter]}
-                renderItem={friend => (
-                  <List.Item 
+                renderItem={(friend) => (
+                  <List.Item
                     className="px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
-                    onClick={() => handleFriendClick(friend.id)}
-                  >
+                    onClick={() => handleFriendClick(friend.id)}>
                     <div className="flex items-center w-full">
-                      <Avatar 
-                        name={friend.name} 
-                        avatarUrl={friend.avatarUrl} 
+                      <Avatar
+                        name={friend.name}
+                        avatarUrl={friend.avatarUrl}
                         size={40}
                         className="mr-3"
                       />
@@ -193,15 +198,14 @@ const FriendList: React.FC<FriendListProps> = ({ onSelectFriend }) => {
         ) : (
           <List
             dataSource={filteredFriends}
-            renderItem={friend => (
-              <List.Item 
+            renderItem={(friend) => (
+              <List.Item
                 className="px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
-                onClick={() => handleFriendClick(friend.id)}
-              >
+                onClick={() => handleFriendClick(friend.id)}>
                 <div className="flex items-center w-full">
-                  <Avatar 
-                    name={friend.name} 
-                    avatarUrl={friend.avatarUrl} 
+                  <Avatar
+                    name={friend.name}
+                    avatarUrl={friend.avatarUrl}
                     size={40}
                     className="mr-3"
                   />

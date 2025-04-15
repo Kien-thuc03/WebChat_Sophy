@@ -555,7 +555,7 @@ export const getMessages = async (
   conversationId: string,
   lastMessageTime?: string,
   limit = 20,
-  direction: 'before' | 'after' = 'before'
+  direction: "before" | "after" = "before"
 ) => {
   try {
     console.log(
@@ -619,17 +619,17 @@ export const getMessages = async (
       // Trường hợp 2: Dữ liệu nằm trong property messages
       console.log("getMessages: Dữ liệu trả về chứa mảng messages");
       messages = response.data.messages;
-      
+
       // Sử dụng nullish coalescing để đảm bảo giá trị boolean chính xác
       hasMore = response.data.hasMore ?? false;
       nextCursor = response.data.nextCursor ?? null;
       responseDirection = response.data.direction || direction;
-      
+
       // Log pagination info
       console.log("getMessages: Thông tin phân trang:", {
-        hasMore, 
-        nextCursor, 
-        direction: responseDirection
+        hasMore,
+        nextCursor,
+        direction: responseDirection,
       });
     } else if (response.data && Array.isArray(response.data.data)) {
       // Trường hợp 3: Dữ liệu nằm trong property data
@@ -686,14 +686,14 @@ export const getMessages = async (
       messages: normalizedMessages.length,
       hasMore,
       nextCursor,
-      direction: responseDirection
+      direction: responseDirection,
     });
 
-    return { 
-      messages: normalizedMessages, 
-      hasMore, 
-      nextCursor, 
-      direction: responseDirection 
+    return {
+      messages: normalizedMessages,
+      hasMore,
+      nextCursor,
+      direction: responseDirection,
     };
   } catch (error: any) {
     logApiError("getMessages", error);
@@ -730,7 +730,7 @@ export const sendMessage = async (
         conversationId,
         content,
         type,
-        attachments
+        attachments,
       },
       {
         timeout: 10000, // Timeout 10 giây
@@ -764,7 +764,8 @@ export const sendMessage = async (
         throw new Error("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.");
       } else if (error.response.status === 403) {
         throw new Error(
-          error.response.data?.message || "Bạn không có quyền gửi tin nhắn vào cuộc trò chuyện này."
+          error.response.data?.message ||
+            "Bạn không có quyền gửi tin nhắn vào cuộc trò chuyện này."
         );
       } else if (error.response.status === 404) {
         throw new Error("Không tìm thấy cuộc trò chuyện.");
@@ -1305,7 +1306,9 @@ export const fetchFriends = async () => {
       throw new Error("Không có token xác thực");
     }
 
-    const response = await apiClient.get("/api/friends");
+    console.log("Fetching friends with token:", token);
+    const response = await apiClient.get("/api/users/friends");
+    console.log("Friends response:", response.data);
 
     if (!Array.isArray(response.data)) {
       console.error("Invalid friends data format:", response.data);
@@ -1315,13 +1318,17 @@ export const fetchFriends = async () => {
     console.log("Fetched friends:", response.data);
     return response.data;
   } catch (error) {
-    console.error("Lỗi khi lấy danh sách bạn bè:", error);
+    console.error("Lỗi khi lấy danh sách bạn bè:", {
+      error,
+      status: (error as AxiosError).response?.status,
+      message: (error as AxiosError).response?.data?.message,
+    });
     const apiError = error as AxiosError<{ message?: string }>;
     if (apiError.response?.status === 401) {
       throw new Error("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.");
     }
     if (apiError.response?.status === 404) {
-      return []; // Return empty array if no friends found
+      return [];
     }
     throw new Error(
       apiError.response?.data?.message || "Không thể lấy danh sách bạn bè"
