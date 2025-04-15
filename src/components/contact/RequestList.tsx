@@ -124,12 +124,29 @@ const RequestList: React.FC<RequestListProps> = ({ onSelectFriend }) => {
 
   const handleCancel = async (requestId: string) => {
     try {
+      // Show loading state
+      message.loading({ content: "Đang xử lý...", key: "cancelRequest" });
+  
       await cancelFriendRequest(requestId);
+      
+      // Remove the request from the sent requests list
       setSentRequests(prev => prev.filter(req => req.friendRequestId !== requestId));
-      message.success("Đã thu hồi lời mời kết bạn");
+      
+      // Show success message
+      message.success({ 
+        content: "Đã thu hồi lời mời kết bạn", 
+        key: "cancelRequest",
+        duration: 2 
+      });
     } catch (error) {
       console.error("Error canceling friend request:", error);
-      message.error(error instanceof Error ? error.message : "Không thể thu hồi lời mời kết bạn");
+      
+      // Show error message
+      message.error({ 
+        content: error instanceof Error ? error.message : "Không thể thu hồi lời mời kết bạn",
+        key: "cancelRequest",
+        duration: 3
+      });
     }
   };
 
@@ -225,20 +242,20 @@ const RequestList: React.FC<RequestListProps> = ({ onSelectFriend }) => {
                     <div className="flex items-center">
                       <div 
                         className="cursor-pointer mr-3"
-                        onClick={() => handleFriendClick(request.senderId.userId)}
+                        onClick={() => handleFriendClick(request.receiverId.userId)}
                       >
                         <Avatar 
-                          name={request.senderId.fullname} 
-                          avatarUrl={request.senderId.urlavatar} 
+                          name={request.receiverId.fullname} 
+                          avatarUrl={request.receiverId.urlavatar} 
                           size={50}
                         />
                       </div>
                       <div>
                         <div 
                           className="font-medium cursor-pointer hover:underline"
-                          onClick={() => handleFriendClick(request.senderId.userId)}
+                          onClick={() => handleFriendClick(request.receiverId.userId)}
                         >
-                          {request.senderId.fullname}
+                          {request.receiverId.fullname}
                         </div>
                         <div className="text-sm text-gray-500">
                           Bạn đã gửi lời mời {formatDate(request.createdAt)}

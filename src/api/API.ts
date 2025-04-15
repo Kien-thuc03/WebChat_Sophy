@@ -1330,24 +1330,24 @@ export const getFriendRequestsReceived = async () => {
 
     const response = await apiClient.get("/api/users/friend-requests-received");
     console.log("Friend requests received response:", response.data);
-    
+
     // Transform the data to match our frontend interface
     const transformedData = response.data.map((request: any) => ({
       friendRequestId: request.friendRequestId,
       senderId: {
-        userId: request.senderId,
-        fullname: "Unknown User", // This will be updated when we get sender info
-        urlavatar: undefined
+        userId: request.senderId.userId,
+        fullname: request.senderId.fullname, // This will be updated when we get sender info
+        urlavatar: request.senderId.urlavatar,
       },
       receiverId: {
         userId: request.receiverId.userId,
         fullname: request.receiverId.fullname,
-        urlavatar: request.receiverId.urlavatar
+        urlavatar: request.receiverId.urlavatar,
       },
       status: request.status,
       message: request.message || "",
       createdAt: request.createdAt,
-      updatedAt: request.updatedAt
+      updatedAt: request.updatedAt,
     }));
 
     return transformedData;
@@ -1368,16 +1368,34 @@ export const getFriendRequestsSent = async () => {
       throw new Error("Không có token xác thực");
     }
 
-    // Check if this endpoint matches your backend route
     const response = await apiClient.get("/api/users/friend-requests-sent");
     console.log("Friend requests sent response:", response.data);
-    return response.data;
+
+    // Transform the data to match our frontend interface
+    const transformedData = response.data.map((request: any) => ({
+      friendRequestId: request.friendRequestId,
+      senderId: {
+        userId: request.senderId,
+        fullname: "", // Since senderId is just a string in this case
+        urlavatar: undefined,
+      },
+      receiverId: {
+        userId: request.receiverId.userId,
+        fullname: request.receiverId.fullname,
+        urlavatar: request.receiverId.urlavatar,
+      },
+      status: request.status,
+      message: request.message || "",
+      createdAt: request.createdAt,
+      updatedAt: request.updatedAt,
+    }));
+
+    return transformedData;
   } catch (error: unknown) {
     console.error("Lỗi khi lấy danh sách yêu cầu kết bạn đã gửi:", error);
     if (error instanceof AxiosError && error.response) {
       console.error("Server error details:", error.response.data);
     }
-    // Return empty array instead of throwing error to prevent UI from breaking
     return [];
   }
 };
@@ -1445,7 +1463,7 @@ export const cancelFriendRequest = async (requestId: string) => {
     }
 
     const response = await apiClient.delete(
-      `/api/users/friend-requests/retrieve-request/${requestId}`
+      `/api/users/friend-requests/retrieve-request/${requestId}` // Updated endpoint path
     );
     console.log("Cancel friend request response:", response.data);
     return response.data;
@@ -1457,6 +1475,12 @@ export const cancelFriendRequest = async (requestId: string) => {
       }
       if (error.response.status === 404) {
         throw new Error("Không tìm thấy yêu cầu kết bạn");
+      }
+      if (error.response.status === 403) {
+        throw new Error("Bạn không có quyền thu hồi yêu cầu kết bạn này");
+      }
+      if (error.response.status === 400) {
+        throw new Error("Yêu cầu kết bạn này đã được xử lý");
       }
     }
     throw new Error("Không thể thu hồi yêu cầu kết bạn");
