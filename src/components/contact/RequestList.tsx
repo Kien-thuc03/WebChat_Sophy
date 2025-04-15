@@ -31,11 +31,12 @@ interface FriendRequest {
 
 interface RequestListProps {
   onSelectFriend?: (friendId: string) => void;
+  onRequestsUpdate?: () => void; // Add this prop
 }
 
 const { TabPane } = Tabs;
 
-const RequestList: React.FC<RequestListProps> = ({ onSelectFriend }) => {
+const RequestList: React.FC<RequestListProps> = ({ onSelectFriend, onRequestsUpdate }) => {
   const { t } = useLanguage();
   const [receivedRequests, setReceivedRequests] = useState<FriendRequest[]>([]);
   const [sentRequests, setSentRequests] = useState<FriendRequest[]>([]);
@@ -78,17 +79,15 @@ const RequestList: React.FC<RequestListProps> = ({ onSelectFriend }) => {
       try {
         setLoading(true);
         
-        // Fetch received requests
         const receivedData = await getFriendRequestsReceived();
-        console.log("Received requests data:", receivedData);
-        
-        // Fetch sent requests
         const sentData = await getFriendRequestsSent();
-        console.log("Sent requests data:", sentData);
 
         setReceivedRequests(receivedData);
         setSentRequests(sentData);
         setError(null);
+        
+        // Notify parent component about the update
+        onRequestsUpdate?.();
       } catch (err) {
         console.error("Error fetching friend requests:", err);
         setError(err instanceof Error ? err.message : "Không thể tải lời mời kết bạn");
@@ -98,13 +97,14 @@ const RequestList: React.FC<RequestListProps> = ({ onSelectFriend }) => {
     };
 
     getRequests();
-  }, []);
+  }, [onRequestsUpdate]);
 
   const handleAccept = async (requestId: string) => {
     try {
       await acceptFriendRequest(requestId);
       setReceivedRequests(prev => prev.filter(req => req.friendRequestId !== requestId));
       message.success("Đã chấp nhận lời mời kết bạn");
+      onRequestsUpdate?.();
     } catch (error) {
       console.error("Error accepting friend request:", error);
       message.error(error instanceof Error ? error.message : "Không thể chấp nhận lời mời kết bạn");
@@ -116,6 +116,7 @@ const RequestList: React.FC<RequestListProps> = ({ onSelectFriend }) => {
       await rejectFriendRequest(requestId);
       setReceivedRequests(prev => prev.filter(req => req.friendRequestId !== requestId));
       message.success("Đã từ chối lời mời kết bạn");
+      onRequestsUpdate?.();
     } catch (error) {
       console.error("Error rejecting friend request:", error);
       message.error(error instanceof Error ? error.message : "Không thể từ chối lời mời kết bạn");
@@ -124,20 +125,15 @@ const RequestList: React.FC<RequestListProps> = ({ onSelectFriend }) => {
 
   const handleCancel = async (requestId: string) => {
     try {
-      // Show loading state
       message.loading({ content: "Đang xử lý...", key: "cancelRequest" });
-  
       await cancelFriendRequest(requestId);
-      
-      // Remove the request from the sent requests list
       setSentRequests(prev => prev.filter(req => req.friendRequestId !== requestId));
-      
-      // Show success message
       message.success({ 
         content: "Đã thu hồi lời mời kết bạn", 
         key: "cancelRequest",
         duration: 2 
       });
+      onRequestsUpdate?.();
     } catch (error) {
       console.error("Error canceling friend request:", error);
       

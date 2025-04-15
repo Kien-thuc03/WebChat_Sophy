@@ -1,12 +1,16 @@
 import React, { useEffect, useState } from "react";
 import { Modal, Button, message } from "antd";
-import { ArrowLeftOutlined, EditOutlined, CloseOutlined } from "@ant-design/icons";
-import { 
-  getFriendRequestsSent, 
-  cancelFriendRequest, 
+import {
+  ArrowLeftOutlined,
+  EditOutlined,
+  CloseOutlined,
+} from "@ant-design/icons";
+import {
+  getFriendRequestsSent,
+  cancelFriendRequest,
   getFriendRequestsReceived,
   acceptFriendRequest,
-  rejectFriendRequest
+  rejectFriendRequest,
 } from "../../../api/API";
 
 export interface UserResult {
@@ -28,6 +32,7 @@ interface UserInfoHeaderModalProps {
   handleMessage: (userId: string) => void;
   handleSendFriendRequest: (userId: string) => void;
   isSending: boolean;
+  onRequestsUpdate?: () => void;
 }
 
 const UserInfoHeaderModal: React.FC<UserInfoHeaderModalProps> = ({
@@ -40,12 +45,18 @@ const UserInfoHeaderModal: React.FC<UserInfoHeaderModalProps> = ({
   handleMessage,
   handleSendFriendRequest,
   isSending,
+  onRequestsUpdate,
 }) => {
   const [randomImageId, setRandomImageId] = useState<number>(1);
-  const [hasSentFriendRequest, setHasSentFriendRequest] = useState<boolean>(false);
-  const [friendRequestId, setFriendRequestId] = useState<string | undefined>(undefined);
+  const [hasSentFriendRequest, setHasSentFriendRequest] =
+    useState<boolean>(false);
+  const [friendRequestId, setFriendRequestId] = useState<string | undefined>(
+    undefined
+  );
   const [hasPendingRequest, setHasPendingRequest] = useState<boolean>(false);
-  const [pendingRequestId, setPendingRequestId] = useState<string | undefined>(undefined);
+  const [pendingRequestId, setPendingRequestId] = useState<string | undefined>(
+    undefined
+  );
 
   useEffect(() => {
     if (visible) {
@@ -55,17 +66,21 @@ const UserInfoHeaderModal: React.FC<UserInfoHeaderModalProps> = ({
 
   useEffect(() => {
     const checkFriendRequest = async () => {
-      if (searchResult && !isCurrentUser(searchResult.userId) && !isFriend(searchResult.userId)) {
+      if (
+        searchResult &&
+        !isCurrentUser(searchResult.userId) &&
+        !isFriend(searchResult.userId)
+      ) {
         try {
           // Check if we sent a request
           const sentResult = await getFriendRequestsSent();
           setHasSentFriendRequest(sentResult.hasSent);
           setFriendRequestId(sentResult.requestId);
-          
+
           try {
             // Check if we have a pending request from this user
             const pendingRequests = await getFriendRequestsReceived();
-            
+
             if (Array.isArray(pendingRequests)) {
               // Define a proper interface for the request object
               interface FriendRequest {
@@ -77,13 +92,13 @@ const UserInfoHeaderModal: React.FC<UserInfoHeaderModalProps> = ({
                 status: string;
                 friendRequestId: string;
               }
-              
+
               const pendingRequest = pendingRequests.find(
-                (request: FriendRequest) => 
-                  request.senderId?.userId === searchResult.userId && 
-                  request.status === 'pending'
+                (request: FriendRequest) =>
+                  request.senderId?.userId === searchResult.userId &&
+                  request.status === "pending"
               );
-              
+
               if (pendingRequest) {
                 setHasPendingRequest(true);
                 setPendingRequestId(pendingRequest.friendRequestId);
@@ -93,7 +108,10 @@ const UserInfoHeaderModal: React.FC<UserInfoHeaderModalProps> = ({
               }
             }
           } catch (receivedErr) {
-            console.error("Error checking received friend requests:", receivedErr);
+            console.error(
+              "Error checking received friend requests:",
+              receivedErr
+            );
             setHasPendingRequest(false);
             setPendingRequestId(undefined);
           }
@@ -110,8 +128,26 @@ const UserInfoHeaderModal: React.FC<UserInfoHeaderModalProps> = ({
       }
     };
 
-    checkFriendRequest();
-  }, [searchResult, isCurrentUser, isFriend]);
+    if (visible) {
+      checkFriendRequest();
+    }
+  }, [searchResult, isCurrentUser, isFriend, visible]);
+
+  // Thêm useEffect để cập nhật khi có thay đổi từ onRequestsUpdate
+  useEffect(() => {
+    if (visible && onRequestsUpdate) {
+      const checkFriendRequestStatus = async () => {
+        try {
+          const sentResult = await getFriendRequestsSent();
+          setHasSentFriendRequest(sentResult.hasSent);
+          setFriendRequestId(sentResult.requestId);
+        } catch (err) {
+          console.error("Error checking friend request status:", err);
+        }
+      };
+      checkFriendRequestStatus();
+    }
+  }, [visible, onRequestsUpdate]);
 
   if (!searchResult) return null;
 
@@ -125,10 +161,12 @@ const UserInfoHeaderModal: React.FC<UserInfoHeaderModalProps> = ({
     }
 
     try {
-      const { message: successMessage } = await cancelFriendRequest(friendRequestId);
+      const { message: successMessage } =
+        await cancelFriendRequest(friendRequestId);
       message.success(successMessage);
       setHasSentFriendRequest(false);
       setFriendRequestId(undefined);
+      onRequestsUpdate?.();
     } catch (error: unknown) {
       const err = error as { message?: string };
       message.error(err.message || "Thu hồi yêu cầu kết bạn thất bại");
@@ -141,13 +179,13 @@ const UserInfoHeaderModal: React.FC<UserInfoHeaderModalProps> = ({
       message.error("Không tìm thấy yêu cầu kết bạn");
       return;
     }
-    
+
     try {
       const result = await acceptFriendRequest(pendingRequestId);
       message.success(result.message);
       setHasPendingRequest(false);
       setPendingRequestId(undefined);
-      // Refresh the friend list if needed
+      onRequestsUpdate?.();
     } catch (err: unknown) {
       const error = err as Error;
       message.error(error.message || "Không thể chấp nhận lời mời kết bạn");
@@ -160,12 +198,13 @@ const UserInfoHeaderModal: React.FC<UserInfoHeaderModalProps> = ({
       message.error("Không tìm thấy yêu cầu kết bạn");
       return;
     }
-    
+
     try {
       const result = await rejectFriendRequest(pendingRequestId);
       message.success(result.message);
       setHasPendingRequest(false);
       setPendingRequestId(undefined);
+      onRequestsUpdate?.();
     } catch (err: unknown) {
       const error = err as Error;
       message.error(error.message || "Không thể từ chối lời mời kết bạn");
@@ -174,22 +213,24 @@ const UserInfoHeaderModal: React.FC<UserInfoHeaderModalProps> = ({
 
   return (
     <Modal
+      open={visible}
+      onCancel={onCancel}
       title={
         <div className="flex items-center justify-between w-full">
           <div className="flex items-center">
-            <ArrowLeftOutlined className="mr-2 cursor-pointer" onClick={onCancel} />
+            <ArrowLeftOutlined
+              className="mr-2 cursor-pointer"
+              onClick={onCancel}
+            />
             <span>Thông tin tài khoản</span>
           </div>
           <CloseOutlined className="cursor-pointer" onClick={onCancel} />
         </div>
       }
-      visible={visible}
-      onCancel={onCancel}
       footer={null}
       closable={false}
       width={518}
-      bodyStyle={{ padding: 0 }}
-    >
+      bodyStyle={{ padding: 0 }}>
       <div className="relative">
         {/* Ảnh bìa */}
         <div
@@ -225,9 +266,14 @@ const UserInfoHeaderModal: React.FC<UserInfoHeaderModalProps> = ({
         {/* Thông tin người dùng */}
         <div className="pt-40 px-4 pb-4">
           <div className="flex items-center">
-            <h2 className="text-xl font-semibold ml-20">{searchResult.fullname}</h2>
+            <h2 className="text-xl font-semibold ml-20">
+              {searchResult.fullname}
+            </h2>
             {isCurrentUserProfile && (
-              <EditOutlined className="ml-2 text-blue-500 cursor-pointer" onClick={handleUpdate} />
+              <EditOutlined
+                className="ml-2 text-blue-500 cursor-pointer"
+                onClick={handleUpdate}
+              />
             )}
           </div>
 
@@ -257,8 +303,7 @@ const UserInfoHeaderModal: React.FC<UserInfoHeaderModalProps> = ({
               <Button
                 type="primary"
                 block
-                onClick={() => handleMessage(searchResult.userId)}
-              >
+                onClick={() => handleMessage(searchResult.userId)}>
                 Nhắn tin
               </Button>
             ) : hasPendingRequest ? (
@@ -266,15 +311,13 @@ const UserInfoHeaderModal: React.FC<UserInfoHeaderModalProps> = ({
                 <Button
                   type="primary"
                   block
-                  onClick={handleAcceptFriendRequest}
-                >
+                  onClick={handleAcceptFriendRequest}>
                   Chấp nhận
                 </Button>
                 <Button
                   type="default"
                   block
-                  onClick={handleRejectFriendRequest}
-                >
+                  onClick={handleRejectFriendRequest}>
                   Từ chối
                 </Button>
               </>
@@ -283,15 +326,13 @@ const UserInfoHeaderModal: React.FC<UserInfoHeaderModalProps> = ({
                 <Button
                   type="default"
                   block
-                  onClick={handleCancelFriendRequest}
-                >
+                  onClick={handleCancelFriendRequest}>
                   Hủy kết bạn
                 </Button>
                 <Button
                   type="primary"
                   block
-                  onClick={() => handleMessage(searchResult.userId)}
-                >
+                  onClick={() => handleMessage(searchResult.userId)}>
                   Nhắn tin
                 </Button>
               </>
@@ -301,15 +342,13 @@ const UserInfoHeaderModal: React.FC<UserInfoHeaderModalProps> = ({
                   type="default"
                   block
                   onClick={() => handleSendFriendRequest(searchResult.userId)}
-                  loading={isSending}
-                >
+                  loading={isSending}>
                   Kết bạn
                 </Button>
                 <Button
                   type="primary"
                   block
-                  onClick={() => handleMessage(searchResult.userId)}
-                >
+                  onClick={() => handleMessage(searchResult.userId)}>
                   Nhắn tin
                 </Button>
               </>

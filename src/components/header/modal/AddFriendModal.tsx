@@ -13,6 +13,7 @@ import UserModal from "../../content/modal/UserModal";
 interface AddFriendModalProps {
   visible: boolean;
   onClose: () => void;
+  onRequestsUpdate?: () => void;
 }
 
 interface Friend {
@@ -26,7 +27,11 @@ interface ApiError {
   message?: string;
 }
 
-const AddFriendModal: React.FC<AddFriendModalProps> = ({ visible, onClose }) => {
+const AddFriendModal: React.FC<AddFriendModalProps> = ({
+  visible,
+  onClose,
+  onRequestsUpdate,
+}) => {
   const [phone, setPhone] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const [searchResult, setSearchResult] = useState<UserResult | null>(null);
@@ -122,6 +127,9 @@ const AddFriendModal: React.FC<AddFriendModalProps> = ({ visible, onClose }) => 
           phone: searchResult!.phone,
         },
       ]);
+
+      // Gọi callback để cập nhật danh sách lời mời
+      onRequestsUpdate?.();
       setInfoModalVisible(false);
       setSearchResult(null);
       setPhone("");
@@ -161,12 +169,10 @@ const AddFriendModal: React.FC<AddFriendModalProps> = ({ visible, onClose }) => 
             key="submit"
             type="primary"
             onClick={handleSearch}
-            loading={isSearching}
-          >
+            loading={isSearching}>
             Tìm kiếm
           </Button>,
-        ]}
-      >
+        ]}>
         <p>Nhập số điện thoại để tìm kiếm bạn bè.</p>
         <PhoneInput
           international

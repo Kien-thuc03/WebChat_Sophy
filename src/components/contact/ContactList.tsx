@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { List } from "antd";
 import Header from "../header/Header";
 import { useLanguage } from "../../features/auth/context/LanguageContext";
@@ -12,6 +12,10 @@ interface ContactListProps {
 const ContactList: React.FC<ContactListProps> = ({ onSelectOption }) => {
   const { t } = useLanguage();
   const [selectedOption, setSelectedOption] = useState<string>("friends");
+
+  useEffect(() => {
+    handleOptionSelect("friends");
+  }, []);
 
   const handleOptionSelect = (option: string) => {
     setSelectedOption(option);
@@ -56,8 +60,7 @@ const ContactList: React.FC<ContactListProps> = ({ onSelectOption }) => {
             className={`flex items-center px-2 py-3 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer ${
               selectedOption === option.id ? "bg-blue-50 dark:bg-blue-900" : ""
             }`}
-            onClick={() => handleOptionSelect(option.id)}
-          >
+            onClick={() => handleOptionSelect(option.id)}>
             <div className="flex items-center w-full">
               <div className="flex-shrink-0 w-8 flex justify-center">
                 {option.icon}
