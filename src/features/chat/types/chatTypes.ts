@@ -3,6 +3,8 @@ export interface ChatHeaderProps {
   groupName?: string;
   groupAvatarUrl?: string | null;
   groupMembers?: string[];
+  onInfoClick?: () => void;
+  showInfo?: boolean;
 }
 
 //các item phân loại trong chat

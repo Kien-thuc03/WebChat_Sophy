@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { SearchOutlined, VideoCameraOutlined, UserAddOutlined, RightOutlined } from '@ant-design/icons';
+import { SearchOutlined, VideoCameraOutlined, UserAddOutlined, RightOutlined, InfoCircleOutlined, PhoneOutlined } from '@ant-design/icons';
 import { ChatHeaderProps } from '../../features/chat/types/chatTypes';
 import { Conversation } from '../../features/chat/types/conversationTypes';
 import GroupAvatar from './GroupAvatar';
@@ -8,12 +8,15 @@ import { Avatar } from '../common/Avatar';
 import { useLanguage } from "../../features/auth/context/LanguageContext";
 import { getUserById } from "../../api/API";
 import { User } from "../../features/auth/types/authTypes";
+import { Button, Tooltip } from 'antd';
 
 interface ExtendedChatHeaderProps extends ChatHeaderProps {
   conversation: Conversation;
+  onInfoClick?: () => void;
+  showInfo?: boolean;
 }
 
-const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({ conversation }) => {
+const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({ conversation, onInfoClick, showInfo }) => {
   const { userCache, userAvatars } = useConversations();
   const { t } = useLanguage(); // Sử dụng context
   const isGroup = conversation.isGroup;
@@ -137,24 +140,28 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({ conversation }) => {
         >
           <UserAddOutlined className="text-xl text-gray-600" />
         </button>
-        <button
-          className="p-2 rounded-lg hover:bg-gray-100"
-          title={t.video_call || 'Cuộc gọi video'}
-        >
-          <VideoCameraOutlined className="text-xl text-gray-600" />
-        </button>
-        <button
-          className="p-2 rounded-lg hover:bg-gray-100"
-          title={t.search_messages || 'Tìm kiếm tin nhắn'}
-        >
-          <SearchOutlined className="text-xl text-gray-600" />
-        </button>
-        <button
-          className="p-2 rounded-lg hover:bg-gray-100"
-          title={t.conversation_info || 'Thông tin hội thoại'}
-        >
-          <RightOutlined className="text-xl text-gray-600" />
-        </button>
+        <Tooltip title={t.calls || 'Gọi thoại'}>
+          <Button
+            type="text"
+            icon={<PhoneOutlined />}
+            className="flex items-center justify-center w-10 h-10"
+          />
+        </Tooltip>
+        <Tooltip title={t.video_call || 'Gọi video'}>
+          <Button
+            type="text"
+            icon={<VideoCameraOutlined />}
+            className="flex items-center justify-center w-10 h-10"
+          />
+        </Tooltip>
+        <Tooltip title={t.conversation_info || 'Thông tin hội thoại'}>
+          <Button
+            type="text"
+            icon={<InfoCircleOutlined />}
+            className={`flex items-center justify-center w-10 h-10 ${showInfo ? 'text-blue-500' : ''}`}
+            onClick={onInfoClick}
+          />
+        </Tooltip>
       </div>
     </header>
   );
