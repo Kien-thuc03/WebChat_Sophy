@@ -13,7 +13,7 @@ interface ChatMessageProps {
       name: string;
       avatar?: string;
     };
-    type: 'text' | 'image' | 'file';
+    type: 'text' | 'image' | 'file' | 'text-with-image';
     fileUrl?: string;
     fileName?: string;
     fileSize?: number;
@@ -93,6 +93,55 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
                 e.currentTarget.src = '/images/image-placeholder.png';
               }}
             />
+          </div>
+        );
+      case 'text-with-image':
+        // Hiển thị cả nội dung text và ảnh
+        return (
+          <div className="message-text-with-image">
+            {/* Hiển thị text trước */}
+            <div className="message-text relative mb-2">
+              <div 
+                ref={contentRef}
+                className={`overflow-hidden ${isExpanded ? '' : 'max-h-32'}`}
+              >
+                <p className="whitespace-pre-wrap break-words">{message.content}</p>
+              </div>
+              {isOverflowing && !isExpanded && (
+                <>
+                  <div className={`absolute bottom-0 left-0 right-0 h-8 ${
+                    isOwnMessage 
+                      ? message.isError ? 'bg-gradient-to-t from-red-100 to-transparent' 
+                      : 'bg-gradient-to-t from-blue-500 to-transparent' 
+                      : 'bg-gradient-to-t from-gray-100 to-transparent'
+                  } pointer-events-none`}></div>
+                  <div className="text-center mt-1">
+                    <button
+                      onClick={() => setIsExpanded(true)}
+                      className={`text-xs ${isOwnMessage && !message.isError ? 'text-white' : 'text-blue-500'} hover:underline`}
+                    >
+                      Xem thêm
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+            
+            {/* Hiển thị ảnh dưới text */}
+            <div className="message-image mt-2">
+              <img 
+                src={message.fileUrl || 
+                  (message.attachments && message.attachments.length > 0 
+                    ? message.attachments[0].url 
+                    : message.attachment?.url || undefined)}
+                alt="Image with text" 
+                className="rounded-md max-w-xs max-h-60 object-cover" 
+                onError={(e) => {
+                  e.currentTarget.onerror = null; 
+                  e.currentTarget.src = '/images/image-placeholder.png';
+                }}
+              />
+            </div>
           </div>
         );
       case 'file':

@@ -1376,6 +1376,101 @@ export const sendImageMessage = async (
   }
 };
 
+// Gửi tin nhắn kèm ảnh (khi dán ảnh vào khung chat)
+export const sendMessageWithImage = async (
+  conversationId: string,
+  content: string,
+  imageFile: File
+): Promise<Message> => {
+  try {
+    if (!conversationId) {
+      throw new Error("ID cuộc trò chuyện không hợp lệ");
+    }
+
+    if (!imageFile) {
+      throw new Error("Không có tập tin ảnh được chọn");
+    }
+
+    // Kiểm tra xem tập tin có phải là hình ảnh không
+    if (!imageFile.type.startsWith('image/')) {
+      throw new Error("Tập tin không phải là hình ảnh hợp lệ");
+    }
+
+    const token = getAuthToken();
+    if (!token) {
+      throw new Error("Không có token xác thực");
+    }
+
+    const formData = new FormData();
+    formData.append("image", imageFile);
+    formData.append("conversationId", conversationId);
+    formData.append("content", content);
+    formData.append("type", "text-with-image");
+
+    // Sử dụng fetch API để xử lý tốt hơn với FormData
+    const response = await fetch(
+      `${API_BASE_URL}/api/messages/send-with-image`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      }
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || "Gửi tin nhắn kèm ảnh thất bại");
+    }
+
+    const message = await response.json();
+    console.log("Message with image sent successfully:", message);
+
+    // Chuẩn hóa dữ liệu để phù hợp với frontend
+    let result = {
+      ...message,
+      messageId: message.messageDetailId || message.messageId,
+    };
+
+    // Đảm bảo rằng dữ liệu ảnh được trả về đúng định dạng
+    if (message.attachment && !result.attachment) {
+      result.attachment = message.attachment;
+    }
+
+    // Tương thích ngược: đảm bảo rằng cả attachments cũng được định nghĩa đúng
+    if (message.attachment && !result.attachments) {
+      result.attachments = Array.isArray(message.attachments) ? message.attachments : [message.attachment];
+    }
+
+    console.log("Normalized message with image:", result);
+    return result;
+  } catch (error: any) {
+    console.error("Lỗi khi gửi tin nhắn kèm ảnh:", error);
+
+    if (error.response) {
+      if (error.response.status === 401) {
+        throw new Error("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.");
+      } else if (error.response.status === 403) {
+        throw new Error("Bạn không có quyền gửi ảnh vào cuộc trò chuyện này.");
+      } else if (error.response.status === 404) {
+        throw new Error("Không tìm thấy cuộc trò chuyện.");
+      } else if (error.response.status === 413) {
+        throw new Error("Ảnh quá lớn. Vui lòng chọn ảnh có kích thước nhỏ hơn.");
+      } else if (error.response.data?.message) {
+        throw new Error(error.response.data.message);
+      }
+    }
+
+    // Handle error object appropriately
+    if (error instanceof Error) {
+      throw error;
+    } else {
+      throw new Error("Không thể gửi tin nhắn kèm ảnh. Vui lòng thử lại sau.");
+    }
+  }
+};
+
 // Gửi yêu cầu kết bạn
 export const sendFriendRequest = async (
   receiverId: string,
@@ -1405,7 +1500,11 @@ export const sendFriendRequest = async (
       message: response.data.message || "Gửi yêu cầu kết bạn thành công",
     };
   } catch (error: unknown) {
-    console.error("Lỗi khi gửi yêu cầu kết bạn:", error);
+    console.error("Error sending friend request:", {
+      error,
+      status: (error as AxiosError)?.response?.status,
+      errorMessage: ((error as AxiosError)?.response?.data as any)?.message || "Unknown error"
+    });
 
     if (error instanceof AxiosError && error.response) {
       const { status, data } = error.response;
