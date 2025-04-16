@@ -539,29 +539,31 @@ export const fetchConversations = async (): Promise<Conversation[]> => {
 // Tạo 1 hội thoại
 export const createConversation = async (receiverId: string) => {
   try {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem("token");
     if (!token) {
-      throw new Error('Không có token xác thực');
+      throw new Error("Không có token xác thực");
     }
 
     // Call the API to create a conversation (it will return existing one if found)
-    const response = await apiClient.post('/api/conversations/create', {
-      receiverId: receiverId
+    const response = await apiClient.post("/api/conversations/create", {
+      receiverId: receiverId,
     });
 
-    console.log('Conversation created/retrieved:', response.data);
-    
+    console.log("Conversation created/retrieved:", response.data);
+
     // Return the conversation object
     return response.data;
   } catch (error: any) {
-    console.error('Error creating/getting conversation:', error);
+    console.error("Error creating/getting conversation:", error);
     if (error.response?.status === 401) {
-      throw new Error('Phiên đăng nhập hết hạn, vui lòng đăng nhập lại');
+      throw new Error("Phiên đăng nhập hết hạn, vui lòng đăng nhập lại");
     }
     if (error.response?.status === 404) {
-      throw new Error('Không tìm thấy người dùng');
+      throw new Error("Không tìm thấy người dùng");
     }
-    throw new Error(error.response?.data?.message || 'Không thể tạo cuộc trò chuyện');
+    throw new Error(
+      error.response?.data?.message || "Không thể tạo cuộc trò chuyện"
+    );
   }
 };
 // Hàm xóa bạn bè
@@ -573,11 +575,11 @@ export const removeFriend = async (friendId: string) => {
     }
 
     const response = await apiClient.delete(`/api/friends/remove/${friendId}`);
-    
+
     if (response.status === 200) {
       return response.data;
     }
-    
+
     throw new Error("Không thể xóa bạn");
   } catch (error: any) {
     if (error.response?.status === 401) {
@@ -608,7 +610,9 @@ export const blockUser = async (userId: string) => {
       throw new Error("Không tìm thấy người dùng");
     }
     console.error("Error blocking user:", error);
-    throw new Error(error.response?.data?.message || "Không thể chặn người dùng này");
+    throw new Error(
+      error.response?.data?.message || "Không thể chặn người dùng này"
+    );
   }
 };
 
@@ -633,7 +637,9 @@ export const unblockUser = async (userId: string) => {
       throw new Error("Người dùng không nằm trong danh sách chặn");
     }
     console.error("Error unblocking user:", error);
-    throw new Error(error.response?.data?.message || "Không thể bỏ chặn người dùng này");
+    throw new Error(
+      error.response?.data?.message || "Không thể bỏ chặn người dùng này"
+    );
   }
 };
 
@@ -645,14 +651,17 @@ export const getBlockedUsers = async () => {
       throw new Error("Không có token xác thực");
     }
 
-    const response = await apiClient.get('/api/users/blocked');
+    const response = await apiClient.get("/api/users/blocked");
     return response.data;
   } catch (error: any) {
     if (error.response?.status === 401) {
       throw new Error("Phiên đăng nhập hết hạn, vui lòng đăng nhập lại");
     }
     console.error("Error fetching blocked users:", error);
-    throw new Error(error.response?.data?.message || "Không thể lấy danh sách người dùng bị chặn");
+    throw new Error(
+      error.response?.data?.message ||
+        "Không thể lấy danh sách người dùng bị chặn"
+    );
   }
 };
 // Utility function to log errors with more detail
@@ -877,29 +886,43 @@ export const sendMessage = async (
     // Xử lý nhất quán trường attachment và attachments
     if (type === "image" || type === "file") {
       // Nếu có attachments nhưng không phải array, chuyển đổi sang array
-      if (message.attachments && typeof message.attachments === 'string') {
+      if (message.attachments && typeof message.attachments === "string") {
         try {
           result.attachments = JSON.parse(message.attachments);
           // Nếu có dữ liệu attachments nhưng không có attachment, tạo attachment từ phần tử đầu tiên
-          if (result.attachments && Array.isArray(result.attachments) && result.attachments.length > 0 && !result.attachment) {
+          if (
+            result.attachments &&
+            Array.isArray(result.attachments) &&
+            result.attachments.length > 0 &&
+            !result.attachment
+          ) {
             result.attachment = result.attachments[0];
           }
         } catch (e) {
           console.error("Lỗi parse attachments:", e);
         }
       }
-      
+
       // Nếu có attachment nhưng không có attachments, tạo attachments từ attachment
-      if (message.attachment && (!message.attachments || (Array.isArray(message.attachments) && message.attachments.length === 0))) {
+      if (
+        message.attachment &&
+        (!message.attachments ||
+          (Array.isArray(message.attachments) &&
+            message.attachments.length === 0))
+      ) {
         result.attachments = [message.attachment];
       }
-      
+
       // Nếu có attachments (dạng array) nhưng không có attachment, tạo attachment từ phần tử đầu tiên
-      if (Array.isArray(message.attachments) && message.attachments.length > 0 && !message.attachment) {
+      if (
+        Array.isArray(message.attachments) &&
+        message.attachments.length > 0 &&
+        !message.attachment
+      ) {
         result.attachment = message.attachments[0];
       }
     }
-    
+
     console.log("Normalized message for sending:", result);
     return result;
   } catch (error: any) {
@@ -1416,7 +1439,7 @@ export const sendImageMessage = async (
     }
 
     // Kiểm tra xem tập tin có phải là hình ảnh không
-    if (!imageFile.type.startsWith('image/')) {
+    if (!imageFile.type.startsWith("image/")) {
       throw new Error("Tập tin không phải là hình ảnh hợp lệ");
     }
 
@@ -1430,16 +1453,13 @@ export const sendImageMessage = async (
     formData.append("conversationId", conversationId);
 
     // Sử dụng fetch API để xử lý tốt hơn với FormData
-    const response = await fetch(
-      `${API_BASE_URL}/api/messages/send-image`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        body: formData,
-      }
-    );
+    const response = await fetch(`${API_BASE_URL}/api/messages/send-image`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      body: formData,
+    });
 
     if (!response.ok) {
       const errorData = await response.json();
@@ -1463,7 +1483,9 @@ export const sendImageMessage = async (
 
     // Tương thích ngược: đảm bảo rằng cả attachments cũng được định nghĩa đúng
     if (message.attachment && !result.attachments) {
-      result.attachments = Array.isArray(message.attachments) ? message.attachments : [message.attachment];
+      result.attachments = Array.isArray(message.attachments)
+        ? message.attachments
+        : [message.attachment];
     }
 
     console.log("Normalized message:", result);
@@ -1479,7 +1501,9 @@ export const sendImageMessage = async (
       } else if (error.response.status === 404) {
         throw new Error("Không tìm thấy cuộc trò chuyện.");
       } else if (error.response.status === 413) {
-        throw new Error("Ảnh quá lớn. Vui lòng chọn ảnh có kích thước nhỏ hơn.");
+        throw new Error(
+          "Ảnh quá lớn. Vui lòng chọn ảnh có kích thước nhỏ hơn."
+        );
       } else if (error.response.data?.message) {
         throw new Error(error.response.data.message);
       }
@@ -1510,7 +1534,7 @@ export const sendMessageWithImage = async (
     }
 
     // Kiểm tra xem tập tin có phải là hình ảnh không
-    if (!imageFile.type.startsWith('image/')) {
+    if (!imageFile.type.startsWith("image/")) {
       throw new Error("Tập tin không phải là hình ảnh hợp lệ");
     }
 
@@ -1558,7 +1582,9 @@ export const sendMessageWithImage = async (
 
     // Tương thích ngược: đảm bảo rằng cả attachments cũng được định nghĩa đúng
     if (message.attachment && !result.attachments) {
-      result.attachments = Array.isArray(message.attachments) ? message.attachments : [message.attachment];
+      result.attachments = Array.isArray(message.attachments)
+        ? message.attachments
+        : [message.attachment];
     }
 
     console.log("Normalized message with image:", result);
@@ -1574,7 +1600,9 @@ export const sendMessageWithImage = async (
       } else if (error.response.status === 404) {
         throw new Error("Không tìm thấy cuộc trò chuyện.");
       } else if (error.response.status === 413) {
-        throw new Error("Ảnh quá lớn. Vui lòng chọn ảnh có kích thước nhỏ hơn.");
+        throw new Error(
+          "Ảnh quá lớn. Vui lòng chọn ảnh có kích thước nhỏ hơn."
+        );
       } else if (error.response.data?.message) {
         throw new Error(error.response.data.message);
       }
@@ -1613,23 +1641,25 @@ export const sendFriendRequest = async (
 
     console.log("Send friend request response:", response.data); // Debug
 
+    // Ghi đè thông báo thành công bằng tiếng Việt
     return {
       success: response.data.success ?? true,
-      message: response.data.message || "Gửi yêu cầu kết bạn thành công",
+      message: "Gửi yêu cầu kết bạn thành công", // Thông báo cố định bằng tiếng Việt
     };
   } catch (error: unknown) {
     console.error("Error sending friend request:", {
       error,
       status: (error as AxiosError)?.response?.status,
       errorMessage:
-        ((error as AxiosError)?.response?.data as any)?.message || "Unknown error",
+        ((error as AxiosError)?.response?.data as any)?.message ||
+        "Unknown error",
     });
 
+    // Xử lý các lỗi như hiện tại
     if (error instanceof AxiosError && error.response) {
       const { status, data } = error.response;
       console.error("Error details:", { status, data });
 
-      // Xử lý lỗi 400
       if (status === 400) {
         switch (data.message) {
           case "Receiver ID is required":
@@ -1655,9 +1685,7 @@ export const sendFriendRequest = async (
               data.message || "Yêu cầu kết bạn không hợp lệ, vui lòng thử lại."
             );
         }
-      }
-      // Xử lý lỗi 404
-      else if (status === 404) {
+      } else if (status === 404) {
         switch (data.message) {
           case "Sender not found":
             throw new Error(
@@ -1672,24 +1700,15 @@ export const sendFriendRequest = async (
               data.message || "Không tìm thấy người dùng, vui lòng thử lại."
             );
         }
-      }
-      // Xử lý lỗi 401
-      else if (status === 401) {
+      } else if (status === 401) {
         throw new Error("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.");
-      }
-      // Xử lý lỗi 429
-      else if (status === 429) {
+      } else if (status === 429) {
         throw new Error("Quá nhiều yêu cầu. Vui lòng thử lại sau vài phút.");
-      }
-      // Xử lý lỗi 500
-      else if (status === 500) {
-        throw new Error(
-          data.message || "Lỗi hệ thống, vui lòng thử lại sau."
-        );
+      } else if (status === 500) {
+        throw new Error(data.message || "Lỗi hệ thống, vui lòng thử lại sau.");
       }
     }
 
-    // Lỗi không xác định
     throw new Error(
       "Không thể gửi yêu cầu kết bạn do lỗi không xác định. Vui lòng thử lại."
     );
@@ -1716,7 +1735,7 @@ export const getFriendRequestsReceived = async () => {
         isMale: request.senderId.isMale,
         phone: request.senderId.phone,
         birthday: request.senderId.birthday,
-        _id: request.senderId._id
+        _id: request.senderId._id,
       },
       receiverId: {
         userId: request.receiverId,
@@ -1729,7 +1748,7 @@ export const getFriendRequestsReceived = async () => {
       updatedAt: request.updatedAt,
       _id: request._id,
       __v: request.__v,
-      deletionDate: request.deletionDate
+      deletionDate: request.deletionDate,
     }));
 
     return transformedData;
@@ -1776,7 +1795,7 @@ export const getFriendRequestsSent = async () => {
       updatedAt: request.updatedAt,
       _id: request._id,
       __v: request.__v,
-      deletionDate: request.deletionDate
+      deletionDate: request.deletionDate,
     }));
 
     return transformedData;
