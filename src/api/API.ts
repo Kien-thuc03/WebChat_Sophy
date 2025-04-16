@@ -1621,43 +1621,78 @@ export const sendFriendRequest = async (
     console.error("Error sending friend request:", {
       error,
       status: (error as AxiosError)?.response?.status,
-      errorMessage: ((error as AxiosError)?.response?.data as any)?.message || "Unknown error"
+      errorMessage:
+        ((error as AxiosError)?.response?.data as any)?.message || "Unknown error",
     });
 
     if (error instanceof AxiosError && error.response) {
       const { status, data } = error.response;
       console.error("Error details:", { status, data });
+
+      // Xử lý lỗi 400
       if (status === 400) {
         switch (data.message) {
+          case "Receiver ID is required":
+            throw new Error("Vui lòng cung cấp ID người nhận.");
           case "You cannot send a friend request to yourself":
             throw new Error(
               "Bạn không thể gửi yêu cầu kết bạn cho chính mình."
             );
           case "A pending friend request already exists between you and this user":
             throw new Error(
-              "Đã có yêu cầu kết bạn đang chờ giữa bạn và người này."
+              "Đã có yêu cầu kết bạn đang chờ xử lý với người này."
             );
+          case "Friend request already sent":
+            throw new Error("Yêu cầu kết bạn đã được gửi trước đó.");
           case "You are already friends with this user":
             throw new Error("Bạn đã là bạn bè với người này.");
           case "You cannot send a friend request to this user":
-            throw new Error("Bạn không thể gửi yêu cầu kết bạn cho người này.");
-          case "Friend request already sent":
-            throw new Error("Yêu cầu kết bạn đã được gửi trước đó.");
+            throw new Error(
+              "Không thể gửi yêu cầu kết bạn vì người này đã chặn bạn hoặc bạn đã chặn họ."
+            );
           default:
-            throw new Error(data.message || "Yêu cầu không hợp lệ");
+            throw new Error(
+              data.message || "Yêu cầu kết bạn không hợp lệ, vui lòng thử lại."
+            );
         }
-      } else if (status === 401) {
+      }
+      // Xử lý lỗi 404
+      else if (status === 404) {
+        switch (data.message) {
+          case "Sender not found":
+            throw new Error(
+              "Không tìm thấy thông tin tài khoản của bạn. Vui lòng đăng nhập lại."
+            );
+          case "Receiver not found":
+            throw new Error(
+              "Không tìm thấy người dùng này. Vui lòng kiểm tra lại."
+            );
+          default:
+            throw new Error(
+              data.message || "Không tìm thấy người dùng, vui lòng thử lại."
+            );
+        }
+      }
+      // Xử lý lỗi 401
+      else if (status === 401) {
         throw new Error("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.");
-      } else if (status === 404) {
-        throw new Error(data.message || "Không tìm thấy người dùng");
-      } else if (status === 429) {
-        throw new Error("Quá nhiều yêu cầu. Vui lòng thử lại sau.");
-      } else if (status === 500) {
-        throw new Error("Lỗi hệ thống, vui lòng thử lại sau.");
+      }
+      // Xử lý lỗi 429
+      else if (status === 429) {
+        throw new Error("Quá nhiều yêu cầu. Vui lòng thử lại sau vài phút.");
+      }
+      // Xử lý lỗi 500
+      else if (status === 500) {
+        throw new Error(
+          data.message || "Lỗi hệ thống, vui lòng thử lại sau."
+        );
       }
     }
 
-    throw new Error("Không thể gửi yêu cầu kết bạn. Vui lòng thử lại sau.");
+    // Lỗi không xác định
+    throw new Error(
+      "Không thể gửi yêu cầu kết bạn do lỗi không xác định. Vui lòng thử lại."
+    );
   }
 };
 // Lấy danh sách yêu cầu kết bạn đã nhận
