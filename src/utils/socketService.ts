@@ -260,7 +260,12 @@ class SocketService {
     }
     
     if (userId) {
-      this.socket.emit("typing", { conversationId, userId, fullname });
+      // Sử dụng .volatile để không lưu vào hàng đợi nếu kết nối bị gián đoạn
+      if (this.socket.volatile) {
+        this.socket.volatile.emit("typing", { conversationId, userId, fullname });
+      } else {
+        this.socket.emit("typing", { conversationId, userId, fullname });
+      }
     }
   }
 
@@ -290,8 +295,42 @@ class SocketService {
       // Remove any existing listeners for this event first to prevent duplicates
       this.socket.off("newMessage");
       
+      // Thêm theo dõi tin nhắn đã xử lý để ngăn trùng lặp
+      const processedMessageIds = new Map<string, number>(); // Map lưu ID tin nhắn và thời gian nhận
+      
       this.socket.on("newMessage", (data: any) => {
         console.log("SocketService: Received new message:", data);
+        
+        // Xử lý trường hợp nhận được document MongoDB
+        let messageData = data.message;
+        
+        // Lấy ID tin nhắn từ nhiều khả năng
+        const messageId = messageData.messageDetailId || 
+                          messageData.messageId || 
+                          (messageData._doc && (messageData._doc.messageDetailId || messageData._doc.messageId || messageData._doc._id));
+        
+        if (!messageId) {
+          console.warn("SocketService: Message without ID received, cannot check for duplication");
+        } else {
+          // Kiểm tra tin nhắn đã được xử lý trong 10 giây qua chưa
+          const now = Date.now();
+          const lastProcessedTime = processedMessageIds.get(messageId);
+          
+          if (lastProcessedTime && now - lastProcessedTime < 10000) {
+            console.log(`SocketService: Duplicate message detected and skipped (ID: ${messageId})`);
+            return; // Bỏ qua tin nhắn trùng lặp
+          }
+          
+          // Lưu tin nhắn này vào danh sách đã xử lý
+          processedMessageIds.set(messageId, now);
+          
+          // Dọn dẹp danh sách tin nhắn đã xử lý (chỉ giữ trong 30 giây)
+          for (const [id, time] of processedMessageIds.entries()) {
+            if (now - time > 30000) {
+              processedMessageIds.delete(id);
+            }
+          }
+        }
         
         // Xử lý trường hợp nhận được document MongoDB
         if (data.message && data.message._doc) {
@@ -332,7 +371,7 @@ class SocketService {
     }
   }
 
-  // Gửi trạng thái đã đọc tin nhắn
+  // Gửi trạng thái đã đọc tin nhắn - đây là message quan trọng nên không dùng volatile
   markMessagesAsRead(conversationId: string, messageIds: string[]) {
     const userId = localStorage.getItem("userId");
     if (!this.socket || !this.socket.connected) {
@@ -341,6 +380,7 @@ class SocketService {
       // Thử lại sau 500ms
       setTimeout(() => {
         if (this.socket?.connected && userId) {
+          console.log("Socket reconnected, marking messages as read:", { conversationId, messageIds, userId });
           this.socket.emit("markMessagesRead", { conversationId, messageIds, userId });
         }
       }, 500);
@@ -348,8 +388,42 @@ class SocketService {
     }
     
     if (userId) {
-      this.socket.emit("markMessagesRead", { conversationId, messageIds, userId });
-      console.log("SocketService: Marking messages as read:", { conversationId, messageIds });
+      console.log("SocketService: Marking messages as read:", { conversationId, messageIds, userId });
+      // Đảm bảo chúng ta gửi đầy đủ thông tin để cập nhật mảng readBy trên server
+      this.socket.emit("markMessagesRead", { 
+        conversationId, 
+        messageIds, 
+        userId,
+        timestamp: new Date().toISOString() // Thêm timestamp để server biết thời điểm đọc
+      });
+    }
+  }
+
+  // Gửi trạng thái đã nhận tin nhắn - đây là message quan trọng nên không dùng volatile
+  markMessagesAsDelivered(conversationId: string, messageIds: string[]) {
+    const userId = localStorage.getItem("userId");
+    if (!this.socket || !this.socket.connected) {
+      console.warn("Socket not connected while trying to mark messages as delivered, reconnecting...");
+      this.connect();
+      // Thử lại sau 500ms
+      setTimeout(() => {
+        if (this.socket?.connected && userId) {
+          console.log("Socket reconnected, marking messages as delivered:", { conversationId, messageIds, userId });
+          this.socket.emit("messageDelivered", { conversationId, messageIds, userId });
+        }
+      }, 500);
+      return;
+    }
+    
+    if (userId) {
+      console.log("SocketService: Marking messages as delivered:", { conversationId, messageIds, userId });
+      // Đảm bảo chúng ta gửi đầy đủ thông tin để cập nhật mảng deliveredTo trên server
+      this.socket.emit("messageDelivered", { 
+        conversationId, 
+        messageIds, 
+        userId,
+        timestamp: new Date().toISOString() // Thêm timestamp để server biết thời điểm nhận
+      });
     }
   }
 
