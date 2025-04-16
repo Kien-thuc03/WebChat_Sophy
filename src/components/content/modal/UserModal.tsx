@@ -83,16 +83,19 @@ const UserModal: React.FC<UserModalProps> = ({ isOpen, onClose }) => {
         onCancel={onClose}
         footer={null}
         centered
-        bodyStyle={{ padding: "24px" }}>
-        <div className="text-center mt-4">
-          <div className="absolute top-0 left-0 right-0 h-40 bg-gradient-to-r from-blue-400 to-blue-600 rounded-t-lg"
+        bodyStyle={{ padding: "24px" }}
+        style={{ height: "80vh" }}
+        className="max-h-[80vh]">
+        <div className="text-center mt-4 overflow-y-auto max-h-[calc(80vh-120px)]">
+          <div
+            className="absolute top-0 left-0 right-0 h-48 bg-gradient-to-r from-blue-400 to-blue-600 rounded-t-lg"
             style={{
-              backgroundImage: `url(https://picsum.photos/id/${randomImageId}/800/200)`, // Use random image ID
+              backgroundImage: `url(https://picsum.photos/id/${randomImageId}/800/200)`,
               backgroundSize: "cover",
               backgroundPosition: "center",
             }}
           />
-          <div className="flex justify-baseline mt-10 relative">
+          <div className="flex justify-baseline mt-14 relative">
             <div className="relative">
               <img
                 src={user?.urlavatar || "https://picsum.photos/id/1/200/200"}
