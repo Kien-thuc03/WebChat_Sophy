@@ -620,7 +620,7 @@ export const unblockUser = async (userId: string) => {
       throw new Error("Không có token xác thực");
     }
 
-    const response = await apiClient.put(`/api/users/unblock/${userId}`);
+    const response = await apiClient.put(`/api/users/unblock/${userId}`); // Change to DELETE
     return response.data;
   } catch (error: any) {
     if (error.response?.status === 401) {
@@ -628,6 +628,9 @@ export const unblockUser = async (userId: string) => {
     }
     if (error.response?.status === 404) {
       throw new Error("Không tìm thấy người dùng");
+    }
+    if (error.response?.status === 400) {
+      throw new Error("Người dùng không nằm trong danh sách chặn");
     }
     console.error("Error unblocking user:", error);
     throw new Error(error.response?.data?.message || "Không thể bỏ chặn người dùng này");
