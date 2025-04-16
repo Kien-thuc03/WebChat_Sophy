@@ -536,7 +536,7 @@ export const fetchConversations = async (): Promise<Conversation[]> => {
     return []; // Return empty array instead of throwing
   }
 };
-// Create or get an existing conversation with a friend
+// Tạo 1 hội thoại
 export const createConversation = async (receiverId: string) => {
   try {
     const token = localStorage.getItem('token');
@@ -562,6 +562,32 @@ export const createConversation = async (receiverId: string) => {
       throw new Error('Không tìm thấy người dùng');
     }
     throw new Error(error.response?.data?.message || 'Không thể tạo cuộc trò chuyện');
+  }
+};
+// Hàm xóa bạn bè
+export const removeFriend = async (friendId: string) => {
+  try {
+    const token = getAuthToken();
+    if (!token) {
+      throw new Error("Không có token xác thực");
+    }
+
+    const response = await apiClient.delete(`/api/friends/remove/${friendId}`);
+    
+    if (response.status === 200) {
+      return response.data;
+    }
+    
+    throw new Error("Không thể xóa bạn");
+  } catch (error: any) {
+    if (error.response?.status === 401) {
+      throw new Error("Phiên đăng nhập hết hạn, vui lòng đăng nhập lại");
+    }
+    if (error.response?.status === 404) {
+      throw new Error("Không tìm thấy người dùng");
+    }
+    console.error("Error removing friend:", error);
+    throw new Error(error.response?.data?.message || "Không thể xóa bạn");
   }
 };
 // Utility function to log errors with more detail

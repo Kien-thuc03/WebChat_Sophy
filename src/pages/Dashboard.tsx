@@ -25,10 +25,9 @@ const Dashboard: React.FC = () => {
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const [activeSection, setActiveSection] = useState<string>("chat");
   const [contactOption, setContactOption] = useState<string>("friends");
-  const [showChatInfo, setShowChatInfo] = useState(true); // Default to true
+  const [showChatInfo, setShowChatInfo] = useState(true);
   const settingsRef = useRef<HTMLDivElement>(null);
 
-  // Handle conversation selection from FriendList or ChatList
   const handleSelectConversation = (conversation: Conversation) => {
     if (!conversation) {
       console.error("Cuộc trò chuyện không hợp lệ:", conversation);
@@ -50,8 +49,8 @@ const Dashboard: React.FC = () => {
 
     console.log("Đã chọn cuộc trò chuyện:", conversation.conversationId);
     setSelectedConversation(conversation);
-    setActiveSection("chat"); // Switch to chat section
-    setShowChatInfo(true); // Show ChatInfo by default
+    setActiveSection("chat"); // This will update Sidebar's activeSection
+    setShowChatInfo(true);
   };
 
   useEffect(() => {
@@ -143,6 +142,7 @@ const Dashboard: React.FC = () => {
         onOpenModal={handleOpenModal}
         openSettingsModal={handleOpenSettingsModal}
         onSectionChange={handleSectionChange}
+        activeSection={activeSection} // Pass activeSection to Sidebar
       />
 
       {activeSection === "chat" && (
@@ -209,7 +209,7 @@ const Dashboard: React.FC = () => {
         ) : activeSection === "friends" && contactOption === "friends" ? (
           <FriendList
             onSelectFriend={handleFriendSelect}
-            onSelectConversation={handleSelectConversation} // Pass the handler
+            onSelectConversation={handleSelectConversation}
           />
         ) : activeSection === "friends" && contactOption === "friendRequests" ? (
           <RequestList onSelectFriend={handleFriendSelect} />

@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from "react";
-import { List, Input, Dropdown, Button } from "antd";
+import { List, Input, Dropdown, Button, Menu, message } from "antd";
 import { MoreOutlined, SearchOutlined } from "@ant-design/icons";
 import { Avatar } from "../common/Avatar";
 import { useLanguage } from "../../features/auth/context/LanguageContext";
 import ErrorBoundary from "../common/ErrorBoundary";
-import { fetchFriends, createConversation, getUserById } from "../../api/API"; // Add getUserById
+import { fetchFriends, createConversation, getUserById, removeFriend } from "../../api/API"; // Add removeFriend
 import { Conversation } from "../../features/chat/types/conversationTypes";
-import { User } from "../../features/auth/types/authTypes"; // Import User type
+import { User } from "../../features/auth/types/authTypes";
+import UserInfoHeaderModal, { UserResult } from "../header/modal/UserInfoHeaderModal"; // Add modal
 
 interface FriendApiResponse {
   id?: string;
@@ -29,13 +30,13 @@ interface Friend {
   avatarUrl?: string;
   status?: "online" | "offline" | "away";
   lastSeen?: string;
-  activityStatus?: string; // Add activity status field
-  isOnline?: boolean; // Add online status indicator
+  activityStatus?: string;
+  isOnline?: boolean;
 }
 
 interface FriendListProps {
   onSelectFriend?: (friendId: string) => void;
-  onSelectConversation?: (conversation: Conversation) => void; // New prop for conversation selection
+  onSelectConversation?: (conversation: Conversation) => void;
 }
 
 const FriendList: React.FC<FriendListProps> = ({ onSelectFriend, onSelectConversation }) => {
@@ -46,6 +47,8 @@ const FriendList: React.FC<FriendListProps> = ({ onSelectFriend, onSelectConvers
   const [sortOrder, setSortOrder] = useState<"A-Z" | "All">("A-Z");
   const [error, setError] = useState<string | null>(null);
   const [userCache, setUserCache] = useState<Record<string, User>>({});
+  const [selectedUser, setSelectedUser] = useState<UserResult | null>(null); // State for modal
+  const [isModalVisible, setIsModalVisible] = useState(false); // State for modal visibility
 
   // Fetch friends from API
   useEffect(() => {
@@ -62,20 +65,18 @@ const FriendList: React.FC<FriendListProps> = ({ onSelectFriend, onSelectConvers
             avatarUrl: friend.avatarUrl || friend.urlavatar,
             status: friend.status || "offline",
             lastSeen: friend.lastActive,
-            activityStatus: "Đang ngoại tuyến", // Default status
-            isOnline: false, // Default to offline
+            activityStatus: "Đang ngoại tuyến",
+            isOnline: false,
           })
         );
 
         console.log("Formatted friends:", formattedFriends);
         setFriends(formattedFriends);
         setError(null);
-        
-        // Fetch detailed user data for each friend
+
         formattedFriends.forEach(friend => {
           fetchUserDetails(friend.id);
         });
-        
       } catch (err) {
         console.error("Error fetching friends:", err);
         setError(
@@ -88,41 +89,37 @@ const FriendList: React.FC<FriendListProps> = ({ onSelectFriend, onSelectConvers
 
     getFriends();
   }, []);
-  
-  // Function to fetch user details and update activity status
+
+  // Fetch user details and update activity status
   const fetchUserDetails = async (userId: string) => {
     try {
-      // Skip if we already have this user in cache
       if (userCache[userId]) return;
-      
+
       const userData = await getUserById(userId);
       if (userData) {
-        // Update user cache
         setUserCache(prev => ({
           ...prev,
-          [userId]: userData
+          [userId]: userData,
         }));
-        
-        // Update friend's activity status
         updateFriendActivityStatus(userId, userData);
       }
     } catch (error) {
       console.error(`Failed to load data for user ${userId}:`, error);
     }
   };
-  
-  // Function to check and update activity status for a friend
+
+  // Update activity status for a friend
   const updateFriendActivityStatus = (userId: string, userData: User) => {
     const lastActive = userData.lastActive;
     if (!lastActive) {
       updateFriendStatus(userId, "Đang ngoại tuyến", false);
       return;
     }
-    
+
     const lastActiveTime = new Date(lastActive).getTime();
     const currentTime = new Date().getTime();
     const minutesDiff = Math.floor((currentTime - lastActiveTime) / (1000 * 60));
-    
+
     if (minutesDiff < 5) {
       updateFriendStatus(userId, "Vừa mới truy cập", true);
     } else if (minutesDiff < 60) {
@@ -134,36 +131,31 @@ const FriendList: React.FC<FriendListProps> = ({ onSelectFriend, onSelectConvers
       updateFriendStatus(userId, "Đang ngoại tuyến", false);
     }
   };
-  
-  // Helper function to update a friend's status in the state
+
+  // Helper function to update a friend's status
   const updateFriendStatus = (userId: string, activityStatus: string, isOnline: boolean) => {
-    setFriends(prevFriends => 
-      prevFriends.map(friend => 
-        friend.id === userId 
-          ? { ...friend, activityStatus, isOnline } 
+    setFriends(prevFriends =>
+      prevFriends.map(friend =>
+        friend.id === userId
+          ? { ...friend, activityStatus, isOnline }
           : friend
       )
     );
   };
-  
-  // Set up interval to refresh activity statuses
+
+  // Refresh activity statuses every minute
   useEffect(() => {
-    // Function to update all friends' statuses
     const updateAllFriendsStatus = () => {
       Object.entries(userCache).forEach(([userId, userData]) => {
         updateFriendActivityStatus(userId, userData);
       });
     };
-    
-    // Initial update
+
     if (Object.keys(userCache).length > 0) {
       updateAllFriendsStatus();
     }
-    
-    // Set up interval to check activity status every minute
+
     const intervalId = setInterval(updateAllFriendsStatus, 60000);
-    
-    // Clean up interval on unmount
     return () => clearInterval(intervalId);
   }, [userCache]);
 
@@ -175,7 +167,6 @@ const FriendList: React.FC<FriendListProps> = ({ onSelectFriend, onSelectConvers
     friend.name.toLowerCase().includes(searchText.toLowerCase())
   );
 
-  // Group friends by first letter for A-Z display
   const groupedFriends = filteredFriends.reduce(
     (acc, friend) => {
       const firstLetter = friend.name.charAt(0).toUpperCase();
@@ -188,41 +179,89 @@ const FriendList: React.FC<FriendListProps> = ({ onSelectFriend, onSelectConvers
     {} as Record<string, Friend[]>
   );
 
-  // Sort the letters
   const sortedLetters = Object.keys(groupedFriends).sort();
 
   const handleFriendClick = async (friendId: string) => {
     try {
-      setLoading(true); // Show loading state
-      
-      // Call API to create or get conversation with the friend
+      setLoading(true);
       const conversation = await createConversation(friendId);
-      
+
       if (conversation && onSelectConversation) {
-        onSelectConversation(conversation); // Pass conversation to parent
+        onSelectConversation(conversation);
       }
-      
+
       if (onSelectFriend) {
-        onSelectFriend(friendId); // Maintain existing functionality
+        onSelectFriend(friendId);
       }
-      
-      setError(null); // Clear any previous errors
+
+      setError(null);
     } catch (err) {
       console.error("Error creating/getting conversation:", err);
       setError(
         err instanceof Error ? err.message : "Không thể mở cuộc trò chuyện"
       );
     } finally {
-      setLoading(false); // Hide loading state
+      setLoading(false);
     }
   };
+
+  // Handle "View Info" action
+  const handleViewInfo = (friend: Friend) => {
+    const userData = userCache[friend.id];
+    setSelectedUser({
+      userId: friend.id,
+      fullname: friend.name,
+      phone: userData?.phone || "",
+      avatar: friend.avatarUrl,
+      isMale: userData?.isMale,
+      birthday: userData?.birthday,
+    });
+    setIsModalVisible(true);
+  };
+
+  // Handle "Remove Friend" action
+  const handleRemoveFriend = async (friendId: string) => {
+    try {
+      await removeFriend(friendId); // Assuming removeFriend API exists
+      setFriends(prevFriends => prevFriends.filter(friend => friend.id !== friendId));
+      message.success("Đã xóa bạn thành công");
+    } catch (error) {
+      console.error("Error removing friend:", error);
+      message.error("Không thể xóa bạn");
+    }
+  };
+
+  // Menu for each friend
+  const menu = (friend: Friend) => (
+    <Menu>
+      <Menu.Item key="view-info" onClick={() => handleViewInfo(friend)}>
+        Xem thông tin
+      </Menu.Item>
+      <Menu.Item key="categorize" onClick={() => console.log("Phân loại:", friend.id)}>
+        Phân loại
+      </Menu.Item>
+      <Menu.Item key="set-nickname" onClick={() => console.log("Đặt tên gợi nhớ:", friend.id)}>
+        Đặt tên gợi nhớ
+      </Menu.Item>
+      <Menu.Item key="block" onClick={() => console.log("Chặn người này:", friend.id)}>
+        Chặn người này
+      </Menu.Item>
+      <Menu.Item
+        key="remove-friend"
+        onClick={() => handleRemoveFriend(friend.id)}
+        style={{ color: "red" }}
+      >
+        Xóa bạn
+      </Menu.Item>
+    </Menu>
+  );
 
   const sortOptions = [
     { key: "A-Z", label: "Tên (A-Z)" },
     { key: "All", label: "Tất cả" },
   ];
 
-  // Render functions for list items with updated status display
+  // Render function for list items
   const renderFriendItem = (friend: Friend) => (
     <List.Item
       className="px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
@@ -253,10 +292,23 @@ const FriendList: React.FC<FriendListProps> = ({ onSelectFriend, onSelectConvers
             )}
           </div>
         </div>
-        <MoreOutlined className="text-lg text-gray-500" />
+        <div onClick={(e) => e.stopPropagation()}>
+          <Dropdown overlay={() => menu(friend)} trigger={["click"]}>
+            <MoreOutlined className="text-lg text-gray-500 cursor-pointer" />
+          </Dropdown>
+        </div>
       </div>
     </List.Item>
   );
+
+  const isCurrentUser = (userId: string): boolean => {
+    const currentUserId = localStorage.getItem("userId");
+    return userId === currentUserId;
+  };
+
+  const isFriend = (userId: string): boolean => {
+    return friends.some(friend => friend.id === userId);
+  };
 
   return (
     <div className="friend-list w-full h-full flex flex-col bg-white dark:bg-gray-900">
@@ -327,11 +379,39 @@ const FriendList: React.FC<FriendListProps> = ({ onSelectFriend, onSelectConvers
           />
         )}
       </div>
+
+      <UserInfoHeaderModal
+        visible={isModalVisible}
+        onCancel={() => setIsModalVisible(false)}
+        searchResult={selectedUser}
+        isCurrentUser={isCurrentUser}
+        isFriend={isFriend}
+        handleUpdate={() => {}}
+        handleMessage={handleFriendClick}
+        handleSendFriendRequest={() => {}}
+        isSending={false}
+        onRequestsUpdate={() => {
+          // Refresh friends list if needed
+          fetchFriends().then(data => {
+            const formattedFriends: Friend[] = (data as FriendApiResponse[]).map(
+              (friend: FriendApiResponse) => ({
+                id: friend.userId || friend._id || "",
+                name: friend.fullname || friend.username || "Unknown",
+                avatarUrl: friend.avatarUrl || friend.urlavatar,
+                status: friend.status || "offline",
+                lastSeen: friend.lastActive,
+                activityStatus: "Đang ngoại tuyến",
+                isOnline: false,
+              })
+            );
+            setFriends(formattedFriends);
+          });
+        }}
+      />
     </div>
   );
 };
 
-// ErrorBoundary wrapper remains the same
 const FriendListWithErrorBoundary: React.FC<FriendListProps> = (props) => {
   return (
     <ErrorBoundary>
