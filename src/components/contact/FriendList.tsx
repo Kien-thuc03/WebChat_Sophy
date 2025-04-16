@@ -6,7 +6,6 @@ import { useLanguage } from "../../features/auth/context/LanguageContext";
 import ErrorBoundary from "../common/ErrorBoundary";
 import { fetchFriends } from "../../api/API";
 
-// Define interface for API response
 interface FriendApiResponse {
   id?: string;
   userId?: string;

@@ -18,16 +18,27 @@ interface FriendRequest {
     userId: string;
     fullname: string;
     urlavatar?: string;
+    isMale?: boolean;
+    phone?: string;
+    birthday?: string;
+    _id?: string;
   };
   receiverId: {
     userId: string;
     fullname: string;
     urlavatar?: string;
+    isMale?: boolean;
+    phone?: string;
+    birthday?: string;
+    _id?: string;
   };
   status: string;
   message: string;
   createdAt: string;
   updatedAt: string;
+  _id?: string;
+  __v?: number;
+  deletionDate?: string | null;
 }
 
 interface RequestListProps {
@@ -155,15 +166,24 @@ const RequestList: React.FC<RequestListProps> = ({ onSelectFriend, onRequestsUpd
     }
   };
 
-  const handleUserClick = (user: { userId: string; fullname: string; urlavatar?: string }) => {
-    setSelectedUser({
-      userId: user.userId,
-      fullname: user.fullname,
-      phone: "",
-      avatar: user.urlavatar
-    });
-    setIsModalVisible(true);
-  };
+  const handleUserClick = (user: { 
+      userId: string; 
+      fullname: string; 
+      urlavatar?: string;
+      isMale?: boolean;
+      birthday?: string;
+      phone?: string;
+    }) => {
+      setSelectedUser({
+        userId: user.userId,
+        fullname: user.fullname,
+        phone: user.phone || "",
+        avatar: user.urlavatar,
+        isMale: user.isMale,
+        birthday: user.birthday
+      });
+      setIsModalVisible(true);
+    };
 
   const handleModalClose = () => {
     setIsModalVisible(false);

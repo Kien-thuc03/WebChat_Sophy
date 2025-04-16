@@ -1459,18 +1459,25 @@ export const getFriendRequestsReceived = async () => {
       friendRequestId: request.friendRequestId,
       senderId: {
         userId: request.senderId.userId,
-        fullname: request.senderId.fullname, // This will be updated when we get sender info
+        fullname: request.senderId.fullname,
         urlavatar: request.senderId.urlavatar,
+        isMale: request.senderId.isMale,
+        phone: request.senderId.phone,
+        birthday: request.senderId.birthday,
+        _id: request.senderId._id
       },
       receiverId: {
-        userId: request.receiverId.userId,
-        fullname: request.receiverId.fullname,
-        urlavatar: request.receiverId.urlavatar,
+        userId: request.receiverId,
+        fullname: "",
+        urlavatar: undefined,
       },
       status: request.status,
       message: request.message || "",
       createdAt: request.createdAt,
       updatedAt: request.updatedAt,
+      _id: request._id,
+      __v: request.__v,
+      deletionDate: request.deletionDate
     }));
 
     return transformedData;
@@ -1499,18 +1506,25 @@ export const getFriendRequestsSent = async () => {
       friendRequestId: request.friendRequestId,
       senderId: {
         userId: request.senderId,
-        fullname: "", // Since senderId is just a string in this case
+        fullname: "", // Will be populated from current user info
         urlavatar: undefined,
       },
       receiverId: {
         userId: request.receiverId.userId,
         fullname: request.receiverId.fullname,
         urlavatar: request.receiverId.urlavatar,
+        _id: request.receiverId._id,
+        isMale: request.receiverId.isMale,
+        phone: request.receiverId.phone,
+        birthday: request.receiverId.birthday,
       },
       status: request.status,
       message: request.message || "",
       createdAt: request.createdAt,
       updatedAt: request.updatedAt,
+      _id: request._id,
+      __v: request.__v,
+      deletionDate: request.deletionDate
     }));
 
     return transformedData;
