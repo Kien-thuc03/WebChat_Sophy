@@ -33,6 +33,7 @@ export interface DisplayMessage {
   sendStatus?: string;
   readBy?: string[];
   deliveredTo?: string[];
+  tempId?: string;
   attachments?: Array<{
     url: string;
     type: string;

@@ -42,6 +42,7 @@ import { useConversationContext } from "../../features/chat/context/Conversation
 import { BsEmojiSmile } from "react-icons/bs";
 import data from "@emoji-mart/data";
 import Picker from "@emoji-mart/react";
+import socketService from "../../utils/socketService";
 
 // Chuyển đổi Message từ API sang định dạng tin nhắn cần hiển thị
 
@@ -82,11 +83,16 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
   const [pastedImage, setPastedImage] = useState<File | null>(null);
   const [pastedImagePreview, setPastedImagePreview] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [typingUsers, setTypingUsers] = useState<{[key: string]: {userId: string, fullname: string, timestamp: number}}>({});
+  const [typingTimers, setTypingTimers] = useState<{[key: string]: NodeJS.Timeout}>({});
+  
+  // Thêm typing timeout
+  const TYPING_TIMEOUT = 3000; // 3 giây
 
   // Kiểm tra xem conversation có hợp lệ không
   const isValidConversation =
     conversation &&
-                             conversation.conversationId && 
+    conversation.conversationId && 
     typeof conversation.conversationId === "string" &&
     conversation.conversationId.startsWith("conv");
 
@@ -100,10 +106,251 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
     setOldestCursor(null);
     setNewestCursor(null);
     
-    // Chỉ tải tin nhắn khi conversation hợp lệ
+    // Reset typing state
+    setTypingUsers({});
+    
+    // Xóa tất cả timers hiện có
+    Object.values(typingTimers).forEach(timer => clearTimeout(timer));
+    setTypingTimers({});
+    
+    // Chỉ tải tin nhắn và thiết lập socket khi conversation hợp lệ
     if (isValidConversation) {
       // Tải tin nhắn gần nhất với hướng 'before' và không có cursor
       fetchMessages(undefined, "before");
+      
+      // Tham gia vào phòng chat
+      socketService.joinConversations([conversation.conversationId]);
+      
+      // Callback để xử lý tin nhắn mới từ socket
+      const handleNewMessage = (data: any) => {
+        console.log("New message from socket:", data);
+        
+        // Kiểm tra xem tin nhắn thuộc conversation hiện tại không
+        if (data.conversationId !== conversation.conversationId) return;
+        
+        const msg = data.message;
+        const sender = data.sender;
+        
+        // Kiểm tra tin nhắn hợp lệ và xử lý dữ liệu từ MongoDB
+        if (!msg) {
+          console.warn("Invalid message data received: empty message");
+          return;
+        }
+        
+        // Trích xuất ID tin nhắn từ nhiều nguồn khả thi
+        const messageId = msg.messageDetailId || msg.messageId || (msg._doc && (msg._doc.messageDetailId || msg._doc.messageId || msg._doc._id));
+
+        if (!messageId) {
+          console.warn("Invalid message data received: no message ID found", msg);
+          return;
+        }
+        
+        // Kiểm tra nếu tin nhắn đã tồn tại - PREVENT DUPLICATION
+        const messageExists = messages.some(m => m.id === messageId);
+        if (messageExists) {
+          console.log(`Duplicate message detected and skipped: ${messageId}`);
+          return;
+        }
+        
+        // Nếu là document MongoDB, sử dụng dữ liệu từ _doc
+        let messageData = msg;
+        if (msg._doc) {
+          messageData = { ...msg._doc, messageDetailId: messageId };
+        } else if (typeof msg === 'object' && Object.keys(msg).length === 0) {
+          console.warn("Empty message object received");
+          return;
+        }
+        
+        // Chuẩn hóa dữ liệu attachments và attachment
+        let parsedAttachments: Array<{ url: string; type: string; name?: string; size?: number }> = [];
+        if (typeof messageData.attachments === 'string' && messageData.attachments) {
+          try {
+            const parsed = JSON.parse(messageData.attachments);
+            if (Array.isArray(parsed)) {
+              parsedAttachments = parsed;
+            }
+          } catch (e) {
+            console.error('Failed to parse attachments string:', e);
+          }
+        } else if (Array.isArray(messageData.attachments)) {
+          parsedAttachments = messageData.attachments;
+        }
+        
+        // Đảm bảo cả hai trường attachment và attachments đều có giá trị nhất quán
+        let mainAttachment = messageData.attachment || (parsedAttachments.length > 0 ? parsedAttachments[0] : null);
+        
+        // Nếu có attachment nhưng không có attachments, tạo attachments từ attachment
+        if (mainAttachment && parsedAttachments.length === 0) {
+          parsedAttachments = [mainAttachment];
+        }
+        
+        // Nếu có attachments nhưng không có attachment, lấy attachment từ attachments
+        if (!mainAttachment && parsedAttachments.length > 0) {
+          mainAttachment = parsedAttachments[0];
+        }
+        
+        // Tạo đối tượng tin nhắn hiển thị
+        const displayMessage: DisplayMessage = {
+          id: messageId,
+          content: messageData.content || "",
+          timestamp: messageData.createdAt || new Date().toISOString(),
+          sender: {
+            id: messageData.senderId || "",
+            name: sender.fullname || "Người dùng",
+            avatar: sender.avatar || "",
+          },
+          type: (messageData.type as "text" | "image" | "file") || "text",
+          isRead: Array.isArray(messageData.readBy) && messageData.readBy.length > 0,
+          readBy: messageData.readBy || [],
+          deliveredTo: messageData.deliveredTo || [],
+          sendStatus: determineMessageStatus(messageData, currentUserId),
+        };
+        
+        // Gán cả hai trường attachment và attachments cho tin nhắn hiển thị
+        if (parsedAttachments.length > 0) {
+          displayMessage.attachments = parsedAttachments;
+        }
+        
+        if (mainAttachment) {
+          displayMessage.attachment = mainAttachment;
+        }
+        
+        // Xử lý dựa trên loại tin nhắn để thiết lập các trường fileUrl, fileName, fileSize
+        if (messageData.type === "image") {
+          // Đặt fileUrl từ attachment hoặc attachments
+          if (mainAttachment && mainAttachment.url) {
+            displayMessage.fileUrl = mainAttachment.url;
+          }
+        } else if (messageData.type === "file") {
+          if (mainAttachment && mainAttachment.url) {
+            displayMessage.fileUrl = mainAttachment.url;
+            displayMessage.fileName = mainAttachment.name;
+            displayMessage.fileSize = mainAttachment.size;
+          }
+        }
+        
+        // Kiểm tra xem tin nhắn đã tồn tại chưa
+        setMessages(prevMessages => {
+          // Kiểm tra xem tin nhắn đã tồn tại trong danh sách chưa
+          const exists = prevMessages.some(m => m.id === displayMessage.id);
+          if (!exists) {
+            // Nếu tin nhắn này là từ người khác, đánh dấu là đã đọc
+            if (displayMessage.sender.id !== currentUserId) {
+              socketService.markMessagesAsRead(conversation.conversationId, [displayMessage.id]);
+            }
+            
+            // Nếu không phải là tin nhắn từ người dùng hiện tại, xóa trạng thái typing
+            if (displayMessage.sender.id !== currentUserId) {
+              setTypingUsers(prev => {
+                const newState = {...prev};
+                delete newState[displayMessage.sender.id];
+                return newState;
+              });
+              
+              if (typingTimers[displayMessage.sender.id]) {
+                clearTimeout(typingTimers[displayMessage.sender.id]);
+                setTypingTimers(prev => {
+                  const newTimers = {...prev};
+                  delete newTimers[displayMessage.sender.id];
+                  return newTimers;
+                });
+              }
+            }
+            
+            return [...prevMessages, displayMessage];
+          }
+          return prevMessages;
+        });
+        
+        // Cuộn đến tin nhắn mới
+        scrollToBottomSmooth();
+        
+        // Cập nhật danh sách cuộc trò chuyện với tin nhắn mới
+        updateConversationWithNewMessage(conversation.conversationId, {
+          content: messageData.content,
+          type: messageData.type,
+          createdAt: messageData.createdAt,
+          senderId: messageData.senderId
+        });
+      };
+      
+      // Callback để xử lý sự kiện typing
+      const handleUserTyping = (data: { conversationId: string, userId: string, fullname: string }) => {
+        // Chỉ xử lý event typing cho conversation hiện tại
+        if (data.conversationId !== conversation.conversationId) return;
+        
+        // Không hiển thị typing của chính mình
+        if (data.userId === currentUserId) return;
+        
+        // Cập nhật trạng thái typing
+        setTypingUsers(prev => ({
+          ...prev,
+          [data.userId]: {
+            userId: data.userId,
+            fullname: data.fullname,
+            timestamp: Date.now()
+          }
+        }));
+        
+        // Xóa typing status sau một khoảng thời gian
+        if (typingTimers[data.userId]) {
+          clearTimeout(typingTimers[data.userId]);
+        }
+        
+        const timer = setTimeout(() => {
+          setTypingUsers(prev => {
+            const newState = {...prev};
+            delete newState[data.userId];
+            return newState;
+          });
+          
+          setTypingTimers(prev => {
+            const newTimers = {...prev};
+            delete newTimers[data.userId];
+            return newTimers;
+          });
+        }, TYPING_TIMEOUT);
+        
+        setTypingTimers(prev => ({
+          ...prev,
+          [data.userId]: timer
+        }));
+      };
+      
+      // Callback cho sự kiện tin nhắn đã đọc
+      const handleMessageRead = (data: { conversationId: string, messageIds: string[], userId: string }) => {
+        if (data.conversationId !== conversation.conversationId) return;
+        
+        // Cập nhật trạng thái đã đọc cho tin nhắn
+        setMessages(prevMessages => 
+          prevMessages.map(msg => {
+            if (data.messageIds.includes(msg.id)) {
+              return {
+                ...msg,
+                isRead: true,
+                readBy: [...(msg.readBy || []), data.userId]
+              };
+            }
+            return msg;
+          })
+        );
+      };
+      
+      // Đăng ký lắng nghe các sự kiện socket
+      socketService.onNewMessage(handleNewMessage);
+      socketService.onUserTyping(handleUserTyping);
+      socketService.onMessageRead(handleMessageRead);
+      
+      // Cleanup khi unmount hoặc change conversation
+      return () => {
+        // Hủy đăng ký các sự kiện
+        socketService.off("newMessage", handleNewMessage);
+        socketService.off("userTyping", handleUserTyping);
+        socketService.off("messageRead", handleMessageRead);
+        
+        // Xóa tất cả timers
+        Object.values(typingTimers).forEach(timer => clearTimeout(timer));
+      };
     } else if (conversation && conversation.conversationId) {
       console.error(
         `Conversation ID không hợp lệ: ${conversation.conversationId}`
@@ -112,7 +359,24 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
         `ID cuộc trò chuyện không hợp lệ. Vui lòng thử lại hoặc chọn cuộc trò chuyện khác.`
       );
     }
-  }, [conversation?.conversationId]);
+  }, [conversation?.conversationId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Xử lý đánh dấu đã đọc khi cuộn đến tin nhắn mới
+  useEffect(() => {
+    // Đánh dấu các tin nhắn mới (từ người khác) là đã đọc khi hiển thị
+    if (isValidConversation && messages.length > 0) {
+      const unreadMessages = messages
+        .filter(msg => 
+          msg.sender.id !== currentUserId && 
+          (!msg.readBy || !msg.readBy.includes(currentUserId))
+        )
+        .map(msg => msg.id);
+      
+      if (unreadMessages.length > 0) {
+        socketService.markMessagesAsRead(conversation.conversationId, unreadMessages);
+      }
+    }
+  }, [messages, currentUserId, conversation.conversationId, isValidConversation]);
 
   const fetchMessages = async (
     cursor?: string,
@@ -769,8 +1033,9 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
     }
     
     // Tạo tin nhắn tạm thời để hiển thị ngay
+    const tempId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const tempMessage: DisplayMessage = {
-      id: `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      id: tempId,
       content: tempContent || (
         messageType === "image" ? "Đang gửi hình ảnh..." :
         messageType === "text-with-image" ? tempContent :
@@ -872,6 +1137,8 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
         readBy: newMessage.readBy || [],
         deliveredTo: newMessage.deliveredTo || [],
         sendStatus: determineMessageStatus(newMessage, currentUserId),
+        // Lưu ID tạm thời để hỗ trợ việc cập nhật
+        tempId: tempId
       };
       // Đặt các trường liên quan đến hình ảnh
       if (newMessage.attachment && newMessage.attachment.url) {
@@ -901,14 +1168,6 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
         realMessage.fileUrl = imageAttachment.url;
         realMessage.attachment = imageAttachment;
         realMessage.attachments = [imageAttachment];
-        
-        // Log để kiểm tra
-        console.log(`Tin nhắn text-with-image thực từ server:`, {
-          id: realMessage.id,
-          fileUrl: realMessage.fileUrl,
-          content: realMessage.content,
-          attachmentUrl: realMessage.attachment?.url
-        });
       }
       else if ((messageType === "file" || messageType === "image") && attachments.length > 0 && tempAttachmentData.length > 0) {
         // Tạo đối tượng attachment cho các loại tin nhắn có file đính kèm
@@ -929,20 +1188,31 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
         realMessage.fileUrl = tempAttachmentData[0]?.url;
         realMessage.attachment = fileAttachmentObj;
         realMessage.attachments = [fileAttachmentObj];
-        
-        // Log để kiểm tra
-        console.log(`Tin nhắn ${messageType} thực từ server:`, {
-          id: realMessage.id,
-          fileUrl: realMessage.fileUrl,
-          attachmentUrl: realMessage.attachment?.url,
-          attachmentsArray: realMessage.attachments
-        });
       }
 
-      // Cập nhật tin nhắn trong danh sách
-      setMessages((prev) =>
-        prev.map((msg) => (msg.id === tempMessage.id ? realMessage : msg))
-      );
+      // Cải thiện logic cập nhật tin nhắn để tránh tin nhắn trùng lặp
+      setMessages((prev) => {
+        // Kiểm tra xem tin nhắn thực đã tồn tại trong danh sách chưa (bằng ID)
+        const realMessageExists = prev.some(msg => msg.id === realMessage.id);
+        
+        // Kiểm tra xem tin nhắn tạm còn tồn tại không 
+        const tempMessageExists = prev.some(msg => msg.id === tempId);
+        
+        if (realMessageExists && tempMessageExists) {
+          // Tin nhắn thực đã tồn tại và tin nhắn tạm vẫn còn - chỉ loại bỏ tin nhắn tạm
+          return prev.filter(msg => msg.id !== tempId);
+        } else if (realMessageExists) {
+          // Tin nhắn thực đã tồn tại nhưng không còn tin nhắn tạm - giữ nguyên danh sách
+          return prev;
+        } else if (tempMessageExists) {
+          // Tin nhắn tạm tồn tại, tin nhắn thực chưa có - thay thế tin nhắn tạm bằng tin nhắn thực
+          return prev.map(msg => msg.id === tempId ? realMessage : msg);
+        } else {
+          // Không tìm thấy cả tin nhắn tạm và tin nhắn thực - thêm tin nhắn thực vào
+          // Điều này chỉ xảy ra trong trường hợp hiếm gặp khi tin nhắn tạm đã bị xóa bằng cách nào đó
+          return [...prev, realMessage];
+        }
+      });
 
       // Cập nhật ChatList với tin nhắn mới
       updateConversationWithNewMessage(conversation.conversationId, {
@@ -959,7 +1229,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
       // Đánh dấu tin nhắn tạm là lỗi
       setMessages((prev) =>
         prev.map((msg) =>
-          msg.id === tempMessage.id 
+          msg.id === tempId 
             ? {
                 ...msg,
                 content: error.message
@@ -1230,6 +1500,18 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
     setPastedImagePreview(null);
   };
 
+  // Cập nhật handleInputChange để gửi sự kiện typing
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setInputValue(value);
+    
+    // Gửi sự kiện typing nếu người dùng đang nhập
+    if (isValidConversation && value.trim().length > 0) {
+      const fullname = userCache[currentUserId]?.fullname || "Người dùng";
+      socketService.sendTyping(conversation.conversationId, fullname);
+    }
+  };
+
   // Nếu không có conversation hợp lệ, hiển thị thông báo
   if (!isValidConversation) {
     return (
@@ -1240,6 +1522,62 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
       </div>
     );
   }
+
+  // Thêm hàm lọc tin nhắn trùng lặp trước khi render
+  const deduplicateMessages = (messagesToRender: DisplayMessage[]): DisplayMessage[] => {
+    const uniqueMessages: DisplayMessage[] = [];
+    const seenMessages = new Set<string>();
+    
+    // Sắp xếp tin nhắn theo thời gian tăng dần để đảm bảo hiển thị tin nhắn mới nhất
+    const sortedMessages = [...messagesToRender].sort(
+      (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+    );
+    
+    for (const message of sortedMessages) {
+      // Tạo khóa duy nhất cho tin nhắn dựa trên nội dung, người gửi và loại
+      // Không sử dụng ID vì ID tạm thời và ID thực có thể khác nhau cho cùng một tin nhắn
+      const contentKey = `${message.sender.id}:${message.content}:${message.type}`;
+      
+      // Nếu khóa này đã tồn tại, kiểm tra thời gian
+      if (seenMessages.has(contentKey)) {
+        const existingIndex = uniqueMessages.findIndex(m => 
+          `${m.sender.id}:${m.content}:${m.type}` === contentKey
+        );
+        
+        if (existingIndex !== -1) {
+          const existingMessage = uniqueMessages[existingIndex];
+          const timeDiff = Math.abs(
+            new Date(message.timestamp).getTime() - new Date(existingMessage.timestamp).getTime()
+          );
+          
+          // Nếu hai tin nhắn có cùng nội dung và được gửi trong vòng 5 giây
+          if (timeDiff < 5000) {
+            // Giữ lại tin nhắn có ID thực (không phải ID tạm thời)
+            if (!message.id.startsWith('temp-') && existingMessage.id.startsWith('temp-')) {
+              uniqueMessages[existingIndex] = message;
+            }
+            // Hoặc giữ tin nhắn mới hơn nếu cả hai đều là tin nhắn thực hoặc tin nhắn tạm
+            else if (new Date(message.timestamp) > new Date(existingMessage.timestamp)) {
+              uniqueMessages[existingIndex] = message;
+            }
+            continue;
+          }
+        }
+      }
+      
+      // Đánh dấu đã thấy tin nhắn này
+      seenMessages.add(contentKey);
+      uniqueMessages.push(message);
+    }
+    
+    // Sắp xếp lại kết quả theo thời gian
+    return uniqueMessages.sort(
+      (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+    );
+  };
+
+  // Ở phần render messages, sử dụng hàm deduplicateMessages
+  const messagesToRender: DisplayMessage[] = deduplicateMessages(messages);
 
   return (
     <div className="w-full h-full flex flex-col">
@@ -1323,7 +1661,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
           )}
           
           <div className="space-y-3">
-            {messages.map((message, index) => {
+            {messagesToRender.map((message, index) => {
               if (!message) return null;
               
               const isOwn = isOwnMessage(message.sender.id);
@@ -1480,6 +1818,25 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
               </span>
             </div>
           )}
+
+          {/* Hiển thị trạng thái typing */}
+          {Object.keys(typingUsers).length > 0 && (
+            <div className="flex items-center text-gray-500 text-sm pl-2 pb-1">
+              <div className="flex items-center space-x-1">
+                <span>
+                  {Object.values(typingUsers)
+                    .map(user => user.fullname)
+                    .join(", ")}
+                </span>
+                <span>{Object.keys(typingUsers).length === 1 ? " đang nhập..." : " đang nhập..."}</span>
+                <span className="typing-animation">
+                  <span className="dot"></span>
+                  <span className="dot"></span>
+                  <span className="dot"></span>
+                </span>
+              </div>
+            </div>
+          )}
         </div>
         
         {/* Khu vực nhập tin nhắn (ẩn nếu không tìm thấy cuộc trò chuyện) */}
@@ -1586,7 +1943,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
                 bordered={false}
                 disabled={isUploading}
                 value={inputValue}
-                onChange={(e) => setInputValue(e.target.value)}
+                onChange={handleInputChange}
                 onPressEnter={handleKeyPress}
               />
               <Tooltip title="Sticker">
@@ -1696,6 +2053,40 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
           </div>
         )}
       </div>
+      
+      {/* CSS cho trạng thái typing */}
+      <style>
+        {`
+        .typing-animation {
+          display: inline-flex;
+          align-items: center;
+          margin-left: 5px;
+        }
+        
+        .typing-animation .dot {
+          display: inline-block;
+          width: 3px;
+          height: 3px;
+          border-radius: 50%;
+          margin: 0 1px;
+          background: #888;
+          animation: bounce 1.4s infinite ease-in-out both;
+        }
+        
+        .typing-animation .dot:nth-child(1) {
+          animation-delay: -0.32s;
+        }
+        
+        .typing-animation .dot:nth-child(2) {
+          animation-delay: -0.16s;
+        }
+        
+        @keyframes bounce {
+          0%, 80%, 100% { transform: scale(0); }
+          40% { transform: scale(1); }
+        }
+        `}
+      </style>
     </div>
   );
 };
