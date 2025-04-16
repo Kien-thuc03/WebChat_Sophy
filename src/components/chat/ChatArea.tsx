@@ -1524,25 +1524,49 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
   }
 
   // Thêm hàm lọc tin nhắn trùng lặp trước khi render
-  const deduplicateMessages = (messagesToRender: DisplayMessage[]): DisplayMessage[] => {
+  const deduplicateMessages = (messagesToDeduplicate: DisplayMessage[]): DisplayMessage[] => {
     const uniqueMessages: DisplayMessage[] = [];
     const seenMessages = new Set<string>();
     
     // Sắp xếp tin nhắn theo thời gian tăng dần để đảm bảo hiển thị tin nhắn mới nhất
-    const sortedMessages = [...messagesToRender].sort(
+    const sortedMessages = [...messagesToDeduplicate].sort(
       (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
     );
     
     for (const message of sortedMessages) {
       // Tạo khóa duy nhất cho tin nhắn dựa trên nội dung, người gửi và loại
-      // Không sử dụng ID vì ID tạm thời và ID thực có thể khác nhau cho cùng một tin nhắn
-      const contentKey = `${message.sender.id}:${message.content}:${message.type}`;
+      // Cho tin nhắn ảnh, sử dụng fileUrl làm phần chính của key thay vì content
+      let contentKey = '';
+      
+      if (message.type === 'image') {
+        // Với tin nhắn ảnh, sử dụng fileUrl hoặc url từ attachment
+        const imageUrl = message.fileUrl || 
+                         (message.attachment && message.attachment.url) || 
+                         (message.attachments && message.attachments.length > 0 ? message.attachments[0].url : '');
+        contentKey = `${message.sender.id}:${imageUrl}:${message.type}`;
+      } else if (message.type === 'file') {
+        // Với tin nhắn file, sử dụng fileName và fileSize
+        contentKey = `${message.sender.id}:${message.fileName}:${message.fileSize}:${message.type}`;
+      } else {
+        // Với tin nhắn text hoặc text-with-image, sử dụng cách cũ
+        contentKey = `${message.sender.id}:${message.content}:${message.type}`;
+      }
       
       // Nếu khóa này đã tồn tại, kiểm tra thời gian
       if (seenMessages.has(contentKey)) {
-        const existingIndex = uniqueMessages.findIndex(m => 
-          `${m.sender.id}:${m.content}:${m.type}` === contentKey
-        );
+        const existingIndex = uniqueMessages.findIndex(m => {
+          // Cần tạo lại key theo cùng logic để so sánh
+          if (m.type === 'image') {
+            const imageUrl = m.fileUrl || 
+                            (m.attachment && m.attachment.url) || 
+                            (m.attachments && m.attachments.length > 0 ? m.attachments[0].url : '');
+            return `${m.sender.id}:${imageUrl}:${m.type}` === contentKey;
+          } else if (m.type === 'file') {
+            return `${m.sender.id}:${m.fileName}:${m.fileSize}:${m.type}` === contentKey;
+          } else {
+            return `${m.sender.id}:${m.content}:${m.type}` === contentKey;
+          }
+        });
         
         if (existingIndex !== -1) {
           const existingMessage = uniqueMessages[existingIndex];
