@@ -16,6 +16,7 @@ interface SidebarProps {
   onOpenModal?: () => void;
   openSettingsModal: () => void;
   onSectionChange?: (section: string) => void;
+  activeSection: string; // Add prop to receive active section from Dashboard
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
@@ -23,10 +24,9 @@ const Sidebar: React.FC<SidebarProps> = ({
   onOpenModal,
   openSettingsModal,
   onSectionChange,
+  activeSection, // Receive activeSection from Dashboard
 }) => {
   const { user } = useAuth();
-  // Replace the single active state with two separate states
-  const [activeTopSection, setActiveTopSection] = useState("chat");
   const [activeBottomSection, setActiveBottomSection] = useState<string | null>(null);
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   const [isSettingsMenuOpen, setIsSettingsMenuOpen] = useState(false);
@@ -59,8 +59,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       ) {
         setIsSettingsMenuOpen(false);
       }
-      
-      // Deactivate bottom section when clicking outside
+
       const isBottomSectionIcon = (event.target as HTMLElement).closest(
         ".bottom-section-icon"
       );
@@ -91,23 +90,16 @@ const Sidebar: React.FC<SidebarProps> = ({
   };
 
   const handleSetActive = (section: string) => {
-    // Define top sections explicitly
     const topSections = ["chat", "friends", "tasks"];
-    
-    // Update the appropriate active state based on which section was clicked
+
     if (topSections.includes(section)) {
-      setActiveTopSection(section);
+      // Call onSectionChange to update Dashboard's activeSection
+      if (onSectionChange) {
+        onSectionChange(section);
+      }
     } else {
       setActiveBottomSection(section);
     }
-    
-    // Only call onSectionChange for the top section icons
-    if (onSectionChange && topSections.includes(section)) {
-      onSectionChange(section);
-    }
-    
-    // For bottom icons, we don't call onSectionChange
-    // This way the main content doesn't change
   };
 
   return (
@@ -142,21 +134,27 @@ const Sidebar: React.FC<SidebarProps> = ({
         )}
         <div className="flex flex-col space-y-6 p-2">
           <div
-            className={`p-2 rounded-lg cursor-pointer ${activeTopSection === "chat" ? "bg-white text-blue-600" : "text-white"}`}
+            className={`p-2 rounded-lg cursor-pointer ${
+              activeSection === "chat" ? "bg-white text-blue-600" : "text-white"
+            }`}
             onClick={() => handleSetActive("chat")}
             title={t.messages}
           >
             <FaComments className="text-2xl" />
           </div>
           <div
-            className={`p-2 rounded-lg cursor-pointer ${activeTopSection === "friends" ? "bg-white text-blue-600" : "text-white"}`}
+            className={`p-2 rounded-lg cursor-pointer ${
+              activeSection === "friends" ? "bg-white text-blue-600" : "text-white"
+            }`}
             onClick={() => handleSetActive("friends")}
             title={t.contacts}
           >
             <FaUserFriends className="text-2xl" />
           </div>
           <div
-            className={`p-2 rounded-lg cursor-pointer ${activeTopSection === "tasks" ? "bg-white text-blue-600" : "text-white"}`}
+            className={`p-2 rounded-lg cursor-pointer ${
+              activeSection === "tasks" ? "bg-white text-blue-600" : "text-white"
+            }`}
             onClick={() => handleSetActive("tasks")}
             title={t.utilities}
           >
@@ -168,14 +166,18 @@ const Sidebar: React.FC<SidebarProps> = ({
         <div className="flex flex-col space-y-6 items-center">
           <div className="w-8 border-b border-white my-4"></div>
           <div
-            className={`p-2 rounded-lg cursor-pointer bottom-section-icon ${activeBottomSection === "cloud" ? "bg-white text-blue-600" : "text-white"}`}
+            className={`p-2 rounded-lg cursor-pointer bottom-section-icon ${
+              activeBottomSection === "cloud" ? "bg-white text-blue-600" : "text-white"
+            }`}
             onClick={() => handleSetActive("cloud")}
             title={t.data}
           >
             <FaCloud className="text-2xl" />
           </div>
           <div
-            className={`p-2 rounded-lg cursor-pointer bottom-section-icon ${activeBottomSection === "briefcase" ? "bg-white text-blue-600" : "text-white"}`}
+            className={`p-2 rounded-lg cursor-pointer bottom-section-icon ${
+              activeBottomSection === "briefcase" ? "bg-white text-blue-600" : "text-white"
+            }`}
             onClick={() => handleSetActive("briefcase")}
             title={t.utilities}
           >
@@ -183,7 +185,9 @@ const Sidebar: React.FC<SidebarProps> = ({
           </div>
           <div
             ref={settingsButtonRef}
-            className={`p-2 rounded-lg cursor-pointer bottom-section-icon ${activeBottomSection === "settings" ? "bg-white text-blue-600" : "text-white"}`}
+            className={`p-2 rounded-lg cursor-pointer bottom-section-icon ${
+              activeBottomSection === "settings" ? "bg-white text-blue-600" : "text-white"
+            }`}
             onClick={() => {
               handleSetActive("settings");
               toggleSettingsMenu();

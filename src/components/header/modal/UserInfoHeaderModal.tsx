@@ -161,9 +161,8 @@ const UserInfoHeaderModal: React.FC<UserInfoHeaderModalProps> = ({
     }
 
     try {
-      const { message: successMessage } =
-        await cancelFriendRequest(friendRequestId);
-      message.success(successMessage);
+      await cancelFriendRequest(friendRequestId);
+      message.success("Đã hủy yêu cầu kết bạn"); // Changed to Vietnamese
       setHasSentFriendRequest(false);
       setFriendRequestId(undefined);
       onRequestsUpdate?.();
@@ -173,7 +172,6 @@ const UserInfoHeaderModal: React.FC<UserInfoHeaderModalProps> = ({
     }
   };
 
-  // Add a function to handle accepting friend requests
   const handleAcceptFriendRequest = async () => {
     if (!pendingRequestId) {
       message.error("Không tìm thấy yêu cầu kết bạn");
@@ -181,8 +179,8 @@ const UserInfoHeaderModal: React.FC<UserInfoHeaderModalProps> = ({
     }
 
     try {
-      const result = await acceptFriendRequest(pendingRequestId);
-      message.success(result.message);
+      await acceptFriendRequest(pendingRequestId);
+      message.success("Đã chấp nhận lời mời kết bạn"); // Changed to Vietnamese
       setHasPendingRequest(false);
       setPendingRequestId(undefined);
       onRequestsUpdate?.();
@@ -192,7 +190,6 @@ const UserInfoHeaderModal: React.FC<UserInfoHeaderModalProps> = ({
     }
   };
 
-  // Update the function to handle rejecting friend requests
   const handleRejectFriendRequest = async () => {
     if (!pendingRequestId) {
       message.error("Không tìm thấy yêu cầu kết bạn");
@@ -200,8 +197,8 @@ const UserInfoHeaderModal: React.FC<UserInfoHeaderModalProps> = ({
     }
 
     try {
-      const result = await rejectFriendRequest(pendingRequestId);
-      message.success(result.message);
+      await rejectFriendRequest(pendingRequestId);
+      message.success("Đã từ chối lời mời kết bạn"); // Changed to Vietnamese
       setHasPendingRequest(false);
       setPendingRequestId(undefined);
       onRequestsUpdate?.();

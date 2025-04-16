@@ -7,9 +7,11 @@ import {
   Select,
   Switch,
   theme,
+
 } from "antd";
 import { useEffect, useState } from "react";
 import ChangePasswordModal from "./ChangePasswordModal";
+import BlockModal from "./BlockModal"; // Import the new BlockModal
 import {
   SettingOutlined,
   LockOutlined,
@@ -34,9 +36,9 @@ const SettingsModal: React.FC<{ visible: boolean; onClose: () => void }> = ({
   const [useAvatarAsBackground, setUseAvatarAsBackground] = useState(
     localStorage.getItem("useAvatarAsBackground") === "true" || false
   );
+  const [isBlockModalOpen, setIsBlockModalOpen] = useState(false); // State for BlockModal
   const { language, setLanguage, t } = useLanguage();
 
-  // Hàm xác định theme dựa trên themeMode
   const getThemeConfig = () => {
     if (themeMode === "dark") {
       return {
@@ -54,7 +56,6 @@ const SettingsModal: React.FC<{ visible: boolean; onClose: () => void }> = ({
         },
       };
     }
-    // Nếu là system, kiểm tra chế độ hệ thống
     const prefersDark = window.matchMedia(
       "(prefers-color-scheme: dark)"
     ).matches;
@@ -66,16 +67,13 @@ const SettingsModal: React.FC<{ visible: boolean; onClose: () => void }> = ({
     };
   };
 
-  // Áp dụng chế độ giao diện khi themeMode thay đổi
   useEffect(() => {
     localStorage.setItem("themeMode", themeMode);
 
-    // Theo dõi thay đổi chế độ hệ thống nếu chọn "system"
     const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
     const handleSystemThemeChange = () => {
       if (themeMode === "system") {
-        // Trigger re-render để áp dụng theme mới
-        setThemeMode("system"); // Force re-render
+        setThemeMode("system");
       }
     };
     mediaQuery.addEventListener("change", handleSystemThemeChange);
@@ -83,7 +81,6 @@ const SettingsModal: React.FC<{ visible: boolean; onClose: () => void }> = ({
       mediaQuery.removeEventListener("change", handleSystemThemeChange);
   }, [themeMode]);
 
-  // Lưu trạng thái "Use Avatar as Background"
   useEffect(() => {
     localStorage.setItem(
       "useAvatarAsBackground",
@@ -205,7 +202,11 @@ const SettingsModal: React.FC<{ visible: boolean; onClose: () => void }> = ({
                     {t.block_messages_desc}
                   </p>
                 </div>
-                <Button type="link" size="small">
+                <Button
+                  type="link"
+                  size="small"
+                  onClick={() => setIsBlockModalOpen(true)} // Open BlockModal
+                >
                   {t.block_list}
                 </Button>
               </div>
@@ -245,7 +246,8 @@ const SettingsModal: React.FC<{ visible: boolean; onClose: () => void }> = ({
                 <Button
                   type="link"
                   size="small"
-                  onClick={() => setIsChangePasswordModalOpen(true)}>
+                  onClick={() => setIsChangePasswordModalOpen(true)}
+                >
                   {t.change_password}
                 </Button>
               </div>
@@ -334,7 +336,8 @@ const SettingsModal: React.FC<{ visible: boolean; onClose: () => void }> = ({
         destroyOnClose={true}
         footer={null}
         width={800}
-        className="settings-modal">
+        className="settings-modal"
+      >
         <div className="flex" onClick={(e) => e.stopPropagation()}>
           <div className="w-[200px] border-r border-[#f0f0f0]">
             {menuItems.map((item) => (
@@ -345,7 +348,8 @@ const SettingsModal: React.FC<{ visible: boolean; onClose: () => void }> = ({
                   selectedMenu === item.key
                     ? "bg-blue-50 text-blue-600 font-medium"
                     : "text-gray-700 hover:bg-gray-100"
-                }`}>
+                }`}
+              >
                 <span className="mr-2">{item.icon}</span>
                 <span>{item.label}</span>
                 {item.extra && <span className="ml-2">{item.extra}</span>}
@@ -355,6 +359,14 @@ const SettingsModal: React.FC<{ visible: boolean; onClose: () => void }> = ({
           <div className="flex-1 p-6">{renderContent()}</div>
         </div>
       </Modal>
+
+      {/* Block Modal */}
+      <BlockModal
+        visible={isBlockModalOpen}
+        onClose={() => setIsBlockModalOpen(false)}
+        t={t}
+      />
+
       <ChangePasswordModal
         visible={isChangePasswordModalOpen}
         onClose={() => setIsChangePasswordModalOpen(false)}

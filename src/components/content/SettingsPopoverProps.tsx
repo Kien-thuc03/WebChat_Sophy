@@ -89,8 +89,9 @@ const SettingsPopover: React.FC<SettingsPopoverProps> = ({
         </span>
       ),
       onClick: () => {
+        console.log("Opening settings modal from SettingsPopover");
         openSettingsModal();
-        onClosePopover(); // Đóng popover
+        onClosePopover();
       },
     },
     { type: "divider" },

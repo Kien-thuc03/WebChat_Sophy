@@ -183,6 +183,8 @@ const translations = {
     friend_requests: "Lời mời kết bạn",
     group_invites: "Lời mời vào nhóm và cộng đồng",
     cancel_request: "Thu hồi lời mời",
+    unblock: "Bỏ chặn",
+    no_blocked_users: "Không có người dùng nào bị chặn",
   },
   en: {
     settings: "Settings",
@@ -365,6 +367,8 @@ const translations = {
     friend_requests: "Friend Requests",
     group_invites: "Group and Community Invites",
     cancel_request: "Cancel Request", // 
+    unblock: "Unblock",
+    no_blocked_users: "No users have been blocked",
   },
 };
 
