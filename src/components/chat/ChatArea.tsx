@@ -30,6 +30,7 @@ import {
   getMessages,
   sendMessage,
   sendImageMessage,
+  sendMessageWithImage,
   fetchConversations,
   getConversationDetail,
 } from "../../api/API";
@@ -76,6 +77,11 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
   const imageInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
   const audioInputRef = useRef<HTMLInputElement>(null);
+  
+  // Thêm state để theo dõi ảnh từ paste
+  const [pastedImage, setPastedImage] = useState<File | null>(null);
+  const [pastedImagePreview, setPastedImagePreview] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   // Kiểm tra xem conversation có hợp lệ không
   const isValidConversation =
@@ -554,6 +560,8 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
       // Chuẩn hóa dữ liệu attachment và attachments từ phản hồi của server
       let mainAttachment = null;
       let attachmentsArray: Array<{ url: string; type: string; name?: string; size?: number }> = [];
+      let tempAttachmentData: Array<{ url: string; type: string; name?: string; size?: number }> = [];
+      let messageType = newMessage.type || "image";
       
       // Xử lý trường attachment
       if (newMessage.attachment && typeof newMessage.attachment === 'object' && 'url' in newMessage.attachment) {
@@ -621,13 +629,55 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
         realMessage.attachments = [attachmentObj];
       }
       
-      // Log kiểm tra tin nhắn thực
-      console.log("Tin nhắn thực từ server:", {
-        id: realMessage.id,
-        fileUrl: realMessage.fileUrl,
-        attachmentUrl: realMessage.attachment?.url,
-        attachmentsUrl: realMessage.attachments?.[0]?.url
-      });
+      // Thêm thông tin tập tin đính kèm
+      if (messageType === "text-with-image" && newMessage.attachment) {
+        // Xử lý tin nhắn với ảnh paste
+        const imageAttachment = newMessage.attachment;
+        
+        // Cập nhật loại tin nhắn và set lại loại tin nhắn đúng
+        realMessage.type = "text-with-image";
+        
+        // Thiết lập các trường cho tin nhắn ảnh
+        realMessage.fileUrl = imageAttachment.url;
+        realMessage.attachment = imageAttachment;
+        realMessage.attachments = [imageAttachment];
+        
+        // Log để kiểm tra
+        console.log(`Tin nhắn text-with-image thực từ server:`, {
+          id: realMessage.id,
+          fileUrl: realMessage.fileUrl,
+          content: realMessage.content,
+          attachmentUrl: realMessage.attachment?.url
+        });
+      }
+      else if ((messageType === "file" || messageType === "image") && attachments.length > 0 && tempAttachmentData.length > 0) {
+        // Tạo đối tượng attachment cho các loại tin nhắn có file đính kèm
+        const fileAttachmentObj = {
+          url: tempAttachmentData[0]?.url,
+          type: attachments[0].type,
+          name: attachments[0].name,
+          size: attachments[0].size,
+        };
+
+        // Thiết lập các trường cụ thể dựa trên loại tin nhắn
+        if (messageType === "file") {
+          realMessage.fileName = attachments[0].name;
+          realMessage.fileSize = attachments[0].size;
+        }
+        
+        // Thiết lập fileUrl và đảm bảo cả hai trường attachment và attachments
+        realMessage.fileUrl = tempAttachmentData[0]?.url;
+        realMessage.attachment = fileAttachmentObj;
+        realMessage.attachments = [fileAttachmentObj];
+        
+        // Log để kiểm tra
+        console.log(`Tin nhắn ${messageType} thực từ server:`, {
+          id: realMessage.id,
+          fileUrl: realMessage.fileUrl,
+          attachmentUrl: realMessage.attachment?.url,
+          attachmentsArray: realMessage.attachments
+        });
+      }
 
       // Update message in the list
       setMessages((prev) =>
@@ -666,9 +716,9 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
 
   // Gửi tin nhắn với tập tin đính kèm
   const handleSendMessage = async () => {
-    // Kiểm tra xem có nội dung gì để gửi không (văn bản hoặc tập tin)
+    // Kiểm tra xem có nội dung gì để gửi không (văn bản, tập tin, hoặc ảnh paste)
     if (
-      (!inputValue.trim() && attachments.length === 0) ||
+      (!inputValue.trim() && attachments.length === 0 && !pastedImage) ||
       !isValidConversation
     )
       return;
@@ -678,7 +728,13 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
 
     // Xác định loại tin nhắn
     let messageType = "text";
-    if (attachments.length > 0) {
+    
+    // Kiểm tra xem có ảnh được paste không
+    if (pastedImage) {
+      messageType = "text-with-image";
+    }
+    // Nếu không có ảnh paste thì kiểm tra attachments
+    else if (attachments.length > 0) {
       // Nếu có nhiều tập tin hoặc không phải hình ảnh, thì là 'file'
       if (attachments.length > 1) {
         messageType = "file";
@@ -689,30 +745,56 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
       }
     }
     
+    // Tạo đối tượng cho ảnh đính kèm (từ paste hoặc attachment)
+    let attachmentObj = null;
+    if (pastedImage) {
+      attachmentObj = {
+        url: pastedImagePreview as string,
+        type: pastedImage.type,
+        name: pastedImage.name || 'pasted-image.png',
+        size: pastedImage.size,
+      };
+    } else if (messageType === "image" && attachments.length > 0) {
+      attachmentObj = {
+        url: URL.createObjectURL(attachments[0]),
+        type: attachments[0].type,
+        name: attachments[0].name,
+        size: attachments[0].size,
+      };
+    }
+    
     // Tạo tin nhắn tạm thời để hiển thị ngay
     const tempMessage: DisplayMessage = {
       id: `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      content: tempContent || (messageType === "image"
-        ? "Đang gửi hình ảnh..."
-        : "Đang gửi tập tin..."),
+      content: tempContent || (
+        messageType === "image" ? "Đang gửi hình ảnh..." :
+        messageType === "text-with-image" ? tempContent :
+        messageType === "file" ? "Đang gửi tập tin..." : ""
+      ),
       timestamp: new Date().toISOString(),
       sender: {
         id: currentUserId,
         name: "Bạn",
         avatar: userCache[currentUserId]?.urlavatar || "",
       },
-      type: messageType as "text" | "image" | "file",
+      type: messageType as "text" | "image" | "file" | "text-with-image",
       isRead: false,
       sendStatus: "sending",
       readBy: [],
       deliveredTo: [],
-      ...(messageType === "file" && attachments.length > 0
-        ? {
-            fileName: attachments[0].name,
-            fileSize: attachments[0].size,
-          }
-        : {}),
     };
+    
+    // Thêm thông tin tập tin nếu có
+    if (attachmentObj) {
+      tempMessage.fileUrl = attachmentObj.url;
+      tempMessage.attachment = attachmentObj;
+      tempMessage.attachments = [attachmentObj];
+      
+      if (messageType === "file") {
+        tempMessage.fileName = attachmentObj.name;
+        tempMessage.fileSize = attachmentObj.size;
+      }
+    }
 
     // Hiển thị tin nhắn tạm thời - Thêm vào cuối danh sách
     setMessages((prev) => [...prev, tempMessage]);
@@ -720,47 +802,47 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
 
     try {
       setIsUploading(true);
-
+      let newMessage;
       // Chuẩn bị mảng attachments để gửi lên server
-      const attachmentData = [];
+      const tempAttachmentData = [];
 
-      // Nếu có tập tin đính kèm, xử lý tải lên
-      if (attachments.length > 0) {
-        // Tùy thuộc vào API của bạn, bạn có thể cần tải lên tập tin trước
-        // Và sau đó gửi đường dẫn trong mảng attachments
-        // Ví dụ đơn giản:
-        for (const file of attachments) {
-          // Tạo một đối tượng FormData để tải lên tập tin
-          const formData = new FormData();
-          formData.append("file", file);
+      // Xử lý dựa trên loại tin nhắn
+      if (messageType === "text-with-image" && pastedImage) {
+        // Gửi tin nhắn kèm ảnh đã paste
+        newMessage = await sendMessageWithImage(
+          conversation.conversationId,
+          tempContent,
+          pastedImage
+        );
+        
+        // Xóa ảnh đã paste sau khi gửi
+        handleRemovePastedImage();
+      } else {
+        // Nếu có tập tin đính kèm, xử lý tải lên
+        if (attachments.length > 0) {
+          for (const file of attachments) {
+            // Tạo một đối tượng FormData để tải lên tập tin
+            const formData = new FormData();
+            formData.append("file", file);
 
-          // Tải lên tập tin và lấy URL từ server
-          // Đây là ví dụ, bạn cần thay thế bằng API thực tế của bạn
-          // const uploadResponse = await uploadFile(formData);
-          // attachmentData.push({
-          //   url: uploadResponse.fileUrl,
-          //   type: file.type,
-          //   name: file.name,
-          //   size: file.size
-          // });
-
-          // Giả lập trong trường hợp chưa có API tải lên
-          attachmentData.push({
-            url: URL.createObjectURL(file),
-            type: file.type,
-            name: file.name,
-            size: file.size,
-          });
+            // Giả lập trong trường hợp chưa có API tải lên
+            tempAttachmentData.push({
+              url: URL.createObjectURL(file),
+              type: file.type,
+              name: file.name,
+              size: file.size,
+            });
+          }
         }
-      }
 
-      // Gửi tin nhắn với tập tin đính kèm
-      const newMessage = await sendMessage(
-        conversation.conversationId,
-        tempContent,
-        messageType,
-        attachmentData
-      );
+        // Gửi tin nhắn với tập tin đính kèm
+        newMessage = await sendMessage(
+          conversation.conversationId,
+          tempContent,
+          messageType,
+          tempAttachmentData
+        );
+      }
       
       if (!newMessage || !newMessage.messageDetailId) {
         throw new Error("Không nhận được phản hồi hợp lệ từ server");
@@ -786,12 +868,47 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
         deliveredTo: newMessage.deliveredTo || [],
         sendStatus: determineMessageStatus(newMessage, currentUserId),
       };
-
+      // Đặt các trường liên quan đến hình ảnh
+      if (newMessage.attachment && newMessage.attachment.url) {
+        realMessage.fileUrl = newMessage.attachment.url;
+        realMessage.attachment = newMessage.attachment;
+      } else if (tempAttachmentData.length > 0) {
+        // Nếu không có URL từ server, giữ URL tạm thời
+        realMessage.fileUrl = tempAttachmentData[0]?.url;
+        realMessage.attachment = tempAttachmentData[0];
+      }
+      
+      if (tempAttachmentData.length > 0) {
+        realMessage.attachments = tempAttachmentData;
+      } else if (attachmentObj) {
+        realMessage.attachments = [attachmentObj];
+      }
+      
       // Thêm thông tin tập tin đính kèm
-      if ((messageType === "file" || messageType === "image") && attachments.length > 0) {
+      if (messageType === "text-with-image" && newMessage.attachment) {
+        // Xử lý tin nhắn với ảnh paste
+        const imageAttachment = newMessage.attachment;
+        
+        // Cập nhật loại tin nhắn và set lại loại tin nhắn đúng
+        realMessage.type = "text-with-image";
+        
+        // Thiết lập các trường cho tin nhắn ảnh
+        realMessage.fileUrl = imageAttachment.url;
+        realMessage.attachment = imageAttachment;
+        realMessage.attachments = [imageAttachment];
+        
+        // Log để kiểm tra
+        console.log(`Tin nhắn text-with-image thực từ server:`, {
+          id: realMessage.id,
+          fileUrl: realMessage.fileUrl,
+          content: realMessage.content,
+          attachmentUrl: realMessage.attachment?.url
+        });
+      }
+      else if ((messageType === "file" || messageType === "image") && attachments.length > 0 && tempAttachmentData.length > 0) {
         // Tạo đối tượng attachment cho các loại tin nhắn có file đính kèm
-        const attachmentObj = {
-          url: attachmentData[0]?.url,
+        const fileAttachmentObj = {
+          url: tempAttachmentData[0]?.url,
           type: attachments[0].type,
           name: attachments[0].name,
           size: attachments[0].size,
@@ -804,9 +921,9 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
         }
         
         // Thiết lập fileUrl và đảm bảo cả hai trường attachment và attachments
-        realMessage.fileUrl = attachmentData[0]?.url;
-        realMessage.attachment = attachmentObj;
-        realMessage.attachments = [attachmentObj];
+        realMessage.fileUrl = tempAttachmentData[0]?.url;
+        realMessage.attachment = fileAttachmentObj;
+        realMessage.attachments = [fileAttachmentObj];
         
         // Log để kiểm tra
         console.log(`Tin nhắn ${messageType} thực từ server:`, {
@@ -1052,6 +1169,56 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
     return "received";
   };
 
+  // Thêm hàm xử lý sự kiện paste
+  const handlePaste = useCallback((e: ClipboardEvent) => {
+    // Kiểm tra xem có ảnh trong clipboard không
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    // Tìm item có type là image
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.indexOf('image') !== -1) {
+        e.preventDefault(); // Ngăn hành vi paste mặc định
+        
+        // Lấy file từ clipboard
+        const file = items[i].getAsFile();
+        if (!file) continue;
+        
+        // Tạo URL preview cho ảnh
+        const url = URL.createObjectURL(file);
+        
+        // Lưu ảnh vào state
+        setPastedImage(file);
+        setPastedImagePreview(url);
+        
+        // Thông báo cho người dùng
+        message.success("Đã dán ảnh vào tin nhắn. Nhấn gửi để gửi tin nhắn kèm ảnh.", 2);
+        
+        break;
+      }
+    }
+  }, []);
+
+  // Thêm effect để xử lý sự kiện paste
+  useEffect(() => {
+    // Thêm event listener khi component được mount
+    document.addEventListener('paste', handlePaste);
+    
+    // Cleanup khi component unmount
+    return () => {
+      document.removeEventListener('paste', handlePaste);
+    };
+  }, [handlePaste]);
+
+  // Thêm hàm để xóa ảnh đã paste
+  const handleRemovePastedImage = () => {
+    if (pastedImagePreview) {
+      URL.revokeObjectURL(pastedImagePreview);
+    }
+    setPastedImage(null);
+    setPastedImagePreview(null);
+  };
+
   // Nếu không có conversation hợp lệ, hiển thị thông báo
   if (!isValidConversation) {
     return (
@@ -1225,6 +1392,24 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
                             alt="Hình ảnh"
                             className="max-w-full max-h-60 rounded-lg"
                           />
+                        ) : message.type === "text-with-image" ? (
+                          <div className="flex flex-col">
+                            <p className="text-sm whitespace-pre-wrap break-words mb-2">
+                              {message.content}
+                            </p>
+                            <img
+                              src={message.fileUrl || 
+                                (message.attachments && message.attachments.length > 0 
+                                  ? message.attachments[0].url 
+                                  : message.attachment?.url || undefined)}
+                              alt="Hình ảnh đính kèm"
+                              className="max-w-full max-h-60 rounded-lg"
+                              onError={(e) => {
+                                e.currentTarget.onerror = null; 
+                                e.currentTarget.src = '/images/image-placeholder.png';
+                              }}
+                            />
+                          </div>
                         ) : message.type === "file" ? (
                         <div className="flex items-center gap-2">
                           <i className="fas fa-file text-gray-500"></i>
@@ -1355,6 +1540,29 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
               aria-label="Tải lên ghi âm"
             />
 
+            {/* Hiển thị ảnh đã paste nếu có */}
+            {pastedImagePreview && (
+              <div className="flex items-center py-2 px-4 border-t border-gray-100">
+                <div className="relative">
+                  <img 
+                    src={pastedImagePreview} 
+                    alt="Ảnh đã dán" 
+                    className="h-16 rounded object-cover"
+                  />
+                  <button
+                    className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs"
+                    onClick={handleRemovePastedImage}
+                  >
+                    ×
+                  </button>
+                </div>
+                <div className="ml-2 text-xs text-gray-600">
+                  <div>Ảnh đã dán</div>
+                  <div className="text-blue-500">Sẽ được gửi cùng với tin nhắn</div>
+                </div>
+              </div>
+            )}
+
             {/* Simplified input area - cleaner design */}
             <div className="flex items-center p-2 px-4 gap-2">
               <Input
@@ -1377,98 +1585,16 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
                 <PictureOutlined className="text-lg text-gray-600 cursor-pointer hover:text-blue-500" onClick={() => imageInputRef.current?.click()} />
               </Tooltip>
 
-              {inputValue.trim() || attachments.length > 0 ? (
+              {inputValue.trim() || attachments.length > 0 || pastedImage ? (
                 <SendOutlined
                   className="text-xl cursor-pointer hover:text-primary text-blue-500"
-                onClick={handleSendMessage}
+                  onClick={handleSendMessage}
                 />
               ) : (
                 <button
                   className="text-2xl focus:outline-none"
                   onClick={() => {
                     // Send thumbs up reaction immediately
-                    const thumbsUp = "👍";
-                    try {
-                      // Show temporary message first
-                      const tempMessage: DisplayMessage = {
-                        id: `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-                        content: thumbsUp,
-                        timestamp: new Date().toISOString(),
-                        sender: {
-                          id: currentUserId,
-                          name: "Bạn",
-                          avatar: userCache[currentUserId]?.urlavatar || "",
-                        },
-                        type: "text",
-                        isRead: false,
-                        sendStatus: "sending",
-                        readBy: [],
-                        deliveredTo: [],
-                      };
-
-                      // Add temp message to list
-                      setMessages((prev) => [...prev, tempMessage]);
-                      scrollToBottomSmooth();
-
-                      // Send the actual message
-                      sendMessage(conversation.conversationId, thumbsUp)
-                        .then((newMessage) => {
-                          if (newMessage && newMessage.messageDetailId) {
-                            // Replace temp message with real one
-                            const sender = userCache[currentUserId] || {
-                              fullname: "Bạn",
-                              urlavatar: "",
-                            };
-                            const realMessage: DisplayMessage = {
-                              id: newMessage.messageDetailId,
-                              content: newMessage.content,
-                              timestamp: newMessage.createdAt,
-                              sender: {
-                                id: newMessage.senderId,
-                                name: sender.fullname,
-                                avatar: sender.urlavatar,
-                              },
-                              type: "text",
-                              isRead: Array.isArray(newMessage.readBy) && newMessage.readBy.length > 0,
-                              readBy: newMessage.readBy || [],
-                              deliveredTo: newMessage.deliveredTo || [],
-                              sendStatus: determineMessageStatus(newMessage, currentUserId),
-                            };
-
-                            // Update messages list
-                            setMessages((prev) =>
-                              prev.map((msg) =>
-                                msg.id === tempMessage.id ? realMessage : msg
-                              )
-                            );
-
-                            // Update conversation list
-                            updateConversationWithNewMessage(
-                              conversation.conversationId,
-                              newMessage
-                            );
-                          }
-                        })
-                        .catch((error) => {
-                          console.error("Lỗi khi gửi tin nhắn:", error);
-                          // Mark temp message as error
-                          setMessages((prev) =>
-                            prev.map((msg) =>
-                              msg.id === tempMessage.id
-                                ? {
-                                    ...msg,
-                                    content: `${msg.content} (Không gửi được)`,
-                                    isError: true,
-                                  }
-                                : msg
-                            )
-                          );
-                          message.error("Không thể gửi tin nhắn");
-                        });
-                    } catch (error: any) {
-                      console.error("Lỗi khi gửi tin nhắn:", error);
-                      message.error(error.message || "Không thể gửi tin nhắn");
-                    }
                   }}
                 >
                   👍

@@ -24,7 +24,7 @@ export interface DisplayMessage {
     name: string;
     avatar?: string;
   };
-  type: "text" | "image" | "file";
+  type: "text" | "image" | "file" | "text-with-image";
   fileUrl?: string;
   fileName?: string;
   fileSize?: number;
