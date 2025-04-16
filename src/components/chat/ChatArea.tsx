@@ -685,7 +685,12 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
       );
 
       // Update conversation list with new message
-      updateConversationWithNewMessage(conversation.conversationId, newMessage);
+      updateConversationWithNewMessage(conversation.conversationId, {
+        content: newMessage.content,
+        type: newMessage.type,
+        createdAt: newMessage.createdAt,
+        senderId: newMessage.senderId
+      });
       
     } catch (error: any) {
       console.error("Lỗi khi gửi hình ảnh:", error);
@@ -940,7 +945,12 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
       );
 
       // Cập nhật ChatList với tin nhắn mới
-      updateConversationWithNewMessage(conversation.conversationId, newMessage);
+      updateConversationWithNewMessage(conversation.conversationId, {
+        content: newMessage.content,
+        type: newMessage.type,
+        createdAt: newMessage.createdAt,
+        senderId: newMessage.senderId
+      });
 
       // Xóa danh sách tập tin đính kèm sau khi gửi
       setAttachments([]);
@@ -1073,7 +1083,8 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
   // Handle emoji selection
   const handleEmojiSelect = (emoji: any) => {
     setInputValue((prev) => prev + emoji.native);
-    setEmojiPickerVisible(false);
+    // Không đóng emoji picker sau khi chọn, cho phép chọn nhiều emoji
+    // setEmojiPickerVisible(false);
   };
 
   // Toggle emoji picker visibility
@@ -1579,7 +1590,10 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
                 onPressEnter={handleKeyPress}
               />
               <Tooltip title="Sticker">
-                <SmileOutlined className="text-lg text-gray-600 cursor-pointer hover:text-blue-500" />
+                <SmileOutlined
+                  className="text-lg text-gray-600 cursor-pointer hover:text-blue-500 emoji-button"
+                  onClick={toggleEmojiPicker}
+                />
               </Tooltip>
               <Tooltip title="Ảnh/Video">
                 <PictureOutlined className="text-lg text-gray-600 cursor-pointer hover:text-blue-500" onClick={() => imageInputRef.current?.click()} />
@@ -1595,6 +1609,70 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
                   className="text-2xl focus:outline-none"
                   onClick={() => {
                     // Send thumbs up reaction immediately
+                    const thumbsUpContent = "👍";
+                    
+                    // Tạo message tạm thời để hiển thị ngay lập tức
+                    const tempId = `temp-${Date.now()}`;
+                    const newMessage: DisplayMessage = {
+                      id: tempId,
+                      content: thumbsUpContent,
+                      sender: {
+                        id: currentUserId,
+                        name: "Bạn", // Sẽ được cập nhật sau
+                        avatar: localStorage.getItem("userAvatar") || undefined
+                      },
+                      timestamp: new Date().toISOString(),
+                      type: "text",
+                      isRead: false,
+                      isError: false,
+                      sendStatus: "sending",
+                    };
+                    
+                    // Thêm vào danh sách tin nhắn và cập nhật UI
+                    setMessages((prevMessages) => [...prevMessages, newMessage]);
+                    scrollToBottom();
+                    
+                    // Gửi tin nhắn
+                    sendMessage(conversation.conversationId, thumbsUpContent, "text")
+                      .then((response) => {
+                        // Cập nhật message với ID từ server
+                        if (response) {
+                          setMessages((prevMessages) => 
+                            prevMessages.map(msg => 
+                              msg.id === tempId 
+                                ? { 
+                                    ...msg, 
+                                    id: response.messageDetailId || tempId, 
+                                    sendStatus: "sent" 
+                                  } 
+                                : msg
+                            )
+                          );
+                          
+                          // Cập nhật conversation với tin nhắn mới
+                          updateConversationWithNewMessage(
+                            conversation.conversationId, 
+                            {
+                              content: thumbsUpContent,
+                              type: "text",
+                              createdAt: new Date().toISOString(),
+                              senderId: currentUserId
+                            }
+                          );
+                        }
+                      })
+                      .catch((error) => {
+                        console.error("Lỗi khi gửi reaction:", error);
+                        // Đánh dấu tin nhắn lỗi
+                        setMessages((prevMessages) => 
+                          prevMessages.map(msg => 
+                            msg.id === tempId 
+                              ? { ...msg, isError: true, sendStatus: "error" } 
+                              : msg
+                          )
+                        );
+                        message.error("Không thể gửi biểu tượng cảm xúc");
+                      });
                   }}
                 >
                   👍
