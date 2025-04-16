@@ -4,10 +4,10 @@ import { MoreOutlined, SearchOutlined } from "@ant-design/icons";
 import { Avatar } from "../common/Avatar";
 import { useLanguage } from "../../features/auth/context/LanguageContext";
 import ErrorBoundary from "../common/ErrorBoundary";
-import { fetchFriends, createConversation, getUserById, removeFriend } from "../../api/API"; // Add removeFriend
+import { fetchFriends, createConversation, getUserById, removeFriend, blockUser } from "../../api/API"; // Add blockUser
 import { Conversation } from "../../features/chat/types/conversationTypes";
 import { User } from "../../features/auth/types/authTypes";
-import UserInfoHeaderModal, { UserResult } from "../header/modal/UserInfoHeaderModal"; // Add modal
+import UserInfoHeaderModal, { UserResult } from "../header/modal/UserInfoHeaderModal";
 
 interface FriendApiResponse {
   id?: string;
@@ -47,8 +47,8 @@ const FriendList: React.FC<FriendListProps> = ({ onSelectFriend, onSelectConvers
   const [sortOrder, setSortOrder] = useState<"A-Z" | "All">("A-Z");
   const [error, setError] = useState<string | null>(null);
   const [userCache, setUserCache] = useState<Record<string, User>>({});
-  const [selectedUser, setSelectedUser] = useState<UserResult | null>(null); // State for modal
-  const [isModalVisible, setIsModalVisible] = useState(false); // State for modal visibility
+  const [selectedUser, setSelectedUser] = useState<UserResult | null>(null);
+  const [isModalVisible, setIsModalVisible] = useState(false);
 
   // Fetch friends from API
   useEffect(() => {
@@ -222,12 +222,25 @@ const FriendList: React.FC<FriendListProps> = ({ onSelectFriend, onSelectConvers
   // Handle "Remove Friend" action
   const handleRemoveFriend = async (friendId: string) => {
     try {
-      await removeFriend(friendId); // Assuming removeFriend API exists
+      await removeFriend(friendId);
       setFriends(prevFriends => prevFriends.filter(friend => friend.id !== friendId));
       message.success("Đã xóa bạn thành công");
     } catch (error) {
       console.error("Error removing friend:", error);
       message.error("Không thể xóa bạn");
+    }
+  };
+
+  // Handle "Block User" action
+  const handleBlockUser = async (friendId: string) => {
+    try {
+      await blockUser(friendId);
+      // After blocking, remove the user from the friends list
+      setFriends(prevFriends => prevFriends.filter(friend => friend.id !== friendId));
+      message.success("Đã chặn người dùng thành công");
+    } catch (error) {
+      console.error("Error blocking user:", error);
+      message.error(error instanceof Error ? error.message : "Không thể chặn người dùng này");
     }
   };
 
@@ -243,7 +256,7 @@ const FriendList: React.FC<FriendListProps> = ({ onSelectFriend, onSelectConvers
       <Menu.Item key="set-nickname" onClick={() => console.log("Đặt tên gợi nhớ:", friend.id)}>
         Đặt tên gợi nhớ
       </Menu.Item>
-      <Menu.Item key="block" onClick={() => console.log("Chặn người này:", friend.id)}>
+      <Menu.Item key="block" onClick={() => handleBlockUser(friend.id)}>
         Chặn người này
       </Menu.Item>
       <Menu.Item
@@ -391,7 +404,6 @@ const FriendList: React.FC<FriendListProps> = ({ onSelectFriend, onSelectConvers
         handleSendFriendRequest={() => {}}
         isSending={false}
         onRequestsUpdate={() => {
-          // Refresh friends list if needed
           fetchFriends().then(data => {
             const formattedFriends: Friend[] = (data as FriendApiResponse[]).map(
               (friend: FriendApiResponse) => ({

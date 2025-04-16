@@ -590,6 +590,68 @@ export const removeFriend = async (friendId: string) => {
     throw new Error(error.response?.data?.message || "Không thể xóa bạn");
   }
 };
+// chặn 1 người dùng
+export const blockUser = async (userId: string) => {
+  try {
+    const token = getAuthToken();
+    if (!token) {
+      throw new Error("Không có token xác thực");
+    }
+
+    const response = await apiClient.put(`/api/users/block/${userId}`);
+    return response.data;
+  } catch (error: any) {
+    if (error.response?.status === 401) {
+      throw new Error("Phiên đăng nhập hết hạn, vui lòng đăng nhập lại");
+    }
+    if (error.response?.status === 404) {
+      throw new Error("Không tìm thấy người dùng");
+    }
+    console.error("Error blocking user:", error);
+    throw new Error(error.response?.data?.message || "Không thể chặn người dùng này");
+  }
+};
+
+// Mở khóa 1 người dùng bị chặn
+export const unblockUser = async (userId: string) => {
+  try {
+    const token = getAuthToken();
+    if (!token) {
+      throw new Error("Không có token xác thực");
+    }
+
+    const response = await apiClient.put(`/api/users/unblock/${userId}`);
+    return response.data;
+  } catch (error: any) {
+    if (error.response?.status === 401) {
+      throw new Error("Phiên đăng nhập hết hạn, vui lòng đăng nhập lại");
+    }
+    if (error.response?.status === 404) {
+      throw new Error("Không tìm thấy người dùng");
+    }
+    console.error("Error unblocking user:", error);
+    throw new Error(error.response?.data?.message || "Không thể bỏ chặn người dùng này");
+  }
+};
+
+// Lấy danh sách người dùng bị chặn
+export const getBlockedUsers = async () => {
+  try {
+    const token = getAuthToken();
+    if (!token) {
+      throw new Error("Không có token xác thực");
+    }
+
+    const response = await apiClient.get('/api/users/blocked');
+    return response.data;
+  } catch (error: any) {
+    if (error.response?.status === 401) {
+      throw new Error("Phiên đăng nhập hết hạn, vui lòng đăng nhập lại");
+    }
+    console.error("Error fetching blocked users:", error);
+    throw new Error(error.response?.data?.message || "Không thể lấy danh sách người dùng bị chặn");
+  }
+};
 // Utility function to log errors with more detail
 const logApiError = (endpoint: string, error: any) => {
   console.error(`API Error in ${endpoint}:`, {
