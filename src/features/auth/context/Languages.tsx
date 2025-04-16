@@ -182,6 +182,7 @@ const translations = {
     group_community_list: "Danh sách nhóm và cộng đồng",
     friend_requests: "Lời mời kết bạn",
     group_invites: "Lời mời vào nhóm và cộng đồng",
+    cancel_request: "Thu hồi lời mời",
   },
   en: {
     settings: "Settings",
@@ -363,6 +364,7 @@ const translations = {
     group_community_list: "Groups and Communities List",
     friend_requests: "Friend Requests",
     group_invites: "Group and Community Invites",
+    cancel_request: "Cancel Request", // 
   },
 };
 

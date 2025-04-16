@@ -536,7 +536,34 @@ export const fetchConversations = async (): Promise<Conversation[]> => {
     return []; // Return empty array instead of throwing
   }
 };
+// Create or get an existing conversation with a friend
+export const createConversation = async (receiverId: string) => {
+  try {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      throw new Error('Không có token xác thực');
+    }
 
+    // Call the API to create a conversation (it will return existing one if found)
+    const response = await apiClient.post('/api/conversations/create', {
+      receiverId: receiverId
+    });
+
+    console.log('Conversation created/retrieved:', response.data);
+    
+    // Return the conversation object
+    return response.data;
+  } catch (error: any) {
+    console.error('Error creating/getting conversation:', error);
+    if (error.response?.status === 401) {
+      throw new Error('Phiên đăng nhập hết hạn, vui lòng đăng nhập lại');
+    }
+    if (error.response?.status === 404) {
+      throw new Error('Không tìm thấy người dùng');
+    }
+    throw new Error(error.response?.data?.message || 'Không thể tạo cuộc trò chuyện');
+  }
+};
 // Utility function to log errors with more detail
 const logApiError = (endpoint: string, error: any) => {
   console.error(`API Error in ${endpoint}:`, {

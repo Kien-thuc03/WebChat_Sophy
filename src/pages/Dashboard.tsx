@@ -13,7 +13,7 @@ import RequestList from "../components/contact/RequestList";
 import { Conversation } from "../features/chat/types/conversationTypes";
 import { useLanguage } from "../features/auth/context/LanguageContext";
 import ChatInfo from "../components/chat/ChatInfo";
-import { Layout, Spin, Button } from 'antd';
+import { Spin, Button } from "antd";
 import { useConversationContext } from "../features/chat/context/ConversationContext";
 
 const Dashboard: React.FC = () => {
@@ -28,39 +28,34 @@ const Dashboard: React.FC = () => {
   const [showChatInfo, setShowChatInfo] = useState(true); // Default to true
   const settingsRef = useRef<HTMLDivElement>(null);
 
-  // Xử lý khi chọn cuộc trò chuyện
+  // Handle conversation selection from FriendList or ChatList
   const handleSelectConversation = (conversation: Conversation) => {
-    // Kiểm tra xem conversation có hợp lệ không
     if (!conversation) {
       console.error("Cuộc trò chuyện không hợp lệ:", conversation);
       return;
     }
-    
-    // Kiểm tra xem conversation có ID và ID có đúng định dạng không
-    if (!conversation.conversationId || typeof conversation.conversationId !== 'string') {
+
+    if (!conversation.conversationId || typeof conversation.conversationId !== "string") {
       console.error("ID cuộc trò chuyện không hợp lệ:", conversation);
       return;
     }
-    
-    // Kiểm tra định dạng (bắt đầu bằng 'conv')
-    if (!conversation.conversationId.startsWith('conv')) {
+
+    if (!conversation.conversationId.startsWith("conv")) {
       console.error(`Định dạng ID cuộc trò chuyện không hợp lệ: ${conversation.conversationId}`);
-      // Sửa ID nếu cần thiết
-      if (conversation.conversationId && !conversation.conversationId.startsWith('conv')) {
-        conversation = {
-          ...conversation,
-          conversationId: `conv${conversation.conversationId}`
-        };
-      }
+      conversation = {
+        ...conversation,
+        conversationId: `conv${conversation.conversationId}`,
+      };
     }
-    
+
     console.log("Đã chọn cuộc trò chuyện:", conversation.conversationId);
     setSelectedConversation(conversation);
+    setActiveSection("chat"); // Switch to chat section
+    setShowChatInfo(true); // Show ChatInfo by default
   };
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      // Kiểm tra xem mục tiêu nhấp chuột có nằm trong submenu của Menu không
       const isMenuItem = (event.target as HTMLElement).closest(
         ".ant-menu-item, .ant-menu-submenu, .ant-menu-submenu-title, .ant-menu"
       );
@@ -68,7 +63,7 @@ const Dashboard: React.FC = () => {
         settingsRef.current &&
         !settingsRef.current.contains(event.target as Node) &&
         !document.querySelector(".settings-modal")?.contains(event.target as Node) &&
-        !isMenuItem // Bỏ qua nếu nhấp vào mục Menu
+        !isMenuItem
       ) {
         console.log("Click outside SettingsMenu detected");
         setIsSettingsOpen(false);
@@ -106,16 +101,12 @@ const Dashboard: React.FC = () => {
   };
 
   const handleSectionChange = (section: string) => {
-    // Only update activeSection for the top section icons
     if (["chat", "friends", "tasks"].includes(section)) {
       setActiveSection(section);
-      
-      // Reset selected conversation when switching to a non-chat section
       if (section !== "chat") {
         setSelectedConversation(null);
       }
     }
-    // For bottom section icons, we don't change the activeSection
   };
 
   const handleContactOptionSelect = (option: string) => {
@@ -125,18 +116,14 @@ const Dashboard: React.FC = () => {
 
   const handleFriendSelect = (friendId: string) => {
     console.log("Selected friend:", friendId);
-    // Here you would typically fetch the conversation with this friend
-    // and then set it as the selected conversation
   };
 
   const handleToggleChatInfo = () => {
-    setShowChatInfo(prev => !prev);
+    setShowChatInfo((prev) => !prev);
   };
 
-  // Add useEffect to check if conversations loaded correctly
   useEffect(() => {
-    // After component mounts, if we're logged in and have no conversations after 5 seconds, try to refresh
-    const userId = localStorage.getItem('userId');
+    const userId = localStorage.getItem("userId");
     if (userId) {
       const timer = setTimeout(() => {
         if (conversations.length === 0 && !isLoading) {
@@ -144,7 +131,7 @@ const Dashboard: React.FC = () => {
           refreshConversations();
         }
       }, 5000);
-      
+
       return () => clearTimeout(timer);
     }
   }, [isLoading, conversations, refreshConversations]);
@@ -157,16 +144,15 @@ const Dashboard: React.FC = () => {
         openSettingsModal={handleOpenSettingsModal}
         onSectionChange={handleSectionChange}
       />
-      
-      {/* Left panel - changes based on active section */}
+
       {activeSection === "chat" && (
         <ChatList onSelectConversation={handleSelectConversation} />
       )}
-      
+
       {activeSection === "friends" && (
         <ContactList onSelectOption={handleContactOptionSelect} />
       )}
-      
+
       {activeSection === "tasks" && (
         <div className="w-80 bg-white dark:bg-gray-900 border-r dark:border-gray-700 h-full flex flex-col overflow-hidden">
           <div className="p-4 border-b dark:border-gray-700">
@@ -177,18 +163,20 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
       )}
-      
-      {/* Main content area */}
+
       <div className="flex flex-1 h-full">
         {isLoading && activeSection === "chat" ? (
           <div className="flex flex-1 items-center justify-center bg-gray-50 dark:bg-gray-800">
             <div className="text-center">
               <Spin size="large" />
-              <p className="mt-4 text-gray-600 dark:text-gray-300">Đang tải dữ liệu hội thoại...</p>
-              <p className="text-sm text-gray-500 mt-2">Vui lòng đợi trong giây lát</p>
-              
-              <Button 
-                type="primary" 
+              <p className="mt-4 text-gray-600 dark:text-gray-300">
+                Đang tải dữ liệu hội thoại...
+              </p>
+              <p className="text-sm text-gray-500 mt-2">
+                Vui lòng đợi trong giây lát
+              </p>
+              <Button
+                type="primary"
                 className="mt-4"
                 onClick={() => refreshConversations()}
               >
@@ -198,7 +186,6 @@ const Dashboard: React.FC = () => {
           </div>
         ) : activeSection === "chat" && selectedConversation ? (
           <div className="flex flex-1 h-full">
-            {/* Left side - Chat Area */}
             <div className="flex flex-col flex-1 min-w-0">
               <ChatHeader
                 conversation={selectedConversation}
@@ -213,8 +200,6 @@ const Dashboard: React.FC = () => {
                 <ChatArea conversation={selectedConversation} />
               </div>
             </div>
-
-            {/* Right side - Chat Info */}
             {showChatInfo && (
               <div className="w-[350px] border-l border-gray-200 flex-shrink-0 overflow-hidden">
                 <ChatInfo conversation={selectedConversation} />
@@ -222,14 +207,21 @@ const Dashboard: React.FC = () => {
             )}
           </div>
         ) : activeSection === "friends" && contactOption === "friends" ? (
-          <FriendList onSelectFriend={handleFriendSelect} />
+          <FriendList
+            onSelectFriend={handleFriendSelect}
+            onSelectConversation={handleSelectConversation} // Pass the handler
+          />
         ) : activeSection === "friends" && contactOption === "friendRequests" ? (
           <RequestList onSelectFriend={handleFriendSelect} />
-        ) : activeSection === "friends" && contactOption !== "friends" && contactOption !== "friendRequests" ? (
+        ) : activeSection === "friends" &&
+          contactOption !== "friends" &&
+          contactOption !== "friendRequests" ? (
           <div className="flex items-center justify-center h-full bg-gray-50 dark:bg-gray-800">
             <p className="text-gray-500 dark:text-gray-400">
-              {contactOption === "groups" && (t.group_community_list || "Danh sách nhóm và cộng đồng")}
-              {contactOption === "groupInvites" && (t.group_invites || "Lời mời vào nhóm và cộng đồng")}
+              {contactOption === "groups" &&
+                (t.group_community_list || "Danh sách nhóm và cộng đồng")}
+              {contactOption === "groupInvites" &&
+                (t.group_invites || "Lời mời vào nhóm và cộng đồng")}
             </p>
           </div>
         ) : activeSection === "tasks" ? (
