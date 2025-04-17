@@ -24,6 +24,7 @@ import {
   CheckOutlined,
   LoadingOutlined,
   CheckCircleOutlined,
+  CloseCircleOutlined,
 } from "@ant-design/icons";
 import {
   Conversation,
@@ -46,6 +47,7 @@ import data from "@emoji-mart/data";
 import Picker from "@emoji-mart/react";
 import socketService from "../../utils/socketService";
 import ImageModal from "./modals/ImageModal";
+import FileUploader from './FileUploader';
 
 // Chuyển đổi Message từ API sang định dạng tin nhắn cần hiển thị
 
@@ -2101,6 +2103,152 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
     loadMoreMessages,
   ]);
 
+  const renderInputArea = () => {
+    return (
+      <div className="chat-input-container">
+        {/* Phần soạn tin nhắn */}
+        <div className="chat-input-wrapper">
+          {/* Phần input chính */}
+          <div className="chat-input-main">
+            {/* Thêm đoạn hiển thị ảnh paste trước input */}
+            {pastedImage && pastedImagePreview && (
+              <div className="pasted-image-preview">
+                <img src={pastedImagePreview} alt="Pasted" />
+                <Button 
+                  icon={<CloseCircleOutlined />} 
+                  size="small" 
+                  className="remove-pasted-image" 
+                  onClick={handleRemovePastedImage}
+                />
+              </div>
+            )}
+
+            {/* Nút emoji */}
+            <div className="emoji-picker-container">
+              <Button 
+                type="text" 
+                icon={<SmileOutlined />} 
+                onClick={toggleEmojiPicker} 
+                className="emoji-button"
+              />
+              {emojiPickerVisible && (
+                <div className="emoji-picker" ref={Picker}>
+                  <Picker 
+                    data={data} 
+                    onEmojiSelect={handleEmojiSelect} 
+                    theme="light"
+                    previewPosition="none"
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Simplified input area - cleaner design */}
+            <div className="flex items-center p-2 px-4 gap-2">
+              {/* Add File Uploader Component */}
+              {isValidConversation && (
+                <div className="mr-2">
+                  <FileUploader 
+                    conversationId={conversation.conversationId}
+                    onUploadComplete={(result) => {
+                      console.log('File uploaded successfully:', result);
+                    }}
+                    onUploadError={(error) => {
+                      console.error('File upload error:', error);
+                      message.error('Failed to upload file. Please try again.');
+                    }}
+                  />
+                </div>
+              )}
+              
+              <Input
+                className="flex-1 py-2 px-2 border-none bg-transparent text-base focus:shadow-none"
+                placeholder={
+                  isUploading
+                    ? "Đang tải lên..."
+                    : `Nhắn @, tin nhắn tới ${conversation.isGroup ? conversation.groupName : "Bạn"}`
+                }
+                bordered={false}
+                disabled={isUploading}
+                value={inputValue}
+                onChange={handleInputChange}
+                onPressEnter={handleKeyPress}
+              />
+            </div>
+
+            {/* Nút gửi */}
+            <Button
+              type="primary"
+              icon={<SendOutlined />}
+              onClick={handleSendMessage}
+              disabled={!isValidConversation || (!inputValue.trim() && !pastedImage && attachments.length === 0)}
+            />
+          </div>
+
+          {/* Thanh công cụ đính kèm */}
+          <div className="attachment-toolbar">
+            {/* File Uploader Component */}
+            {isValidConversation && (
+              <FileUploader 
+                conversationId={conversation?.conversationId || ''}
+                onUploadComplete={(result) => {
+                  console.log('File uploaded successfully:', result);
+                  // Additional handling if needed
+                }}
+                onUploadError={(error) => {
+                  console.error('File upload error:', error);
+                  message.error('Failed to upload file. Please try again.');
+                }}
+              />
+            )}
+            
+            {/* Existing attachment buttons */}
+            <Tooltip title="Attach image">
+              <Button
+                type="text"
+                icon={<PictureOutlined />}
+                onClick={handleImageClick}
+                disabled={!isValidConversation}
+              />
+            </Tooltip>
+            <Tooltip title='Record video'>
+              <Button
+                type="text"
+                icon={<VideoCameraOutlined />}
+                onClick={handleVideoClick}
+                disabled={!isValidConversation}
+              />
+            </Tooltip>
+            <Tooltip title='Record audio'>
+              <Button
+                type="text"
+                icon={<AudioOutlined />}
+                onClick={handleAudioClick}
+                disabled={!isValidConversation}
+              />
+            </Tooltip>
+            <Tooltip title='Share location'>
+              <Button
+                type="text"
+                icon={<EnvironmentOutlined />}
+                onClick={handleLocationClick}
+                disabled={!isValidConversation}
+              />
+            </Tooltip>
+            <Tooltip title="Create poll">
+              <Button
+                type="text"
+                icon={<BarChartOutlined />}
+                onClick={handlePollClick}
+                disabled={!isValidConversation}
+              />
+            </Tooltip>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="w-full h-full flex flex-col">
       <div className="flex flex-col h-full overflow-hidden bg-white rounded-lg relative">
@@ -2481,125 +2629,7 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
               </div>
             )}
 
-            {/* Simplified input area - cleaner design */}
-            <div className="flex items-center p-2 px-4 gap-2">
-              <Input
-                className="flex-1 py-2 px-2 border-none bg-transparent text-base focus:shadow-none"
-                placeholder={
-                  isUploading
-                    ? "Đang tải lên..."
-                    : `Nhắn @, tin nhắn tới ${conversation.isGroup ? conversation.groupName : "Bạn"}`
-                }
-                bordered={false}
-                disabled={isUploading}
-                value={inputValue}
-                onChange={handleInputChange}
-                onPressEnter={handleKeyPress}
-              />
-              <Tooltip title="Sticker">
-                <SmileOutlined
-                  className="text-lg text-gray-600 cursor-pointer hover:text-blue-500 emoji-button"
-                  onClick={toggleEmojiPicker}
-                />
-              </Tooltip>
-              <Tooltip title="Ảnh/Video">
-                <PictureOutlined className="text-lg text-gray-600 cursor-pointer hover:text-blue-500" onClick={() => imageInputRef.current?.click()} />
-              </Tooltip>
-
-              {inputValue.trim() || attachments.length > 0 || pastedImage ? (
-                <SendOutlined
-                  className="text-xl cursor-pointer hover:text-primary text-blue-500"
-                  onClick={handleSendMessage}
-                />
-              ) : (
-                <button
-                  className="text-2xl focus:outline-none"
-                  onClick={() => {
-                    // Send thumbs up reaction immediately
-                    const thumbsUpContent = "👍";
-                    
-                    // Tạo message tạm thời để hiển thị ngay lập tức
-                    const tempId = `temp-${Date.now()}`;
-                    const newMessage: DisplayMessage = {
-                      id: tempId,
-                      content: thumbsUpContent,
-                      sender: {
-                        id: currentUserId,
-                        name: "Bạn", // Sẽ được cập nhật sau
-                        avatar: localStorage.getItem("userAvatar") || undefined
-                      },
-                      timestamp: new Date().toISOString(),
-                      type: "text",
-                      isRead: false,
-                      isError: false,
-                      sendStatus: "sending",
-                    };
-                    
-                    // Thêm vào danh sách tin nhắn và cập nhật UI
-                    setMessages((prevMessages) => [...prevMessages, newMessage]);
-                    scrollToBottom();
-                    
-                    // Gửi tin nhắn
-                    sendMessage(conversation.conversationId, thumbsUpContent, "text")
-                      .then((response) => {
-                        // Cập nhật message với ID từ server
-                        if (response) {
-                          setMessages((prevMessages) => 
-                            prevMessages.map(msg => 
-                              msg.id === tempId 
-                                ? { 
-                                    ...msg, 
-                                    id: response.messageDetailId || tempId, 
-                                    sendStatus: "sent" 
-                                  } 
-                                : msg
-                            )
-                          );
-                          
-                          // Cập nhật conversation với tin nhắn mới
-                          updateConversationWithNewMessage(
-                            conversation.conversationId, 
-                            {
-                              content: thumbsUpContent,
-                              type: "text",
-                              createdAt: new Date().toISOString(),
-                              senderId: currentUserId
-                            }
-                          );
-                        }
-                      })
-                      .catch((error) => {
-                        console.error("Lỗi khi gửi reaction:", error);
-                        // Đánh dấu tin nhắn lỗi
-                        setMessages((prevMessages) => 
-                          prevMessages.map(msg => 
-                            msg.id === tempId 
-                              ? { ...msg, isError: true, sendStatus: "error" } 
-                              : msg
-                          )
-                        );
-                        message.error("Không thể gửi biểu tượng cảm xúc");
-                      });
-                  }}
-                >
-                  👍
-                </button>
-              )}
-
-              {emojiPickerVisible && (
-                <div
-                  className="absolute bottom-16 right-16 z-50 emoji-picker-container 
-                               rounded-lg shadow-lg border border-gray-200 bg-white overflow-hidden"
-                >
-                  <Picker
-                    data={data}
-                    onEmojiSelect={handleEmojiSelect}
-                    theme="light"
-                    previewPosition="none"
-                  />
-                </div>
-              )}
-            </div>
+            {renderInputArea()}
           </div>
         )}
       </div>

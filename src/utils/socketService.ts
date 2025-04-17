@@ -1,5 +1,7 @@
 // socketService.ts
 import io, { Socket } from "socket.io-client";
+import cloudinaryService from './cloudinaryService';
+import axios from 'axios';
 
 const SOCKET_SERVER_URL = "http://localhost:3000";
 
@@ -35,6 +37,18 @@ interface MessageData {
     fullname: string;
     avatar?: string;
   };
+}
+
+// Interface for file attachment
+interface FileAttachment {
+  name: string;
+  type: string;
+  size: number;
+  url: string;
+  downloadUrl: string;
+  publicId?: string;
+  format?: string;
+  mimeType?: string;
 }
 
 class SocketService {
@@ -613,6 +627,79 @@ class SocketService {
   // Lấy danh sách những người đang online
   getOnlineUsers(): string[] {
     return Array.from(this.onlineUsers);
+  }
+
+  // New method: Send a file message
+  async sendFileMessage(conversationId: string, file: File): Promise<any> {
+    try {
+      if (!this.isConnected) {
+        console.warn("Socket not connected while trying to send file, reconnecting...");
+        this.connect();
+        // Wait for connection
+        await new Promise(resolve => {
+          const checkConnection = setInterval(() => {
+            if (this.isConnected) {
+              clearInterval(checkConnection);
+              resolve(true);
+            }
+          }, 100);
+          
+          // Timeout after 5 seconds
+          setTimeout(() => {
+            clearInterval(checkConnection);
+            resolve(false);
+          }, 5000);
+        });
+      }
+      
+      console.log("Bắt đầu tải lên file và gửi tin nhắn...");
+      console.log(`File details: Name=${file.name}, Type=${file.type}, Size=${file.size}`);
+      
+      // Get file type for proper handling
+      const fileType = file.type.startsWith('image/') ? 'image' : 
+                       file.type.startsWith('video/') ? 'video' : 'file';
+                       
+      console.log(`Determined fileType: ${fileType}`);
+      
+      // Sử dụng hàm sendFileMessage từ cloudinaryService thay vì chỉ uploadToCloudinary
+      // Đây là bước quan trọng vì hàm này đã được cập nhật để gửi dữ liệu đến API
+      const result = await cloudinaryService.sendFileMessage(file, conversationId);
+      
+      console.log("Hoàn tất quá trình tải lên và lưu vào database:", result);
+      
+      return result;
+    } catch (error) {
+      console.error("Error sending file message:", error);
+      throw error;
+    }
+  }
+
+  // Add method to get file URL preview
+  getFilePreview(attachment: FileAttachment): string {
+    const type = attachment.type;
+    
+    if (type === 'image') {
+      return attachment.url;
+    } else if (type === 'video') {
+      // Return video thumbnail or default video icon
+      return attachment.url.replace(/\.[^/.]+$/, ".jpg") || '/images/video-icon.png';
+    } else if (type === 'audio') {
+      return '/images/audio-icon.png';
+    } else if (type === 'document') {
+      if (attachment.format === 'pdf') {
+        return '/images/pdf-icon.png';
+      } else if (['doc', 'docx'].includes(attachment.format || '')) {
+        return '/images/word-icon.png';
+      } else if (['xls', 'xlsx'].includes(attachment.format || '')) {
+        return '/images/excel-icon.png';
+      } else if (['ppt', 'pptx'].includes(attachment.format || '')) {
+        return '/images/powerpoint-icon.png';
+      }
+      return '/images/document-icon.png';
+    }
+    
+    // Default file icon
+    return '/images/file-icon.png';
   }
 }
 

@@ -1,7 +1,21 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Avatar } from '../common/Avatar';
 import { formatMessageTime } from '../../utils/dateUtils';
-import { CheckOutlined, ClockCircleOutlined } from '@ant-design/icons';
+import { 
+  CheckOutlined, 
+  ClockCircleOutlined, 
+  FileOutlined, 
+  FileImageOutlined,
+  FileWordOutlined,
+  FilePdfOutlined,
+  FileExcelOutlined,
+  FilePptOutlined,
+  FileZipOutlined,
+  FileUnknownOutlined,
+  DownloadOutlined
+} from '@ant-design/icons';
+import { Button, Tooltip } from 'antd';
+import { formatFileSize } from '../../utils/cloudinaryService';
 
 interface ChatMessageProps {
   message: {
@@ -13,20 +27,35 @@ interface ChatMessageProps {
       name: string;
       avatar?: string;
     };
-    type: 'text' | 'image' | 'file' | 'text-with-image';
+    type: 'text' | 'image' | 'file' | 'audio' | 'video' | 'document' | 'text-with-image';
     fileUrl?: string;
     fileName?: string;
     fileSize?: number;
     isRead?: boolean;
     isError?: boolean;
     sendStatus?: string;
-    attachments?: { url: string }[];
-    attachment?: { url: string; name?: string; size?: number; type?: string };
+    attachments?: Array<{ 
+      url: string; 
+      type?: string; 
+      name?: string; 
+      size?: number; 
+      downloadUrl?: string;
+      format?: string;
+    }>;
+    attachment?: { 
+      url: string; 
+      type?: string; 
+      name?: string; 
+      size?: number; 
+      downloadUrl?: string;
+      format?: string;
+    };
   };
   isOwnMessage: boolean;
   showAvatar?: boolean;
   showSender?: boolean;
   isGroupChat?: boolean;
+  onImageClick?: (url: string) => void;
 }
 
 const ChatMessage: React.FC<ChatMessageProps> = ({
@@ -35,6 +64,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
   showAvatar = true,
   showSender = false,
   isGroupChat = false,
+  onImageClick,
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isOverflowing, setIsOverflowing] = useState(false);
@@ -46,15 +76,6 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
       setIsOverflowing(element.scrollHeight > element.clientHeight);
     }
   }, [message.content]);
-
-  // Format file size
-  const formatFileSize = (bytes?: number): string => {
-    if (!bytes) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-  };
 
   // Get message status text
   const getMessageStatusText = (): string => {
@@ -75,19 +96,62 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
     }
   };
 
+  // Get the correct file icon based on file format
+  const getFileIcon = (format?: string, type?: string) => {
+    if (!format && !type) return <FileUnknownOutlined />;
+    
+    const fileType = type || '';
+    const fileFormat = format || '';
+    
+    if (fileType.startsWith('image/') || fileType === 'image') {
+      return <FileImageOutlined />;
+    } else if (fileFormat === 'pdf' || fileType === 'application/pdf') {
+      return <FilePdfOutlined />;
+    } else if (['doc', 'docx'].includes(fileFormat) || fileType.includes('word')) {
+      return <FileWordOutlined />;
+    } else if (['xls', 'xlsx'].includes(fileFormat) || fileType.includes('excel')) {
+      return <FileExcelOutlined />;
+    } else if (['ppt', 'pptx'].includes(fileFormat) || fileType.includes('powerpoint')) {
+      return <FilePptOutlined />;
+    } else if (['zip', 'rar', '7z'].includes(fileFormat) || fileType.includes('zip') || fileType.includes('compress')) {
+      return <FileZipOutlined />;
+    }
+    
+    return <FileOutlined />;
+  };
+
+  // Handle file download
+  const handleDownload = (url?: string, fileName?: string) => {
+    if (!url) return;
+    
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName || 'download';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   // Render message content based on message type
   const renderMessageContent = () => {
+    // Get attachment info from multiple possible sources
+    const attachment = message.attachment || (message.attachments && message.attachments.length > 0 ? message.attachments[0] : null);
+    const fileUrl = message.fileUrl || (attachment?.url || '');
+    const fileName = message.fileName || (attachment?.name || 'File');
+    const fileSize = message.fileSize || (attachment?.size || 0);
+    const fileType = attachment?.type || '';
+    const fileFormat = attachment?.format || fileName.split('.').pop() || '';
+    const downloadUrl = attachment?.downloadUrl || fileUrl;
+
     switch (message.type) {
       case 'image':
         return (
           <div className="message-image">
             <img 
-              src={message.fileUrl || 
-                (message.attachments && message.attachments.length > 0 
-                  ? message.attachments[0].url 
-                  : message.attachment?.url || undefined)}
-              alt="Image" 
-              className="rounded-md max-w-xs max-h-60 object-cover" 
+              src={fileUrl}
+              alt={fileName || "Image"} 
+              className="rounded-md max-w-xs max-h-60 object-cover cursor-pointer" 
+              onClick={() => onImageClick && onImageClick(fileUrl)}
               onError={(e) => {
                 e.currentTarget.onerror = null; 
                 e.currentTarget.src = '/images/image-placeholder.png';
@@ -95,6 +159,81 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
             />
           </div>
         );
+      
+      case 'video':
+        return (
+          <div className="message-video">
+            <video 
+              src={fileUrl}
+              controls
+              className="rounded-md max-w-xs max-h-60"
+              onError={(e) => {
+                e.currentTarget.onerror = null;
+                e.currentTarget.style.display = 'none';
+              }}
+            />
+            <div className="download-button mt-1">
+              <Button 
+                type="text" 
+                size="small" 
+                icon={<DownloadOutlined />}
+                onClick={() => handleDownload(downloadUrl, fileName)}
+              >
+                Download Video
+              </Button>
+            </div>
+          </div>
+        );
+        
+      case 'audio':
+        return (
+          <div className="message-audio">
+            <audio 
+              src={fileUrl}
+              controls
+              className="w-full max-w-xs"
+              onError={(e) => {
+                e.currentTarget.onerror = null;
+                e.currentTarget.style.display = 'none';
+              }}
+            />
+            <div className="download-button mt-1">
+              <Button 
+                type="text" 
+                size="small" 
+                icon={<DownloadOutlined />}
+                onClick={() => handleDownload(downloadUrl, fileName)}
+              >
+                Download Audio
+              </Button>
+            </div>
+          </div>
+        );
+        
+      case 'document':
+      case 'file':
+        return (
+          <div className="message-file bg-opacity-20 rounded-md p-3 bg-gray-200">
+            <div className="flex items-center">
+              <div className="file-icon text-2xl mr-3">
+                {getFileIcon(fileFormat, fileType)}
+              </div>
+              <div className="file-info flex-grow">
+                <div className="file-name font-medium truncate max-w-xs">{fileName}</div>
+                <div className="file-size text-xs opacity-70">{formatFileSize(fileSize)}</div>
+              </div>
+              <Tooltip title="Download">
+                <Button 
+                  type="text"
+                  shape="circle"
+                  icon={<DownloadOutlined />}
+                  onClick={() => handleDownload(downloadUrl, fileName)}
+                />
+              </Tooltip>
+            </div>
+          </div>
+        );
+        
       case 'text-with-image':
         // Hiển thị cả nội dung text và ảnh
         return (
@@ -130,12 +269,10 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
             {/* Hiển thị ảnh dưới text */}
             <div className="message-image mt-2">
               <img 
-                src={message.fileUrl || 
-                  (message.attachments && message.attachments.length > 0 
-                    ? message.attachments[0].url 
-                    : message.attachment?.url || undefined)}
+                src={fileUrl}
                 alt="Image with text" 
-                className="rounded-md max-w-xs max-h-60 object-cover" 
+                className="rounded-md max-w-xs max-h-60 object-cover cursor-pointer" 
+                onClick={() => onImageClick && onImageClick(fileUrl)}
                 onError={(e) => {
                   e.currentTarget.onerror = null; 
                   e.currentTarget.src = '/images/image-placeholder.png';
@@ -144,16 +281,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
             </div>
           </div>
         );
-      case 'file':
-        return (
-          <div className="message-file flex items-center p-2 bg-opacity-10 rounded-md">
-            <i className="fas fa-file mr-2"></i>
-            <div className="file-info">
-              <div className="file-name truncate max-w-xs">{message.fileName}</div>
-              <div className="file-size text-xs opacity-70">{formatFileSize(message.fileSize)}</div>
-            </div>
-          </div>
-        );
+        
       case 'text':
       default:
         return (
