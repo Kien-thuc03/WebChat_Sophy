@@ -14,7 +14,6 @@ import {
   SendOutlined,
   VideoCameraOutlined,
   AudioOutlined,
-  PaperClipOutlined,
   ReloadOutlined,
   DownOutlined,
   SmileOutlined,
@@ -22,7 +21,6 @@ import {
   CheckOutlined,
   LoadingOutlined,
   CheckCircleOutlined,
-  CloseCircleOutlined,
   DownloadOutlined,
   FileOutlined,
   FileImageOutlined,
@@ -2129,6 +2127,23 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
 
         {/* Main input area */}
         <div className="flex items-center p-2">
+          {/* Input field */}
+          <div className="flex-grow">
+            <Input
+              className="w-full py-2 px-2 bg-gray-100 rounded-2xl border-none focus:shadow-none"
+              placeholder={
+                isUploading
+                  ? "Đang tải lên..."
+                  : `Nhắn @, tin nhắn tới ${conversation?.isGroup ? conversation.groupName : "Bạn"}`
+              }
+              bordered={false}
+              disabled={isUploading}
+              value={inputValue}
+              onChange={handleInputChange}
+              onPressEnter={handleKeyPress}
+            />
+          </div>
+
           {/* File attachment button */}
           <div className="flex-shrink-0 mr-2">
             {isValidConversation && (
@@ -2175,23 +2190,6 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
                 />
               </div>
             )}
-          </div>
-          
-          {/* Input field */}
-          <div className="flex-grow">
-            <Input
-              className="w-full py-2 px-2 bg-gray-100 rounded-2xl border-none focus:shadow-none"
-              placeholder={
-                isUploading
-                  ? "Đang tải lên..."
-                  : `Nhắn @, tin nhắn tới ${conversation?.isGroup ? conversation.groupName : "Bạn"}`
-              }
-              bordered={false}
-              disabled={isUploading}
-              value={inputValue}
-              onChange={handleInputChange}
-              onPressEnter={handleKeyPress}
-            />
           </div>
           
           {/* Like/Send button */}
@@ -2518,12 +2516,6 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
                                 e.currentTarget.src = '/images/image-placeholder.png';
                               }}
                             />
-                            {/* Message status indicator for images */}
-                            {isOwn && (
-                              <div className="absolute bottom-2 right-2 text-white bg-black bg-opacity-40 rounded-md px-1 py-0.5 text-xs">
-                                {renderMessageStatus(message, isOwn)}
-                              </div>
-                            )}
                             <div className="text-right mt-1">
                               <a 
                                 href={message.fileUrl || message.content || ""} 
@@ -2562,12 +2554,6 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
                                   e.currentTarget.src = '/images/image-placeholder.png';
                                 }}
                               />
-                              {/* Message status indicator for text-with-image */}
-                              {isOwn && (
-                                <div className="absolute bottom-2 right-2 text-white bg-black bg-opacity-40 rounded-md px-1 py-0.5 text-xs">
-                                  {renderMessageStatus(message, isOwn)}
-                                </div>
-                              )}
                               <div className="text-right mt-1">
                                 <a 
                                   href={message.fileUrl || 
@@ -2648,11 +2634,6 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
                                 }}
                               />
                             </div>
-                            {isOwn && (
-                              <div className="absolute bottom-2 right-2 text-white bg-black bg-opacity-40 rounded-md px-1 py-0.5 text-xs">
-                                {renderMessageStatus(message, isOwn)}
-                              </div>
-                            )}
                             <div className="text-right mt-1">
                               <a 
                                 href={message.fileUrl || message.attachment?.downloadUrl || message.attachment?.url || ""} 
@@ -2684,8 +2665,8 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
                           className={`flex text-xs text-gray-500 mt-1 ${isOwn ? "justify-end items-center" : "justify-start"}`}
                         >
                       <span>{formatMessageTime(message.timestamp)}</span>
-                      {/* Show status indicator for text messages */}
-                      {isOwn && message.type !== "image" && message.type !== "video" && message.type !== "text-with-image" && (
+                      {/* Show status indicator for all message types */}
+                      {isOwn && (
                         <span className="ml-2">
                           {message.sendStatus === "read" ? 
                             (isLastMessageFromUser ? renderMessageStatus(message, isOwn) : 
