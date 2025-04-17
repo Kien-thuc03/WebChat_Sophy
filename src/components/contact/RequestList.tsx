@@ -65,6 +65,10 @@ const RequestList: React.FC<RequestListProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [selectedUser, setSelectedUser] = useState<UserResult | null>(null);
   const [isModalVisible, setIsModalVisible] = useState(false);
+  const [activeTab, setActiveTab] = useState<string>("received");
+  const [selectedRequestId, setSelectedRequestId] = useState<string | null>(
+    null
+  );
 
   const getRequests = async () => {
     try {
@@ -515,14 +519,18 @@ const RequestList: React.FC<RequestListProps> = ({
     }
   };
 
-  const handleUserClick = (user: {
-    userId: string;
-    fullname: string;
-    urlavatar?: string;
-    isMale?: boolean;
-    birthday?: string;
-    phone?: string;
-  }) => {
+  const handleUserClick = (
+    user: {
+      userId: string;
+      fullname: string;
+      urlavatar?: string;
+      isMale?: boolean;
+      birthday?: string;
+      phone?: string;
+    },
+    requestId?: string,
+    fromTab?: string
+  ) => {
     console.log("RequestList: User clicked:", user.userId);
     setSelectedUser({
       userId: user.userId,
@@ -532,6 +540,8 @@ const RequestList: React.FC<RequestListProps> = ({
       isMale: user.isMale,
       birthday: user.birthday,
     });
+    setSelectedRequestId(requestId || null);
+    setActiveTab(fromTab || activeTab);
     setIsModalVisible(true);
   };
 
@@ -568,7 +578,10 @@ const RequestList: React.FC<RequestListProps> = ({
         </h2>
       </div>
 
-      <Tabs defaultActiveKey="received" className="px-4 flex-1">
+      <Tabs
+        defaultActiveKey="received"
+        className="px-4 flex-1"
+        onChange={(key) => setActiveTab(key)}>
         <TabPane
           tab={
             <span className="pl-5">
@@ -590,7 +603,13 @@ const RequestList: React.FC<RequestListProps> = ({
                   <div className="flex items-start">
                     <div
                       className="cursor-pointer flex-shrink-0 mr-3"
-                      onClick={() => handleUserClick(request.senderId)}>
+                      onClick={() =>
+                        handleUserClick(
+                          request.senderId,
+                          request.friendRequestId,
+                          "received"
+                        )
+                      }>
                       <Avatar
                         name={request.senderId.fullname || "Unknown"}
                         avatarUrl={request.senderId.urlavatar}
@@ -602,7 +621,13 @@ const RequestList: React.FC<RequestListProps> = ({
                       <div className="flex flex-col">
                         <div
                           className="font-medium text-lg cursor-pointer hover:underline"
-                          onClick={() => handleUserClick(request.senderId)}>
+                          onClick={() =>
+                            handleUserClick(
+                              request.senderId,
+                              request.friendRequestId,
+                              "received"
+                            )
+                          }>
                           {request.senderId.fullname || "Unknown"}
                         </div>
                         <div className="text-sm text-gray-500">
@@ -662,7 +687,13 @@ const RequestList: React.FC<RequestListProps> = ({
                       <div className="flex items-start flex-1">
                         <div
                           className="cursor-pointer flex-shrink-0 mr-3"
-                          onClick={() => handleUserClick(request.receiverId)}>
+                          onClick={() =>
+                            handleUserClick(
+                              request.receiverId,
+                              request.friendRequestId,
+                              "sent"
+                            )
+                          }>
                           <Avatar
                             name={request.receiverId.fullname || "Unknown"}
                             avatarUrl={request.receiverId.urlavatar}
@@ -675,7 +706,11 @@ const RequestList: React.FC<RequestListProps> = ({
                             <div
                               className="font-medium text-lg cursor-pointer hover:underline"
                               onClick={() =>
-                                handleUserClick(request.receiverId)
+                                handleUserClick(
+                                  request.receiverId,
+                                  request.friendRequestId,
+                                  "sent"
+                                )
                               }>
                               {request.receiverId.fullname || "Unknown"}
                             </div>
@@ -717,6 +752,12 @@ const RequestList: React.FC<RequestListProps> = ({
         handleSendFriendRequest={() => {}}
         isSending={false}
         onRequestsUpdate={onRequestsUpdate}
+        isFromReceivedTab={activeTab === "received" && !!selectedRequestId}
+        isFromSentTab={activeTab === "sent" && !!selectedRequestId}
+        requestId={selectedRequestId}
+        onAccept={handleAccept}
+        onReject={handleReject}
+        onCancelRequest={handleCancel}  // Changed from onCancel to onCancelRequest
       />
     </div>
   );

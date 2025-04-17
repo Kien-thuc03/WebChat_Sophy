@@ -694,6 +694,38 @@ class SocketService {
     // Default file icon
     return '/images/file-icon.png';
   }
+
+  // Listen for message recall events
+  onMessageRecall(callback: (data: { conversationId: string, messageId: string }) => void) {
+    if (!this.socket) {
+      this.connect();
+    }
+    
+    if (this.socket) {
+      this.socket.on("messageRecalled", (data) => {
+        console.log("SocketService: Message recall event:", data);
+        callback(data);
+      });
+    } else {
+      console.warn("SocketService: Socket not initialized for messageRecalled listener");
+    }
+  }
+
+  // Listen for message deletion events (when a message is hidden from a specific user)
+  onMessageDeleted(callback: (data: { conversationId: string, messageId: string, userId: string }) => void) {
+    if (!this.socket) {
+      this.connect();
+    }
+    
+    if (this.socket) {
+      this.socket.on("messageDeleted", (data) => {
+        console.log("SocketService: Message delete event:", data);
+        callback(data);
+      });
+    } else {
+      console.warn("SocketService: Socket not initialized for messageDeleted listener");
+    }
+  }
 }
 
 export default SocketService.getInstance();

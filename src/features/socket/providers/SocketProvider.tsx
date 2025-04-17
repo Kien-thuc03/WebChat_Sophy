@@ -46,6 +46,27 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
     };
   }, []);
 
+  // Register additional socket listeners when user is authenticated
+  useEffect(() => {
+    const userId = localStorage.getItem("userId");
+    if (userId) {
+      // Register listeners for message events like recall and delete
+      const setupMessageListeners = () => {
+        socketService.onMessageRecall((data) => {
+          console.log("Message recalled:", data);
+          // No need to handle here, handled in ChatArea component
+        });
+
+        socketService.onMessageDeleted((data) => {
+          console.log("Message deleted for user:", data);
+          // No need to handle here, handled in ChatArea component
+        });
+      };
+
+      setupMessageListeners();
+    }
+  }, []);
+
   return <>{children}</>;
 };
 

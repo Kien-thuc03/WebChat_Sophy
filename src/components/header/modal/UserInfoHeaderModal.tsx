@@ -61,6 +61,13 @@ interface UserInfoHeaderModalProps {
   handleSendFriendRequest: (userId: string) => void;
   isSending: boolean;
   onRequestsUpdate?: () => void;
+  // Add these new props
+  isFromReceivedTab?: boolean;
+  isFromSentTab?: boolean;
+  requestId?: string | null;
+  onAccept?: (requestId: string, senderId: string) => Promise<void>;
+  onReject?: (requestId: string) => Promise<void>;
+  onCancelRequest?: (requestId: string) => Promise<void>;
 }
 
 interface SendFriendRequestModalProps {
@@ -160,6 +167,10 @@ const UserInfoHeaderModal: React.FC<UserInfoHeaderModalProps> = ({
   handleMessage,
   isSending,
   onRequestsUpdate,
+  isFromReceivedTab = false,
+  requestId = null,
+  onAccept,
+  onReject,
 }) => {
   const [randomImageId, setRandomImageId] = useState<number>(1);
   const [hasSentFriendRequest, setHasSentFriendRequest] = useState<boolean>(false);
@@ -362,6 +373,22 @@ const UserInfoHeaderModal: React.FC<UserInfoHeaderModalProps> = ({
     onRequestsUpdate?.();
   };
 
+  // Add this function to handle accept from modal
+  const handleAcceptFromModal = () => {
+    if (requestId && searchResult && onAccept) {
+      onAccept(requestId, searchResult.userId);
+      onCancel();
+    }
+  };
+
+  // Add this function to handle reject from modal
+  const handleRejectFromModal = () => {
+    if (requestId && onReject) {
+      onReject(requestId);
+      onCancel();
+    }
+  };
+
   return (
     <>
       <Modal
@@ -442,6 +469,23 @@ const UserInfoHeaderModal: React.FC<UserInfoHeaderModalProps> = ({
                 <Button type="primary" block onClick={handleUpdate}>
                   Cập nhật
                 </Button>
+              ) : isFromReceivedTab && requestId ? (
+                <>
+                  <Button
+                    type="primary"
+                    block
+                    onClick={handleAcceptFromModal}
+                  >
+                    Chấp nhận
+                  </Button>
+                  <Button
+                    type="default"
+                    block
+                    onClick={handleRejectFromModal}
+                  >
+                    Từ chối
+                  </Button>
+                </>
               ) : isFriendState ? (
                 <>
                   <Button type="default" block onClick={handleRemoveFriend}>

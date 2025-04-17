@@ -24,32 +24,29 @@ export interface DisplayMessage {
     name: string;
     avatar?: string;
   };
-  type: "text" | "image" | "file" | "video" | "document" | "text-with-image";
-  fileUrl?: string;
-  fileName?: string;
-  fileSize?: number;
+  type: "text" | "image" | "file" | "audio" | "video" | "text-with-image";
   isRead?: boolean;
   isError?: boolean;
   sendStatus?: string;
   readBy?: string[];
   deliveredTo?: string[];
+  fileUrl?: string;
+  fileName?: string;
+  fileSize?: number;
+  thumbnail?: string;
   tempId?: string;
-  attachments?: Array<{
-    url: string;
-    type: string;
-    name?: string;
-    size?: number;
-    format?: string;
-    downloadUrl?: string;
-    thumbnail?: string;
-  }>;
-  attachment?: {
-    url: string;
-    type: string;
-    name?: string;
-    size?: number;
-    format?: string;
-    downloadUrl?: string;
-    thumbnail?: string;
-  };
+  attachment?: AttachmentInfo;
+  attachments?: AttachmentInfo[];
+  isRecall?: boolean;
+  hiddenFrom?: string[];
+}
+
+export interface AttachmentInfo {
+  url: string;
+  downloadUrl?: string;
+  name?: string;
+  size?: number;
+  type?: string;
+  format?: string;
+  thumbnail?: string;
 }
