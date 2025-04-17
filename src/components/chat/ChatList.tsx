@@ -16,13 +16,14 @@ import { Conversation } from "../../features/chat/types/conversationTypes";
 import { useLanguage } from "../../features/auth/context/LanguageContext";
 import { getUserById } from "../../api/API";
 import { User } from "../../features/auth/types/authTypes";
+import  socketService  from "../../utils/socketService";
 
 interface ChatListProps {
   onSelectConversation: (conversation: Conversation) => void;
 }
 
 const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
-  const { conversations, userCache, displayNames, userAvatars, isLoading } =
+  const { conversations, userCache, displayNames, userAvatars, isLoading, updateConversationWithNewMessage } =
     useConversationContext();
   const { t } = useLanguage();
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
@@ -35,6 +36,8 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
   const [localUserCache, setLocalUserCache] = useState<Record<string, User>>({});
   const menuRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const [currentTime, setCurrentTime] = useState(new Date());
+  const [newMessageHighlight, setNewMessageHighlight] = useState<Record<string, boolean>>({});
 
   // USER == creator = receiver = receiverId
   // USER == receiver = receiver = creatorId
@@ -116,6 +119,33 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
     return user?.urlavatar || '';
   };
 
+  // Add a helper function to calculate the unread count
+  const getUnreadCount = (chat: Conversation): number => {
+    if (typeof chat.unreadCount === 'number') {
+      return chat.unreadCount;
+    }
+    
+    // If it's an array, calculate total for current user
+    if (Array.isArray(chat.unreadCount)) {
+      const currentUserId = localStorage.getItem('userId') || '';
+      const userUnread = chat.unreadCount.find(uc => uc.userId === currentUserId);
+      return userUnread?.count || 0;
+    }
+    
+    return 0;
+  };
+
+  // Add a helper function to check if there are unread messages
+  const hasUnreadMessages = (chat: Conversation): boolean => {
+    // Use explicit hasUnread property if available
+    if (typeof chat.hasUnread === 'boolean') {
+      return chat.hasUnread;
+    }
+    
+    // Otherwise calculate based on unreadCount
+    return getUnreadCount(chat) > 0;
+  };
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
@@ -166,6 +196,102 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
     loadUserData();
   }, [conversations, userCache, localUserCache]);
 
+  useEffect(() => {
+    // Lắng nghe tin nhắn mới từ tất cả các cuộc trò chuyện
+    const handleNewMessage = (data: any) => {
+      console.log("ChatList: Nhận tin nhắn mới:", data);
+      // Cập nhật conversation trong danh sách, được xử lý bởi ConversationContext
+      updateConversationWithNewMessage(data.conversationId, data.message);
+      
+      // Thêm highlight cho tin nhắn mới trong 3 giây
+      if (data.message.senderId !== localStorage.getItem('userId')) {
+        setNewMessageHighlight(prev => ({
+          ...prev,
+          [data.conversationId]: true
+        }));
+        
+        // Xóa highlight sau 3 giây
+        setTimeout(() => {
+          setNewMessageHighlight(prev => ({
+            ...prev,
+            [data.conversationId]: false
+          }));
+        }, 3000);
+      }
+    };
+
+    // Đăng ký lắng nghe sự kiện tin nhắn mới
+    socketService.onNewMessage(handleNewMessage);
+
+    // Hủy đăng ký khi component unmount
+    return () => {
+      socketService.off("newMessage", handleNewMessage);
+    };
+  }, [updateConversationWithNewMessage]);
+
+  useEffect(() => {
+    // Tham gia vào tất cả các phòng cuộc trò chuyện khi danh sách được tải
+    if (conversations.length > 0 && !isLoading) {
+      const conversationIds = conversations.map(conv => conv.conversationId);
+      socketService.joinConversations(conversationIds);
+      console.log("Đã tham gia vào tất cả các cuộc trò chuyện:", conversationIds);
+    }
+  }, [conversations, isLoading]);
+
+  // Thêm function vào ChatList để hiển thị tin nhắn cuối cùng đẹp hơn
+  const getFormattedLastMessage = (chat: Conversation) => {
+    if (!chat.lastMessage) return t.no_messages || "Chưa có tin nhắn";
+    
+    let content = '';
+    
+    // Xử lý nội dung theo loại tin nhắn
+    switch (chat.lastMessage.type) {
+      case 'image':
+        content = '📷 Hình ảnh';
+        break;
+      case 'file':
+        content = '📎 Tệp đính kèm';
+        break;
+      case 'text-with-image':
+        content = `📷 ${chat.lastMessage.content || 'Hình ảnh'}`;
+        break;
+      default:
+        content = chat.lastMessage.content || '';
+    }
+    
+    // Giới hạn độ dài nội dung
+    if (content.length > 30) {
+      content = content.substring(0, 30) + '...';
+    }
+    
+    return content;
+  };
+
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 60000); // Cập nhật mỗi phút
+    
+    return () => clearInterval(intervalId);
+  }, []);
+
+  const renderLastMessageStatus = (chat: Conversation) => {
+    // Hiển thị trạng thái chỉ khi người gửi tin nhắn cuối cùng là người dùng hiện tại
+    if (!chat.lastMessage || chat.lastMessage.senderId !== localStorage.getItem('userId')) return null;
+    
+    // Kiểm tra xem tin nhắn đã được đọc bởi tất cả người nhận chưa
+    const isRead = chat.lastMessage.readBy?.length > 0;
+    const isDelivered = chat.lastMessage.deliveredTo?.length > 0;
+    
+    if (isRead) {
+      return <span className="text-blue-500 text-xs">✓✓</span>; // Đã đọc
+    } else if (isDelivered) {
+      return <span className="text-gray-500 text-xs">✓✓</span>; // Đã gửi
+    } else {
+      return <span className="text-gray-400 text-xs">✓</span>; // Đã gửi nhưng chưa nhận
+    }
+  };
+
   return (
     <div className="chat-list w-80 bg-white dark:bg-gray-900 border-r dark:border-gray-100 h-full flex flex-col overflow-hidden">
       <div className="flex-shrink-0">
@@ -184,7 +310,9 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
           dataSource={conversations}
           renderItem={(chat) => (
             <List.Item
-              className="flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer px-3 py-2"
+              className={`flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer px-3 py-2 ${
+                hasUnreadMessages(chat) ? 'bg-blue-50 dark:bg-blue-900/20' : ''
+              } ${newMessageHighlight[chat.conversationId] ? 'animate-pulse bg-blue-100 dark:bg-blue-800/30' : ''}`}
               onClick={() => onSelectConversation(chat)}>
               {/* Avatar section */}
               <div className="relative shrink-0 pl-2">
@@ -204,15 +332,25 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
                     className="cursor-pointer"
                   />
                 )}
+                {hasUnreadMessages(chat) && (
+                  <span className="absolute top-0 right-0 h-3 w-3 bg-blue-500 rounded-full border border-white"></span>
+                )}
               </div>
 
               {/* Content section */}
               <div className="flex-1 min-w-0">
                 <div className="flex justify-between items-center relative group">
-                  <span className="truncate font-semibold text-gray-900 dark:text-gray-100">
+                  <span className={`truncate font-semibold ${
+                    hasUnreadMessages(chat) ? 'text-blue-700 dark:text-blue-400' : 'text-gray-900 dark:text-gray-100'
+                  }`}>
                     {getConversationName(chat)}
                   </span>
                   <div className="flex items-center">
+                    {getUnreadCount(chat) > 0 && (
+                      <span className="inline-flex items-center justify-center bg-blue-500 text-white text-xs rounded-full px-1.5 py-0.5 min-w-[20px] mr-1">
+                        {getUnreadCount(chat) > 99 ? '99+' : getUnreadCount(chat)}
+                      </span>
+                    )}
                     <span className="text-xs text-gray-500 dark:text-gray-400 group-hover:opacity-0 transition-opacity duration-200">
                       {chat.lastMessage &&
                         formatRelativeTime(chat.lastMessage.createdAt)}
@@ -319,11 +457,12 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
                            "User")}:
                     </span>
                   )}
-                  <span className="truncate">
-                    {chat.lastMessage?.content ||
-                      t.no_messages ||
-                      "Chưa có tin nhắn"}
-                  </span>
+                  <div className="flex items-center space-x-1">
+                    <span className="truncate">
+                      {getFormattedLastMessage(chat)}
+                    </span>
+                    {renderLastMessageStatus(chat)}
+                  </div>
                 </div>
               </div>
 

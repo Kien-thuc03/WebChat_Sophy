@@ -24,6 +24,10 @@ import {
   CheckOutlined,
   LoadingOutlined,
   CheckCircleOutlined,
+  CloseCircleOutlined,
+  DownloadOutlined,
+  FileOutlined,
+  FileImageOutlined,
 } from "@ant-design/icons";
 import {
   Conversation,
@@ -46,16 +50,20 @@ import data from "@emoji-mart/data";
 import Picker from "@emoji-mart/react";
 import socketService from "../../utils/socketService";
 import ImageModal from "./modals/ImageModal";
+import FileUploader from './FileUploader';
+import ReactPlayer from 'react-player';
 
 // Chuyển đổi Message từ API sang định dạng tin nhắn cần hiển thị
 
 
 interface ChatAreaProps {
-  conversation: Conversation;
+  conversation: Conversation | null;
+  viewingImages?: boolean;
 }
 
-const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
+export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
   const [messages, setMessages] = useState<DisplayMessage[]>([]);
+  const [notifications, setNotifications] = useState<any[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -74,8 +82,12 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const { t } = useLanguage();
-  const { userCache, updateConversationWithNewMessage } =
-    useConversationContext();
+  const { 
+    markConversationAsRead, 
+    updateConversationWithNewMessage,
+    updateUnreadStatus,
+    userCache 
+  } = useConversationContext();
   const currentUserId = localStorage.getItem("userId") || "";
   const [imageInputVisible, setImageInputVisible] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -104,6 +116,25 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
   const [isImageModalOpen, setIsImageModalOpen] = useState(false);
 
   useEffect(() => {
+    if (!conversation) return; // Early return if no conversation
+    
+    async function initialLoad() {
+      setLoading(true);
+      setMessages([]);
+      setNotifications([]);
+      // ... existing code ...
+    }
+    
+    initialLoad();
+    return () => {
+      // Only attempt to leave if we have a valid conversation
+      if (conversation && conversation.conversationId) {
+        socketService.leaveConversation(conversation.conversationId);
+      }
+    };
+  }, [conversation?.conversationId]);
+
+  useEffect(() => {
     // Reset state khi chuyển cuộc trò chuyện
     setMessages([]);
     setError(null);
@@ -122,6 +153,9 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
     
     // Chỉ tải tin nhắn và thiết lập socket khi conversation hợp lệ
     if (isValidConversation) {
+      // Mark this conversation as read when it's selected
+      markConversationAsRead(conversation.conversationId);
+      
       // Tải tin nhắn gần nhất với hướng 'before' và không có cursor
       fetchMessages(undefined, "before");
       
@@ -132,10 +166,19 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
       const handleNewMessage = (data: any) => {
         console.log("New message from socket:", data);
         
-        // Kiểm tra xem tin nhắn thuộc conversation hiện tại không
-        if (data.conversationId !== conversation.conversationId) return;
+        // Kiểm tra xem tin nhắn có thuộc cuộc trò chuyện hiện tại không
+        if (!conversation || data.conversationId !== conversation.conversationId) {
+          // Cập nhật danh sách cuộc trò chuyện để hiển thị tin nhắn mới
+          updateConversationWithNewMessage(data.conversationId, data.message);
+          return;
+        }
         
+        // Also update the conversation in the list for current conversation
+        updateConversationWithNewMessage(data.conversationId, data.message);
+        
+        // Rest of the existing code for updating the current conversation's messages
         const msg = data.message;
+        
         const sender = data.sender;
         
         // Kiểm tra tin nhắn hợp lệ và xử lý dữ liệu từ MongoDB
@@ -464,41 +507,40 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
       
       // Callback cho sự kiện tin nhắn đã đọc
       const handleMessageRead = (data: { conversationId: string, messageIds: string[], userId: string }) => {
-        if (data.conversationId !== conversation.conversationId) return;
+        // Kiểm tra xem sự kiện liên quan đến cuộc trò chuyện hiện tại không
+        if (data.conversationId !== conversation.conversationId) {
+          // Still update the unread status in the conversation list even if it's not the current conversation
+          updateUnreadStatus(data.conversationId, data.messageIds);
+          return;
+        }
         
-        console.log("📨 MessageRead event received:", data);
-        
-        // Cập nhật trạng thái đã đọc cho tin nhắn
-        setMessages(prevMessages => {
-          let hasUpdates = false;
-          const updatedMessages = prevMessages.map(msg => {
-            if (data.messageIds.includes(msg.id)) {
-              // Chỉ cập nhật nếu đây là tin nhắn của người dùng hiện tại
-              // và người đánh dấu đã đọc không phải là người dùng hiện tại
-              if (msg.sender.id === currentUserId && data.userId !== currentUserId) {
-                console.log("Updating message status to READ:", msg.id, "Previous status:", msg.sendStatus);
-                hasUpdates = true;
-                
-                // Kiểm tra xem userId đã tồn tại trong mảng readBy chưa
-                const newReadBy = msg.readBy || [];
-                if (!newReadBy.includes(data.userId)) {
-                  newReadBy.push(data.userId);
+        // Cập nhật tin nhắn đã đọc trong cuộc trò chuyện hiện tại
+        if (Array.isArray(data.messageIds) && data.messageIds.length > 0) {
+          setMessages(prev => 
+            prev.map(msg => {
+              // Nếu ID tin nhắn nằm trong danh sách đã đọc
+              if (data.messageIds.includes(msg.id)) {
+                // Nếu mảng readBy chưa có userId này, thêm vào
+                if (!msg.readBy) {
+                  msg.readBy = [data.userId];
+                } else if (!msg.readBy.includes(data.userId)) {
+                  msg.readBy = [...msg.readBy, data.userId];
                 }
-                
                 return {
                   ...msg,
                   isRead: true,
-                  readBy: newReadBy,
-                  sendStatus: "read"
+                  readBy: msg.readBy,
+                  // Add sendStatus update for own messages
+                  sendStatus: msg.sender.id === currentUserId ? "read" : msg.sendStatus
                 };
               }
-            }
-            return msg;
-          });
-          
-          // Chỉ cập nhật state nếu có thay đổi thực sự
-          return hasUpdates ? updatedMessages : prevMessages;
-        });
+              return msg;
+            })
+          );
+        }
+        
+        // Also update the conversation in the list
+        updateUnreadStatus(data.conversationId, data.messageIds);
       };
       
       // Callback cho sự kiện tin nhắn đã gửi
@@ -569,7 +611,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
   // Xử lý đánh dấu đã đọc khi cuộn đến tin nhắn mới
   useEffect(() => {
     // Đánh dấu các tin nhắn mới (từ người khác) là đã đọc khi hiển thị
-    if (isValidConversation && messages.length > 0) {
+    if (isValidConversation && messages.length > 0 && conversation) {
       // Lọc các tin nhắn từ người khác, chưa được đọc
       const unreadMessages = messages
         .filter(msg => 
@@ -583,7 +625,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
         socketService.markMessagesAsRead(conversation.conversationId, unreadMessages);
       }
     }
-  }, [messages, currentUserId, conversation.conversationId, isValidConversation]);
+  }, [messages, currentUserId, conversation?.conversationId, isValidConversation]);
 
   // UseEffect để áp dụng logic loại bỏ tin nhắn trùng lặp khi danh sách tin nhắn thay đổi
   useEffect(() => {
@@ -1139,6 +1181,28 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
 
       // Xóa danh sách tập tin đính kèm sau khi gửi
       setAttachments([]);
+
+      // Sau khi gửi thành công, kiểm tra người nhận có đang xem conversation không để cập nhật trạng thái
+      const activeUsers = socketService.getActiveUsersInConversation(conversation.conversationId);
+      const otherActiveUsers = activeUsers.filter(id => id !== currentUserId);
+      
+      // Nếu có người nhận đang active, cập nhật trạng thái tin nhắn ngay lập tức
+      if (otherActiveUsers.length > 0) {
+        // Cập nhật UI để hiển thị trạng thái "đã đọc" ngay
+        setMessages(prev => 
+          prev.map(msg => {
+            if (msg.id === tempId || msg.id === newMessage.messageDetailId) {
+              return {
+                ...msg,
+                id: newMessage.messageDetailId || msg.id,
+                deliveredTo: otherActiveUsers,
+                sendStatus: "delivered" // Hoặc "read" nếu đã đọc
+              };
+            }
+            return msg;
+          })
+        );
+      }
     } catch (error: any) {
       console.error("Lỗi khi gửi tin nhắn:", error);
       // Đánh dấu tin nhắn tạm là lỗi
@@ -2043,6 +2107,152 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
     loadMoreMessages,
   ]);
 
+  const renderInputArea = () => {
+    return (
+      <div className="chat-input-container">
+        {/* Phần soạn tin nhắn */}
+        <div className="chat-input-wrapper">
+          {/* Phần input chính */}
+          <div className="chat-input-main">
+            {/* Thêm đoạn hiển thị ảnh paste trước input */}
+            {pastedImage && pastedImagePreview && (
+              <div className="pasted-image-preview">
+                <img src={pastedImagePreview} alt="Pasted" />
+                <Button 
+                  icon={<CloseCircleOutlined />} 
+                  size="small" 
+                  className="remove-pasted-image" 
+                  onClick={handleRemovePastedImage}
+                />
+              </div>
+            )}
+
+            {/* Nút emoji */}
+            <div className="emoji-picker-container">
+              <Button 
+                type="text" 
+                icon={<SmileOutlined />} 
+                onClick={toggleEmojiPicker} 
+                className="emoji-button"
+              />
+              {emojiPickerVisible && (
+                <div className="emoji-picker" ref={Picker}>
+                  <Picker 
+                    data={data} 
+                    onEmojiSelect={handleEmojiSelect} 
+                    theme="light"
+                    previewPosition="none"
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Simplified input area - cleaner design */}
+            <div className="flex items-center p-2 px-4 gap-2">
+              {/* Add File Uploader Component */}
+              {isValidConversation && (
+                <div className="mr-2">
+                  <FileUploader 
+                    conversationId={conversation.conversationId}
+                    onUploadComplete={(result) => {
+                      console.log('File uploaded successfully:', result);
+                    }}
+                    onUploadError={(error) => {
+                      console.error('File upload error:', error);
+                      message.error('Failed to upload file. Please try again.');
+                    }}
+                  />
+                </div>
+              )}
+              
+              <Input
+                className="flex-1 py-2 px-2 border-none bg-transparent text-base focus:shadow-none"
+                placeholder={
+                  isUploading
+                    ? "Đang tải lên..."
+                    : `Nhắn @, tin nhắn tới ${conversation.isGroup ? conversation.groupName : "Bạn"}`
+                }
+                bordered={false}
+                disabled={isUploading}
+                value={inputValue}
+                onChange={handleInputChange}
+                onPressEnter={handleKeyPress}
+              />
+            </div>
+
+            {/* Nút gửi */}
+            <Button
+              type="primary"
+              icon={<SendOutlined />}
+              onClick={handleSendMessage}
+              disabled={!isValidConversation || (!inputValue.trim() && !pastedImage && attachments.length === 0)}
+            />
+          </div>
+
+          {/* Thanh công cụ đính kèm */}
+          <div className="attachment-toolbar">
+            {/* File Uploader Component */}
+            {isValidConversation && (
+              <FileUploader 
+                conversationId={conversation?.conversationId || ''}
+                onUploadComplete={(result) => {
+                  console.log('File uploaded successfully:', result);
+                  // Additional handling if needed
+                }}
+                onUploadError={(error) => {
+                  console.error('File upload error:', error);
+                  message.error('Failed to upload file. Please try again.');
+                }}
+              />
+            )}
+            
+            {/* Existing attachment buttons */}
+            <Tooltip title="Attach image">
+              <Button
+                type="text"
+                icon={<PictureOutlined />}
+                onClick={handleImageClick}
+                disabled={!isValidConversation}
+              />
+            </Tooltip>
+            <Tooltip title='Record video'>
+              <Button
+                type="text"
+                icon={<VideoCameraOutlined />}
+                onClick={handleVideoClick}
+                disabled={!isValidConversation}
+              />
+            </Tooltip>
+            <Tooltip title='Record audio'>
+              <Button
+                type="text"
+                icon={<AudioOutlined />}
+                onClick={handleAudioClick}
+                disabled={!isValidConversation}
+              />
+            </Tooltip>
+            <Tooltip title='Share location'>
+              <Button
+                type="text"
+                icon={<EnvironmentOutlined />}
+                onClick={handleLocationClick}
+                disabled={!isValidConversation}
+              />
+            </Tooltip>
+            <Tooltip title="Create poll">
+              <Button
+                type="text"
+                icon={<BarChartOutlined />}
+                onClick={handlePollClick}
+                disabled={!isValidConversation}
+              />
+            </Tooltip>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="w-full h-full flex flex-col">
       <div className="flex flex-col h-full overflow-hidden bg-white rounded-lg relative">
@@ -2150,6 +2360,10 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
                 nextMessage.sender.id !== message.sender.id || // Next message is from different sender
                 shouldShowTimestampSeparator(nextMessage, message); // There's a time separator after this message
               
+              // Determine if this is the last message from the current user in the conversation
+              const isLastMessageFromUser = isOwn && 
+                messages.findIndex((msg, i) => i > index && msg.sender.id === currentUserId) === -1;
+
               return (
                 <React.Fragment key={`${message.id}-${index}`}>
                   {/* Timestamp separator */}
@@ -2217,6 +2431,21 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
                                 {renderMessageStatus(message, isOwn)}
                               </div>
                             )}
+                            <div className="text-right mt-1">
+                              <a 
+                                href={message.fileUrl || message.content || ""} 
+                                download 
+                                className="px-2 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600 inline-flex items-center text-xs shadow-sm transition-colors"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                }}
+                              >
+                                <DownloadOutlined className="mr-1" />
+                                Tải xuống
+                              </a>
+                            </div>
                           </div>
                         ) : message.type === "text-with-image" ? (
                           <div className="flex flex-col">
@@ -2246,16 +2475,108 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
                                   {renderMessageStatus(message, isOwn)}
                                 </div>
                               )}
+                              <div className="text-right mt-1">
+                                <a 
+                                  href={message.fileUrl || 
+                                    (message.attachments && message.attachments.length > 0 
+                                      ? message.attachments[0].downloadUrl 
+                                      : message.attachment?.downloadUrl || "")} 
+                                  download 
+                                  className="px-2 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600 inline-flex items-center text-xs shadow-sm transition-colors"
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                  }}
+                                >
+                                  <DownloadOutlined className="mr-1" />
+                                  Tải xuống
+                                </a>
+                              </div>
                             </div>
                           </div>
                         ) : message.type === "file" ? (
-                        <div className="flex items-center gap-2">
-                          <i className="fas fa-file text-gray-500"></i>
-                            <span className="truncate">
-                              {message.fileName || message.content}
-                            </span>
+                        <div className="flex items-center gap-2 bg-gray-50 p-2 rounded-lg">
+                          <div className="text-xl mr-2">
+                            {message.attachment?.type?.startsWith('image/') ? (
+                              <FileImageOutlined className="text-blue-500" />
+                            ) : message.attachment?.type?.startsWith('audio/') ? (
+                              <AudioOutlined className="text-green-500" />
+                            ) : message.attachment?.type?.startsWith('video/') ? (
+                              <VideoCameraOutlined className="text-purple-500" />
+                            ) : (
+                              <FileOutlined className="text-gray-500" />
+                            )}
+                          </div>
+                          <div className="flex-grow">
+                            <div className="text-sm font-medium truncate">
+                              {message.fileName || message.attachment?.name || message.content}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {message.fileSize ? 
+                                `${Math.round(message.fileSize / 1024)} KB` : 
+                                message.attachment?.size ? 
+                                `${Math.round(message.attachment.size / 1024)} KB` : ""}
+                            </div>
+                          </div>
+                          <a 
+                            href={message.fileUrl || message.attachment?.downloadUrl || message.attachment?.url || ""} 
+                            download 
+                            className="px-2 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600 inline-flex items-center text-xs shadow-sm transition-colors ml-2"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                            }}
+                          >
+                            <DownloadOutlined className="mr-1" />
+                            Tải xuống
+                          </a>
                         </div>
-                      ) : (
+                      ) : message.type === "video" ? (
+                          <div className="relative">
+                            <div className="video-player-container rounded-lg overflow-hidden" style={{ maxWidth: '300px' }}>
+                              <ReactPlayer
+                                url={message.fileUrl || (message.attachment && message.attachment.url) || ''}
+                                width="100%"
+                                height="auto"
+                                controls={true}
+                                light={message.attachment && message.attachment.thumbnail ? message.attachment.thumbnail : true}
+                                pip={false}
+                                playing={false}
+                                className="video-player"
+                                config={{
+                                  file: {
+                                    attributes: {
+                                      controlsList: 'nodownload',
+                                      onContextMenu: (e: React.MouseEvent) => e.preventDefault(),
+                                    },
+                                  },
+                                }}
+                              />
+                            </div>
+                            {isOwn && (
+                              <div className="absolute bottom-2 right-2 text-white bg-black bg-opacity-40 rounded-md px-1 py-0.5 text-xs">
+                                {renderMessageStatus(message, isOwn)}
+                              </div>
+                            )}
+                            <div className="text-right mt-1">
+                              <a 
+                                href={message.fileUrl || message.attachment?.downloadUrl || message.attachment?.url || ""} 
+                                download 
+                                className="px-2 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600 inline-flex items-center text-xs shadow-sm transition-colors"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                }}
+                              >
+                                <DownloadOutlined className="mr-1" />
+                                Tải xuống
+                              </a>
+                            </div>
+                          </div>
+                        ) : (
                           <div className="relative">
                             <p className="text-sm whitespace-pre-wrap break-words">
                               {message.content}
@@ -2271,9 +2592,15 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
                         >
                       <span>{formatMessageTime(message.timestamp)}</span>
                       {/* Show status indicator for text messages */}
-                      {isOwn && message.type !== "image" && message.type !== "text-with-image" && (
+                      {isOwn && message.type !== "image" && message.type !== "video" && message.type !== "text-with-image" && (
                         <span className="ml-2">
-                          {renderMessageStatus(message, isOwn)}
+                          {message.sendStatus === "read" ? 
+                            (isLastMessageFromUser ? renderMessageStatus(message, isOwn) : 
+                             <span className="text-blue-400 text-xs flex items-center">
+                               <CheckOutlined className="mr-1" style={{ fontSize: '10px' }} />
+                             </span>) : 
+                            renderMessageStatus(message, isOwn)
+                          }
                         </span>
                       )}
                     </div>
@@ -2423,125 +2750,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
               </div>
             )}
 
-            {/* Simplified input area - cleaner design */}
-            <div className="flex items-center p-2 px-4 gap-2">
-              <Input
-                className="flex-1 py-2 px-2 border-none bg-transparent text-base focus:shadow-none"
-                placeholder={
-                  isUploading
-                    ? "Đang tải lên..."
-                    : `Nhắn @, tin nhắn tới ${conversation.isGroup ? conversation.groupName : "Bạn"}`
-                }
-                bordered={false}
-                disabled={isUploading}
-                value={inputValue}
-                onChange={handleInputChange}
-                onPressEnter={handleKeyPress}
-              />
-              <Tooltip title="Sticker">
-                <SmileOutlined
-                  className="text-lg text-gray-600 cursor-pointer hover:text-blue-500 emoji-button"
-                  onClick={toggleEmojiPicker}
-                />
-              </Tooltip>
-              <Tooltip title="Ảnh/Video">
-                <PictureOutlined className="text-lg text-gray-600 cursor-pointer hover:text-blue-500" onClick={() => imageInputRef.current?.click()} />
-              </Tooltip>
-
-              {inputValue.trim() || attachments.length > 0 || pastedImage ? (
-                <SendOutlined
-                  className="text-xl cursor-pointer hover:text-primary text-blue-500"
-                  onClick={handleSendMessage}
-                />
-              ) : (
-                <button
-                  className="text-2xl focus:outline-none"
-                  onClick={() => {
-                    // Send thumbs up reaction immediately
-                    const thumbsUpContent = "👍";
-                    
-                    // Tạo message tạm thời để hiển thị ngay lập tức
-                    const tempId = `temp-${Date.now()}`;
-                    const newMessage: DisplayMessage = {
-                      id: tempId,
-                      content: thumbsUpContent,
-                      sender: {
-                        id: currentUserId,
-                        name: "Bạn", // Sẽ được cập nhật sau
-                        avatar: localStorage.getItem("userAvatar") || undefined
-                      },
-                      timestamp: new Date().toISOString(),
-                      type: "text",
-                      isRead: false,
-                      isError: false,
-                      sendStatus: "sending",
-                    };
-                    
-                    // Thêm vào danh sách tin nhắn và cập nhật UI
-                    setMessages((prevMessages) => [...prevMessages, newMessage]);
-                    scrollToBottom();
-                    
-                    // Gửi tin nhắn
-                    sendMessage(conversation.conversationId, thumbsUpContent, "text")
-                      .then((response) => {
-                        // Cập nhật message với ID từ server
-                        if (response) {
-                          setMessages((prevMessages) => 
-                            prevMessages.map(msg => 
-                              msg.id === tempId 
-                                ? { 
-                                    ...msg, 
-                                    id: response.messageDetailId || tempId, 
-                                    sendStatus: "sent" 
-                                  } 
-                                : msg
-                            )
-                          );
-                          
-                          // Cập nhật conversation với tin nhắn mới
-                          updateConversationWithNewMessage(
-                            conversation.conversationId, 
-                            {
-                              content: thumbsUpContent,
-                              type: "text",
-                              createdAt: new Date().toISOString(),
-                              senderId: currentUserId
-                            }
-                          );
-                        }
-                      })
-                      .catch((error) => {
-                        console.error("Lỗi khi gửi reaction:", error);
-                        // Đánh dấu tin nhắn lỗi
-                        setMessages((prevMessages) => 
-                          prevMessages.map(msg => 
-                            msg.id === tempId 
-                              ? { ...msg, isError: true, sendStatus: "error" } 
-                              : msg
-                          )
-                        );
-                        message.error("Không thể gửi biểu tượng cảm xúc");
-                      });
-                  }}
-                >
-                  👍
-                </button>
-              )}
-
-              {emojiPickerVisible && (
-                <div
-                  className="absolute bottom-16 right-16 z-50 emoji-picker-container 
-                               rounded-lg shadow-lg border border-gray-200 bg-white overflow-hidden"
-                >
-                  <Picker
-                    data={data}
-                    onEmojiSelect={handleEmojiSelect}
-                    theme="light"
-                    previewPosition="none"
-                  />
-                </div>
-              )}
-            </div>
+            {renderInputArea()}
           </div>
         )}
       </div>
@@ -2590,6 +2799,4 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
       )}
     </div>
   );
-};
-
-export default ChatArea; 
+}

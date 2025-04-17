@@ -20,6 +20,12 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
       const userId = localStorage.getItem("userId");
       if (userId) {
         socketService.authenticate(userId);
+        
+        // Đăng ký lắng nghe trạng thái active của người dùng
+        socketService.listenToUserActivityStatus();
+        
+        // Đăng ký lắng nghe trạng thái online của người dùng
+        socketService.listenToOnlineStatus();
       }
 
       // Handle reconnection
