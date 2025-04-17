@@ -3,7 +3,9 @@ import { Tabs, Button, message } from "antd";
 import { Avatar } from "../common/Avatar";
 import { useLanguage } from "../../features/auth/context/LanguageContext";
 import ErrorBoundary from "../common/ErrorBoundary";
-import UserInfoHeaderModal, { UserResult } from "../header/modal/UserInfoHeaderModal";
+import UserInfoHeaderModal, {
+  UserResult,
+} from "../header/modal/UserInfoHeaderModal";
 import {
   getFriendRequestsReceived,
   getFriendRequestsSent,
@@ -102,13 +104,17 @@ const RequestList: React.FC<RequestListProps> = ({
 
     // Thiết lập polling với interval ngắn hơn (10 giây)
     const intervalId = setInterval(() => {
-      console.log("RequestList: Đang tự động làm mới danh sách lời mời kết bạn");
+      console.log(
+        "RequestList: Đang tự động làm mới danh sách lời mời kết bạn"
+      );
       getRequests();
     }, 10000); // 10 giây
 
     // Đăng ký sự kiện socket để cập nhật ngay lập tức khi có thay đổi
     const handleSocketUpdate = () => {
-      console.log("RequestList: Nhận được sự kiện cập nhật từ socket, làm mới danh sách");
+      console.log(
+        "RequestList: Nhận được sự kiện cập nhật từ socket, làm mới danh sách"
+      );
       getRequests();
     };
 
@@ -123,7 +129,9 @@ const RequestList: React.FC<RequestListProps> = ({
 
     // Làm mới khi kết nối lại
     socketService.onReconnect(() => {
-      console.log("RequestList: Đã kết nối lại, làm mới danh sách lời mời kết bạn");
+      console.log(
+        "RequestList: Đã kết nối lại, làm mới danh sách lời mời kết bạn"
+      );
       getRequests();
     });
 
@@ -563,11 +571,12 @@ const RequestList: React.FC<RequestListProps> = ({
       <Tabs defaultActiveKey="received" className="px-4 flex-1">
         <TabPane
           tab={
-            <span className="pl-5">Lời mời đã nhận ({receivedRequests.length})</span>
+            <span className="pl-5">
+              Lời mời đã nhận ({receivedRequests.length})
+            </span>
           }
           key="received"
-          className="pl-5"
-        >
+          className="pl-5">
           {error ? (
             <div className="p-4 text-center text-red-500">{error}</div>
           ) : receivedRequests.length === 0 ? (
@@ -577,13 +586,11 @@ const RequestList: React.FC<RequestListProps> = ({
               {receivedRequests.map((request) => (
                 <div
                   key={request.friendRequestId}
-                  className="p-4 border-b dark:border-gray-700 bg-gray-50 dark:bg-gray-800 rounded-lg"
-                >
+                  className="p-4 border-b dark:border-gray-700 bg-gray-50 dark:bg-gray-800 rounded-lg">
                   <div className="flex items-start">
                     <div
                       className="cursor-pointer flex-shrink-0 mr-3"
-                      onClick={() => handleUserClick(request.senderId)}
-                    >
+                      onClick={() => handleUserClick(request.senderId)}>
                       <Avatar
                         name={request.senderId.fullname || "Unknown"}
                         avatarUrl={request.senderId.urlavatar}
@@ -595,8 +602,7 @@ const RequestList: React.FC<RequestListProps> = ({
                       <div className="flex flex-col">
                         <div
                           className="font-medium text-lg cursor-pointer hover:underline"
-                          onClick={() => handleUserClick(request.senderId)}
-                        >
+                          onClick={() => handleUserClick(request.senderId)}>
                           {request.senderId.fullname || "Unknown"}
                         </div>
                         <div className="text-sm text-gray-500">
@@ -616,14 +622,14 @@ const RequestList: React.FC<RequestListProps> = ({
                                 request.friendRequestId,
                                 request.senderId.userId
                               )
-                            }
-                          >
+                            }>
                             {t.agree || "Đồng ý"}
                           </Button>
                           <Button
                             className="flex-1"
-                            onClick={() => handleReject(request.friendRequestId)}
-                          >
+                            onClick={() =>
+                              handleReject(request.friendRequestId)
+                            }>
                             {t.cancel || "Từ chối"}
                           </Button>
                         </div>
@@ -640,9 +646,8 @@ const RequestList: React.FC<RequestListProps> = ({
           tab={
             <span className="pl-1">Lời mời đã gửi ({sentRequests.length})</span>
           }
-          key="sent"
-        >
-          <div className="pt-4">
+          key="sent">
+          <div className="p-4">
             {error ? (
               <div className="p-4 text-center text-red-500">{error}</div>
             ) : sentRequests.length === 0 ? (
@@ -652,14 +657,12 @@ const RequestList: React.FC<RequestListProps> = ({
                 {sentRequests.map((request) => (
                   <div
                     key={request.friendRequestId}
-                    className="p-4 border-b dark:border-gray-700"
-                  >
+                    className="p-4 border-b dark:border-gray-700">
                     <div className="flex items-start justify-between">
                       <div className="flex items-start flex-1">
                         <div
                           className="cursor-pointer flex-shrink-0 mr-3"
-                          onClick={() => handleUserClick(request.receiverId)}
-                        >
+                          onClick={() => handleUserClick(request.receiverId)}>
                           <Avatar
                             name={request.receiverId.fullname || "Unknown"}
                             avatarUrl={request.receiverId.urlavatar}
@@ -671,15 +674,16 @@ const RequestList: React.FC<RequestListProps> = ({
                           <div className="flex flex-col">
                             <div
                               className="font-medium text-lg cursor-pointer hover:underline"
-                              onClick={() => handleUserClick(request.receiverId)}
-                            >
+                              onClick={() =>
+                                handleUserClick(request.receiverId)
+                              }>
                               {request.receiverId.fullname || "Unknown"}
                             </div>
                             <div className="text-sm text-gray-500">
                               {/* {formatDate(request.createdAt)} */}
                             </div>
                             {request.message && (
-                              <div className="mt-2 p-3 bg-gray-200 dark:bg-gray-800 rounded-lg w-2/4 border-b-gray-900">
+                              <div className="mt-2 p-3 bg-gray-200 dark:bg-gray-800 rounded-lg w-full  border-b-gray-900">
                                 {request.message}
                               </div>
                             )}
@@ -689,8 +693,7 @@ const RequestList: React.FC<RequestListProps> = ({
                       <div className="ml-4">
                         <Button
                           danger
-                          onClick={() => handleCancel(request.friendRequestId)}
-                        >
+                          onClick={() => handleCancel(request.friendRequestId)}>
                           {t.cancel_request || "Thu hồi lời mời"}
                         </Button>
                       </div>
