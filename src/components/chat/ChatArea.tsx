@@ -9,6 +9,8 @@ import {
   Popover,
   Tooltip,
   Modal,
+  Dropdown,
+  Menu,
 } from "antd";
 import {
   SendOutlined,
@@ -24,6 +26,17 @@ import {
   DownloadOutlined,
   FileOutlined,
   FileImageOutlined,
+  DeleteOutlined,
+  UndoOutlined,
+  MoreOutlined,
+  ShareAltOutlined,
+  CommentOutlined,
+  CopyOutlined,
+  PushpinOutlined,
+  StarOutlined,
+  UnorderedListOutlined,
+  InfoCircleOutlined,
+  EllipsisOutlined,
 } from "@ant-design/icons";
 import {
   Conversation,
@@ -36,6 +49,8 @@ import {
   sendMessageWithImage,
   fetchConversations,
   getConversationDetail,
+  recallMessage,
+  deleteMessage,
 } from "../../api/API";
 import { useLanguage } from "../../features/auth/context/LanguageContext";
 import { formatMessageTime } from "../../utils/dateUtils";
@@ -110,6 +125,15 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [isImageModalOpen, setIsImageModalOpen] = useState(false);
 
+  // Add state for message actions
+  const [messageActionLoading, setMessageActionLoading] = useState<string | null>(null);
+
+  // Add state for tracking active message hover menu
+  const [activeMessageMenu, setActiveMessageMenu] = useState<string | null>(null);
+
+  // Add state for tracking dropdown visibility
+  const [dropdownVisible, setDropdownVisible] = useState<{[key: string]: boolean}>({});
+  
   useEffect(() => {
     if (!conversation) return; // Early return if no conversation
     
@@ -271,7 +295,9 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
               sendStatus: messageData.senderId === currentUserId ? 
                 (messageData.sendStatus || "sent") : "received",
               // Lưu ID tạm thời để hỗ trợ việc cập nhật
-              tempId: tempMessageWithSameContent.id
+              tempId: tempMessageWithSameContent.id,
+              isRecall: messageData.isRecall || false,
+              hiddenFrom: messageData.hiddenFrom || [],
             };
             
             // Gán cả hai trường attachment và attachments cho tin nhắn hiển thị
@@ -389,7 +415,9 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
             deliveredTo: messageData.deliveredTo || [],
             // Thiết lập rõ ràng trạng thái tin nhắn dựa trên dữ liệu từ server
             sendStatus: messageData.senderId === currentUserId ? 
-              (messageData.sendStatus || "sent") : "received"
+              (messageData.sendStatus || "sent") : "received",
+            isRecall: messageData.isRecall || false,
+            hiddenFrom: messageData.hiddenFrom || [],
           };
           
           // Gán cả hai trường attachment và attachments cho tin nhắn hiển thị
@@ -1046,7 +1074,9 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
         deliveredTo: newMessage.deliveredTo || [],
         sendStatus: "sent", // Đặt rõ ràng trạng thái ban đầu khi gửi thành công là "sent"
         // Lưu ID tạm thời để hỗ trợ việc cập nhật
-        tempId: tempId
+        tempId: tempId,
+        isRecall: newMessage.isRecall || false,
+        hiddenFrom: newMessage.hiddenFrom || [],
       };
       // Đặt các trường liên quan đến hình ảnh
       if (newMessage.attachment && newMessage.attachment.url) {
@@ -1623,8 +1653,16 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
     
     console.log("Deduplicating messages, input count:", messagesToDeduplicate.length);
     
+    // Get current user ID to check hidden messages
+    const currentUserId = localStorage.getItem("userId") || "";
+    
+    // First filter out any messages that should be hidden from current user
+    const visibleMessages = messagesToDeduplicate.filter(msg => 
+      !Array.isArray(msg.hiddenFrom) || !msg.hiddenFrom.includes(currentUserId)
+    );
+    
     // Sắp xếp tin nhắn theo thời gian để đảm bảo thứ tự đúng
-    const sortedMessages = [...messagesToDeduplicate].sort((a, b) => 
+    const sortedMessages = [...visibleMessages].sort((a, b) => 
       new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
     );
     
@@ -1764,6 +1802,9 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
     cursor?: string,
     direction: "before" | "after" = "before"
   ) => {
+    // Define currentUserId at the beginning of the function to avoid reference error
+    const currentUserId = localStorage.getItem("userId") || "";
+    
     if (!isValidConversation) {
       setError("Không thể tải tin nhắn. ID cuộc trò chuyện không hợp lệ.");
       return;
@@ -1909,6 +1950,8 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
             readBy: msg.readBy || [],
             deliveredTo: msg.deliveredTo || [],
             sendStatus: determineMessageStatus(msg, currentUserId),
+            isRecall: msg.isRecall || false,
+            hiddenFrom: msg.hiddenFrom || [],
           };
           
           // Gán cả hai trường attachment và attachments cho tin nhắn hiển thị
@@ -1953,8 +1996,22 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
         `Đã chuyển đổi thành ${displayMessages.length} tin nhắn hiển thị`
       );
 
+      // Filter out messages that should be hidden from current user
+      const filteredMessages = displayMessages.filter(msg => {
+        // Filter out messages that are hidden from current user
+        if (Array.isArray(msg.hiddenFrom) && msg.hiddenFrom.includes(currentUserId)) {
+          console.log(`Filtering out message ${msg.id} hidden from current user`);
+          return false;
+        }
+        return true;
+      });
+
+      console.log(
+        `Sau khi lọc: ${filteredMessages.length} tin nhắn hiển thị`
+      );
+
       // Sắp xếp tin nhắn theo thời gian tăng dần (cũ nhất lên đầu, mới nhất xuống cuối)
-      const sortedMessages = [...displayMessages].sort(
+      const sortedMessages = [...filteredMessages].sort(
         (a, b) =>
         new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
       );
@@ -2050,7 +2107,8 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
       }
       
       setError(errorMessage);
-      message.error(errorMessage);
+      // Replace static message.error call with state management
+      // message.error(errorMessage);
     } finally {
       setLoading(false);
       setLoadingMore(false);
@@ -2065,7 +2123,7 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
       setLoadingMore(true);
       await fetchMessages(oldestCursor, "before");
     } catch (error) {
-      message.error("Lỗi khi tải thêm tin nhắn cũ hơn!");
+      setError("Lỗi khi tải thêm tin nhắn cũ hơn!");
       console.error("Error loading more messages:", error);
     } finally {
       setLoadingMore(false);
@@ -2364,6 +2422,148 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
     }
   };
 
+  // Add socket listeners for message recall and delete
+  useEffect(() => {
+    socketService.onMessageRecall((data) => {
+      if (data.conversationId === conversation?.conversationId) {
+        setMessages((prevMessages) =>
+          prevMessages.map((msg) =>
+            msg.id === data.messageId ? { ...msg, isRecall: true } : msg
+          )
+        );
+      }
+    });
+
+    socketService.onMessageDeleted((data) => {
+      if (
+        data.conversationId === conversation?.conversationId &&
+        data.userId === currentUserId
+      ) {
+        setMessages((prevMessages) =>
+          prevMessages.filter((msg) => msg.id !== data.messageId)
+        );
+      }
+    });
+
+    return () => {
+      socketService.off("messageRecalled", () => {});
+      socketService.off("messageDeleted", () => {});
+    };
+  }, [conversation?.conversationId, currentUserId]);
+
+  // Add handlers for message recall and delete
+  const handleRecallMessage = async (messageId: string) => {
+    try {
+      setMessageActionLoading(messageId);
+      await recallMessage(messageId);
+      // UI update will happen through socket event
+      message.success("Thu hồi tin nhắn thành công");
+    } catch (error) {
+      console.error("Error recalling message:", error);
+      message.error("Không thể thu hồi tin nhắn. Vui lòng thử lại sau.");
+    } finally {
+      setMessageActionLoading(null);
+    }
+  };
+
+  const handleDeleteMessage = async (messageId: string) => {
+    try {
+      setMessageActionLoading(messageId);
+      await deleteMessage(messageId);
+      // Immediately update UI
+      setMessages((prevMessages) =>
+        prevMessages.filter((msg) => msg.id !== messageId)
+      );
+      message.success("Xóa tin nhắn thành công");
+    } catch (error) {
+      console.error("Error deleting message:", error);
+      message.error("Không thể xóa tin nhắn. Vui lòng thử lại sau.");
+    } finally {
+      setMessageActionLoading(null);
+    }
+  };
+
+  // Add a function to handle copying message text
+  const handleCopyMessage = (messageContent: string) => {
+    navigator.clipboard.writeText(messageContent)
+      .then(() => {
+        message.success("Đã sao chép tin nhắn vào clipboard");
+      })
+      .catch(err => {
+        console.error("Lỗi khi sao chép: ", err);
+        message.error("Không thể sao chép tin nhắn");
+      });
+  };
+
+  // Update the message menu to include the copy functionality
+  const getMessageMenu = (message: DisplayMessage) => (
+    <Menu className="message-options-menu">
+      <Menu.Item 
+        key="copy" 
+        icon={<CopyOutlined />}
+        onClick={() => handleCopyMessage(message.content)}
+      >
+        Copy tin nhắn
+      </Menu.Item>
+      <Menu.Item key="pin" icon={<PushpinOutlined />}>
+        Ghim tin nhắn
+      </Menu.Item>
+      <Menu.Item key="mark" icon={<StarOutlined />}>
+        Đánh dấu tin nhắn
+      </Menu.Item>
+      <Menu.Item key="selectMultiple" icon={<UnorderedListOutlined />}>
+        Chọn nhiều tin nhắn
+      </Menu.Item>
+      <Menu.Item key="viewDetails" icon={<InfoCircleOutlined />}>
+        Xem chi tiết
+      </Menu.Item>
+      <Menu.Divider />
+      <Menu.Item 
+        key="recall" 
+        icon={<UndoOutlined />}
+        onClick={() => handleRecallMessage(message.id)}
+        disabled={!!message.isRecall || messageActionLoading === message.id}
+        className="text-red-500 hover:text-red-700"
+        style={{ display: isOwnMessage(message.sender.id) ? 'flex' : 'none' }}
+      >
+        Thu hồi
+      </Menu.Item>
+      <Menu.Item 
+        key="delete" 
+        icon={<DeleteOutlined />}
+        onClick={() => handleDeleteMessage(message.id)}
+        disabled={messageActionLoading === message.id}
+        className="text-red-500 hover:text-red-700"
+      >
+        Xóa chỉ ở phía tôi
+      </Menu.Item>
+    </Menu>
+  );
+
+  // Render recalled message
+  const renderRecalledMessage = (isOwn: boolean) => (
+    <div className={`text-xs italic ${isOwn ? 'text-blue-200' : 'text-gray-500'}`}>
+      Tin nhắn đã bị thu hồi
+    </div>
+  );
+
+  // Add a click event handler to the document to close active menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (activeMessageMenu && !e.defaultPrevented) {
+        const target = e.target as Element;
+        if (!target.closest('.message-hover-controls') && !target.closest('.ant-dropdown')) {
+          setActiveMessageMenu(null);
+        }
+      }
+    };
+
+    document.addEventListener('click', handleClickOutside);
+    return () => {
+      document.removeEventListener('click', handleClickOutside);
+    };
+  }, [activeMessageMenu]);
+
   return (
     <div className="w-full h-full flex flex-col">
       <div className="flex flex-col h-full overflow-hidden bg-white rounded-lg relative">
@@ -2504,9 +2704,81 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
                   )}
                   
                     <div
-                      className="flex flex-col"
+                      className="flex flex-col relative group"
                       style={{ maxWidth: "min(80%)" }}
                     >
+                    {/* Hover message controls */}
+                    <div 
+                      className={`absolute right-0 top-0 -mt-8 ${activeMessageMenu === message.id ? 'flex' : 'hidden group-hover:flex'} items-center space-x-1 bg-white rounded-lg shadow-md px-1 py-0.5 z-10 message-hover-controls ${activeMessageMenu === message.id ? 'active' : ''}`}
+                    >
+                      <Tooltip title="Trả lời">
+                        <Button 
+                          type="text" 
+                          size="small" 
+                          icon={<CommentOutlined />} 
+                          className="text-gray-500 hover:text-blue-500"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            e.preventDefault();
+                            setActiveMessageMenu(message.id);
+                            // Functionality will be implemented later
+                          }}
+                        />
+                      </Tooltip>
+                      <Tooltip title="Chia sẻ">
+                        <Button 
+                          type="text" 
+                          size="small" 
+                          icon={<ShareAltOutlined />} 
+                          className="text-gray-500 hover:text-blue-500"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            e.preventDefault();
+                            setActiveMessageMenu(message.id);
+                            // Functionality will be implemented later
+                          }}
+                        />
+                      </Tooltip>
+                      <Tooltip title="Tùy chọn khác">
+                        <Dropdown 
+                          overlay={getMessageMenu(message)} 
+                          trigger={['click']} 
+                          placement="bottomRight"
+                          overlayClassName="message-dropdown-overlay"
+                          visible={dropdownVisible[message.id] || false}
+                          onVisibleChange={(visible) => {
+                            setDropdownVisible(prev => ({
+                              ...prev,
+                              [message.id]: visible
+                            }));
+                            
+                            if (visible) {
+                              setActiveMessageMenu(message.id);
+                            } else {
+                              // Don't clear activeMessageMenu immediately to allow 
+                              // for smooth transitions between options
+                              setTimeout(() => {
+                                if (activeMessageMenu === message.id) {
+                                  setActiveMessageMenu(null);
+                                }
+                              }, 200);
+                            }
+                          }}
+                        >
+                          <Button 
+                            type="text" 
+                            size="small" 
+                            icon={<MoreOutlined />} 
+                            className="text-gray-500 hover:text-blue-500"
+                            loading={messageActionLoading === message.id}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                            }}
+                          />
+                        </Dropdown>
+                      </Tooltip>
+                    </div>
+                    
                     {showSender && !isOwn && (
                         <div className="text-xs mb-1 ml-1 text-gray-600 truncate">
                         {message.sender.name}
@@ -2522,15 +2794,58 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
                             : "bg-gray-100 text-gray-800 rounded-tl-none"
                         } overflow-hidden`}
                         style={{ wordBreak: "break-word", maxWidth: "100%" }}
+                        onClick={() => setActiveMessageMenu(message.id)}
                     >
-                      {/* Hiển thị nội dung tin nhắn dựa vào loại */}
-                        {message.type === "image" ? (
+                      {/* Hiển thị nội dung tin nhắn */}
+                      {message.isRecall ? (
+                        // Nội dung tin nhắn đã thu hồi
+                        <div className={`text-xs italic ${isOwn ? 'text-blue-200' : 'text-gray-500'}`}>
+                          Tin nhắn đã bị thu hồi
+                        </div>
+                      ) : message.type === "image" ? (
+                        // Tin nhắn hình ảnh
+                        <div className="relative">
+                          <img
+                            src={message.fileUrl || message.content}
+                            alt="Hình ảnh"
+                            className="max-w-full max-h-60 rounded-lg cursor-pointer"
+                            onClick={() => handleImagePreview(message.fileUrl || message.content)}
+                            onError={(e) => {
+                              e.currentTarget.onerror = null; 
+                              e.currentTarget.src = '/images/image-placeholder.png';
+                            }}
+                          />
+                          <div className="text-right mt-1">
+                            <Button 
+                              type="primary" 
+                              size="small" 
+                              icon={<DownloadOutlined />}
+                              onClick={() => handleDownloadFile(message.fileUrl || message.content, "image")}
+                              className="inline-flex items-center text-xs shadow-sm"
+                            >
+                              Tải xuống
+                            </Button>
+                          </div>
+                        </div>
+                      ) : message.type === "text-with-image" ? (
+                        // Rest of the message type conditions remain unchanged
+                        // ...
+                        <div className="flex flex-col">
+                          <p className="text-sm whitespace-pre-wrap break-words mb-2">
+                            {message.content}
+                          </p>
                           <div className="relative">
                             <img
-                              src={message.fileUrl || message.content}
-                              alt="Hình ảnh"
+                              src={message.fileUrl || 
+                                (message.attachments && message.attachments.length > 0 
+                                  ? message.attachments[0].url 
+                                  : message.attachment?.url || undefined)}
+                              alt="Hình ảnh đính kèm"
                               className="max-w-full max-h-60 rounded-lg cursor-pointer"
-                              onClick={() => handleImagePreview(message.fileUrl || message.content)}
+                              onClick={() => handleImagePreview(message.fileUrl || 
+                                (message.attachments && message.attachments.length > 0 
+                                  ? message.attachments[0].url 
+                                  : message.attachment?.url || ''))}
                               onError={(e) => {
                                 e.currentTarget.onerror = null; 
                                 e.currentTarget.src = '/images/image-placeholder.png';
@@ -2541,55 +2856,22 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
                                 type="primary" 
                                 size="small" 
                                 icon={<DownloadOutlined />}
-                                onClick={() => handleDownloadFile(message.fileUrl || message.content, "image")}
+                                onClick={() => handleDownloadFile(
+                                  message.fileUrl || 
+                                  (message.attachments && message.attachments.length > 0 
+                                    ? message.attachments[0].downloadUrl || message.attachments[0].url
+                                    : message.attachment?.downloadUrl || message.attachment?.url),
+                                  message.fileName || message.attachment?.name || "image"
+                                )}
                                 className="inline-flex items-center text-xs shadow-sm"
                               >
                                 Tải xuống
                               </Button>
                             </div>
                           </div>
-                        ) : message.type === "text-with-image" ? (
-                          <div className="flex flex-col">
-                            <p className="text-sm whitespace-pre-wrap break-words mb-2">
-                              {message.content}
-                            </p>
-                            <div className="relative">
-                              <img
-                                src={message.fileUrl || 
-                                  (message.attachments && message.attachments.length > 0 
-                                    ? message.attachments[0].url 
-                                    : message.attachment?.url || undefined)}
-                                alt="Hình ảnh đính kèm"
-                                className="max-w-full max-h-60 rounded-lg cursor-pointer"
-                                onClick={() => handleImagePreview(message.fileUrl || 
-                                  (message.attachments && message.attachments.length > 0 
-                                    ? message.attachments[0].url 
-                                    : message.attachment?.url || ''))}
-                                onError={(e) => {
-                                  e.currentTarget.onerror = null; 
-                                  e.currentTarget.src = '/images/image-placeholder.png';
-                                }}
-                              />
-                              <div className="text-right mt-1">
-                                <Button 
-                                  type="primary" 
-                                  size="small" 
-                                  icon={<DownloadOutlined />}
-                                  onClick={() => handleDownloadFile(
-                                    message.fileUrl || 
-                                    (message.attachments && message.attachments.length > 0 
-                                      ? message.attachments[0].downloadUrl || message.attachments[0].url
-                                      : message.attachment?.downloadUrl || message.attachment?.url),
-                                    message.fileName || message.attachment?.name || "image"
-                                  )}
-                                  className="inline-flex items-center text-xs shadow-sm"
-                                >
-                                  Tải xuống
-                                </Button>
-                              </div>
-                            </div>
-                          </div>
-                        ) : message.type === "file" ? (
+                        </div>
+                      ) : message.type === "file" ? (
+                        // File message
                         <div className="flex items-center gap-2 bg-gray-50 p-2 rounded-lg">
                           <div className="text-xl mr-2">
                             {message.attachment?.type?.startsWith('image/') ? (
@@ -2627,48 +2909,50 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
                           </Button>
                         </div>
                       ) : message.type === "video" ? (
-                          <div className="relative">
-                            <div className="video-player-container rounded-lg overflow-hidden" style={{ maxWidth: '300px' }}>
-                              <ReactPlayer
-                                url={message.fileUrl || (message.attachment && message.attachment.url) || ''}
-                                width="100%"
-                                height="auto"
-                                controls={true}
-                                light={message.attachment && message.attachment.thumbnail ? message.attachment.thumbnail : true}
-                                pip={false}
-                                playing={false}
-                                className="video-player"
-                                config={{
-                                  file: {
-                                    attributes: {
-                                      controlsList: 'nodownload',
-                                      onContextMenu: (e: React.MouseEvent) => e.preventDefault(),
-                                    },
+                        // Video message
+                        <div className="relative">
+                          <div className="video-player-container rounded-lg overflow-hidden" style={{ maxWidth: '300px' }}>
+                            <ReactPlayer
+                              url={message.fileUrl || (message.attachment && message.attachment.url) || ''}
+                              width="100%"
+                              height="auto"
+                              controls={true}
+                              light={message.attachment && message.attachment.thumbnail ? message.attachment.thumbnail : true}
+                              pip={false}
+                              playing={false}
+                              className="video-player"
+                              config={{
+                                file: {
+                                  attributes: {
+                                    controlsList: 'nodownload',
+                                    onContextMenu: (e: React.MouseEvent) => e.preventDefault(),
                                   },
-                                }}
-                              />
-                            </div>
-                            <div className="text-right mt-1">
-                              <Button 
-                                type="primary" 
-                                size="small" 
-                                icon={<DownloadOutlined />}
-                                onClick={() => handleDownloadFile(
-                                  message.fileUrl || message.attachment?.downloadUrl || message.attachment?.url, 
-                                  message.fileName || message.attachment?.name || "video"
-                                )}
-                                className="inline-flex items-center text-xs shadow-sm"
-                              >
-                                Tải xuống
-                              </Button>
-                            </div>
+                                },
+                              }}
+                            />
                           </div>
-                        ) : (
-                          <div className="relative">
-                            <p className="text-sm whitespace-pre-wrap break-words">
-                              {message.content}
-                            </p>
+                          <div className="text-right mt-1">
+                            <Button 
+                              type="primary" 
+                              size="small" 
+                              icon={<DownloadOutlined />}
+                              onClick={() => handleDownloadFile(
+                                message.fileUrl || message.attachment?.downloadUrl || message.attachment?.url, 
+                                message.fileName || message.attachment?.name || "video"
+                              )}
+                              className="inline-flex items-center text-xs shadow-sm"
+                            >
+                              Tải xuống
+                            </Button>
                           </div>
+                        </div>
+                      ) : (
+                        // Text message (default)
+                        <div className="relative">
+                          <p className="text-sm whitespace-pre-wrap break-words">
+                            {message.content}
+                          </p>
+                        </div>
                       )}
                     </div>
                     
@@ -2678,8 +2962,8 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
                           className={`flex text-xs text-gray-500 mt-1 ${isOwn ? "justify-end items-center" : "justify-start"}`}
                         >
                       <span>{formatMessageTime(message.timestamp)}</span>
-                      {/* Show status indicator for all message types */}
-                      {isOwn && (
+                      {/* Show status indicator for all message types except recalled */}
+                      {isOwn && !message.isRecall && (
                         <span className="ml-2">
                           {message.sendStatus === "read" ? 
                             (isLastMessageFromUser ? renderMessageStatus(message, isOwn) : 
@@ -2834,6 +3118,85 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
           box-shadow: 0 4px 20px rgba(0,0,0,0.1);
           border-radius: 8px;
           overflow: hidden;
+        }
+        
+        /* Message hover controls styles */
+        .group:hover .hidden.group-hover\\:flex {
+          display: flex !important;
+        }
+        
+        .message-options-menu .ant-dropdown-menu-item.text-red-500 {
+          color: #ef4444;
+        }
+        
+        .message-options-menu .ant-dropdown-menu-item.text-red-500:hover {
+          color: #b91c1c;
+          background-color: rgba(239, 68, 68, 0.1);
+        }
+        
+        .message-options-menu .ant-dropdown-menu-item {
+          padding: 8px 12px;
+        }
+        
+        /* Message dropdown overlay styles */
+        .message-dropdown-overlay .ant-dropdown-menu {
+          padding: 4px 0;
+          border-radius: 8px;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        }
+        
+        .message-dropdown-overlay .ant-dropdown-menu-item {
+          min-width: 180px;
+        }
+        
+        .message-dropdown-overlay .ant-dropdown-menu-item .anticon {
+          margin-right: 10px;
+        }
+        
+        .ant-dropdown-menu-item-divider {
+          margin: 4px 0;
+        }
+
+        /* Improve hover control persistence */
+        .message-hover-controls {
+          opacity: 0;
+          transition: opacity 0.2s ease-in-out, transform 0.2s ease-in-out;
+          transform: translateY(2px);
+          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+        
+        .group:hover .message-hover-controls {
+          opacity: 1;
+          transform: translateY(0);
+        }
+        
+        .message-hover-controls:hover,
+        .message-hover-controls.active {
+          opacity: 1;
+          transform: translateY(0);
+          box-shadow: 0 4px 8px -2px rgba(0, 0, 0, 0.1), 0 2px 6px -2px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Add hover effect to the buttons */
+        .message-hover-controls .ant-btn {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 28px;
+          height: 28px;
+          padding: 0;
+          border-radius: 50%;
+          transition: background-color 0.2s ease-in-out;
+        }
+
+        .message-hover-controls .ant-btn:hover {
+          background-color: rgba(0, 0, 0, 0.05);
+        }
+        
+        /* Make buttons in hover controls stay visible when clicked */
+        .message-hover-controls .ant-btn:active,
+        .message-hover-controls .ant-btn:focus {
+          background-color: rgba(0, 0, 0, 0.1);
         }
         `}
       </style>
