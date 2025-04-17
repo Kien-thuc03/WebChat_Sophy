@@ -518,7 +518,7 @@ const RequestList: React.FC<RequestListProps> = ({
     console.log("RequestList: User clicked:", user.userId);
     setSelectedUser({
       userId: user.userId,
-      fullname: user.fullname,
+      fullname: user.fullname || "Unknown",
       phone: user.phone || "",
       avatar: user.urlavatar,
       isMale: user.isMale,
@@ -585,7 +585,7 @@ const RequestList: React.FC<RequestListProps> = ({
                       onClick={() => handleUserClick(request.senderId)}
                     >
                       <Avatar
-                        name={request.senderId.fullname}
+                        name={request.senderId.fullname || "Unknown"}
                         avatarUrl={request.senderId.urlavatar}
                         size={60}
                         className="flex-shrink-0"
@@ -597,7 +597,7 @@ const RequestList: React.FC<RequestListProps> = ({
                           className="font-medium text-lg cursor-pointer hover:underline"
                           onClick={() => handleUserClick(request.senderId)}
                         >
-                          {request.senderId.fullname}
+                          {request.senderId.fullname || "Unknown"}
                         </div>
                         <div className="text-sm text-gray-500">
                           {/* {formatDate(request.createdAt)} */}
@@ -661,7 +661,7 @@ const RequestList: React.FC<RequestListProps> = ({
                           onClick={() => handleUserClick(request.receiverId)}
                         >
                           <Avatar
-                            name={request.receiverId.fullname}
+                            name={request.receiverId.fullname || "Unknown"}
                             avatarUrl={request.receiverId.urlavatar}
                             size={60}
                             className="flex-shrink-0"
@@ -673,7 +673,7 @@ const RequestList: React.FC<RequestListProps> = ({
                               className="font-medium text-lg cursor-pointer hover:underline"
                               onClick={() => handleUserClick(request.receiverId)}
                             >
-                              {request.receiverId.fullname}
+                              {request.receiverId.fullname || "Unknown"}
                             </div>
                             <div className="text-sm text-gray-500">
                               {/* {formatDate(request.createdAt)} */}

@@ -10,7 +10,7 @@ import {
   getUserById,
   removeFriend,
   blockUser,
-} from "../../api/API"; // Add blockUser
+} from "../../api/API";
 import { Conversation } from "../../features/chat/types/conversationTypes";
 import { User } from "../../features/auth/types/authTypes";
 import UserInfoHeaderModal, {
@@ -72,7 +72,7 @@ const FriendList: React.FC<FriendListProps> = ({
         const formattedFriends: Friend[] = friendsData.map(
           (friend: FriendApiResponse) => ({
             id: friend.userId || friend._id || "",
-            name: friend.fullname || friend.username || "Unknown",
+            name: friend.fullname || friend.username || "User", // Fallback to "User" like ChatHeader
             avatarUrl: friend.avatarUrl || friend.urlavatar,
             status: friend.status || "offline",
             lastSeen: friend.lastActive,
@@ -225,7 +225,7 @@ const FriendList: React.FC<FriendListProps> = ({
     const userData = userCache[friend.id];
     setSelectedUser({
       userId: friend.id,
-      fullname: friend.name,
+      fullname: friend.name || "User", // Fallback to "User" like ChatHeader
       phone: userData?.phone || "",
       avatar: friend.avatarUrl,
       isMale: userData?.isMale,
@@ -273,12 +273,14 @@ const FriendList: React.FC<FriendListProps> = ({
       </Menu.Item>
       <Menu.Item
         key="categorize"
-        onClick={() => console.log("Phân loại:", friend.id)}>
+        onClick={() => console.log("Phân loại:", friend.id)}
+      >
         Phân loại
       </Menu.Item>
       <Menu.Item
         key="set-nickname"
-        onClick={() => console.log("Đặt tên gợi nhớ:", friend.id)}>
+        onClick={() => console.log("Đặt tên gợi nhớ:", friend.id)}
+      >
         Đặt tên gợi nhớ
       </Menu.Item>
       <Menu.Item key="block" onClick={() => handleBlockUser(friend.id)}>
@@ -287,7 +289,8 @@ const FriendList: React.FC<FriendListProps> = ({
       <Menu.Item
         key="remove-friend"
         onClick={() => handleRemoveFriend(friend.id)}
-        style={{ color: "red" }}>
+        style={{ color: "red" }}
+      >
         Xóa bạn
       </Menu.Item>
     </Menu>
@@ -302,11 +305,12 @@ const FriendList: React.FC<FriendListProps> = ({
   const renderFriendItem = (friend: Friend) => (
     <List.Item
       className="px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
-      onClick={() => handleFriendClick(friend.id)}>
+      onClick={() => handleFriendClick(friend.id)}
+    >
       <div className="flex items-center w-full ">
         <div className="relative mr-3 pl-3">
           <Avatar
-            name={friend.name}
+            name={friend.name || "User"} // Fallback to "User" like ChatHeader
             avatarUrl={friend.avatarUrl}
             size={40}
             className="mr-0"
@@ -316,7 +320,7 @@ const FriendList: React.FC<FriendListProps> = ({
           )}
         </div>
         <div className="flex-1">
-          <div className="font-medium">{friend.name}</div>
+          <div className="font-medium">{friend.name || "User"}</div>
           <div className="text-sm text-gray-500">
             {friend.isOnline ? (
               <div className="flex items-center">
@@ -371,7 +375,8 @@ const FriendList: React.FC<FriendListProps> = ({
               label: option.key === "A-Z" ? "Tên (A-Z)" : t.all || "Tất cả",
               onClick: () => setSortOrder(option.key as "A-Z" | "All"),
             })),
-          }}>
+          }}
+        >
           <Button type="text">
             {sortOrder === "A-Z" ? "Tên (A-Z)" : t.all || "Tất cả"}
           </Button>
@@ -380,7 +385,8 @@ const FriendList: React.FC<FriendListProps> = ({
         <Dropdown
           menu={{
             items: [{ key: "all", label: t.all || "Tất cả" }],
-          }}>
+          }}
+        >
           <Button type="text">{t.all || "Tất cả"}</Button>
         </Dropdown>
       </div>
@@ -427,7 +433,7 @@ const FriendList: React.FC<FriendListProps> = ({
               data as FriendApiResponse[]
             ).map((friend: FriendApiResponse) => ({
               id: friend.userId || friend._id || "",
-              name: friend.fullname || friend.username || "Unknown",
+              name: friend.fullname || friend.username || "User", // Fallback to "User" like ChatHeader
               avatarUrl: friend.avatarUrl || friend.urlavatar,
               status: friend.status || "offline",
               lastSeen: friend.lastActive,
