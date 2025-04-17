@@ -280,8 +280,8 @@ const FriendList: React.FC<FriendListProps> = ({ onSelectFriend, onSelectConvers
       className="px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
       onClick={() => handleFriendClick(friend.id)}
     >
-      <div className="flex items-center w-full">
-        <div className="relative mr-3">
+      <div className="flex items-center w-full ">
+        <div className="relative mr-3 pl-3">
           <Avatar
             name={friend.name}
             avatarUrl={friend.avatarUrl}
