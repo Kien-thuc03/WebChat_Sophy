@@ -13,7 +13,7 @@ import {
   rejectFriendRequest,
   removeFriend,
   sendFriendRequest,
-  getUserById, // Import the API function
+  getUserById, 
 } from "../../../api/API";
 
 export interface UserResult {
