@@ -89,7 +89,7 @@ const BlockModal: React.FC<BlockModalProps> = ({ visible, onClose, t }) => {
                 <div className="flex items-center">
                   <Avatar
                     name={user.fullname} // Pass fullname as the name prop
-                    avatarUrl={user.urlavatar} // Pass urlavatar as the avatarUrl prop
+                    avatarUrl={user.urlavatar || ""} // Pass urlavatar as the avatarUrl prop or empty string if undefined
                     size={32} // Match the w-8 h-8 (8 * 4px = 32px)
                     className="mr-3" // Match the margin-right spacing
                   />

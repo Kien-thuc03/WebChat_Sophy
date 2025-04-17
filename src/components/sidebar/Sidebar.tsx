@@ -10,6 +10,7 @@ import {
 import { useAuth } from "../../features/auth/hooks/useAuth";
 import SettingsPopover from "../content/SettingsPopoverProps";
 import { useLanguage } from "../../features/auth/context/LanguageContext";
+import { Avatar } from "../common/Avatar"; // Import Avatar component
 
 interface SidebarProps {
   onSettingsClick?: () => void;
@@ -105,12 +106,14 @@ const Sidebar: React.FC<SidebarProps> = ({
   return (
     <div className="h-screen w-16 bg-blue-600 flex flex-col justify-between items-center py-4 relative">
       <div className="flex flex-col items-center">
-        <img
-          src={user?.urlavatar || "https://picsum.photos/id/1/200"}
-          alt="Avatar"
-          className="w-12 h-12 rounded-full border-2 border-white object-cover cursor-pointer"
-          onClick={togglePopover}
-        />
+        <div onClick={togglePopover} className="cursor-pointer">
+          <Avatar
+            name={user?.fullname || "User"}
+            avatarUrl={user?.urlavatar}
+            size={48} // 12 * 4px = 48px to match the w-12 h-12
+            className="border-2 border-white"
+          />
+        </div>
         {isPopoverOpen && (
           <div ref={popoverRef} className="absolute top-10 left-16 z-50">
             <SettingsPopover
