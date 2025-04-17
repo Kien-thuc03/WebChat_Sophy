@@ -3,9 +3,7 @@ import { Tabs, Button, message } from "antd";
 import { Avatar } from "../common/Avatar";
 import { useLanguage } from "../../features/auth/context/LanguageContext";
 import ErrorBoundary from "../common/ErrorBoundary";
-import UserInfoHeaderModal, {
-  UserResult,
-} from "../header/modal/UserInfoHeaderModal";
+import UserInfoHeaderModal, { UserResult } from "../header/modal/UserInfoHeaderModal";
 import {
   getFriendRequestsReceived,
   getFriendRequestsSent,
@@ -62,14 +60,12 @@ const RequestList: React.FC<RequestListProps> = ({
   const { t } = useLanguage();
   const [receivedRequests, setReceivedRequests] = useState<FriendRequest[]>([]);
   const [sentRequests, setSentRequests] = useState<FriendRequest[]>([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedUser, setSelectedUser] = useState<UserResult | null>(null);
   const [isModalVisible, setIsModalVisible] = useState(false);
 
   const getRequests = async () => {
     try {
-      setLoading(true);
       const receivedData: FriendRequest[] = await getFriendRequestsReceived();
       const sentData: FriendRequest[] = await getFriendRequestsSent();
       console.log("RequestList: Fetched received requests:", receivedData);
@@ -96,8 +92,6 @@ const RequestList: React.FC<RequestListProps> = ({
       setError(
         err instanceof Error ? err.message : "Không thể tải lời mời kết bạn"
       );
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -105,34 +99,34 @@ const RequestList: React.FC<RequestListProps> = ({
   useEffect(() => {
     // Lấy dữ liệu ban đầu
     getRequests();
-    
+
     // Thiết lập polling với interval ngắn hơn (10 giây)
     const intervalId = setInterval(() => {
       console.log("RequestList: Đang tự động làm mới danh sách lời mời kết bạn");
       getRequests();
     }, 10000); // 10 giây
-    
+
     // Đăng ký sự kiện socket để cập nhật ngay lập tức khi có thay đổi
     const handleSocketUpdate = () => {
       console.log("RequestList: Nhận được sự kiện cập nhật từ socket, làm mới danh sách");
       getRequests();
     };
-    
+
     // Đăng ký lắng nghe các sự kiện socket liên quan đến lời mời kết bạn
     socketService.onNewFriendRequest(() => {
       handleSocketUpdate();
     });
-    
+
     socketService.onRejectedFriendRequest(() => handleSocketUpdate());
     socketService.onAcceptedFriendRequest(() => handleSocketUpdate());
     socketService.onRetrievedFriendRequest(() => handleSocketUpdate());
-    
+
     // Làm mới khi kết nối lại
     socketService.onReconnect(() => {
       console.log("RequestList: Đã kết nối lại, làm mới danh sách lời mời kết bạn");
       getRequests();
     });
-    
+
     // Dọn dẹp khi component unmount
     return () => {
       clearInterval(intervalId);
@@ -499,7 +493,6 @@ const RequestList: React.FC<RequestListProps> = ({
   const handleFriendClick = async (userId: string) => {
     try {
       console.log("RequestList: Handling friend click for user:", userId);
-      setLoading(true);
       const conversation = await createConversation(userId);
       if (onSelectConversation) {
         onSelectConversation(conversation);
@@ -511,8 +504,6 @@ const RequestList: React.FC<RequestListProps> = ({
     } catch (error) {
       console.error("RequestList: Error creating conversation:", error);
       message.error("Không thể tạo cuộc trò chuyện");
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -570,16 +561,14 @@ const RequestList: React.FC<RequestListProps> = ({
       </div>
 
       <Tabs defaultActiveKey="received" className="px-4 flex-1">
-        <TabPane 
+        <TabPane
           tab={
             <span className="pl-5">Lời mời đã nhận ({receivedRequests.length})</span>
           }
           key="received"
-          className="pl-5" 
+          className="pl-5"
         >
-          {loading ? (
-            <div className="p-4 text-center">{t.loading || "Đang tải..."}</div>
-          ) : error ? (
+          {error ? (
             <div className="p-4 text-center text-red-500">{error}</div>
           ) : receivedRequests.length === 0 ? (
             <div className="p-4 text-center">Không có lời mời nào</div>
@@ -588,11 +577,13 @@ const RequestList: React.FC<RequestListProps> = ({
               {receivedRequests.map((request) => (
                 <div
                   key={request.friendRequestId}
-                  className="p-4 border-b dark:border-gray-700 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                  className="p-4 border-b dark:border-gray-700 bg-gray-50 dark:bg-gray-800 rounded-lg"
+                >
                   <div className="flex items-start">
                     <div
                       className="cursor-pointer flex-shrink-0 mr-3"
-                      onClick={() => handleUserClick(request.senderId)}>
+                      onClick={() => handleUserClick(request.senderId)}
+                    >
                       <Avatar
                         name={request.senderId.fullname}
                         avatarUrl={request.senderId.urlavatar}
@@ -604,7 +595,8 @@ const RequestList: React.FC<RequestListProps> = ({
                       <div className="flex flex-col">
                         <div
                           className="font-medium text-lg cursor-pointer hover:underline"
-                          onClick={() => handleUserClick(request.senderId)}>
+                          onClick={() => handleUserClick(request.senderId)}
+                        >
                           {request.senderId.fullname}
                         </div>
                         <div className="text-sm text-gray-500">
@@ -624,14 +616,14 @@ const RequestList: React.FC<RequestListProps> = ({
                                 request.friendRequestId,
                                 request.senderId.userId
                               )
-                            }>
+                            }
+                          >
                             {t.agree || "Đồng ý"}
                           </Button>
                           <Button
                             className="flex-1"
-                            onClick={() =>
-                              handleReject(request.friendRequestId)
-                            }>
+                            onClick={() => handleReject(request.friendRequestId)}
+                          >
                             {t.cancel || "Từ chối"}
                           </Button>
                         </div>
@@ -644,16 +636,14 @@ const RequestList: React.FC<RequestListProps> = ({
           )}
         </TabPane>
 
-        <TabPane 
+        <TabPane
           tab={
             <span className="pl-1">Lời mời đã gửi ({sentRequests.length})</span>
           }
           key="sent"
         >
           <div className="pt-4">
-            {loading ? (
-              <div className="p-4 text-center">{t.loading || "Đang tải..."}</div>
-            ) : error ? (
+            {error ? (
               <div className="p-4 text-center text-red-500">{error}</div>
             ) : sentRequests.length === 0 ? (
               <div className="p-4 text-center">Không có lời mời nào</div>
@@ -662,12 +652,14 @@ const RequestList: React.FC<RequestListProps> = ({
                 {sentRequests.map((request) => (
                   <div
                     key={request.friendRequestId}
-                    className="p-4 border-b dark:border-gray-700">
+                    className="p-4 border-b dark:border-gray-700"
+                  >
                     <div className="flex items-start justify-between">
                       <div className="flex items-start flex-1">
                         <div
                           className="cursor-pointer flex-shrink-0 mr-3"
-                          onClick={() => handleUserClick(request.receiverId)}>
+                          onClick={() => handleUserClick(request.receiverId)}
+                        >
                           <Avatar
                             name={request.receiverId.fullname}
                             avatarUrl={request.receiverId.urlavatar}
@@ -679,7 +671,8 @@ const RequestList: React.FC<RequestListProps> = ({
                           <div className="flex flex-col">
                             <div
                               className="font-medium text-lg cursor-pointer hover:underline"
-                              onClick={() => handleUserClick(request.receiverId)}>
+                              onClick={() => handleUserClick(request.receiverId)}
+                            >
                               {request.receiverId.fullname}
                             </div>
                             <div className="text-sm text-gray-500">
@@ -696,7 +689,8 @@ const RequestList: React.FC<RequestListProps> = ({
                       <div className="ml-4">
                         <Button
                           danger
-                          onClick={() => handleCancel(request.friendRequestId)}>
+                          onClick={() => handleCancel(request.friendRequestId)}
+                        >
                           {t.cancel_request || "Thu hồi lời mời"}
                         </Button>
                       </div>
