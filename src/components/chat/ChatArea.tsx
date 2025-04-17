@@ -1586,6 +1586,26 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
     setSelectedImage(null);
   };
 
+  // Handle file download image in text-with-image function
+  const handleDownloadFile = (url?: string, fileName?: string) => {
+    if (!url) {
+      message.error("URL tải xuống không có sẵn");
+      return;
+    }
+    
+    try {
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName || 'download';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error("Lỗi khi tải xuống tập tin:", error);
+      message.error("Không thể tải xuống tập tin. Vui lòng thử lại sau.");
+    }
+  };
+
   // Nếu không có conversation hợp lệ, hiển thị thông báo
   if (!isValidConversation) {
     return (
@@ -2517,19 +2537,15 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
                               }}
                             />
                             <div className="text-right mt-1">
-                              <a 
-                                href={message.fileUrl || message.content || ""} 
-                                download 
-                                className="px-2 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600 inline-flex items-center text-xs shadow-sm transition-colors"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                }}
+                              <Button 
+                                type="primary" 
+                                size="small" 
+                                icon={<DownloadOutlined />}
+                                onClick={() => handleDownloadFile(message.fileUrl || message.content, "image")}
+                                className="inline-flex items-center text-xs shadow-sm"
                               >
-                                <DownloadOutlined className="mr-1" />
                                 Tải xuống
-                              </a>
+                              </Button>
                             </div>
                           </div>
                         ) : message.type === "text-with-image" ? (
@@ -2555,22 +2571,21 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
                                 }}
                               />
                               <div className="text-right mt-1">
-                                <a 
-                                  href={message.fileUrl || 
+                                <Button 
+                                  type="primary" 
+                                  size="small" 
+                                  icon={<DownloadOutlined />}
+                                  onClick={() => handleDownloadFile(
+                                    message.fileUrl || 
                                     (message.attachments && message.attachments.length > 0 
-                                      ? message.attachments[0].downloadUrl 
-                                      : message.attachment?.downloadUrl || "")} 
-                                  download 
-                                  className="px-2 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600 inline-flex items-center text-xs shadow-sm transition-colors"
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                  }}
+                                      ? message.attachments[0].downloadUrl || message.attachments[0].url
+                                      : message.attachment?.downloadUrl || message.attachment?.url),
+                                    message.fileName || message.attachment?.name || "image"
+                                  )}
+                                  className="inline-flex items-center text-xs shadow-sm"
                                 >
-                                  <DownloadOutlined className="mr-1" />
                                   Tải xuống
-                                </a>
+                                </Button>
                               </div>
                             </div>
                           </div>
@@ -2598,19 +2613,18 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
                                 `${Math.round(message.attachment.size / 1024)} KB` : ""}
                             </div>
                           </div>
-                          <a 
-                            href={message.fileUrl || message.attachment?.downloadUrl || message.attachment?.url || ""} 
-                            download 
-                            className="px-2 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600 inline-flex items-center text-xs shadow-sm transition-colors ml-2"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                            }}
+                          <Button 
+                            type="primary"
+                            size="small"
+                            icon={<DownloadOutlined />}
+                            onClick={() => handleDownloadFile(
+                              message.fileUrl || message.attachment?.downloadUrl || message.attachment?.url, 
+                              message.fileName || message.attachment?.name || "file"
+                            )}
+                            className="inline-flex items-center text-xs shadow-sm ml-2"
                           >
-                            <DownloadOutlined className="mr-1" />
                             Tải xuống
-                          </a>
+                          </Button>
                         </div>
                       ) : message.type === "video" ? (
                           <div className="relative">
@@ -2635,19 +2649,18 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
                               />
                             </div>
                             <div className="text-right mt-1">
-                              <a 
-                                href={message.fileUrl || message.attachment?.downloadUrl || message.attachment?.url || ""} 
-                                download 
-                                className="px-2 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600 inline-flex items-center text-xs shadow-sm transition-colors"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                }}
+                              <Button 
+                                type="primary" 
+                                size="small" 
+                                icon={<DownloadOutlined />}
+                                onClick={() => handleDownloadFile(
+                                  message.fileUrl || message.attachment?.downloadUrl || message.attachment?.url, 
+                                  message.fileName || message.attachment?.name || "video"
+                                )}
+                                className="inline-flex items-center text-xs shadow-sm"
                               >
-                                <DownloadOutlined className="mr-1" />
                                 Tải xuống
-                              </a>
+                              </Button>
                             </div>
                           </div>
                         ) : (
