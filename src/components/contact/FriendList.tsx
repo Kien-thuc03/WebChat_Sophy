@@ -4,10 +4,18 @@ import { MoreOutlined, SearchOutlined } from "@ant-design/icons";
 import { Avatar } from "../common/Avatar";
 import { useLanguage } from "../../features/auth/context/LanguageContext";
 import ErrorBoundary from "../common/ErrorBoundary";
-import { fetchFriends, createConversation, getUserById, removeFriend, blockUser } from "../../api/API"; // Add blockUser
+import {
+  fetchFriends,
+  createConversation,
+  getUserById,
+  removeFriend,
+  blockUser,
+} from "../../api/API"; // Add blockUser
 import { Conversation } from "../../features/chat/types/conversationTypes";
 import { User } from "../../features/auth/types/authTypes";
-import UserInfoHeaderModal, { UserResult } from "../header/modal/UserInfoHeaderModal";
+import UserInfoHeaderModal, {
+  UserResult,
+} from "../header/modal/UserInfoHeaderModal";
 
 interface FriendApiResponse {
   id?: string;
@@ -39,7 +47,10 @@ interface FriendListProps {
   onSelectConversation?: (conversation: Conversation) => void;
 }
 
-const FriendList: React.FC<FriendListProps> = ({ onSelectFriend, onSelectConversation }) => {
+const FriendList: React.FC<FriendListProps> = ({
+  onSelectFriend,
+  onSelectConversation,
+}) => {
   const { t } = useLanguage();
   const [searchText, setSearchText] = useState("");
   const [friends, setFriends] = useState<Friend[]>([]);
@@ -74,7 +85,7 @@ const FriendList: React.FC<FriendListProps> = ({ onSelectFriend, onSelectConvers
         setFriends(formattedFriends);
         setError(null);
 
-        formattedFriends.forEach(friend => {
+        formattedFriends.forEach((friend) => {
           fetchUserDetails(friend.id);
         });
       } catch (err) {
@@ -97,7 +108,7 @@ const FriendList: React.FC<FriendListProps> = ({ onSelectFriend, onSelectConvers
 
       const userData = await getUserById(userId);
       if (userData) {
-        setUserCache(prev => ({
+        setUserCache((prev) => ({
           ...prev,
           [userId]: userData,
         }));
@@ -118,7 +129,9 @@ const FriendList: React.FC<FriendListProps> = ({ onSelectFriend, onSelectConvers
 
     const lastActiveTime = new Date(lastActive).getTime();
     const currentTime = new Date().getTime();
-    const minutesDiff = Math.floor((currentTime - lastActiveTime) / (1000 * 60));
+    const minutesDiff = Math.floor(
+      (currentTime - lastActiveTime) / (1000 * 60)
+    );
 
     if (minutesDiff < 5) {
       updateFriendStatus(userId, "Vừa mới truy cập", true);
@@ -133,12 +146,14 @@ const FriendList: React.FC<FriendListProps> = ({ onSelectFriend, onSelectConvers
   };
 
   // Helper function to update a friend's status
-  const updateFriendStatus = (userId: string, activityStatus: string, isOnline: boolean) => {
-    setFriends(prevFriends =>
-      prevFriends.map(friend =>
-        friend.id === userId
-          ? { ...friend, activityStatus, isOnline }
-          : friend
+  const updateFriendStatus = (
+    userId: string,
+    activityStatus: string,
+    isOnline: boolean
+  ) => {
+    setFriends((prevFriends) =>
+      prevFriends.map((friend) =>
+        friend.id === userId ? { ...friend, activityStatus, isOnline } : friend
       )
     );
   };
@@ -223,7 +238,9 @@ const FriendList: React.FC<FriendListProps> = ({ onSelectFriend, onSelectConvers
   const handleRemoveFriend = async (friendId: string) => {
     try {
       await removeFriend(friendId);
-      setFriends(prevFriends => prevFriends.filter(friend => friend.id !== friendId));
+      setFriends((prevFriends) =>
+        prevFriends.filter((friend) => friend.id !== friendId)
+      );
       message.success("Đã xóa bạn thành công");
     } catch (error) {
       console.error("Error removing friend:", error);
@@ -236,11 +253,15 @@ const FriendList: React.FC<FriendListProps> = ({ onSelectFriend, onSelectConvers
     try {
       await blockUser(friendId);
       // After blocking, remove the user from the friends list
-      setFriends(prevFriends => prevFriends.filter(friend => friend.id !== friendId));
+      setFriends((prevFriends) =>
+        prevFriends.filter((friend) => friend.id !== friendId)
+      );
       message.success("Đã chặn người dùng thành công");
     } catch (error) {
       console.error("Error blocking user:", error);
-      message.error(error instanceof Error ? error.message : "Không thể chặn người dùng này");
+      message.error(
+        error instanceof Error ? error.message : "Không thể chặn người dùng này"
+      );
     }
   };
 
@@ -250,10 +271,14 @@ const FriendList: React.FC<FriendListProps> = ({ onSelectFriend, onSelectConvers
       <Menu.Item key="view-info" onClick={() => handleViewInfo(friend)}>
         Xem thông tin
       </Menu.Item>
-      <Menu.Item key="categorize" onClick={() => console.log("Phân loại:", friend.id)}>
+      <Menu.Item
+        key="categorize"
+        onClick={() => console.log("Phân loại:", friend.id)}>
         Phân loại
       </Menu.Item>
-      <Menu.Item key="set-nickname" onClick={() => console.log("Đặt tên gợi nhớ:", friend.id)}>
+      <Menu.Item
+        key="set-nickname"
+        onClick={() => console.log("Đặt tên gợi nhớ:", friend.id)}>
         Đặt tên gợi nhớ
       </Menu.Item>
       <Menu.Item key="block" onClick={() => handleBlockUser(friend.id)}>
@@ -262,8 +287,7 @@ const FriendList: React.FC<FriendListProps> = ({ onSelectFriend, onSelectConvers
       <Menu.Item
         key="remove-friend"
         onClick={() => handleRemoveFriend(friend.id)}
-        style={{ color: "red" }}
-      >
+        style={{ color: "red" }}>
         Xóa bạn
       </Menu.Item>
     </Menu>
@@ -278,8 +302,7 @@ const FriendList: React.FC<FriendListProps> = ({ onSelectFriend, onSelectConvers
   const renderFriendItem = (friend: Friend) => (
     <List.Item
       className="px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
-      onClick={() => handleFriendClick(friend.id)}
-    >
+      onClick={() => handleFriendClick(friend.id)}>
       <div className="flex items-center w-full ">
         <div className="relative mr-3 pl-3">
           <Avatar
@@ -320,7 +343,7 @@ const FriendList: React.FC<FriendListProps> = ({ onSelectFriend, onSelectConvers
   };
 
   const isFriend = (userId: string): boolean => {
-    return friends.some(friend => friend.id === userId);
+    return friends.some((friend) => friend.id === userId);
   };
 
   return (
@@ -348,8 +371,7 @@ const FriendList: React.FC<FriendListProps> = ({ onSelectFriend, onSelectConvers
               label: option.key === "A-Z" ? "Tên (A-Z)" : t.all || "Tất cả",
               onClick: () => setSortOrder(option.key as "A-Z" | "All"),
             })),
-          }}
-        >
+          }}>
           <Button type="text">
             {sortOrder === "A-Z" ? "Tên (A-Z)" : t.all || "Tất cả"}
           </Button>
@@ -358,8 +380,7 @@ const FriendList: React.FC<FriendListProps> = ({ onSelectFriend, onSelectConvers
         <Dropdown
           menu={{
             items: [{ key: "all", label: t.all || "Tất cả" }],
-          }}
-        >
+          }}>
           <Button type="text">{t.all || "Tất cả"}</Button>
         </Dropdown>
       </div>
@@ -386,10 +407,7 @@ const FriendList: React.FC<FriendListProps> = ({ onSelectFriend, onSelectConvers
             </div>
           ))
         ) : (
-          <List
-            dataSource={filteredFriends}
-            renderItem={renderFriendItem}
-          />
+          <List dataSource={filteredFriends} renderItem={renderFriendItem} />
         )}
       </div>
 
@@ -404,18 +422,18 @@ const FriendList: React.FC<FriendListProps> = ({ onSelectFriend, onSelectConvers
         handleSendFriendRequest={() => {}}
         isSending={false}
         onRequestsUpdate={() => {
-          fetchFriends().then(data => {
-            const formattedFriends: Friend[] = (data as FriendApiResponse[]).map(
-              (friend: FriendApiResponse) => ({
-                id: friend.userId || friend._id || "",
-                name: friend.fullname || friend.username || "Unknown",
-                avatarUrl: friend.avatarUrl || friend.urlavatar,
-                status: friend.status || "offline",
-                lastSeen: friend.lastActive,
-                activityStatus: "Đang ngoại tuyến",
-                isOnline: false,
-              })
-            );
+          fetchFriends().then((data) => {
+            const formattedFriends: Friend[] = (
+              data as FriendApiResponse[]
+            ).map((friend: FriendApiResponse) => ({
+              id: friend.userId || friend._id || "",
+              name: friend.fullname || friend.username || "Unknown",
+              avatarUrl: friend.avatarUrl || friend.urlavatar,
+              status: friend.status || "offline",
+              lastSeen: friend.lastActive,
+              activityStatus: "Đang ngoại tuyến",
+              isOnline: false,
+            }));
             setFriends(formattedFriends);
           });
         }}

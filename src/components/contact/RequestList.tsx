@@ -202,6 +202,7 @@ const RequestList: React.FC<RequestListProps> = ({
           return updatedRequests;
         });
 
+        // No notification for receiver, only update the list
         console.log(
           "RequestList: Notifying parent via onRequestsUpdate (newFriendRequest)"
         );
