@@ -2043,3 +2043,63 @@ export const registerWithAvatar = async (
     throw new Error("Đăng ký thất bại, vui lòng thử lại");
   }
 };
+
+// Recall message (makes it invisible to everyone)
+export const recallMessage = async (messageId: string): Promise<void> => {
+  try {
+    const token = getAuthToken();
+    if (!token) {
+      throw new Error("User not authenticated");
+    }
+
+    const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+    const response = await axios.put(
+      `${API_URL}/api/messages/recall/${messageId}`,
+      {},
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    if (response.status !== 200) {
+      throw new Error(response.data.message || "Error recalling message");
+    }
+
+    return response.data;
+  } catch (error) {
+    logApiError("recallMessage", error);
+    throw error;
+  }
+};
+
+// Delete message (makes it invisible only to the person who deleted it)
+export const deleteMessage = async (messageId: string): Promise<void> => {
+  try {
+    const token = getAuthToken();
+    if (!token) {
+      throw new Error("User not authenticated");
+    }
+
+    const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+    const response = await axios.put(
+      `${API_URL}/api/messages/delete/${messageId}`,
+      {},
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    if (response.status !== 200) {
+      throw new Error(response.data.message || "Error deleting message");
+    }
+
+    return response.data;
+  } catch (error) {
+    logApiError("deleteMessage", error);
+    throw error;
+  }
+};

@@ -1,7 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { Button, message, Upload, Space, Progress, Tooltip } from 'antd';
 import { 
-  FileOutlined, 
   PaperClipOutlined, 
   DeleteOutlined, 
   CloseCircleOutlined,
@@ -145,7 +144,6 @@ const FileUploader: React.FC<FileUploaderProps> = ({
           onClick={triggerFileInput}
           className="attach-button"
         >
-          Attach
         </Button>
       ) : (
         <div className="selected-file">
