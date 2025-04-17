@@ -45,6 +45,7 @@ class SocketService {
   private connectionAttempts: number = 0;
   private maxReconnectAttempts: number = 5;
   private activeUsers: Record<string, string[]> = {}; // Mapping giữa conversationId và danh sách userId đang active
+  private onlineUsers: Set<string> = new Set();
 
   private constructor() {}
 
@@ -580,6 +581,38 @@ class SocketService {
   // Lấy danh sách những người đang active trong conversation
   getActiveUsersInConversation(conversationId: string): string[] {
     return this.activeUsers[conversationId] || [];
+  }
+
+  listenToOnlineStatus() {
+    if (!this.socket) this.connect();
+    
+    if (this.socket) {
+      this.socket.on("userStatusUpdate", (data: { 
+        userId: string, 
+        online: boolean 
+      }) => {
+        if (data.online) {
+          this.onlineUsers.add(data.userId);
+        } else {
+          this.onlineUsers.delete(data.userId);
+        }
+        
+        // Phát ra event để các component có thể cập nhật UI
+        this.socket?.emit("onlineStatusUpdated", {
+          onlineUsers: Array.from(this.onlineUsers)
+        });
+      });
+    }
+  }
+
+  // Kiểm tra xem một user có đang online không
+  isUserOnline(userId: string): boolean {
+    return this.onlineUsers.has(userId);
+  }
+
+  // Lấy danh sách những người đang online
+  getOnlineUsers(): string[] {
+    return Array.from(this.onlineUsers);
   }
 }
 
