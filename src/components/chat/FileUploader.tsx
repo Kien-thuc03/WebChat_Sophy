@@ -110,12 +110,6 @@ const FileUploader: React.FC<FileUploaderProps> = ({
         });
       }, 500);
 
-      // Determine file type for proper handling
-      const fileType = selectedFile.type.startsWith('image/') ? 'image' : 
-                      selectedFile.type.startsWith('video/') ? 'video' : 'file';
-                      
-      console.log(`Uploading file: ${selectedFile.name}, type: ${fileType}, MIME type: ${selectedFile.type}`);
-
       // Use socketService to send file message
       const result = await socketService.sendFileMessage(conversationId, selectedFile);
       
@@ -127,7 +121,6 @@ const FileUploader: React.FC<FileUploaderProps> = ({
       onUploadComplete?.(result);
     } catch (error) {
       console.error('Error uploading file:', error);
-      setUploadProgress(0);
       message.error(`Failed to upload ${selectedFile.name}. Please try again.`);
       onUploadError?.(error as Error);
     } finally {
@@ -212,4 +205,4 @@ const FileUploader: React.FC<FileUploaderProps> = ({
   );
 };
 
-export default FileUploader;
+export default FileUploader; 

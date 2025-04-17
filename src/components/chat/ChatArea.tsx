@@ -25,6 +25,9 @@ import {
   LoadingOutlined,
   CheckCircleOutlined,
   CloseCircleOutlined,
+  DownloadOutlined,
+  FileOutlined,
+  FileImageOutlined,
 } from "@ant-design/icons";
 import {
   Conversation,
@@ -48,6 +51,7 @@ import Picker from "@emoji-mart/react";
 import socketService from "../../utils/socketService";
 import ImageModal from "./modals/ImageModal";
 import FileUploader from './FileUploader';
+import ReactPlayer from 'react-player';
 
 // Chuyển đổi Message từ API sang định dạng tin nhắn cần hiển thị
 
@@ -2356,6 +2360,10 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
                 nextMessage.sender.id !== message.sender.id || // Next message is from different sender
                 shouldShowTimestampSeparator(nextMessage, message); // There's a time separator after this message
               
+              // Determine if this is the last message from the current user in the conversation
+              const isLastMessageFromUser = isOwn && 
+                messages.findIndex((msg, i) => i > index && msg.sender.id === currentUserId) === -1;
+
               return (
                 <React.Fragment key={`${message.id}-${index}`}>
                   {/* Timestamp separator */}
@@ -2423,6 +2431,21 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
                                 {renderMessageStatus(message, isOwn)}
                               </div>
                             )}
+                            <div className="text-right mt-1">
+                              <a 
+                                href={message.fileUrl || message.content || ""} 
+                                download 
+                                className="px-2 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600 inline-flex items-center text-xs shadow-sm transition-colors"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                }}
+                              >
+                                <DownloadOutlined className="mr-1" />
+                                Tải xuống
+                              </a>
+                            </div>
                           </div>
                         ) : message.type === "text-with-image" ? (
                           <div className="flex flex-col">
@@ -2452,16 +2475,108 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
                                   {renderMessageStatus(message, isOwn)}
                                 </div>
                               )}
+                              <div className="text-right mt-1">
+                                <a 
+                                  href={message.fileUrl || 
+                                    (message.attachments && message.attachments.length > 0 
+                                      ? message.attachments[0].downloadUrl 
+                                      : message.attachment?.downloadUrl || "")} 
+                                  download 
+                                  className="px-2 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600 inline-flex items-center text-xs shadow-sm transition-colors"
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                  }}
+                                >
+                                  <DownloadOutlined className="mr-1" />
+                                  Tải xuống
+                                </a>
+                              </div>
                             </div>
                           </div>
                         ) : message.type === "file" ? (
-                        <div className="flex items-center gap-2">
-                          <i className="fas fa-file text-gray-500"></i>
-                            <span className="truncate">
-                              {message.fileName || message.content}
-                            </span>
+                        <div className="flex items-center gap-2 bg-gray-50 p-2 rounded-lg">
+                          <div className="text-xl mr-2">
+                            {message.attachment?.type?.startsWith('image/') ? (
+                              <FileImageOutlined className="text-blue-500" />
+                            ) : message.attachment?.type?.startsWith('audio/') ? (
+                              <AudioOutlined className="text-green-500" />
+                            ) : message.attachment?.type?.startsWith('video/') ? (
+                              <VideoCameraOutlined className="text-purple-500" />
+                            ) : (
+                              <FileOutlined className="text-gray-500" />
+                            )}
+                          </div>
+                          <div className="flex-grow">
+                            <div className="text-sm font-medium truncate">
+                              {message.fileName || message.attachment?.name || message.content}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {message.fileSize ? 
+                                `${Math.round(message.fileSize / 1024)} KB` : 
+                                message.attachment?.size ? 
+                                `${Math.round(message.attachment.size / 1024)} KB` : ""}
+                            </div>
+                          </div>
+                          <a 
+                            href={message.fileUrl || message.attachment?.downloadUrl || message.attachment?.url || ""} 
+                            download 
+                            className="px-2 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600 inline-flex items-center text-xs shadow-sm transition-colors ml-2"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                            }}
+                          >
+                            <DownloadOutlined className="mr-1" />
+                            Tải xuống
+                          </a>
                         </div>
-                      ) : (
+                      ) : message.type === "video" ? (
+                          <div className="relative">
+                            <div className="video-player-container rounded-lg overflow-hidden" style={{ maxWidth: '300px' }}>
+                              <ReactPlayer
+                                url={message.fileUrl || (message.attachment && message.attachment.url) || ''}
+                                width="100%"
+                                height="auto"
+                                controls={true}
+                                light={message.attachment && message.attachment.thumbnail ? message.attachment.thumbnail : true}
+                                pip={false}
+                                playing={false}
+                                className="video-player"
+                                config={{
+                                  file: {
+                                    attributes: {
+                                      controlsList: 'nodownload',
+                                      onContextMenu: (e: React.MouseEvent) => e.preventDefault(),
+                                    },
+                                  },
+                                }}
+                              />
+                            </div>
+                            {isOwn && (
+                              <div className="absolute bottom-2 right-2 text-white bg-black bg-opacity-40 rounded-md px-1 py-0.5 text-xs">
+                                {renderMessageStatus(message, isOwn)}
+                              </div>
+                            )}
+                            <div className="text-right mt-1">
+                              <a 
+                                href={message.fileUrl || message.attachment?.downloadUrl || message.attachment?.url || ""} 
+                                download 
+                                className="px-2 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600 inline-flex items-center text-xs shadow-sm transition-colors"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                }}
+                              >
+                                <DownloadOutlined className="mr-1" />
+                                Tải xuống
+                              </a>
+                            </div>
+                          </div>
+                        ) : (
                           <div className="relative">
                             <p className="text-sm whitespace-pre-wrap break-words">
                               {message.content}
@@ -2477,9 +2592,15 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
                         >
                       <span>{formatMessageTime(message.timestamp)}</span>
                       {/* Show status indicator for text messages */}
-                      {isOwn && message.type !== "image" && message.type !== "text-with-image" && (
+                      {isOwn && message.type !== "image" && message.type !== "video" && message.type !== "text-with-image" && (
                         <span className="ml-2">
-                          {renderMessageStatus(message, isOwn)}
+                          {message.sendStatus === "read" ? 
+                            (isLastMessageFromUser ? renderMessageStatus(message, isOwn) : 
+                             <span className="text-blue-400 text-xs flex items-center">
+                               <CheckOutlined className="mr-1" style={{ fontSize: '10px' }} />
+                             </span>) : 
+                            renderMessageStatus(message, isOwn)
+                          }
                         </span>
                       )}
                     </div>

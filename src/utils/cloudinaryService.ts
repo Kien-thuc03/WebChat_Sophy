@@ -108,13 +108,10 @@ export const sendFileMessage = async (file: File, conversationId: string): Promi
   try {
     // 1. Upload file to Cloudinary
     const cloudinaryResponse = await uploadToCloudinary(file);
-    console.log('Dữ liệu phản hồi từ Cloudinary:', cloudinaryResponse);
     
     // 2. Prepare attachment object
     const attachment = prepareAttachment(cloudinaryResponse, file);
     const fileType = getFileType(file);
-    
-    console.log('Dữ liệu attachment chuẩn bị gửi đi:', attachment);
     
     // 3. Send to backend API
     const token = localStorage.getItem('token');
@@ -122,24 +119,12 @@ export const sendFileMessage = async (file: File, conversationId: string): Promi
       throw new Error('Authentication token not found');
     }
     
-    // Cấu trúc dữ liệu gửi đi được cập nhật để phù hợp với backend
-    const requestData = {
-      conversationId,
-      content: file.name, // Sử dụng tên file làm nội dung mặc định
-      messageType: fileType, // Đảm bảo messageType luôn có giá trị
-      type: fileType, // Đảm bảo type luôn có giá trị
-      attachment: {
-        ...attachment,
-        type: fileType, // Đảm bảo type trong attachment cũng có giá trị
-      }
-    };
-    
-    console.log('Dữ liệu gửi đến API:', requestData);
-    console.log('Gọi API: http://localhost:3000/api/messages/send-file');
-    
     const response = await axios.post(
       'http://localhost:3000/api/messages/send-file',
-      requestData,
+      {
+        conversationId,
+        attachment,
+      },
       {
         headers: {
           'Content-Type': 'application/json',
@@ -150,10 +135,8 @@ export const sendFileMessage = async (file: File, conversationId: string): Promi
     
     console.log('File message sent successfully:', response.data);
     return response.data;
-  } catch (error: any) {
+  } catch (error) {
     console.error('Failed to send file message:', error);
-    console.error('Chi tiết lỗi:', error.response?.status, error.response?.statusText);
-    console.error('Dữ liệu lỗi:', error.response?.data || 'Không có dữ liệu phản hồi');
     throw error;
   }
 };
@@ -165,4 +148,4 @@ export default {
   getFileType,
   formatFileSize,
   prepareAttachment
-};
+}; 

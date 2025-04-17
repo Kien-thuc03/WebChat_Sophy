@@ -12,10 +12,12 @@ import {
   FilePptOutlined,
   FileZipOutlined,
   FileUnknownOutlined,
-  DownloadOutlined
+  DownloadOutlined,
+  PlayCircleOutlined
 } from '@ant-design/icons';
 import { Button, Tooltip } from 'antd';
 import { formatFileSize } from '../../utils/cloudinaryService';
+import ReactPlayer from 'react-player';
 
 interface ChatMessageProps {
   message: {
@@ -68,6 +70,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isOverflowing, setIsOverflowing] = useState(false);
+  const [isVideoPlaying, setIsVideoPlaying] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -150,36 +153,70 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
             <img 
               src={fileUrl}
               alt={fileName || "Image"} 
-              className="rounded-md max-w-xs max-h-60 object-cover cursor-pointer" 
+              className="rounded-lg max-w-xs max-h-60 object-cover cursor-pointer shadow-sm hover:shadow-md transition-shadow duration-200" 
               onClick={() => onImageClick && onImageClick(fileUrl)}
               onError={(e) => {
                 e.currentTarget.onerror = null; 
                 e.currentTarget.src = '/images/image-placeholder.png';
               }}
+              loading="lazy"
             />
+            <div className="download-button mt-1 text-right">
+              <Button 
+                type="text" 
+                size="small" 
+                icon={<DownloadOutlined />}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDownload(downloadUrl, fileName);
+                }}
+                className={`${isOwnMessage ? 'text-blue-200 hover:text-white' : 'text-gray-500 hover:text-gray-700'}`}
+              >
+                Tải xuống
+              </Button>
+            </div>
           </div>
         );
       
       case 'video':
         return (
           <div className="message-video">
-            <video 
-              src={fileUrl}
-              controls
-              className="rounded-md max-w-xs max-h-60"
-              onError={(e) => {
-                e.currentTarget.onerror = null;
-                e.currentTarget.style.display = 'none';
-              }}
-            />
-            <div className="download-button mt-1">
+            <div className="video-container relative rounded-lg overflow-hidden max-w-xs">
+              <ReactPlayer
+                url={fileUrl}
+                width="100%"
+                height="auto"
+                controls={true}
+                light={true}
+                playing={isVideoPlaying}
+                onPlay={() => setIsVideoPlaying(true)}
+                onPause={() => setIsVideoPlaying(false)}
+                pip={false}
+                config={{
+                  file: {
+                    attributes: {
+                      controlsList: 'nodownload',
+                      disablePictureInPicture: true
+                    }
+                  }
+                }}
+                className="rounded-lg"
+              />
+              {!isVideoPlaying && (
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <PlayCircleOutlined className="text-4xl text-white opacity-80" />
+                </div>
+              )}
+            </div>
+            <div className="download-button mt-1 text-right">
               <Button 
                 type="text" 
                 size="small" 
                 icon={<DownloadOutlined />}
                 onClick={() => handleDownload(downloadUrl, fileName)}
+                className={`${isOwnMessage ? 'text-blue-200 hover:text-white' : 'text-gray-500 hover:text-gray-700'}`}
               >
-                Download Video
+                Tải xuống
               </Button>
             </div>
           </div>
@@ -271,13 +308,28 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
               <img 
                 src={fileUrl}
                 alt="Image with text" 
-                className="rounded-md max-w-xs max-h-60 object-cover cursor-pointer" 
+                className="rounded-lg max-w-xs max-h-60 object-cover cursor-pointer shadow-sm hover:shadow-md transition-shadow duration-200" 
                 onClick={() => onImageClick && onImageClick(fileUrl)}
                 onError={(e) => {
                   e.currentTarget.onerror = null; 
                   e.currentTarget.src = '/images/image-placeholder.png';
                 }}
+                loading="lazy"
               />
+              <div className="download-button mt-1 text-right">
+                <Button 
+                  type="text" 
+                  size="small" 
+                  icon={<DownloadOutlined />}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDownload(downloadUrl, fileName);
+                  }}
+                  className={`${isOwnMessage ? 'text-blue-200 hover:text-white' : 'text-gray-500 hover:text-gray-700'}`}
+                >
+                  Tải xuống
+                </Button>
+              </div>
             </div>
           </div>
         );

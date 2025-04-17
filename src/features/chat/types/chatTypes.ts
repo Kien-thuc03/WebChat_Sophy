@@ -24,7 +24,7 @@ export interface DisplayMessage {
     name: string;
     avatar?: string;
   };
-  type: "text" | "image" | "file" | "text-with-image";
+  type: "text" | "image" | "file" | "video" | "document" | "text-with-image";
   fileUrl?: string;
   fileName?: string;
   fileSize?: number;
@@ -39,11 +39,17 @@ export interface DisplayMessage {
     type: string;
     name?: string;
     size?: number;
+    format?: string;
+    downloadUrl?: string;
+    thumbnail?: string;
   }>;
   attachment?: {
     url: string;
     type: string;
     name?: string;
     size?: number;
+    format?: string;
+    downloadUrl?: string;
+    thumbnail?: string;
   };
 }

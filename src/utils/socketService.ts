@@ -653,13 +653,6 @@ class SocketService {
       }
       
       console.log("Bắt đầu tải lên file và gửi tin nhắn...");
-      console.log(`File details: Name=${file.name}, Type=${file.type}, Size=${file.size}`);
-      
-      // Get file type for proper handling
-      const fileType = file.type.startsWith('image/') ? 'image' : 
-                       file.type.startsWith('video/') ? 'video' : 'file';
-                       
-      console.log(`Determined fileType: ${fileType}`);
       
       // Sử dụng hàm sendFileMessage từ cloudinaryService thay vì chỉ uploadToCloudinary
       // Đây là bước quan trọng vì hàm này đã được cập nhật để gửi dữ liệu đến API
