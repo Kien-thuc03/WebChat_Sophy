@@ -8,14 +8,12 @@ import {
   Spin,
   Popover,
   Tooltip,
+  Modal,
 } from "antd";
 import {
   SendOutlined,
-  CameraOutlined,
   VideoCameraOutlined,
   AudioOutlined,
-  EnvironmentOutlined,
-  BarChartOutlined,
   PaperClipOutlined,
   ReloadOutlined,
   DownOutlined,
@@ -49,7 +47,6 @@ import { useConversationContext } from "../../features/chat/context/Conversation
 import data from "@emoji-mart/data";
 import Picker from "@emoji-mart/react";
 import socketService from "../../utils/socketService";
-import ImageModal from "./modals/ImageModal";
 import FileUploader from './FileUploader';
 import ReactPlayer from 'react-player';
 
@@ -1103,7 +1100,7 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
         realMessage.attachments = [fileAttachmentObj];
       }
 
-      // Cải thiện logic cập nhật tin nhắn để tránh tin nhắn trùng lặp
+      // Cập nhật danh sách tin nhắn dựa trên hướng tải và áp dụng deduplication
       setMessages((prev) => {
         // Kiểm tra xem tin nhắn thực đã tồn tại trong danh sách chưa (bằng ID)
         const realMessageExists = prev.some(msg => msg.id === realMessage.id);
@@ -1384,6 +1381,7 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
           (emojiPickerElement as HTMLElement).style.border = "none";
           (emojiPickerElement as HTMLElement).style.boxShadow = "none";
           (emojiPickerElement as HTMLElement).style.height = "350px";
+          (emojiPickerElement as HTMLElement).style.width = "320px";
         }
       }, 50);
     }
@@ -2109,95 +2107,35 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
 
   const renderInputArea = () => {
     return (
-      <div className="chat-input-container">
-        {/* Phần soạn tin nhắn */}
-        <div className="chat-input-wrapper">
-          {/* Phần input chính */}
-          <div className="chat-input-main">
-            {/* Thêm đoạn hiển thị ảnh paste trước input */}
-            {pastedImage && pastedImagePreview && (
-              <div className="pasted-image-preview">
-                <img src={pastedImagePreview} alt="Pasted" />
-                <Button 
-                  icon={<CloseCircleOutlined />} 
-                  size="small" 
-                  className="remove-pasted-image" 
-                  onClick={handleRemovePastedImage}
-                />
-              </div>
-            )}
-
-            {/* Nút emoji */}
-            <div className="emoji-picker-container">
-              <Button 
-                type="text" 
-                icon={<SmileOutlined />} 
-                onClick={toggleEmojiPicker} 
-                className="emoji-button"
-              />
-              {emojiPickerVisible && (
-                <div className="emoji-picker" ref={Picker}>
-                  <Picker 
-                    data={data} 
-                    onEmojiSelect={handleEmojiSelect} 
-                    theme="light"
-                    previewPosition="none"
-                  />
-                </div>
-              )}
+      <div className="chat-input-container bg-white border-t border-gray-200">
+        {/* Display pasted image if any */}
+        {pastedImage && pastedImagePreview && (
+          <div className="pasted-image-preview p-2 border-b border-gray-100 flex items-center">
+            <div className="relative">
+              <img src={pastedImagePreview} alt="Pasted" className="h-16 rounded object-cover" />
+              <button
+                className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs"
+                onClick={handleRemovePastedImage}
+              >
+                ×
+              </button>
             </div>
-
-            {/* Simplified input area - cleaner design */}
-            <div className="flex items-center p-2 px-4 gap-2">
-              {/* Add File Uploader Component */}
-              {isValidConversation && (
-                <div className="mr-2">
-                  <FileUploader 
-                    conversationId={conversation.conversationId}
-                    onUploadComplete={(result) => {
-                      console.log('File uploaded successfully:', result);
-                    }}
-                    onUploadError={(error) => {
-                      console.error('File upload error:', error);
-                      message.error('Failed to upload file. Please try again.');
-                    }}
-                  />
-                </div>
-              )}
-              
-              <Input
-                className="flex-1 py-2 px-2 border-none bg-transparent text-base focus:shadow-none"
-                placeholder={
-                  isUploading
-                    ? "Đang tải lên..."
-                    : `Nhắn @, tin nhắn tới ${conversation.isGroup ? conversation.groupName : "Bạn"}`
-                }
-                bordered={false}
-                disabled={isUploading}
-                value={inputValue}
-                onChange={handleInputChange}
-                onPressEnter={handleKeyPress}
-              />
+            <div className="ml-2 text-xs text-gray-600">
+              <div>Ảnh đã dán</div>
+              <div className="text-blue-500">Sẽ được gửi cùng với tin nhắn</div>
             </div>
-
-            {/* Nút gửi */}
-            <Button
-              type="primary"
-              icon={<SendOutlined />}
-              onClick={handleSendMessage}
-              disabled={!isValidConversation || (!inputValue.trim() && !pastedImage && attachments.length === 0)}
-            />
           </div>
+        )}
 
-          {/* Thanh công cụ đính kèm */}
-          <div className="attachment-toolbar">
-            {/* File Uploader Component */}
+        {/* Main input area */}
+        <div className="flex items-center p-2">
+          {/* File attachment button */}
+          <div className="flex-shrink-0 mr-2">
             {isValidConversation && (
               <FileUploader 
                 conversationId={conversation?.conversationId || ''}
                 onUploadComplete={(result) => {
                   console.log('File uploaded successfully:', result);
-                  // Additional handling if needed
                 }}
                 onUploadError={(error) => {
                   console.error('File upload error:', error);
@@ -2205,9 +2143,11 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
                 }}
               />
             )}
-            
-            {/* Existing attachment buttons */}
-            <Tooltip title="Attach image">
+          </div>
+          
+          {/* Image button */}
+          <div className="flex-shrink-0 mr-2">
+            <Tooltip title="Gửi hình ảnh">
               <Button
                 type="text"
                 icon={<PictureOutlined />}
@@ -2215,42 +2155,195 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
                 disabled={!isValidConversation}
               />
             </Tooltip>
-            <Tooltip title='Record video'>
+          </div>
+          
+          {/* Emoji picker button */}
+          <div className="emoji-picker-container flex-shrink-0 relative mr-2">
+            <Button 
+              type="text" 
+              icon={<SmileOutlined />} 
+              onClick={toggleEmojiPicker} 
+              className="emoji-button"
+            />
+            {emojiPickerVisible && (
+              <div className="emoji-picker absolute bottom-12 left-0 z-10 shadow-lg rounded-lg bg-white emoji-picker-container" style={{ width: '320px', height: '350px' }}>
+                <Picker 
+                  data={data} 
+                  onEmojiSelect={handleEmojiSelect} 
+                  theme="light"
+                  previewPosition="none"
+                />
+              </div>
+            )}
+          </div>
+          
+          {/* Input field */}
+          <div className="flex-grow">
+            <Input
+              className="w-full py-2 px-2 bg-gray-100 rounded-2xl border-none focus:shadow-none"
+              placeholder={
+                isUploading
+                  ? "Đang tải lên..."
+                  : `Nhắn @, tin nhắn tới ${conversation?.isGroup ? conversation.groupName : "Bạn"}`
+              }
+              bordered={false}
+              disabled={isUploading}
+              value={inputValue}
+              onChange={handleInputChange}
+              onPressEnter={handleKeyPress}
+            />
+          </div>
+          
+          {/* Like/Send button */}
+          <div className="flex-shrink-0 ml-2">
+            {inputValue.trim() || attachments.length > 0 || pastedImage ? (
               <Button
-                type="text"
-                icon={<VideoCameraOutlined />}
-                onClick={handleVideoClick}
+                type="primary"
+                shape="circle"
+                icon={<SendOutlined />}
+                onClick={handleSendMessage}
                 disabled={!isValidConversation}
               />
-            </Tooltip>
-            <Tooltip title='Record audio'>
+            ) : (
               <Button
-                type="text"
-                icon={<AudioOutlined />}
-                onClick={handleAudioClick}
+                type="primary" 
+                shape="circle"
+                icon={
+                  <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" strokeWidth="2" fill="none">
+                    <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"></path>
+                  </svg>
+                }
+                onClick={handleSendLike}
                 disabled={!isValidConversation}
               />
-            </Tooltip>
-            <Tooltip title='Share location'>
-              <Button
-                type="text"
-                icon={<EnvironmentOutlined />}
-                onClick={handleLocationClick}
-                disabled={!isValidConversation}
-              />
-            </Tooltip>
-            <Tooltip title="Create poll">
-              <Button
-                type="text"
-                icon={<BarChartOutlined />}
-                onClick={handlePollClick}
-                disabled={!isValidConversation}
-              />
-            </Tooltip>
+            )}
           </div>
         </div>
+        
+        {/* Hidden file inputs */}
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleFileChange}
+          className="hidden"
+          multiple
+          accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
+          aria-label="Tải lên tập tin đính kèm"
+        />
+        <input
+          type="file"
+          ref={imageInputRef}
+          onChange={handleFileChange}
+          className="hidden"
+          accept="image/*"
+          aria-label="Tải lên hình ảnh"
+        />
+        <input
+          type="file"
+          ref={videoInputRef}
+          onChange={handleFileChange}
+          className="hidden"
+          accept="video/*"
+          aria-label="Tải lên video"
+        />
+        <input
+          type="file"
+          ref={audioInputRef}
+          onChange={handleFileChange}
+          className="hidden"
+          accept="audio/*"
+          aria-label="Tải lên ghi âm"
+        />
       </div>
     );
+  };
+
+  // Function to handle sending a "like" message
+  const handleSendLike = async () => {
+    if (!isValidConversation) return;
+    
+    // Create a temporary message with thumbs up emoji
+    const tempId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const tempMessage: DisplayMessage = {
+      id: tempId,
+      content: '👍',
+      timestamp: new Date().toISOString(),
+      sender: {
+        id: currentUserId,
+        name: "Bạn",
+        avatar: userCache[currentUserId]?.urlavatar || "",
+      },
+      type: "text",
+      isRead: false,
+      sendStatus: "sending",
+      readBy: [],
+      deliveredTo: [],
+    };
+    
+    // Update UI with temporary message
+    setMessages(prev => [...prev, tempMessage]);
+    scrollToBottomSmooth();
+    
+    // Send message to server
+    try {
+      // Send the like message to the server
+      const newMessage = await sendMessage(
+        conversation.conversationId,
+        '👍',
+        "text",
+        []
+      );
+      
+      if (newMessage && newMessage.messageDetailId) {
+        // Create a real message object to replace the temporary one
+        const sender = userCache[currentUserId] || {
+          fullname: "Bạn",
+          urlavatar: "",
+        };
+        
+        const realMessage: DisplayMessage = {
+          id: newMessage.messageDetailId,
+          content: '👍',
+          timestamp: newMessage.createdAt,
+          sender: {
+            id: newMessage.senderId,
+            name: sender.fullname,
+            avatar: sender.urlavatar,
+          },
+          type: "text",
+          isRead: Array.isArray(newMessage.readBy) && newMessage.readBy.length > 0,
+          readBy: newMessage.readBy || [],
+          deliveredTo: newMessage.deliveredTo || [],
+          sendStatus: "sent",
+          tempId: tempId
+        };
+        
+        // Replace temporary message with real one
+        setMessages(prevMessages => 
+          prevMessages.map(msg => 
+            msg.id === tempId ? realMessage : msg
+          )
+        );
+      } else {
+        console.error('Failed to send like message:', newMessage);
+        // Update temp message to show error
+        setMessages(prev => 
+          prev.map(msg => 
+            msg.id === tempId ? { ...msg, isError: true, sendStatus: undefined } : msg
+          )
+        );
+        message.error("Không thể gửi tin nhắn. Vui lòng thử lại.");
+      }
+    } catch (error) {
+      console.error('Error sending like message:', error);
+      // Update temp message to show error
+      setMessages(prev => 
+        prev.map(msg => 
+          msg.id === tempId ? { ...msg, isError: true, sendStatus: undefined } : msg
+        )
+      );
+      message.error("Không thể gửi tin nhắn. Vui lòng thử lại.");
+    }
   };
 
   return (
@@ -2692,64 +2785,6 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
               </div>
             )}
 
-            {/* Hidden file inputs */}
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleFileChange}
-              className="hidden"
-              multiple
-              accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
-              aria-label="Tải lên tập tin đính kèm"
-            />
-            <input
-              type="file"
-              ref={imageInputRef}
-              onChange={handleFileChange}
-              className="hidden"
-              accept="image/*"
-              aria-label="Tải lên hình ảnh"
-            />
-            <input
-              type="file"
-              ref={videoInputRef}
-              onChange={handleFileChange}
-              className="hidden"
-              accept="video/*"
-              aria-label="Tải lên video"
-            />
-            <input
-              type="file"
-              ref={audioInputRef}
-              onChange={handleFileChange}
-              className="hidden"
-              accept="audio/*"
-              aria-label="Tải lên ghi âm"
-            />
-
-            {/* Hiển thị ảnh đã paste nếu có */}
-            {pastedImagePreview && (
-              <div className="flex items-center py-2 px-4 border-t border-gray-100">
-                <div className="relative">
-                  <img 
-                    src={pastedImagePreview} 
-                    alt="Ảnh đã dán" 
-                    className="h-16 rounded object-cover"
-                  />
-                  <button
-                    className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs"
-                    onClick={handleRemovePastedImage}
-                  >
-                    ×
-                  </button>
-                </div>
-                <div className="ml-2 text-xs text-gray-600">
-                  <div>Ảnh đã dán</div>
-                  <div className="text-blue-500">Sẽ được gửi cùng với tin nhắn</div>
-                </div>
-              </div>
-            )}
-
             {renderInputArea()}
           </div>
         )}
@@ -2786,17 +2821,55 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
           0%, 80%, 100% { transform: scale(0); }
           40% { transform: scale(1); }
         }
+
+        .chat-input-container {
+          background-color: white;
+          border-top: 1px solid #eee;
+          padding: 8px;
+        }
+
+        .emoji-picker-container {
+          position: relative;
+        }
+
+        .emoji-picker-container .emoji-picker {
+          position: absolute;
+          bottom: 40px;
+          left: 0;
+          z-index: 100;
+          box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+          border-radius: 8px;
+          overflow: hidden;
+        }
         `}
       </style>
       
-      {/* Image modal */}
-      {selectedImage && (
-        <ImageModal 
-          imageUrl={selectedImage}
-          isOpen={isImageModalOpen}
-          onClose={closeImageModal}
-        />
-      )}
+      {/* Image preview modal */}
+      <Modal
+        open={isImageModalOpen}
+        footer={null}
+        onCancel={closeImageModal}
+        centered
+        className="image-viewer-modal"
+        width="auto"
+        bodyStyle={{ padding: 0, maxHeight: '90vh', overflow: 'hidden' }}
+        style={{ maxWidth: '90vw' }}
+        maskStyle={{ background: 'rgba(0, 0, 0, 0.85)' }}
+      >
+        {selectedImage && (
+          <div className="relative">
+            <img 
+              src={selectedImage} 
+              alt="Enlarged view" 
+              className="max-h-[90vh] max-w-[90vw] object-contain"
+              onError={(e) => {
+                e.currentTarget.onerror = null;
+                e.currentTarget.src = '/images/image-placeholder.png';
+              }}
+            />
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }
