@@ -51,11 +51,13 @@ import ImageModal from "./modals/ImageModal";
 
 
 interface ChatAreaProps {
-  conversation: Conversation;
+  conversation: Conversation | null;
+  viewingImages?: boolean;
 }
 
-const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
+export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
   const [messages, setMessages] = useState<DisplayMessage[]>([]);
+  const [notifications, setNotifications] = useState<any[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -74,8 +76,12 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const { t } = useLanguage();
-  const { userCache, updateConversationWithNewMessage } =
-    useConversationContext();
+  const { 
+    markConversationAsRead, 
+    updateConversationWithNewMessage,
+    updateUnreadStatus,
+    userCache 
+  } = useConversationContext();
   const currentUserId = localStorage.getItem("userId") || "";
   const [imageInputVisible, setImageInputVisible] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -104,6 +110,25 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
   const [isImageModalOpen, setIsImageModalOpen] = useState(false);
 
   useEffect(() => {
+    if (!conversation) return; // Early return if no conversation
+    
+    async function initialLoad() {
+      setLoading(true);
+      setMessages([]);
+      setNotifications([]);
+      // ... existing code ...
+    }
+    
+    initialLoad();
+    return () => {
+      // Only attempt to leave if we have a valid conversation
+      if (conversation && conversation.conversationId) {
+        socketService.leaveConversation(conversation.conversationId);
+      }
+    };
+  }, [conversation?.conversationId]);
+
+  useEffect(() => {
     // Reset state khi chuyển cuộc trò chuyện
     setMessages([]);
     setError(null);
@@ -122,6 +147,9 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
     
     // Chỉ tải tin nhắn và thiết lập socket khi conversation hợp lệ
     if (isValidConversation) {
+      // Mark this conversation as read when it's selected
+      markConversationAsRead(conversation.conversationId);
+      
       // Tải tin nhắn gần nhất với hướng 'before' và không có cursor
       fetchMessages(undefined, "before");
       
@@ -132,10 +160,19 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
       const handleNewMessage = (data: any) => {
         console.log("New message from socket:", data);
         
-        // Kiểm tra xem tin nhắn thuộc conversation hiện tại không
-        if (data.conversationId !== conversation.conversationId) return;
+        // Kiểm tra xem tin nhắn có thuộc cuộc trò chuyện hiện tại không
+        if (!conversation || data.conversationId !== conversation.conversationId) {
+          // Cập nhật danh sách cuộc trò chuyện để hiển thị tin nhắn mới
+          updateConversationWithNewMessage(data.conversationId, data.message);
+          return;
+        }
         
+        // Also update the conversation in the list for current conversation
+        updateConversationWithNewMessage(data.conversationId, data.message);
+        
+        // Rest of the existing code for updating the current conversation's messages
         const msg = data.message;
+        
         const sender = data.sender;
         
         // Kiểm tra tin nhắn hợp lệ và xử lý dữ liệu từ MongoDB
@@ -464,41 +501,40 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
       
       // Callback cho sự kiện tin nhắn đã đọc
       const handleMessageRead = (data: { conversationId: string, messageIds: string[], userId: string }) => {
-        if (data.conversationId !== conversation.conversationId) return;
+        // Kiểm tra xem sự kiện liên quan đến cuộc trò chuyện hiện tại không
+        if (data.conversationId !== conversation.conversationId) {
+          // Still update the unread status in the conversation list even if it's not the current conversation
+          updateUnreadStatus(data.conversationId, data.messageIds);
+          return;
+        }
         
-        console.log("📨 MessageRead event received:", data);
-        
-        // Cập nhật trạng thái đã đọc cho tin nhắn
-        setMessages(prevMessages => {
-          let hasUpdates = false;
-          const updatedMessages = prevMessages.map(msg => {
-            if (data.messageIds.includes(msg.id)) {
-              // Chỉ cập nhật nếu đây là tin nhắn của người dùng hiện tại
-              // và người đánh dấu đã đọc không phải là người dùng hiện tại
-              if (msg.sender.id === currentUserId && data.userId !== currentUserId) {
-                console.log("Updating message status to READ:", msg.id, "Previous status:", msg.sendStatus);
-                hasUpdates = true;
-                
-                // Kiểm tra xem userId đã tồn tại trong mảng readBy chưa
-                const newReadBy = msg.readBy || [];
-                if (!newReadBy.includes(data.userId)) {
-                  newReadBy.push(data.userId);
+        // Cập nhật tin nhắn đã đọc trong cuộc trò chuyện hiện tại
+        if (Array.isArray(data.messageIds) && data.messageIds.length > 0) {
+          setMessages(prev => 
+            prev.map(msg => {
+              // Nếu ID tin nhắn nằm trong danh sách đã đọc
+              if (data.messageIds.includes(msg.id)) {
+                // Nếu mảng readBy chưa có userId này, thêm vào
+                if (!msg.readBy) {
+                  msg.readBy = [data.userId];
+                } else if (!msg.readBy.includes(data.userId)) {
+                  msg.readBy = [...msg.readBy, data.userId];
                 }
-                
                 return {
                   ...msg,
                   isRead: true,
-                  readBy: newReadBy,
-                  sendStatus: "read"
+                  readBy: msg.readBy,
+                  // Add sendStatus update for own messages
+                  sendStatus: msg.sender.id === currentUserId ? "read" : msg.sendStatus
                 };
               }
-            }
-            return msg;
-          });
-          
-          // Chỉ cập nhật state nếu có thay đổi thực sự
-          return hasUpdates ? updatedMessages : prevMessages;
-        });
+              return msg;
+            })
+          );
+        }
+        
+        // Also update the conversation in the list
+        updateUnreadStatus(data.conversationId, data.messageIds);
       };
       
       // Callback cho sự kiện tin nhắn đã gửi
@@ -569,7 +605,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
   // Xử lý đánh dấu đã đọc khi cuộn đến tin nhắn mới
   useEffect(() => {
     // Đánh dấu các tin nhắn mới (từ người khác) là đã đọc khi hiển thị
-    if (isValidConversation && messages.length > 0) {
+    if (isValidConversation && messages.length > 0 && conversation) {
       // Lọc các tin nhắn từ người khác, chưa được đọc
       const unreadMessages = messages
         .filter(msg => 
@@ -583,7 +619,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
         socketService.markMessagesAsRead(conversation.conversationId, unreadMessages);
       }
     }
-  }, [messages, currentUserId, conversation.conversationId, isValidConversation]);
+  }, [messages, currentUserId, conversation?.conversationId, isValidConversation]);
 
   // UseEffect để áp dụng logic loại bỏ tin nhắn trùng lặp khi danh sách tin nhắn thay đổi
   useEffect(() => {
@@ -1139,6 +1175,28 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
 
       // Xóa danh sách tập tin đính kèm sau khi gửi
       setAttachments([]);
+
+      // Sau khi gửi thành công, kiểm tra người nhận có đang xem conversation không để cập nhật trạng thái
+      const activeUsers = socketService.getActiveUsersInConversation(conversation.conversationId);
+      const otherActiveUsers = activeUsers.filter(id => id !== currentUserId);
+      
+      // Nếu có người nhận đang active, cập nhật trạng thái tin nhắn ngay lập tức
+      if (otherActiveUsers.length > 0) {
+        // Cập nhật UI để hiển thị trạng thái "đã đọc" ngay
+        setMessages(prev => 
+          prev.map(msg => {
+            if (msg.id === tempId || msg.id === newMessage.messageDetailId) {
+              return {
+                ...msg,
+                id: newMessage.messageDetailId || msg.id,
+                deliveredTo: otherActiveUsers,
+                sendStatus: "delivered" // Hoặc "read" nếu đã đọc
+              };
+            }
+            return msg;
+          })
+        );
+      }
     } catch (error: any) {
       console.error("Lỗi khi gửi tin nhắn:", error);
       // Đánh dấu tin nhắn tạm là lỗi
@@ -2590,6 +2648,4 @@ const ChatArea: React.FC<ChatAreaProps> = ({ conversation }) => {
       )}
     </div>
   );
-};
-
-export default ChatArea; 
+}

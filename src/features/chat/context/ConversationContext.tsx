@@ -26,6 +26,8 @@ interface ConversationContextType {
   selectedConversation: Conversation | null;
   setSelectedConversation: React.Dispatch<React.SetStateAction<Conversation | null>>;
   isLoading: boolean;
+  markConversationAsRead: (conversationId: string) => void;
+  updateUnreadStatus: (conversationId: string, messageIds: string[]) => void;
 }
 
 const ConversationContext = createContext<ConversationContextType | undefined>(undefined);
@@ -105,39 +107,108 @@ export const ConversationProvider: React.FC<{ children: ReactNode }> = ({ childr
     }
   };
 
-  // Cập nhật conversation khi có tin nhắn mới
-  const updateConversationWithNewMessage = useCallback((conversationId: string, message: Message) => {
+  // New method to mark a conversation as read
+  const markConversationAsRead = useCallback((conversationId: string) => {
     setConversations(prevConversations => {
-      // Tìm conversation cần cập nhật
+      return prevConversations.map(conv => {
+        if (conv.conversationId === conversationId) {
+          return {
+            ...conv,
+            unreadCount: 0,
+            hasUnread: false
+          };
+        }
+        return conv;
+      });
+    });
+  }, []);
+
+  // Update unread status when messages are marked as read
+  const updateUnreadStatus = useCallback((conversationId: string, messageIds: string[]) => {
+    setConversations(prevConversations => {
+      return prevConversations.map(conv => {
+        if (conv.conversationId === conversationId) {
+          // Only update if any of the message IDs match the newest message
+          const messageIdMatched = messageIds.includes(conv.newestMessageId || '');
+          
+          if (messageIdMatched) {
+            return {
+              ...conv,
+              unreadCount: 0,
+              hasUnread: false
+            };
+          }
+        }
+        return conv;
+      });
+    });
+  }, []);
+
+  // Modify updateConversationWithNewMessage to handle unread status
+  const updateConversationWithNewMessage = useCallback((conversationId: string, message: Message) => {
+    const currentUserId = localStorage.getItem('userId');
+    const isFromCurrentUser = message.senderId === currentUserId;
+    
+    setConversations(prevConversations => {
+      // Find the conversation to update
       const conversationIndex = prevConversations.findIndex(
         conv => conv.conversationId === conversationId
       );
       
       if (conversationIndex === -1) return prevConversations;
       
-      // Tạo một bản sao của danh sách conversations
+      // Create a copy of the conversations list
       const updatedConversations = [...prevConversations];
+      const existingConversation = updatedConversations[conversationIndex];
       
-      // Cập nhật tin nhắn cuối cùng cho conversation - handle different message id property names
+      // Get the message ID (handling different property names)
       const messageId = message.messageDetailId || message.messageId || message.id || '';
       
+      // Calculate new unread count
+      let newUnreadCount: number;
+      if (typeof existingConversation.unreadCount === 'number') {
+        newUnreadCount = isFromCurrentUser ? 0 : existingConversation.unreadCount + 1;
+      } else {
+        // If it's an array or undefined, start with a new count
+        newUnreadCount = isFromCurrentUser ? 0 : 1;
+      }
+      
+      // Update the conversation with the new message
       const updatedConversation: Conversation = {
-        ...updatedConversations[conversationIndex],
+        ...existingConversation,
         lastMessage: {
-          messageId,
+          senderId: message.senderId,
           content: message.content,
           type: message.type,
-          senderId: message.senderId,
-          createdAt: message.createdAt
+          createdAt: message.createdAt,
+          messageDetailId: messageId,
+          conversationId: conversationId,
+          sendStatus: 'sent',
+          hiddenFrom: [],
+          isRecall: false,
+          isReply: false,
+          messageReplyId: null,
+          replyData: null,
+          isPinned: false,
+          pinnedAt: null,
+          reactions: [],
+          attachments: null,
+          poll: null,
+          linkPreview: null,
+          deliveredTo: [],
+          readBy: [],
+          deletedFor: []
         },
         newestMessageId: messageId,
-        lastChange: message.createdAt
+        lastChange: message.createdAt,
+        unreadCount: newUnreadCount,
+        hasUnread: !isFromCurrentUser
       };
       
-      // Xóa conversation khỏi vị trí cũ
+      // Remove the conversation from its old position
       updatedConversations.splice(conversationIndex, 1);
       
-      // Thêm conversation đã cập nhật vào đầu danh sách
+      // Add the updated conversation to the top of the list
       return [updatedConversation, ...updatedConversations];
     });
   }, []);
@@ -256,7 +327,9 @@ export const ConversationProvider: React.FC<{ children: ReactNode }> = ({ childr
     refreshConversations,
     selectedConversation,
     setSelectedConversation,
-    isLoading
+    isLoading,
+    markConversationAsRead,
+    updateUnreadStatus
   };
 
   return (

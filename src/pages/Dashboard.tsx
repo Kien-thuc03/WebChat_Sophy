@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import Sidebar from "../components/sidebar/Sidebar";
 import ChatList from "../components/chat/ChatList";
 import ChatHeader from "../components/chat/ChatHeader";
-import ChatArea from "../components/chat/ChatArea";
+import { ChatArea } from "../components/chat/ChatArea";
 import SettingsMenu from "../components/content/SettingsMenu";
 import UserModal from "../components/content/modal/UserModal";
 import SettingsModal from "../components/content/modal/SettingsModal";

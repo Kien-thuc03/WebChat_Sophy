@@ -116,6 +116,33 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
     return user?.urlavatar || '';
   };
 
+  // Add a helper function to calculate the unread count
+  const getUnreadCount = (chat: Conversation): number => {
+    if (typeof chat.unreadCount === 'number') {
+      return chat.unreadCount;
+    }
+    
+    // If it's an array, calculate total for current user
+    if (Array.isArray(chat.unreadCount)) {
+      const currentUserId = localStorage.getItem('userId') || '';
+      const userUnread = chat.unreadCount.find(uc => uc.userId === currentUserId);
+      return userUnread?.count || 0;
+    }
+    
+    return 0;
+  };
+
+  // Add a helper function to check if there are unread messages
+  const hasUnreadMessages = (chat: Conversation): boolean => {
+    // Use explicit hasUnread property if available
+    if (typeof chat.hasUnread === 'boolean') {
+      return chat.hasUnread;
+    }
+    
+    // Otherwise calculate based on unreadCount
+    return getUnreadCount(chat) > 0;
+  };
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
@@ -184,7 +211,9 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
           dataSource={conversations}
           renderItem={(chat) => (
             <List.Item
-              className="flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer px-3 py-2"
+              className={`flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer px-3 py-2 ${
+                hasUnreadMessages(chat) ? 'bg-blue-50 dark:bg-blue-900/20' : ''
+              }`}
               onClick={() => onSelectConversation(chat)}>
               {/* Avatar section */}
               <div className="relative shrink-0 pl-2">
@@ -204,15 +233,25 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
                     className="cursor-pointer"
                   />
                 )}
+                {hasUnreadMessages(chat) && (
+                  <span className="absolute top-0 right-0 h-3 w-3 bg-blue-500 rounded-full border border-white"></span>
+                )}
               </div>
 
               {/* Content section */}
               <div className="flex-1 min-w-0">
                 <div className="flex justify-between items-center relative group">
-                  <span className="truncate font-semibold text-gray-900 dark:text-gray-100">
+                  <span className={`truncate font-semibold ${
+                    hasUnreadMessages(chat) ? 'text-blue-700 dark:text-blue-400' : 'text-gray-900 dark:text-gray-100'
+                  }`}>
                     {getConversationName(chat)}
                   </span>
                   <div className="flex items-center">
+                    {getUnreadCount(chat) > 0 && (
+                      <span className="inline-flex items-center justify-center bg-blue-500 text-white text-xs rounded-full px-1.5 py-0.5 min-w-[20px] mr-1">
+                        {getUnreadCount(chat) > 99 ? '99+' : getUnreadCount(chat)}
+                      </span>
+                    )}
                     <span className="text-xs text-gray-500 dark:text-gray-400 group-hover:opacity-0 transition-opacity duration-200">
                       {chat.lastMessage &&
                         formatRelativeTime(chat.lastMessage.createdAt)}

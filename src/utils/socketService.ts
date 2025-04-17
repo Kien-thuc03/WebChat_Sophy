@@ -44,6 +44,7 @@ class SocketService {
   private isConnecting: boolean = false;
   private connectionAttempts: number = 0;
   private maxReconnectAttempts: number = 5;
+  private activeUsers: Record<string, string[]> = {}; // Mapping giữa conversationId và danh sách userId đang active
 
   private constructor() {}
 
@@ -249,6 +250,17 @@ class SocketService {
 
     console.log("Joining conversations:", conversationIds);
     this.socket.emit("joinUserConversations", conversationIds);
+  }
+
+  // Thêm phương thức để rời khỏi cuộc trò chuyện
+  leaveConversation(conversationId: string) {
+    if (!this.socket || !this.socket.connected) {
+      console.warn("Socket not connected while trying to leave conversation, ignoring...");
+      return;
+    }
+
+    console.log("Leaving conversation:", conversationId);
+    this.socket.emit("leaveUserConversations", [conversationId]);
   }
 
   // Phương thức để gửi sự kiện đang nhập
@@ -507,6 +519,67 @@ class SocketService {
     this.socket.on("error", (error: Error) => {
       console.error("Socket error:", error);
     });
+  }
+
+  // Phương thức để cập nhật trạng thái active của user trong conversation
+  userEnterConversation(conversationId: string) {
+    const userId = localStorage.getItem('userId');
+    if (!userId) return;
+    
+    // Thông báo cho server rằng user đang xem conversation này
+    if (this.socket?.connected) {
+      this.socket.emit("userActiveInConversation", { 
+        conversationId, 
+        userId, 
+        active: true 
+      });
+    }
+  }
+
+  // Phương thức để thông báo user rời khỏi conversation
+  userLeaveConversation(conversationId: string) {
+    const userId = localStorage.getItem('userId');
+    if (!userId) return;
+    
+    // Thông báo cho server rằng user đã rời khỏi conversation này
+    if (this.socket?.connected) {
+      this.socket.emit("userActiveInConversation", { 
+        conversationId, 
+        userId, 
+        active: false 
+      });
+    }
+  }
+
+  // Lắng nghe sự kiện user active trong conversation
+  listenToUserActivityStatus() {
+    if (!this.socket) this.connect();
+    
+    if (this.socket) {
+      this.socket.on("userActivityUpdate", (data: { 
+        conversationId: string, 
+        activeUsers: string[] 
+      }) => {
+        // Cập nhật danh sách người dùng đang active trong conversation
+        this.activeUsers[data.conversationId] = data.activeUsers;
+        
+        // Phát ra event để các component có thể cập nhật UI
+        this.socket?.emit("activeStatusUpdated", {
+          conversationId: data.conversationId,
+          activeUsers: data.activeUsers
+        });
+      });
+    }
+  }
+
+  // Kiểm tra xem một user có đang active trong conversation không
+  isUserActiveInConversation(conversationId: string, userId: string): boolean {
+    return this.activeUsers[conversationId]?.includes(userId) || false;
+  }
+
+  // Lấy danh sách những người đang active trong conversation
+  getActiveUsersInConversation(conversationId: string): string[] {
+    return this.activeUsers[conversationId] || [];
   }
 }
 
