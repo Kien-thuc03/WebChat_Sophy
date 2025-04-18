@@ -2163,3 +2163,25 @@ export const getPinnedMessages = async (conversationId: string): Promise<Message
     throw error;
   }
 };
+
+// Get a specific message by ID
+export const getSpecificMessage = async (messageId: string, conversationId?: string): Promise<Message | null> => {
+  try {
+    const token = getAuthToken();
+    if (!token) {
+      throw new Error("Not authenticated");
+    }
+
+    const response = await apiClient.get(`/api/messages/${messageId}`);
+    
+    if (response.status !== 200) {
+      throw new Error(`Failed to get message. Status: ${response.status}`);
+    }
+
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching specific message:", error);
+    // Return null instead of throwing to handle gracefully in UI
+    return null;
+  }
+};

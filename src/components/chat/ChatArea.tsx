@@ -54,6 +54,7 @@ import {
   pinMessage,
   unpinMessage,
   getPinnedMessages,
+  getSpecificMessage,
 } from "../../api/API";
 import { useLanguage } from "../../features/auth/context/LanguageContext";
 import { formatMessageTime } from "../../utils/dateUtils";
@@ -2587,6 +2588,9 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
       setMessageActionLoading(messageId);
       await pinMessage(messageId);
       
+      // Find the message that was pinned
+      const pinnedMessage = messages.find(msg => msg.id === messageId);
+      
       // Update the message status in the UI
       setMessages((prevMessages) =>
         prevMessages.map((msg) =>
@@ -2596,6 +2600,48 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
       
       // Refresh pinned messages
       await fetchPinnedMessages();
+      
+      // Add a notification message about pinning
+      if (pinnedMessage) {
+        let contentPreview = ''; 
+        
+        // For non-text messages, use appropriate description
+        if (pinnedMessage.type === 'image') {
+          contentPreview = 'hình ảnh';
+        } else if (pinnedMessage.type === 'file') {
+          contentPreview = 'tập tin';
+        } else if (pinnedMessage.type === 'video') {
+          contentPreview = 'video';
+        } else {
+          // For text messages, truncate if too long
+          contentPreview = pinnedMessage.content.length > 20 
+            ? pinnedMessage.content.substring(0, 20) + '...' 
+            : pinnedMessage.content;
+        }
+              
+        // Create notification message
+        const notificationMessage: DisplayMessage = {
+          id: `notification-pin-${Date.now()}`,
+          content: `Bạn đã ghim tin nhắn ${contentPreview}`,
+          timestamp: new Date().toISOString(),
+          sender: {
+            id: 'system',
+            name: 'Hệ thống',
+          },
+          type: 'notification',
+          // Store the pinned message ID in the attachment url field for reference
+          attachment: {
+            url: messageId,
+            type: 'reference',
+          }
+        };
+        
+        // Add the notification to the message list
+        setMessages(prevMessages => [...prevMessages, notificationMessage]);
+        
+        // Scroll to bottom to show the notification
+        setTimeout(scrollToBottomSmooth, 100);
+      }
       
       message.success("Đã ghim tin nhắn");
     } catch (error: any) {
@@ -2835,18 +2881,10 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
                           <Menu.Item 
                             key="goto" 
                             onClick={() => {
-                              const element = document.getElementById(`message-${pinnedMsg.id}`);
-                              if (element) {
-                                setShowPinnedMessagesPanel(false);
-                                setTimeout(() => {
-                                  element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                  // Highlight the message briefly
-                                  element.classList.add('highlight-message');
-                                  setTimeout(() => {
-                                    element.classList.remove('highlight-message');
-                                  }, 2000);
-                                }, 300);
-                              }
+                              setShowPinnedMessagesPanel(false);
+                              setTimeout(() => {
+                                scrollToPinnedMessage(pinnedMsg.id);
+                              }, 300);
                             }}
                           >
                             Đi đến tin nhắn
@@ -2871,6 +2909,156 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
         </div>
       </div>
     );
+  };
+
+  // Add this new component in the ChatArea.tsx file
+  const NotificationMessage = ({ message, onViewClick }: { message: DisplayMessage, onViewClick: () => void }) => {
+    return (
+      <div className="flex justify-center my-2">
+        <div className="flex items-center bg-white rounded-full py-2 px-4 max-w-md border border-gray-100 shadow-sm">
+          <div className="mr-2 text-orange-500">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+              <path d="M16,12V4H17V2H7V4H8V12L6,14V16H11.2V22H12.8V16H18V14L16,12Z" />
+            </svg>
+          </div>
+          <div className="text-sm text-gray-700 flex-grow">
+            {message.content}
+          </div>
+          {message.content.includes("ghim tin nhắn") && (
+            <button 
+              className="text-blue-500 text-sm font-medium ml-2"
+              onClick={onViewClick}
+            >
+              Xem
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  // Add a new function to locate and scroll to a pinned message by ID
+  const scrollToPinnedMessage = async (messageId: string) => {
+    if (!messageId) {
+      setShowPinnedMessagesPanel(true);
+      return false;
+    }
+    
+    // First try to find the element in the current DOM
+    const element = document.getElementById(`message-${messageId}`);
+    if (element) {
+      // If found, scroll to it and highlight it
+      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      element.classList.add('highlight-message');
+      const elementRef = element; // Store reference for callback
+      setTimeout(() => {
+        elementRef.classList.remove('highlight-message');
+      }, 2000);
+      return true;
+    }
+    
+    // If not found in DOM, check if the message is in our loaded messages
+    const messageIndex = messages.findIndex(msg => msg.id === messageId);
+    if (messageIndex !== -1) {
+      // Message is in our state, but not rendered. Try to scroll to its estimated position
+      const messagesContainer = messagesContainerRef.current;
+      if (messagesContainer) {
+        // Try to scroll to approximate position
+        const approximatePosition = (messageIndex / messages.length) * messagesContainer.scrollHeight;
+        messagesContainer.scrollTop = approximatePosition;
+        
+        // Try again after a short delay for the message to render
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
+        // Check again
+        const foundElement = document.getElementById(`message-${messageId}`);
+        if (foundElement) {
+          foundElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          foundElement.classList.add('highlight-message');
+          const elementRef = foundElement; // Store reference for callback
+          setTimeout(() => {
+            elementRef.classList.remove('highlight-message');
+          }, 2000);
+          return true;
+        }
+      }
+    }
+    
+    // Message not found - try more aggressive loading, especially important after page reload
+    try {
+      // First, try normal fetch to see if it's in recent messages
+      await fetchMessages();
+      
+      // Try one more time after fetching
+      await new Promise(resolve => setTimeout(resolve, 300));
+      let foundElement = document.getElementById(`message-${messageId}`);
+      if (foundElement) {
+        foundElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        foundElement.classList.add('highlight-message');
+        const elementRef = foundElement; // Store reference for callback
+        setTimeout(() => {
+          elementRef.classList.remove('highlight-message');
+        }, 2000);
+        return true;
+      }
+      
+      // If still not found, try to load more historical messages
+      // This is crucial after page reload when we might need to go back in history
+      if (hasMore && conversation?.conversationId) {
+        console.log("Trying to load more historical messages to find pinned message:", messageId);
+        // Try loading more messages
+        await loadMoreMessages();
+        
+        await new Promise(resolve => setTimeout(resolve, 500));
+        foundElement = document.getElementById(`message-${messageId}`);
+        if (foundElement) {
+          foundElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          foundElement.classList.add('highlight-message');
+          const elementRef = foundElement; // Store reference for callback
+          setTimeout(() => {
+            elementRef.classList.remove('highlight-message');
+          }, 2000);
+          return true;
+        }
+        try {
+          // If still not found, make one more attempt with direct fetch
+          // This handles cases where the message is very old
+          const specificMessage = await getSpecificMessage(messageId, conversation.conversationId);
+          if (specificMessage) {
+            // If we successfully got the specific message, add it to our messages
+            // and create a visual indicator
+            console.log("Found specific pinned message:", specificMessage);
+            
+            // Try to load messages around it
+            // Access timestamp correctly based on Message interface
+            const timestamp = specificMessage.createdAt;
+            if (timestamp) {
+              await fetchMessages(timestamp);
+              
+              await new Promise(resolve => setTimeout(resolve, 500));
+              const finalElement = document.getElementById(`message-${messageId}`);
+              if (finalElement) {
+                finalElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                finalElement.classList.add('highlight-message');
+                const elementRef = finalElement; // Store reference for callback
+                setTimeout(() => {
+                  elementRef.classList.remove('highlight-message');
+                }, 2000);
+                return true;
+              }
+            }
+          }
+        } catch (innerError) {
+          console.error("Error fetching specific message:", innerError);
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching messages while trying to find pinned message:", error);
+    }
+    
+    // If all else fails, show the pinned messages panel
+    setShowPinnedMessagesPanel(true);
+    return false;
   };
 
   return (
@@ -3002,6 +3190,31 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
               // Determine if this is the last message from the current user in the conversation
               const isLastMessageFromUser = isOwn && 
                 messages.findIndex((msg, i) => i > index && msg.sender.id === currentUserId) === -1;
+
+              // If message is a notification, render it with the NotificationMessage component
+              if (message.type === "notification") {
+                return (
+                  <React.Fragment key={`${message.id}-${index}`}>
+                    {/* Timestamp separator */}
+                    {showTimestamp && (
+                      <div className="flex justify-center my-2">
+                        <div className="bg-gray-200 text-gray-600 text-xs px-3 py-1 rounded-full">
+                          {formatDateForSeparator(message.timestamp)}
+                        </div>
+                      </div>
+                    )}
+                    
+                    <NotificationMessage 
+                      message={message} 
+                      onViewClick={() => {
+                        // Find the pinned message ID from the message's attachment URL if available
+                        const pinnedMessageId = message.attachment?.url || "";
+                        scrollToPinnedMessage(pinnedMessageId);
+                      }}
+                    />
+                  </React.Fragment>
+                );
+              }
 
               return (
                 <React.Fragment key={`${message.id}-${index}`}>
@@ -3534,13 +3747,16 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
       <style>
         {`
         @keyframes highlight {
-          0% { background-color: rgba(254, 240, 138, 0.8); }
-          70% { background-color: rgba(254, 240, 138, 0.5); }
-          100% { background-color: transparent; }
+          0% { background-color: rgba(255, 224, 102, 0.9); box-shadow: 0 0 8px rgba(255, 224, 102, 0.8); }
+          50% { background-color: rgba(255, 224, 102, 0.7); box-shadow: 0 0 5px rgba(255, 224, 102, 0.6); }
+          100% { background-color: transparent; box-shadow: none; }
         }
         
         .highlight-message {
           animation: highlight 2s ease-in-out;
+          transition: background-color 0.5s, box-shadow 0.5s;
+          border-radius: 8px;
+          z-index: 1;
         }
         `}
       </style>
