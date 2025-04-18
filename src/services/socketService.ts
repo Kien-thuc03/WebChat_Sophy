@@ -2,9 +2,10 @@
 import io, { Socket } from "socket.io-client";
 import cloudinaryService from './cloudinaryService';
 
-const IP_ADDRESS = "192.168.1.231";
+// const IP_ADDRESS = "192.168.1.231";
 
-const SOCKET_SERVER_URL = `http://${IP_ADDRESS}:3000` || "http://localhost:3000";
+// const SOCKET_SERVER_URL = `http://${IP_ADDRESS}:3000`;
+const SOCKET_SERVER_URL = "http://localhost:3000";
 
 interface FriendRequestData {
   friendRequestId: string;
@@ -469,6 +470,12 @@ class SocketService {
     }
   }
 
+  // Add this method to check if current user is the sender of a friend request
+  isFriendRequestSender(data: FriendRequestData): boolean {
+    const currentUserId = localStorage.getItem("userId");
+    return data.sender.userId === currentUserId;
+  }
+
   onNewFriendRequest(callback: (data: FriendRequestData) => void) {
     if (!this.socket) {
       this.connect();
@@ -477,6 +484,12 @@ class SocketService {
     if (this.socket) {
       this.socket.on("newFriendRequest", (data: FriendRequestData) => {
         console.log("SocketService: Received newFriendRequest event:", data);
+        // Only notify if the current user is the sender
+        if (this.isFriendRequestSender(data)) {
+          console.log("SocketService: Current user is the sender, showing notification");
+        } else {
+          console.log("SocketService: Current user is the receiver, skipping notification");
+        }
         callback(data);
       });
     } else {
