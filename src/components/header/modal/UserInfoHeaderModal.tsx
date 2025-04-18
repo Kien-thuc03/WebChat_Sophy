@@ -13,8 +13,20 @@ import {
   rejectFriendRequest,
   removeFriend,
   sendFriendRequest,
-  getUserById, 
+  getUserById,
 } from "../../../api/API";
+import socketService from "../../../services/socketService";
+
+interface FriendRequestData {
+  friendRequestId: string;
+  message: string;
+  sender: {
+    userId: string;
+    fullname: string;
+    avatar?: string;
+  };
+  timestamp: string;
+}
 
 export interface UserResult {
   userId: string;
@@ -61,7 +73,6 @@ interface UserInfoHeaderModalProps {
   handleSendFriendRequest: (userId: string) => void;
   isSending: boolean;
   onRequestsUpdate?: () => void;
-  // Add these new props
   isFromReceivedTab?: boolean;
   isFromSentTab?: boolean;
   requestId?: string | null;
@@ -85,13 +96,12 @@ const SendFriendRequestModal: React.FC<SendFriendRequestModalProps> = ({
   senderFullname,
   onSendSuccess,
 }) => {
-  const effectiveSenderName = senderFullname || "Người dùng"; // Fallback if senderFullname is undefined
+  const effectiveSenderName = senderFullname || "Người dùng";
   const defaultMessage = `Xin chào, mình là ${effectiveSenderName}. Kết bạn với mình nhé!`;
   const [messageText, setMessageText] = useState<string>(defaultMessage);
   const [blockDiary, setBlockDiary] = useState<boolean>(false);
   const [isSending, setIsSending] = useState<boolean>(false);
 
-  // Update messageText when senderFullname changes
   useEffect(() => {
     setMessageText(defaultMessage);
   }, [senderFullname]);
@@ -137,8 +147,9 @@ const SendFriendRequestModal: React.FC<SendFriendRequestModalProps> = ({
         </div>
       }
       width={400}
+      styles={{ body: { padding: 16 } }}
     >
-      <div className="p-4">
+      <div>
         <Input.TextArea
           value={messageText}
           onChange={handleMessageChange}
@@ -149,7 +160,7 @@ const SendFriendRequestModal: React.FC<SendFriendRequestModalProps> = ({
           {messageText.length}/150 ký tự
         </div>
         <div className="flex items-center justify-between">
-          <span>Chặn người này xem nhật ký của tơi</span>
+          <span>Chặn người này xem nhật ký của tôi</span>
           <Switch checked={blockDiary} onChange={setBlockDiary} />
         </div>
       </div>
@@ -183,26 +194,23 @@ const UserInfoHeaderModal: React.FC<UserInfoHeaderModalProps> = ({
   const [isSendFriendModalVisible, setIsSendFriendModalVisible] = useState<boolean>(false);
   const [currentUserFullname, setCurrentUserFullname] = useState<string>("Người dùng");
 
-  // Fetch current user's full name when modal opens
+  // Fetch current user's full name
   useEffect(() => {
     const fetchCurrentUserFullname = async () => {
       try {
-        const userId = localStorage.getItem("userId"); // Get userId from localStorage
+        const userId = localStorage.getItem("userId");
         if (!userId) {
           console.warn("No userId found in localStorage");
           setCurrentUserFullname("Người dùng");
           return;
         }
 
-        const userData = await getUserById(userId); // Fetch user data
+        const userData = await getUserById(userId);
         const fullname = userData.fullname || userData.fullName || userData.name || "Người dùng";
         setCurrentUserFullname(fullname);
-
-        // Optionally update localStorage with full user data
         localStorage.setItem("user", JSON.stringify(userData));
       } catch (error) {
         console.error("Error fetching current user data:", error);
-        // Fallback to localStorage or default
         const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
         setCurrentUserFullname(storedUser.fullname || storedUser.fullName || storedUser.name || "Người dùng");
       }
@@ -215,6 +223,7 @@ const UserInfoHeaderModal: React.FC<UserInfoHeaderModalProps> = ({
     }
   }, [visible, searchResult, isFriend]);
 
+  // Check friend request status
   useEffect(() => {
     const checkFriendRequest = async () => {
       if (
@@ -232,18 +241,8 @@ const UserInfoHeaderModal: React.FC<UserInfoHeaderModalProps> = ({
 
           const pendingRequests = await getFriendRequestsReceived();
           if (Array.isArray(pendingRequests)) {
-            interface ReceivedFriendRequest {
-              senderId: {
-                userId: string;
-                fullname?: string;
-                urlavatar?: string;
-              };
-              status: string;
-              friendRequestId: string;
-            }
-
             const pendingRequest = pendingRequests.find(
-              (request: ReceivedFriendRequest) =>
+              (request: FriendRequest) =>
                 request.senderId?.userId === searchResult.userId &&
                 request.status === "pending"
             );
@@ -276,29 +275,96 @@ const UserInfoHeaderModal: React.FC<UserInfoHeaderModalProps> = ({
     }
   }, [searchResult, isCurrentUser, isFriend, visible]);
 
+  // Setup socket listeners for friend request events
   useEffect(() => {
-    if (visible && onRequestsUpdate && searchResult) {
-      const checkFriendRequestStatus = async () => {
-        try {
-          const sentResult = await getFriendRequestsSent();
-          const sentRequest = sentResult.find(
-            (req: FriendRequest) => req.receiverId.userId === searchResult.userId
-          );
-          setHasSentFriendRequest(!!sentRequest);
-          setFriendRequestId(sentRequest?.friendRequestId);
-          setIsFriendState(isFriend(searchResult.userId));
-        } catch (err) {
-          console.error("Error checking friend request status:", err);
+    if (!visible || !searchResult) return;
+
+    console.log("Registering socket listeners for friend requests");
+    const currentUserId = localStorage.getItem("userId");
+
+    const handleNewFriendRequest = (data: FriendRequestData) => {
+      if (!data?.sender?.userId || !data?.friendRequestId) {
+        console.warn("Invalid newFriendRequest data:", data);
+        return;
+      }
+      console.log("New friend request received:", data);
+      if (data.sender.userId === searchResult.userId) {
+        console.log("Matching user, updating state");
+        setHasPendingRequest(true);
+        setPendingRequestId(data.friendRequestId);
+        // No notification for receiver
+      }
+    };
+
+    const handleRejectedFriendRequest = (data: FriendRequestData) => {
+      if (!data?.sender?.userId || !data?.friendRequestId) {
+        console.warn("Invalid rejectedFriendRequest data:", data);
+        return;
+      }
+      console.log("Rejected friend request received:", data);
+      if (searchResult && data.sender.userId === currentUserId) {
+        console.log("Current user is sender, updating state");
+        setHasSentFriendRequest(false);
+        setFriendRequestId(undefined);
+        message.info(`Yêu cầu kết bạn của bạn đã bị từ chối`);
+        onRequestsUpdate?.();
+      }
+    };
+
+    const handleAcceptedFriendRequest = (data: FriendRequestData) => {
+      if (!data?.sender?.userId || !data?.friendRequestId) {
+        console.warn("Invalid acceptedFriendRequest data:", data);
+        return;
+      }
+      console.log("Accepted friend request received:", data);
+      if (searchResult) {
+        if (data.sender.userId === currentUserId) {
+          console.log("Current user is sender, updating state");
+          setHasSentFriendRequest(false);
+          setFriendRequestId(undefined);
+          setIsFriendState(true);
+          message.success(`Yêu cầu kết bạn của bạn đã được chấp nhận`);
+          onRequestsUpdate?.();
+        } else if (data.sender.userId === searchResult.userId) {
+          console.log("Current user is receiver, updating state");
+          setHasPendingRequest(false);
+          setPendingRequestId(undefined);
+          setIsFriendState(true);
+          onRequestsUpdate?.();
         }
-      };
-      checkFriendRequestStatus();
-    }
-  }, [visible, onRequestsUpdate, searchResult, isFriend]);
+      }
+    };
 
-  if (!searchResult) return null;
+    const handleRetrievedFriendRequest = (data: FriendRequestData) => {
+      if (!data?.sender?.userId || !data?.friendRequestId) {
+        console.warn("Invalid retrievedFriendRequest data:", data);
+        return;
+      }
+      console.log("Retrieved friend request received:", data);
+      if (searchResult && data.sender.userId === currentUserId) {
+        console.log("Current user is sender, updating state");
+        setHasSentFriendRequest(false);
+        setFriendRequestId(undefined);
+        // No notification needed as the current user initiated the retrieval
+        onRequestsUpdate?.();
+      }
+    };
 
-  const isCurrentUserProfile = isCurrentUser(searchResult.userId);
+    socketService.onNewFriendRequest(handleNewFriendRequest);
+    socketService.onRejectedFriendRequest(handleRejectedFriendRequest);
+    socketService.onAcceptedFriendRequest(handleAcceptedFriendRequest);
+    socketService.onRetrievedFriendRequest(handleRetrievedFriendRequest);
 
+    return () => {
+      console.log("Cleaning up socket listeners");
+      socketService.off("newFriendRequest", handleNewFriendRequest);
+      socketService.off("rejectedFriendRequest", handleRejectedFriendRequest);
+      socketService.off("acceptedFriendRequest", handleAcceptedFriendRequest);
+      socketService.off("retrievedFriendRequest", handleRetrievedFriendRequest);
+    };
+  }, [visible, searchResult, onRequestsUpdate]);
+
+  // Handle cancel friend request
   const handleCancelFriendRequest = async () => {
     if (!friendRequestId) {
       message.error("Không tìm thấy yêu cầu kết bạn để thu hồi");
@@ -317,6 +383,7 @@ const UserInfoHeaderModal: React.FC<UserInfoHeaderModalProps> = ({
     }
   };
 
+  // Handle accept friend request
   const handleAcceptFriendRequest = async () => {
     if (!pendingRequestId) {
       message.error("Không tìm thấy yêu cầu kết bạn");
@@ -336,6 +403,7 @@ const UserInfoHeaderModal: React.FC<UserInfoHeaderModalProps> = ({
     }
   };
 
+  // Handle reject friend request
   const handleRejectFriendRequest = async () => {
     if (!pendingRequestId) {
       message.error("Không tìm thấy yêu cầu kết bạn");
@@ -354,7 +422,13 @@ const UserInfoHeaderModal: React.FC<UserInfoHeaderModalProps> = ({
     }
   };
 
+  // Handle remove friend
   const handleRemoveFriend = async () => {
+    if (!searchResult) {
+      message.error("Không tìm thấy thông tin người dùng");
+      return;
+    }
+
     try {
       await removeFriend(searchResult.userId);
       message.success("Đã xóa bạn thành công");
@@ -366,13 +440,14 @@ const UserInfoHeaderModal: React.FC<UserInfoHeaderModalProps> = ({
     }
   };
 
+  // Open send friend request modal
   const handleOpenSendFriendModal = () => {
     setIsSendFriendModalVisible(true);
   };
 
+  // Handle send friend request success
   const handleSendFriendRequestSuccess = async () => {
     setHasSentFriendRequest(true);
-    // Fetch the latest friend request to get the ID
     try {
       const sentResult = await getFriendRequestsSent();
       const sentRequest = sentResult.find(
@@ -387,7 +462,7 @@ const UserInfoHeaderModal: React.FC<UserInfoHeaderModalProps> = ({
     onRequestsUpdate?.();
   };
 
-  // Add this function to handle accept from modal
+  // Handle accept from modal
   const handleAcceptFromModal = () => {
     if (requestId && searchResult && onAccept) {
       onAccept(requestId, searchResult.userId);
@@ -395,13 +470,17 @@ const UserInfoHeaderModal: React.FC<UserInfoHeaderModalProps> = ({
     }
   };
 
-  // Add this function to handle reject from modal
+  // Handle reject from modal
   const handleRejectFromModal = () => {
     if (requestId && onReject) {
       onReject(requestId);
       onCancel();
     }
   };
+
+  if (!searchResult) return null;
+
+  const isCurrentUserProfile = isCurrentUser(searchResult.userId);
 
   return (
     <>
@@ -423,7 +502,7 @@ const UserInfoHeaderModal: React.FC<UserInfoHeaderModalProps> = ({
         footer={null}
         closable={false}
         width={518}
-        bodyStyle={{ padding: 0 }}
+        styles={{ body: { padding: 0 } }}
       >
         <div className="relative">
           <div
@@ -595,7 +674,7 @@ const UserInfoHeaderModal: React.FC<UserInfoHeaderModalProps> = ({
           visible={isSendFriendModalVisible}
           onCancel={() => setIsSendFriendModalVisible(false)}
           receiverId={searchResult.userId}
-          senderFullname={currentUserFullname} // Pass the fetched full name
+          senderFullname={currentUserFullname}
           onSendSuccess={handleSendFriendRequestSuccess}
         />
       )}
