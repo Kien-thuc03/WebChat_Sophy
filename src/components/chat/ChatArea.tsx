@@ -51,6 +51,8 @@ import {
   getConversationDetail,
   recallMessage,
   deleteMessage,
+  pinMessage,
+  unpinMessage,
 } from "../../api/API";
 import { useLanguage } from "../../features/auth/context/LanguageContext";
 import { formatMessageTime } from "../../utils/dateUtils";
@@ -2505,8 +2507,13 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
       >
         Copy tin nhắn
       </Menu.Item>
-      <Menu.Item key="pin" icon={<PushpinOutlined />}>
-        Ghim tin nhắn
+      <Menu.Item 
+        key="pin" 
+        icon={<PushpinOutlined />}
+        onClick={() => message.isPinned ? handleUnpinMessage(message.id) : handlePinMessage(message.id)}
+        disabled={messageActionLoading === message.id}
+      >
+        {message.isPinned ? 'Bỏ ghim tin nhắn' : 'Ghim tin nhắn'}
       </Menu.Item>
       <Menu.Item key="mark" icon={<StarOutlined />}>
         Đánh dấu tin nhắn
@@ -2564,9 +2571,79 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
     };
   }, [activeMessageMenu]);
 
+  // Add new handler functions for pinning and unpinning messages
+  const handlePinMessage = async (messageId: string) => {
+    try {
+      setMessageActionLoading(messageId);
+      await pinMessage(messageId);
+      
+      // Update the message status in the UI
+      setMessages((prevMessages) =>
+        prevMessages.map((msg) =>
+          msg.id === messageId ? { ...msg, isPinned: true } : msg
+        )
+      );
+      message.success("Đã ghim tin nhắn");
+    } catch (error: any) {
+      console.error("Error pinning message:", error);
+      message.error("Không thể ghim tin nhắn. Vui lòng thử lại sau.");
+    } finally {
+      setMessageActionLoading(null);
+    }
+  };
+
+  const handleUnpinMessage = async (messageId: string) => {
+    try {
+      setMessageActionLoading(messageId);
+      await unpinMessage(messageId);
+      
+      // Update the message status in the UI
+      setMessages((prevMessages) =>
+        prevMessages.map((msg) =>
+          msg.id === messageId ? { ...msg, isPinned: false } : msg
+        )
+      );
+      message.success("Đã bỏ ghim tin nhắn");
+    } catch (error: any) {
+      console.error("Error unpinning message:", error);
+      message.error("Không thể bỏ ghim tin nhắn. Vui lòng thử lại sau.");
+    } finally {
+      setMessageActionLoading(null);
+    }
+  };
+
   return (
     <div className="w-full h-full flex flex-col">
       <div className="flex flex-col h-full overflow-hidden bg-white rounded-lg relative">
+        {/* Pinned message banner */}
+        {messages.some(msg => msg.isPinned) && (
+          <div className="bg-yellow-50 border-b border-yellow-100 p-2 flex items-center justify-between">
+            <div className="flex items-center">
+              <PushpinOutlined className="text-yellow-600 mr-2" />
+              <span className="text-yellow-800 text-sm font-medium">
+                {messages.filter(msg => msg.isPinned).length} tin nhắn đã ghim
+              </span>
+            </div>
+            <Button 
+              type="text" 
+              size="small"
+              className="text-yellow-700 hover:text-yellow-800"
+              onClick={() => {
+                // Scroll to the first pinned message
+                const firstPinnedMessage = messages.find(msg => msg.isPinned);
+                if (firstPinnedMessage) {
+                  const element = document.getElementById(`message-${firstPinnedMessage.id}`);
+                  if (element) {
+                    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                  }
+                }
+              }}
+            >
+              Xem tin nhắn đã ghim
+            </Button>
+          </div>
+        )}
+        
         {/* Khu vực hiển thị tin nhắn */}
         <div
           ref={messagesContainerRef}
@@ -2689,6 +2766,7 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
                   {/* Message bubble */}
                   <div
                     className={`flex mb-2 ${isOwn ? "justify-end" : "justify-start"}`}
+                    id={`message-${message.id}`}
                   >
                     {!isOwn && (
                       <div
