@@ -24,7 +24,7 @@ export interface DisplayMessage {
     name: string;
     avatar?: string;
   };
-  type: "text" | "image" | "file" | "audio" | "video" | "text-with-image";
+  type: "text" | "image" | "file" | "audio" | "video" | "text-with-image"| "notification";
   isRead?: boolean;
   isError?: boolean;
   sendStatus?: string;
