@@ -1,6 +1,7 @@
 // SocketProvider.tsx
 import React, { useEffect, useRef, ReactNode } from "react";
 import socketService from "../../../services/socketService";
+import { useConversationContext } from "../../chat/context/ConversationContext";
 
 interface SocketProviderProps {
   children: ReactNode;
@@ -8,6 +9,7 @@ interface SocketProviderProps {
 
 export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
   const initialized = useRef(false);
+  const { addNewConversation } = useConversationContext();
 
   useEffect(() => {
     if (!initialized.current) {
@@ -20,12 +22,74 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
       const userId = localStorage.getItem("userId");
       if (userId) {
         socketService.authenticate(userId);
-        
+
         // Đăng ký lắng nghe trạng thái active của người dùng
         socketService.listenToUserActivityStatus();
-        
+
         // Đăng ký lắng nghe trạng thái online của người dùng
         socketService.listenToOnlineStatus();
+
+        // Register listener for new conversations
+        socketService.onNewConversation((data) => {
+          console.log("SocketProvider: Received new conversation event:", data);
+          // Make sure this conversation is for the current user
+          const { creatorId, receiverId } = data.conversation;
+
+          console.log("Current userId:", userId);
+          console.log(
+            "Conversation participants - creator:",
+            creatorId,
+            "receiver:",
+            receiverId
+          );
+
+          if (receiverId === userId || creatorId === userId) {
+            console.log(
+              "This conversation is for the current user, adding to context"
+            );
+            addNewConversation(data);
+
+            // If we have the conversation ID, join it for real-time updates
+            if (data.conversation.conversationId) {
+              console.log(
+                "Joining new conversation room:",
+                data.conversation.conversationId
+              );
+              socketService.joinConversations([
+                data.conversation.conversationId,
+              ]);
+            }
+          } else {
+            console.log(
+              "This conversation is not for the current user, ignoring"
+            );
+          }
+        });
+
+        // Get any conversation IDs from localStorage and join their rooms
+        try {
+          const conversationsData = localStorage.getItem("lastConversations");
+          if (conversationsData) {
+            const conversations = JSON.parse(conversationsData);
+            if (Array.isArray(conversations) && conversations.length > 0) {
+              const conversationIds = conversations
+                .map((conv) => conv.conversationId)
+                .filter(Boolean);
+              if (conversationIds.length > 0) {
+                console.log(
+                  "SocketProvider: Joining conversations from localStorage:",
+                  conversationIds
+                );
+                socketService.joinConversations(conversationIds);
+              }
+            }
+          }
+        } catch (error) {
+          console.error(
+            "Error joining conversation rooms from localStorage:",
+            error
+          );
+        }
       }
 
       // Handle reconnection
@@ -44,7 +108,7 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
         initialized.current = false;
       }
     };
-  }, []);
+  }, [addNewConversation]);
 
   // Register additional socket listeners when user is authenticated
   useEffect(() => {

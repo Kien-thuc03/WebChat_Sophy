@@ -2,8 +2,13 @@ import { FaSearch, FaUserPlus, FaUsers } from "react-icons/fa";
 import { useLanguage } from "../../features/auth/context/LanguageContext";
 import { useState } from "react";
 import AddFriendModal from "./modal/AddFriendModal"; // Import the modal component
+import { Conversation } from "../../features/chat/types/conversationTypes";
 
-const Header = () => {
+interface HeaderProps {
+  onSelectConversation?: (conversation: Conversation) => void;
+}
+
+const Header: React.FC<HeaderProps> = ({ onSelectConversation }) => {
   const { t } = useLanguage();
   const [isAddFriendModalVisible, setIsAddFriendModalVisible] = useState(false); // State for modal visibility
 
@@ -50,7 +55,11 @@ const Header = () => {
 
       {/* Render the modal conditionally */}
       {isAddFriendModalVisible && (
-        <AddFriendModal visible={isAddFriendModalVisible} onClose={handleCloseModal} />
+        <AddFriendModal
+          visible={isAddFriendModalVisible}
+          onClose={handleCloseModal}
+          onSelectConversation={onSelectConversation}
+        />
       )}
     </div>
   );
