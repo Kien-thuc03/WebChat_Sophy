@@ -1,6 +1,6 @@
 // socketService.ts
 import io, { Socket } from "socket.io-client";
-import cloudinaryService from './cloudinaryService';
+import cloudinaryService from "./cloudinaryService";
 
 // const IP_ADDRESS = "192.168.1.231";
 
@@ -39,6 +39,21 @@ interface MessageData {
     fullname: string;
     avatar?: string;
   };
+}
+
+// Add new interface for conversation data
+interface ConversationData {
+  conversation: {
+    conversationId: string;
+    creatorId: string;
+    receiverId: string;
+    createdAt: string;
+    isGroup?: boolean;
+    groupName?: string;
+    groupMembers?: string[];
+    lastChange?: string;
+  };
+  timestamp: string;
 }
 
 // Interface for file attachment
@@ -120,11 +135,16 @@ class SocketService {
         console.log("Socket connected successfully:", this.socket?.id);
         this.connectionAttempts = 0;
         this.isConnecting = false;
-        
+
         // Xác thực người dùng sau khi kết nối
         const userId = localStorage.getItem("userId");
         if (userId) {
           this.authenticate(userId);
+
+          // Ensure we're listening to all important events
+          console.log("Setting up all socket event listeners after connection");
+          // Join all existing conversations
+          this.setupInitialConversations();
         }
       });
 
@@ -132,7 +152,7 @@ class SocketService {
         console.error("Socket connection error:", error);
         this.isConnecting = false;
         this.connectionAttempts++;
-        
+
         if (this.connectionAttempts > this.maxReconnectAttempts) {
           console.error("Maximum connection attempts reached, giving up");
         }
@@ -147,6 +167,7 @@ class SocketService {
         const userId = localStorage.getItem("userId");
         if (userId) {
           this.authenticate(userId);
+          this.setupInitialConversations();
         }
       });
 
@@ -162,7 +183,7 @@ class SocketService {
       this.socket.on("disconnect", (reason) => {
         console.log("Socket disconnected, reason:", reason);
         this.isConnecting = false;
-        
+
         // Thử kết nối lại nếu server ngắt kết nối
         if (reason === "io server disconnect" && this.socket) {
           // Đợi 2 giây trước khi thử kết nối lại
@@ -200,7 +221,10 @@ class SocketService {
       setTimeout(() => {
         if (this.socket) {
           this.socket.emit("authenticate", userId);
-          console.log("Socket authentication sent after reconnect for user:", userId);
+          console.log(
+            "Socket authentication sent after reconnect for user:",
+            userId
+          );
         }
       }, 500);
     }
@@ -251,12 +275,17 @@ class SocketService {
   // Thêm phương thức để tham gia vào các cuộc trò chuyện
   joinConversations(conversationIds: string[]) {
     if (!this.socket || !this.socket.connected) {
-      console.warn("Socket not connected while trying to join conversations, reconnecting...");
+      console.warn(
+        "Socket not connected while trying to join conversations, reconnecting..."
+      );
       this.connect();
       // Thử lại sau 1 giây
       setTimeout(() => {
         if (this.socket?.connected) {
-          console.log("Joining conversations after reconnect:", conversationIds);
+          console.log(
+            "Joining conversations after reconnect:",
+            conversationIds
+          );
           this.socket.emit("joinUserConversations", conversationIds);
         } else {
           console.error("Failed to connect socket for joining conversations");
@@ -272,7 +301,9 @@ class SocketService {
   // Thêm phương thức để rời khỏi cuộc trò chuyện
   leaveConversation(conversationId: string) {
     if (!this.socket || !this.socket.connected) {
-      console.warn("Socket not connected while trying to leave conversation, ignoring...");
+      console.warn(
+        "Socket not connected while trying to leave conversation, ignoring..."
+      );
       return;
     }
 
@@ -287,11 +318,15 @@ class SocketService {
       this.connect();
       return;
     }
-    
+
     if (userId) {
       // Sử dụng .volatile để không lưu vào hàng đợi nếu kết nối bị gián đoạn
       if (this.socket.volatile) {
-        this.socket.volatile.emit("typing", { conversationId, userId, fullname });
+        this.socket.volatile.emit("typing", {
+          conversationId,
+          userId,
+          fullname,
+        });
       } else {
         this.socket.emit("typing", { conversationId, userId, fullname });
       }
@@ -299,18 +334,26 @@ class SocketService {
   }
 
   // Lắng nghe sự kiện có người đang nhập
-  onUserTyping(callback: (data: { conversationId: string, userId: string, fullname: string }) => void) {
+  onUserTyping(
+    callback: (data: {
+      conversationId: string;
+      userId: string;
+      fullname: string;
+    }) => void
+  ) {
     if (!this.socket) {
       this.connect();
     }
-    
+
     if (this.socket) {
       this.socket.on("userTyping", (data) => {
         console.log("SocketService: User typing:", data);
         callback(data);
       });
     } else {
-      console.warn("SocketService: Socket not initialized for userTyping listener");
+      console.warn(
+        "SocketService: Socket not initialized for userTyping listener"
+      );
     }
   }
 
@@ -319,40 +362,48 @@ class SocketService {
     if (!this.socket) {
       this.connect();
     }
-    
+
     if (this.socket) {
       // Remove any existing listeners for this event first to prevent duplicates
       this.socket.off("newMessage");
-      
+
       // Thêm theo dõi tin nhắn đã xử lý để ngăn trùng lặp
       const processedMessageIds = new Map<string, number>(); // Map lưu ID tin nhắn và thời gian nhận
-      
+
       this.socket.on("newMessage", (data: any) => {
         console.log("SocketService: Received new message:", data);
-        
+
         // Xử lý trường hợp nhận được document MongoDB
         let messageData = data.message;
-        
+
         // Lấy ID tin nhắn từ nhiều khả năng
-        const messageId = messageData.messageDetailId || 
-                          messageData.messageId || 
-                          (messageData._doc && (messageData._doc.messageDetailId || messageData._doc.messageId || messageData._doc._id));
-        
+        const messageId =
+          messageData.messageDetailId ||
+          messageData.messageId ||
+          (messageData._doc &&
+            (messageData._doc.messageDetailId ||
+              messageData._doc.messageId ||
+              messageData._doc._id));
+
         if (!messageId) {
-          console.warn("SocketService: Message without ID received, cannot check for duplication");
+          console.warn(
+            "SocketService: Message without ID received, cannot check for duplication"
+          );
         } else {
           // Kiểm tra tin nhắn đã được xử lý trong 10 giây qua chưa
           const now = Date.now();
           const lastProcessedTime = processedMessageIds.get(messageId);
-          
+
           if (lastProcessedTime && now - lastProcessedTime < 10000) {
-            console.log(`SocketService: Duplicate message detected and skipped (ID: ${messageId})`);
+            console.log(
+              `SocketService: Duplicate message detected and skipped (ID: ${messageId})`
+            );
             return; // Bỏ qua tin nhắn trùng lặp
           }
-          
+
           // Lưu tin nhắn này vào danh sách đã xử lý
           processedMessageIds.set(messageId, now);
-          
+
           // Dọn dẹp danh sách tin nhắn đã xử lý (chỉ giữ trong 30 giây)
           for (const [id, time] of processedMessageIds.entries()) {
             if (now - time > 30000) {
@@ -360,7 +411,7 @@ class SocketService {
             }
           }
         }
-        
+
         // Xử lý trường hợp nhận được document MongoDB
         if (data.message && data.message._doc) {
           // Sử dụng dữ liệu từ _doc
@@ -369,9 +420,15 @@ class SocketService {
             message: {
               ...data.message._doc,
               // Đảm bảo tất cả các trường cần thiết đều có
-              messageDetailId: data.message._doc.messageDetailId || data.message.messageId || data.message._id,
-              messageId: data.message._doc.messageId || data.message.messageDetailId || data.message._id,
-            }
+              messageDetailId:
+                data.message._doc.messageDetailId ||
+                data.message.messageId ||
+                data.message._id,
+              messageId:
+                data.message._doc.messageId ||
+                data.message.messageDetailId ||
+                data.message._id,
+            },
           };
           callback(processedData);
         } else {
@@ -380,23 +437,107 @@ class SocketService {
         }
       });
     } else {
-      console.warn("SocketService: Socket not initialized for newMessage listener");
+      console.warn(
+        "SocketService: Socket not initialized for newMessage listener"
+      );
+    }
+  }
+
+  // Add listener for new conversation events
+  onNewConversation(callback: (data: ConversationData) => void) {
+    if (!this.socket) {
+      console.warn("Socket not connected, connecting now...");
+      this.connect();
+    }
+
+    if (this.socket) {
+      // Remove any existing listeners for this event first to prevent duplicates
+      this.socket.off("newConversation");
+
+      console.log("SocketService: Registering newConversation event listener");
+
+      this.socket.on("newConversation", (rawData: any) => {
+        console.log(
+          "SocketService: Received raw newConversation event:",
+          rawData
+        );
+
+        // Normalize the data based on possible server formats
+        let normalizedData: ConversationData;
+
+        if (rawData.conversation) {
+          // Format is already { conversation: {...}, timestamp: ... }
+          normalizedData = rawData as ConversationData;
+        } else if (rawData.conversationId) {
+          // Format is the direct conversation object without wrapping
+          normalizedData = {
+            conversation: rawData,
+            timestamp: new Date().toISOString(),
+          };
+        } else {
+          console.error(
+            "SocketService: Unknown conversation data format:",
+            rawData
+          );
+          return;
+        }
+
+        // Check if data has the expected structure
+        if (!normalizedData.conversation?.conversationId) {
+          console.error(
+            "SocketService: Invalid conversation data format received:",
+            normalizedData
+          );
+          return;
+        }
+
+        const userId = localStorage.getItem("userId");
+        const { creatorId, receiverId } = normalizedData.conversation;
+
+        console.log(
+          `SocketService: New conversation - creator: ${creatorId}, receiver: ${receiverId}, current user: ${userId}`
+        );
+
+        // Process the conversation data
+        callback(normalizedData);
+
+        // Also join the conversation room immediately
+        if (normalizedData.conversation.conversationId) {
+          console.log(
+            "SocketService: Auto-joining new conversation room:",
+            normalizedData.conversation.conversationId
+          );
+          this.joinConversations([normalizedData.conversation.conversationId]);
+        }
+      });
+    } else {
+      console.warn(
+        "SocketService: Socket not initialized for newConversation listener"
+      );
     }
   }
 
   // Lắng nghe sự kiện tin nhắn đã đọc
-  onMessageRead(callback: (data: { conversationId: string, messageIds: string[], userId: string }) => void) {
+  onMessageRead(
+    callback: (data: {
+      conversationId: string;
+      messageIds: string[];
+      userId: string;
+    }) => void
+  ) {
     if (!this.socket) {
       this.connect();
     }
-    
+
     if (this.socket) {
       this.socket.on("messageRead", (data) => {
         console.log("SocketService: Message read event:", data);
         callback(data);
       });
     } else {
-      console.warn("SocketService: Socket not initialized for messageRead listener");
+      console.warn(
+        "SocketService: Socket not initialized for messageRead listener"
+      );
     }
   }
 
@@ -404,26 +545,40 @@ class SocketService {
   markMessagesAsRead(conversationId: string, messageIds: string[]) {
     const userId = localStorage.getItem("userId");
     if (!this.socket || !this.socket.connected) {
-      console.warn("Socket not connected while trying to mark messages as read, reconnecting...");
+      console.warn(
+        "Socket not connected while trying to mark messages as read, reconnecting..."
+      );
       this.connect();
       // Thử lại sau 500ms
       setTimeout(() => {
         if (this.socket?.connected && userId) {
-          console.log("Socket reconnected, marking messages as read:", { conversationId, messageIds, userId });
-          this.socket.emit("markMessagesRead", { conversationId, messageIds, userId });
+          console.log("Socket reconnected, marking messages as read:", {
+            conversationId,
+            messageIds,
+            userId,
+          });
+          this.socket.emit("markMessagesRead", {
+            conversationId,
+            messageIds,
+            userId,
+          });
         }
       }, 500);
       return;
     }
-    
+
     if (userId) {
-      console.log("SocketService: Marking messages as read:", { conversationId, messageIds, userId });
-      // Đảm bảo chúng ta gửi đầy đủ thông tin để cập nhật mảng readBy trên server
-      this.socket.emit("markMessagesRead", { 
-        conversationId, 
-        messageIds, 
+      console.log("SocketService: Marking messages as read:", {
+        conversationId,
+        messageIds,
         userId,
-        timestamp: new Date().toISOString() // Thêm timestamp để server biết thời điểm đọc
+      });
+      // Đảm bảo chúng ta gửi đầy đủ thông tin để cập nhật mảng readBy trên server
+      this.socket.emit("markMessagesRead", {
+        conversationId,
+        messageIds,
+        userId,
+        timestamp: new Date().toISOString(), // Thêm timestamp để server biết thời điểm đọc
       });
     }
   }
@@ -432,36 +587,56 @@ class SocketService {
   markMessagesAsDelivered(conversationId: string, messageIds: string[]) {
     const userId = localStorage.getItem("userId");
     if (!this.socket || !this.socket.connected) {
-      console.warn("Socket not connected while trying to mark messages as delivered, reconnecting...");
+      console.warn(
+        "Socket not connected while trying to mark messages as delivered, reconnecting..."
+      );
       this.connect();
       // Thử lại sau 500ms
       setTimeout(() => {
         if (this.socket?.connected && userId) {
-          console.log("Socket reconnected, marking messages as delivered:", { conversationId, messageIds, userId });
-          this.socket.emit("messageDelivered", { conversationId, messageIds, userId });
+          console.log("Socket reconnected, marking messages as delivered:", {
+            conversationId,
+            messageIds,
+            userId,
+          });
+          this.socket.emit("messageDelivered", {
+            conversationId,
+            messageIds,
+            userId,
+          });
         }
       }, 500);
       return;
     }
-    
+
     if (userId) {
-      console.log("SocketService: Marking messages as delivered:", { conversationId, messageIds, userId });
-      // Đảm bảo chúng ta gửi đầy đủ thông tin để cập nhật mảng deliveredTo trên server
-      this.socket.emit("messageDelivered", { 
-        conversationId, 
-        messageIds, 
+      console.log("SocketService: Marking messages as delivered:", {
+        conversationId,
+        messageIds,
         userId,
-        timestamp: new Date().toISOString() // Thêm timestamp để server biết thời điểm nhận
+      });
+      // Đảm bảo chúng ta gửi đầy đủ thông tin để cập nhật mảng deliveredTo trên server
+      this.socket.emit("messageDelivered", {
+        conversationId,
+        messageIds,
+        userId,
+        timestamp: new Date().toISOString(), // Thêm timestamp để server biết thời điểm nhận
       });
     }
   }
 
   // Lắng nghe sự kiện tin nhắn đã gửi thành công
-  onMessageDelivered(callback: (data: { conversationId: string, messageIds: string[], userId: string }) => void) {
+  onMessageDelivered(
+    callback: (data: {
+      conversationId: string;
+      messageIds: string[];
+      userId: string;
+    }) => void
+  ) {
     if (!this.socket) {
       this.connect();
     }
-    
+
     if (this.socket) {
       this.socket.on("messageDelivered", (data) => {
         console.log("SocketService: Message delivered event:", data);
@@ -480,20 +655,26 @@ class SocketService {
     if (!this.socket) {
       this.connect();
     }
-    
+
     if (this.socket) {
       this.socket.on("newFriendRequest", (data: FriendRequestData) => {
         console.log("SocketService: Received newFriendRequest event:", data);
         // Only notify if the current user is the sender
         if (this.isFriendRequestSender(data)) {
-          console.log("SocketService: Current user is the sender, showing notification");
+          console.log(
+            "SocketService: Current user is the sender, showing notification"
+          );
         } else {
-          console.log("SocketService: Current user is the receiver, skipping notification");
+          console.log(
+            "SocketService: Current user is the receiver, skipping notification"
+          );
         }
         callback(data);
       });
     } else {
-      console.warn("SocketService: Socket not initialized for newFriendRequest listener");
+      console.warn(
+        "SocketService: Socket not initialized for newFriendRequest listener"
+      );
     }
   }
 
@@ -501,14 +682,19 @@ class SocketService {
     if (!this.socket) {
       this.connect();
     }
-    
+
     if (this.socket) {
       this.socket.on("rejectedFriendRequest", (data: FriendRequestData) => {
-        console.log("SocketService: Received rejectedFriendRequest event:", data);
+        console.log(
+          "SocketService: Received rejectedFriendRequest event:",
+          data
+        );
         callback(data);
       });
     } else {
-      console.warn("SocketService: Socket not initialized for rejectedFriendRequest listener");
+      console.warn(
+        "SocketService: Socket not initialized for rejectedFriendRequest listener"
+      );
     }
   }
 
@@ -516,14 +702,19 @@ class SocketService {
     if (!this.socket) {
       this.connect();
     }
-    
+
     if (this.socket) {
       this.socket.on("acceptedFriendRequest", (data: FriendRequestData) => {
-        console.log("SocketService: Received acceptedFriendRequest event:", data);
+        console.log(
+          "SocketService: Received acceptedFriendRequest event:",
+          data
+        );
         callback(data);
       });
     } else {
-      console.warn("SocketService: Socket not initialized for acceptedFriendRequest listener");
+      console.warn(
+        "SocketService: Socket not initialized for acceptedFriendRequest listener"
+      );
     }
   }
 
@@ -531,14 +722,19 @@ class SocketService {
     if (!this.socket) {
       this.connect();
     }
-    
+
     if (this.socket) {
       this.socket.on("retrievedFriendRequest", (data: FriendRequestData) => {
-        console.log("SocketService: Received retrievedFriendRequest event:", data);
+        console.log(
+          "SocketService: Received retrievedFriendRequest event:",
+          data
+        );
         callback(data);
       });
     } else {
-      console.warn("SocketService: Socket not initialized for retrievedFriendRequest listener");
+      console.warn(
+        "SocketService: Socket not initialized for retrievedFriendRequest listener"
+      );
     }
   }
 
@@ -552,30 +748,30 @@ class SocketService {
 
   // Phương thức để cập nhật trạng thái active của user trong conversation
   userEnterConversation(conversationId: string) {
-    const userId = localStorage.getItem('userId');
+    const userId = localStorage.getItem("userId");
     if (!userId) return;
-    
+
     // Thông báo cho server rằng user đang xem conversation này
     if (this.socket?.connected) {
-      this.socket.emit("userActiveInConversation", { 
-        conversationId, 
-        userId, 
-        active: true 
+      this.socket.emit("userActiveInConversation", {
+        conversationId,
+        userId,
+        active: true,
       });
     }
   }
 
   // Phương thức để thông báo user rời khỏi conversation
   userLeaveConversation(conversationId: string) {
-    const userId = localStorage.getItem('userId');
+    const userId = localStorage.getItem("userId");
     if (!userId) return;
-    
+
     // Thông báo cho server rằng user đã rời khỏi conversation này
     if (this.socket?.connected) {
-      this.socket.emit("userActiveInConversation", { 
-        conversationId, 
-        userId, 
-        active: false 
+      this.socket.emit("userActiveInConversation", {
+        conversationId,
+        userId,
+        active: false,
       });
     }
   }
@@ -583,21 +779,21 @@ class SocketService {
   // Lắng nghe sự kiện user active trong conversation
   listenToUserActivityStatus() {
     if (!this.socket) this.connect();
-    
+
     if (this.socket) {
-      this.socket.on("userActivityUpdate", (data: { 
-        conversationId: string, 
-        activeUsers: string[] 
-      }) => {
-        // Cập nhật danh sách người dùng đang active trong conversation
-        this.activeUsers[data.conversationId] = data.activeUsers;
-        
-        // Phát ra event để các component có thể cập nhật UI
-        this.socket?.emit("activeStatusUpdated", {
-          conversationId: data.conversationId,
-          activeUsers: data.activeUsers
-        });
-      });
+      this.socket.on(
+        "userActivityUpdate",
+        (data: { conversationId: string; activeUsers: string[] }) => {
+          // Cập nhật danh sách người dùng đang active trong conversation
+          this.activeUsers[data.conversationId] = data.activeUsers;
+
+          // Phát ra event để các component có thể cập nhật UI
+          this.socket?.emit("activeStatusUpdated", {
+            conversationId: data.conversationId,
+            activeUsers: data.activeUsers,
+          });
+        }
+      );
     }
   }
 
@@ -613,23 +809,23 @@ class SocketService {
 
   listenToOnlineStatus() {
     if (!this.socket) this.connect();
-    
+
     if (this.socket) {
-      this.socket.on("userStatusUpdate", (data: { 
-        userId: string, 
-        online: boolean 
-      }) => {
-        if (data.online) {
-          this.onlineUsers.add(data.userId);
-        } else {
-          this.onlineUsers.delete(data.userId);
+      this.socket.on(
+        "userStatusUpdate",
+        (data: { userId: string; online: boolean }) => {
+          if (data.online) {
+            this.onlineUsers.add(data.userId);
+          } else {
+            this.onlineUsers.delete(data.userId);
+          }
+
+          // Phát ra event để các component có thể cập nhật UI
+          this.socket?.emit("onlineStatusUpdated", {
+            onlineUsers: Array.from(this.onlineUsers),
+          });
         }
-        
-        // Phát ra event để các component có thể cập nhật UI
-        this.socket?.emit("onlineStatusUpdated", {
-          onlineUsers: Array.from(this.onlineUsers)
-        });
-      });
+      );
     }
   }
 
@@ -647,17 +843,19 @@ class SocketService {
   async sendFileMessage(conversationId: string, file: File): Promise<any> {
     try {
       if (!this.isConnected) {
-        console.warn("Socket not connected while trying to send file, reconnecting...");
+        console.warn(
+          "Socket not connected while trying to send file, reconnecting..."
+        );
         this.connect();
         // Wait for connection
-        await new Promise(resolve => {
+        await new Promise((resolve) => {
           const checkConnection = setInterval(() => {
             if (this.isConnected) {
               clearInterval(checkConnection);
               resolve(true);
             }
           }, 100);
-          
+
           // Timeout after 5 seconds
           setTimeout(() => {
             clearInterval(checkConnection);
@@ -665,15 +863,18 @@ class SocketService {
           }, 5000);
         });
       }
-      
+
       console.log("Bắt đầu tải lên file và gửi tin nhắn...");
-      
+
       // Sử dụng hàm sendFileMessage từ cloudinaryService thay vì chỉ uploadToCloudinary
       // Đây là bước quan trọng vì hàm này đã được cập nhật để gửi dữ liệu đến API
-      const result = await cloudinaryService.sendFileMessage(file, conversationId);
-      
+      const result = await cloudinaryService.sendFileMessage(
+        file,
+        conversationId
+      );
+
       console.log("Hoàn tất quá trình tải lên và lưu vào database:", result);
-      
+
       return result;
     } catch (error) {
       console.error("Error sending file message:", error);
@@ -684,101 +885,156 @@ class SocketService {
   // Add method to get file URL preview
   getFilePreview(attachment: FileAttachment): string {
     const type = attachment.type;
-    
-    if (type === 'image') {
+
+    if (type === "image") {
       return attachment.url;
-    } else if (type === 'video') {
+    } else if (type === "video") {
       // Return video thumbnail or default video icon
-      return attachment.url.replace(/\.[^/.]+$/, ".jpg") || '/images/video-icon.png';
-    } else if (type === 'audio') {
-      return '/images/audio-icon.png';
-    } else if (type === 'document') {
-      if (attachment.format === 'pdf') {
-        return '/images/pdf-icon.png';
-      } else if (['doc', 'docx'].includes(attachment.format || '')) {
-        return '/images/word-icon.png';
-      } else if (['xls', 'xlsx'].includes(attachment.format || '')) {
-        return '/images/excel-icon.png';
-      } else if (['ppt', 'pptx'].includes(attachment.format || '')) {
-        return '/images/powerpoint-icon.png';
+      return (
+        attachment.url.replace(/\.[^/.]+$/, ".jpg") || "/images/video-icon.png"
+      );
+    } else if (type === "audio") {
+      return "/images/audio-icon.png";
+    } else if (type === "document") {
+      if (attachment.format === "pdf") {
+        return "/images/pdf-icon.png";
+      } else if (["doc", "docx"].includes(attachment.format || "")) {
+        return "/images/word-icon.png";
+      } else if (["xls", "xlsx"].includes(attachment.format || "")) {
+        return "/images/excel-icon.png";
+      } else if (["ppt", "pptx"].includes(attachment.format || "")) {
+        return "/images/powerpoint-icon.png";
       }
-      return '/images/document-icon.png';
+      return "/images/document-icon.png";
     }
-    
+
     // Default file icon
-    return '/images/file-icon.png';
+    return "/images/file-icon.png";
   }
 
   // Listen for message recall events
-  onMessageRecall(callback: (data: { conversationId: string, messageId: string }) => void) {
+  onMessageRecall(
+    callback: (data: { conversationId: string; messageId: string }) => void
+  ) {
     if (!this.socket) {
       this.connect();
     }
-    
+
     if (this.socket) {
       this.socket.on("messageRecalled", (data) => {
         console.log("SocketService: Message recall event:", data);
         callback(data);
       });
     } else {
-      console.warn("SocketService: Socket not initialized for messageRecalled listener");
+      console.warn(
+        "SocketService: Socket not initialized for messageRecalled listener"
+      );
     }
   }
 
   // Listen for message deletion events (when a message is hidden from a specific user)
-  onMessageDeleted(callback: (data: { conversationId: string, messageId: string, userId: string }) => void) {
+  onMessageDeleted(
+    callback: (data: {
+      conversationId: string;
+      messageId: string;
+      userId: string;
+    }) => void
+  ) {
     if (!this.socket) {
       this.connect();
     }
-    
+
     if (this.socket) {
       this.socket.on("messageDeleted", (data) => {
         console.log("SocketService: Message delete event:", data);
         callback(data);
       });
     } else {
-      console.warn("SocketService: Socket not initialized for messageDeleted listener");
+      console.warn(
+        "SocketService: Socket not initialized for messageDeleted listener"
+      );
     }
   }
 
   // Listen for message pin events
-  onMessagePinned(callback: (data: { 
-    conversationId: string, 
-    messageId: string, 
-    userId: string,
-    pinnedAt: string 
-  }) => void) {
+  onMessagePinned(
+    callback: (data: {
+      conversationId: string;
+      messageId: string;
+      userId: string;
+      pinnedAt: string;
+    }) => void
+  ) {
     if (!this.socket) {
       this.connect();
     }
-    
+
     if (this.socket) {
       this.socket.on("messagePinned", (data) => {
         console.log("SocketService: Message pinned event:", data);
         callback(data);
       });
     } else {
-      console.warn("SocketService: Socket not initialized for messagePinned listener");
+      console.warn(
+        "SocketService: Socket not initialized for messagePinned listener"
+      );
     }
   }
 
   // Listen for message unpin events
-  onMessageUnpinned(callback: (data: { 
-    conversationId: string, 
-    messageId: string, 
-    userId: string 
-  }) => void) {
+  onMessageUnpinned(
+    callback: (data: {
+      conversationId: string;
+      messageId: string;
+      userId: string;
+    }) => void
+  ) {
     if (!this.socket) {
       this.connect();
     }
-    
+
     if (this.socket) {
       this.socket.on("messageUnpinned", (data) => {
         console.log("SocketService: Message unpinned event:", data);
         callback(data);
       });
     } else {
-      console.warn("SocketService: Socket not initialized for messageUnpinned listener");
+      console.warn(
+        "SocketService: Socket not initialized for messageUnpinned listener"
+      );
+    }
+  }
+
+  // Add a helper method to set up initial conversations
+  private async setupInitialConversations() {
+    try {
+      console.log("Looking for existing conversations to join...");
+      // Get the current user's ID
+      const userId = localStorage.getItem("userId");
+      if (!userId) {
+        console.log("No user ID found, skipping conversation setup");
+        return;
+      }
+
+      // Check if we have a list of conversations in localStorage
+      const conversationsData = localStorage.getItem("lastConversations");
+      if (conversationsData) {
+        const conversations = JSON.parse(conversationsData);
+        if (Array.isArray(conversations) && conversations.length > 0) {
+          const conversationIds = conversations
+            .map((conv) => conv.conversationId)
+            .filter(Boolean);
+          if (conversationIds.length > 0) {
+            console.log(
+              "Joining previously saved conversations:",
+              conversationIds
+            );
+            this.joinConversations(conversationIds);
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Error setting up initial conversations:", error);
     }
   }
 }

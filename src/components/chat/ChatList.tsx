@@ -16,15 +16,21 @@ import { Conversation } from "../../features/chat/types/conversationTypes";
 import { useLanguage } from "../../features/auth/context/LanguageContext";
 import { getUserById } from "../../api/API";
 import { User } from "../../features/auth/types/authTypes";
-import  socketService  from "../../services/socketService";
+import socketService from "../../services/socketService";
 
 interface ChatListProps {
   onSelectConversation: (conversation: Conversation) => void;
 }
 
 const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
-  const { conversations, userCache, displayNames, userAvatars, isLoading, updateConversationWithNewMessage } =
-    useConversationContext();
+  const {
+    conversations,
+    userCache,
+    displayNames,
+    userAvatars,
+    isLoading,
+    updateConversationWithNewMessage,
+  } = useConversationContext();
   const { t } = useLanguage();
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const [selectedConversation, setSelectedConversation] = useState<
@@ -33,15 +39,24 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
   const [isLabelModalOpen, setIsLabelModalOpen] = useState(false);
   const [isNotificationModalOpen, setIsNotificationModalOpen] = useState(false);
   const [isAutoDeleteModalOpen, setIsAutoDeleteModalOpen] = useState(false);
-  const [localUserCache, setLocalUserCache] = useState<Record<string, User>>({});
+  const [localUserCache, setLocalUserCache] = useState<Record<string, User>>(
+    {}
+  );
   const menuRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [newMessageHighlight, setNewMessageHighlight] = useState<Record<string, boolean>>({});
+  const [newMessageHighlight, setNewMessageHighlight] = useState<
+    Record<string, boolean>
+  >({});
+  const [newConversationHighlight, setNewConversationHighlight] = useState<
+    Record<string, boolean>
+  >({});
+  // Create a ref to track previously seen conversation IDs
+  const prevConvIds = useRef<Set<string>>(new Set());
 
   // USER == creator = receiver = receiverId
   // USER == receiver = receiver = creatorId
-  
+
   /**
    * Gets the correct user ID to display for a conversation
    * @param conversation The conversation object
@@ -49,23 +64,23 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
    */
   const getOtherUserId = (conversation: Conversation): string => {
     // Get current user ID from localStorage (or any authentication method you use)
-    const currentUserId = localStorage.getItem('userId') || '';
-    
+    const currentUserId = localStorage.getItem("userId") || "";
+
     // If it's a group chat, there's no single "other user"
     if (conversation.isGroup) {
-      return '';
+      return "";
     }
-    
+
     // If the current user is the creator, return the receiverId
     if (currentUserId === conversation.creatorId) {
-      return conversation.receiverId || '';
+      return conversation.receiverId || "";
     }
-    
+
     // If the current user is the receiver, return the creatorId
     if (currentUserId === conversation.receiverId) {
       return conversation.creatorId;
     }
-    
+
     // Fallback: Return receiverId if we can't determine
     return conversation.receiverId || conversation.creatorId;
   };
@@ -81,21 +96,21 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
       if (conversation.groupName) {
         return conversation.groupName;
       }
-      
+
       // Format group members (up to 3 names)
       const memberNames = conversation.groupMembers
         .slice(0, 3)
-        .map(memberId => {
+        .map((memberId) => {
           const user = userCache[memberId] || localUserCache[memberId];
           return user?.fullname || "User";
         })
         .join(", ");
-        
+
       return conversation.groupMembers.length > 3
         ? `${memberNames}...`
         : memberNames || "Nhóm";
     }
-    
+
     // For individual chats, display the name of the other user
     const otherUserId = getOtherUserId(conversation);
     const user = userCache[otherUserId] || localUserCache[otherUserId];
@@ -110,38 +125,40 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
   const getConversationAvatar = (conversation: Conversation): string => {
     // For group chats, return the group avatar URL if available
     if (conversation.isGroup) {
-      return conversation.groupAvatarUrl || '';
+      return conversation.groupAvatarUrl || "";
     }
-    
+
     // For individual chats, return the avatar of the other user
     const otherUserId = getOtherUserId(conversation);
     const user = userCache[otherUserId] || localUserCache[otherUserId];
-    return user?.urlavatar || '';
+    return user?.urlavatar || "";
   };
 
   // Add a helper function to calculate the unread count
   const getUnreadCount = (chat: Conversation): number => {
-    if (typeof chat.unreadCount === 'number') {
+    if (typeof chat.unreadCount === "number") {
       return chat.unreadCount;
     }
-    
+
     // If it's an array, calculate total for current user
     if (Array.isArray(chat.unreadCount)) {
-      const currentUserId = localStorage.getItem('userId') || '';
-      const userUnread = chat.unreadCount.find(uc => uc.userId === currentUserId);
+      const currentUserId = localStorage.getItem("userId") || "";
+      const userUnread = chat.unreadCount.find(
+        (uc) => uc.userId === currentUserId
+      );
       return userUnread?.count || 0;
     }
-    
+
     return 0;
   };
 
   // Add a helper function to check if there are unread messages
   const hasUnreadMessages = (chat: Conversation): boolean => {
     // Use explicit hasUnread property if available
-    if (typeof chat.hasUnread === 'boolean') {
+    if (typeof chat.hasUnread === "boolean") {
       return chat.hasUnread;
     }
-    
+
     // Otherwise calculate based on unreadCount
     return getUnreadCount(chat) > 0;
   };
@@ -166,33 +183,40 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
   useEffect(() => {
     const loadUserData = async () => {
       // Get current user ID
-      const currentUserId = localStorage.getItem('userId') || '';
-      
+      const currentUserId = localStorage.getItem("userId") || "";
+
       // Process each conversation
       for (const conversation of conversations) {
         // For individual chats, load the other user's data
         if (!conversation.isGroup) {
           const otherUserId = getOtherUserId(conversation);
-          
+
           // If we don't have this user's data in cache, fetch it
-          if (otherUserId && !userCache[otherUserId] && !localUserCache[otherUserId]) {
+          if (
+            otherUserId &&
+            !userCache[otherUserId] &&
+            !localUserCache[otherUserId]
+          ) {
             try {
               const userData = await getUserById(otherUserId);
               if (userData) {
                 // Add user to local cache
-                setLocalUserCache(prev => ({
+                setLocalUserCache((prev) => ({
                   ...prev,
-                  [otherUserId]: userData
+                  [otherUserId]: userData,
                 }));
               }
             } catch (error) {
-              console.error(`Failed to load data for user ${otherUserId}:`, error);
+              console.error(
+                `Failed to load data for user ${otherUserId}:`,
+                error
+              );
             }
           }
         }
       }
     };
-    
+
     loadUserData();
   }, [conversations, userCache, localUserCache]);
 
@@ -202,19 +226,19 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
       console.log("ChatList: Nhận tin nhắn mới:", data);
       // Cập nhật conversation trong danh sách, được xử lý bởi ConversationContext
       updateConversationWithNewMessage(data.conversationId, data.message);
-      
+
       // Thêm highlight cho tin nhắn mới trong 3 giây
-      if (data.message.senderId !== localStorage.getItem('userId')) {
-        setNewMessageHighlight(prev => ({
+      if (data.message.senderId !== localStorage.getItem("userId")) {
+        setNewMessageHighlight((prev) => ({
           ...prev,
-          [data.conversationId]: true
+          [data.conversationId]: true,
         }));
-        
+
         // Xóa highlight sau 3 giây
         setTimeout(() => {
-          setNewMessageHighlight(prev => ({
+          setNewMessageHighlight((prev) => ({
             ...prev,
-            [data.conversationId]: false
+            [data.conversationId]: false,
           }));
         }, 3000);
       }
@@ -232,38 +256,41 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
   useEffect(() => {
     // Tham gia vào tất cả các phòng cuộc trò chuyện khi danh sách được tải
     if (conversations.length > 0 && !isLoading) {
-      const conversationIds = conversations.map(conv => conv.conversationId);
+      const conversationIds = conversations.map((conv) => conv.conversationId);
       socketService.joinConversations(conversationIds);
-      console.log("Đã tham gia vào tất cả các cuộc trò chuyện:", conversationIds);
+      console.log(
+        "Đã tham gia vào tất cả các cuộc trò chuyện:",
+        conversationIds
+      );
     }
   }, [conversations, isLoading]);
 
   // Thêm function vào ChatList để hiển thị tin nhắn cuối cùng đẹp hơn
   const getFormattedLastMessage = (chat: Conversation) => {
     if (!chat.lastMessage) return t.no_messages || "Chưa có tin nhắn";
-    
-    let content = '';
-    
+
+    let content = "";
+
     // Xử lý nội dung theo loại tin nhắn
     switch (chat.lastMessage.type) {
-      case 'image':
-        content = '📷 Hình ảnh';
+      case "image":
+        content = "📷 Hình ảnh";
         break;
-      case 'file':
-        content = '📎 Tệp đính kèm';
+      case "file":
+        content = "📎 Tệp đính kèm";
         break;
-      case 'text-with-image':
-        content = `📷 ${chat.lastMessage.content || 'Hình ảnh'}`;
+      case "text-with-image":
+        content = `📷 ${chat.lastMessage.content || "Hình ảnh"}`;
         break;
       default:
-        content = chat.lastMessage.content || '';
+        content = chat.lastMessage.content || "";
     }
-    
+
     // Giới hạn độ dài nội dung
     if (content.length > 30) {
-      content = content.substring(0, 30) + '...';
+      content = content.substring(0, 30) + "...";
     }
-    
+
     return content;
   };
 
@@ -271,18 +298,22 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
     const intervalId = setInterval(() => {
       setCurrentTime(new Date());
     }, 60000); // Cập nhật mỗi phút
-    
+
     return () => clearInterval(intervalId);
   }, []);
 
   const renderLastMessageStatus = (chat: Conversation) => {
     // Hiển thị trạng thái chỉ khi người gửi tin nhắn cuối cùng là người dùng hiện tại
-    if (!chat.lastMessage || chat.lastMessage.senderId !== localStorage.getItem('userId')) return null;
-    
+    if (
+      !chat.lastMessage ||
+      chat.lastMessage.senderId !== localStorage.getItem("userId")
+    )
+      return null;
+
     // Kiểm tra xem tin nhắn đã được đọc bởi tất cả người nhận chưa
     const isRead = chat.lastMessage.readBy?.length > 0;
     const isDelivered = chat.lastMessage.deliveredTo?.length > 0;
-    
+
     if (isRead) {
       return <span className="text-blue-500 text-xs">✓✓</span>; // Đã đọc
     } else if (isDelivered) {
@@ -292,17 +323,68 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
     }
   };
 
+  // Add useEffect to join new conversation rooms when they are added
+  useEffect(() => {
+    try {
+      // When there's a new conversation, make sure to join its room
+      if (conversations && conversations.length > 0) {
+        const conversationIds = conversations
+          .map((conv) => conv.conversationId)
+          .filter(Boolean);
+
+        if (conversationIds.length > 0) {
+          socketService.joinConversations(conversationIds);
+
+          // Check for newly added conversations to highlight them
+          const currentIds = new Set(conversationIds);
+
+          // Only check for new conversations after we've initialized our tracking Set
+          if (prevConvIds.current && prevConvIds.current.size > 0) {
+            // Find conversations that weren't in our previous set
+            conversationIds.forEach((id) => {
+              if (id && !prevConvIds.current.has(id)) {
+                // This is a new conversation - highlight it
+                console.log("ChatList: New conversation detected:", id);
+                setNewConversationHighlight((prev) => ({
+                  ...prev,
+                  [id]: true,
+                }));
+
+                // Remove highlight after 5 seconds
+                setTimeout(() => {
+                  setNewConversationHighlight((prev) => {
+                    // Use the functional update to ensure we get the latest state
+                    const updated = { ...prev };
+                    updated[id] = false;
+                    return updated;
+                  });
+                }, 5000);
+              }
+            });
+          }
+
+          // Update previous ids for next comparison
+          prevConvIds.current = currentIds;
+        }
+      }
+    } catch (error) {
+      console.error("Error in conversation tracking effect:", error);
+    }
+  }, [conversations]);
+
   return (
     <div className="chat-list w-80 bg-white dark:bg-gray-900 border-r dark:border-gray-100 h-full flex flex-col overflow-hidden">
       <div className="flex-shrink-0">
         <Header />
         <ChatNav />
       </div>
-      
+
       {isLoading ? (
         <div className="flex-1 flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-800">
           <Spin size="large" />
-          <p className="mt-4 text-gray-600 dark:text-gray-300">Đang tải danh sách hội thoại...</p>
+          <p className="mt-4 text-gray-600 dark:text-gray-300">
+            Đang tải danh sách hội thoại...
+          </p>
         </div>
       ) : (
         <List
@@ -311,8 +393,9 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
           renderItem={(chat) => (
             <List.Item
               className={`flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer px-3 py-2 ${
-                hasUnreadMessages(chat) ? 'bg-blue-50 dark:bg-blue-900/20' : ''
-              } ${newMessageHighlight[chat.conversationId] ? 'animate-pulse bg-blue-100 dark:bg-blue-800/30' : ''}`}
+                hasUnreadMessages(chat) ? "bg-blue-50 dark:bg-blue-900/20" : ""
+              } ${newMessageHighlight[chat.conversationId] ? "animate-pulse bg-blue-100 dark:bg-blue-800/30" : ""}
+              ${newConversationHighlight[chat.conversationId] ? "bg-green-100 dark:bg-green-800/30 border border-green-400 dark:border-green-600" : ""}`}
               onClick={() => onSelectConversation(chat)}>
               {/* Avatar section */}
               <div className="relative shrink-0 pl-2">
@@ -340,15 +423,20 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
               {/* Content section */}
               <div className="flex-1 min-w-0">
                 <div className="flex justify-between items-center relative group">
-                  <span className={`truncate font-semibold ${
-                    hasUnreadMessages(chat) ? 'text-blue-700 dark:text-blue-400' : 'text-gray-900 dark:text-gray-100'
-                  }`}>
+                  <span
+                    className={`truncate font-semibold ${
+                      hasUnreadMessages(chat)
+                        ? "text-blue-700 dark:text-blue-400"
+                        : "text-gray-900 dark:text-gray-100"
+                    }`}>
                     {getConversationName(chat)}
                   </span>
                   <div className="flex items-center">
                     {getUnreadCount(chat) > 0 && (
                       <span className="inline-flex items-center justify-center bg-blue-500 text-white text-xs rounded-full px-1.5 py-0.5 min-w-[20px] mr-1">
-                        {getUnreadCount(chat) > 99 ? '99+' : getUnreadCount(chat)}
+                        {getUnreadCount(chat) > 99
+                          ? "99+"
+                          : getUnreadCount(chat)}
                       </span>
                     )}
                     <span className="text-xs text-gray-500 dark:text-gray-400 group-hover:opacity-0 transition-opacity duration-200">
@@ -376,7 +464,9 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
                       <div
                         ref={menuRef}
                         className={`absolute z-20 w-50 bg-white dark:bg-gray-800 shadow-lg rounded-md border border-gray-200 dark:border-gray-600 right-0 mt-1 ${
-                          activeMenu === chat.conversationId ? "block" : "hidden"
+                          activeMenu === chat.conversationId
+                            ? "block"
+                            : "hidden"
                         }`}>
                         <div className="py-1">
                           <div className="px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer">
@@ -450,11 +540,13 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
                   {chat.lastMessage?.senderId && (
                     <span className="mr-1 truncate">
                       {/* Display "You" if the sender is the current user */}
-                      {chat.lastMessage.senderId === localStorage.getItem('userId') 
-                        ? "Bạn" 
-                        : (userCache[chat.lastMessage.senderId]?.fullname || 
-                           localUserCache[chat.lastMessage.senderId]?.fullname || 
-                           "User")}:
+                      {chat.lastMessage.senderId ===
+                      localStorage.getItem("userId")
+                        ? "Bạn"
+                        : userCache[chat.lastMessage.senderId]?.fullname ||
+                          localUserCache[chat.lastMessage.senderId]?.fullname ||
+                          "User"}
+                      :
                     </span>
                   )}
                   <div className="flex items-center space-x-1">
@@ -475,11 +567,12 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
           locale={{
             emptyText: (
               <div className="p-8 text-center text-gray-500 dark:text-gray-400 flex flex-col items-center">
-                <p className="mb-2">{t.no_conversations || "Không có hội thoại nào"}</p>
+                <p className="mb-2">
+                  {t.no_conversations || "Không có hội thoại nào"}
+                </p>
                 <button
                   onClick={() => window.location.reload()}
-                  className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 mt-2"
-                >
+                  className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 mt-2">
                   Tải lại
                 </button>
               </div>
