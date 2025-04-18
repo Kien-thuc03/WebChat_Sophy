@@ -2,11 +2,9 @@
 import io, { Socket } from "socket.io-client";
 import cloudinaryService from './cloudinaryService';
 
-// const IP_ADDRESS = "192.168.1.231";
+const IP_ADDRESS = "192.168.1.231";
 
-// const SOCKET_SERVER_URL = `http://${IP_ADDRESS}:3000`;
-const SOCKET_SERVER_URL = "http://localhost:3000";
-
+const SOCKET_SERVER_URL = `http://${IP_ADDRESS}:3000` || "http://localhost:3000";
 interface FriendRequestData {
   friendRequestId: string;
   message: string;

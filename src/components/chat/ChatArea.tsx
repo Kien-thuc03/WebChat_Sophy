@@ -6,11 +6,11 @@ import {
   Alert,
   Empty,
   Spin,
-  Popover,
   Tooltip,
   Modal,
   Dropdown,
   Menu,
+  Select,
 } from "antd";
 import {
   SendOutlined,
@@ -36,7 +36,6 @@ import {
   StarOutlined,
   UnorderedListOutlined,
   InfoCircleOutlined,
-  EllipsisOutlined,
 } from "@ant-design/icons";
 import {
   Conversation,
@@ -53,6 +52,10 @@ import {
   deleteMessage,
   pinMessage,
   unpinMessage,
+  getPinnedMessages,
+  getSpecificMessage,
+  replyMessage,
+  forwardImageMessage,
 } from "../../api/API";
 import { useLanguage } from "../../features/auth/context/LanguageContext";
 import { formatMessageTime } from "../../utils/dateUtils";
@@ -98,7 +101,8 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
     markConversationAsRead, 
     updateConversationWithNewMessage,
     updateUnreadStatus,
-    userCache 
+    userCache,
+    conversations
   } = useConversationContext();
   const currentUserId = localStorage.getItem("userId") || "";
   const [imageInputVisible, setImageInputVisible] = useState(false);
@@ -112,6 +116,11 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [typingUsers, setTypingUsers] = useState<{[key: string]: {userId: string, fullname: string, timestamp: number}}>({});
   const [typingTimers, setTypingTimers] = useState<{[key: string]: NodeJS.Timeout}>({});
+  
+  // Add state for pinned messages
+  const [pinnedMessages, setPinnedMessages] = useState<DisplayMessage[]>([]);
+  const [showPinnedMessagesPanel, setShowPinnedMessagesPanel] = useState(false);
+  const [loadingPinnedMessages, setLoadingPinnedMessages] = useState(false);
   
   // Thêm typing timeout
   const TYPING_TIMEOUT = 3000; // 3 giây
@@ -136,6 +145,14 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
   // Add state for tracking dropdown visibility
   const [dropdownVisible, setDropdownVisible] = useState<{[key: string]: boolean}>({});
   
+  const [replyingToMessage, setReplyingToMessage] = useState<DisplayMessage | null>(null);
+  const [showForwardModal, setShowForwardModal] = useState(false);
+  const [forwardingMessage, setForwardingMessage] = useState<DisplayMessage | null>(null);
+  const [selectedConversationForForward, setSelectedConversationForForward] = useState<string | null>(null);
+
+  // Add this state variable
+  const [isSending, setIsSending] = useState(false);
+
   useEffect(() => {
     if (!conversation) return; // Early return if no conversation
     
@@ -143,7 +160,11 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
       setLoading(true);
       setMessages([]);
       setNotifications([]);
-      // ... existing code ...
+      
+      // Load pinned messages when conversation is first loaded
+      if (conversation && conversation.conversationId) {
+        fetchPinnedMessages();
+      }
     }
     
     initialLoad();
@@ -1268,7 +1289,11 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      handleSendMessage();
+      if (replyingToMessage) {
+        handleSendReplyMessage();
+      } else {
+        handleSendMessage();
+      }
     }
   };
 
@@ -1422,22 +1447,6 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
     imageInputRef.current?.click();
   };
 
-  const handleVideoClick = () => {
-    videoInputRef.current?.click();
-  };
-
-  const handleAudioClick = () => {
-    audioInputRef.current?.click();
-  };
-
-  const handleLocationClick = () => {
-    // In a real implementation, this would access the user's location
-    message.info("Tính năng chia sẻ vị trí đang được phát triển");
-  };
-
-  const handlePollClick = () => {
-    message.info("Tính năng khảo sát đang được phát triển");
-  };
 
   // Add the determineMessageStatus function before it's used
   const determineMessageStatus = (msg: any, currentUserId: string): string => {
@@ -2577,12 +2586,61 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
       setMessageActionLoading(messageId);
       await pinMessage(messageId);
       
+      // Find the message that was pinned
+      const pinnedMessage = messages.find(msg => msg.id === messageId);
+      
       // Update the message status in the UI
       setMessages((prevMessages) =>
         prevMessages.map((msg) =>
-          msg.id === messageId ? { ...msg, isPinned: true } : msg
+          msg.id === messageId ? { ...msg, isPinned: true, pinnedAt: new Date().toISOString() } : msg
         )
       );
+      
+      // Refresh pinned messages
+      await fetchPinnedMessages();
+      
+      // Add a notification message about pinning
+      if (pinnedMessage) {
+        let contentPreview = ''; 
+        
+        // For non-text messages, use appropriate description
+        if (pinnedMessage.type === 'image') {
+          contentPreview = 'hình ảnh';
+        } else if (pinnedMessage.type === 'file') {
+          contentPreview = 'tập tin';
+        } else if (pinnedMessage.type === 'video') {
+          contentPreview = 'video';
+        } else {
+          // For text messages, truncate if too long
+          contentPreview = pinnedMessage.content.length > 20 
+            ? pinnedMessage.content.substring(0, 20) + '...' 
+            : pinnedMessage.content;
+        }
+              
+        // Create notification message
+        const notificationMessage: DisplayMessage = {
+          id: `notification-pin-${Date.now()}`,
+          content: `Bạn đã ghim tin nhắn ${contentPreview}`,
+          timestamp: new Date().toISOString(),
+          sender: {
+            id: 'system',
+            name: 'Hệ thống',
+          },
+          type: 'notification',
+          // Store the pinned message ID in the attachment url field for reference
+          attachment: {
+            url: messageId,
+            type: 'reference',
+          }
+        };
+        
+        // Add the notification to the message list
+        setMessages(prevMessages => [...prevMessages, notificationMessage]);
+        
+        // Scroll to bottom to show the notification
+        setTimeout(scrollToBottomSmooth, 100);
+      }
+      
       message.success("Đã ghim tin nhắn");
     } catch (error: any) {
       console.error("Error pinning message:", error);
@@ -2600,9 +2658,13 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
       // Update the message status in the UI
       setMessages((prevMessages) =>
         prevMessages.map((msg) =>
-          msg.id === messageId ? { ...msg, isPinned: false } : msg
+          msg.id === messageId ? { ...msg, isPinned: false, pinnedAt: undefined } : msg
         )
       );
+      
+      // Refresh pinned messages
+      await fetchPinnedMessages();
+      
       message.success("Đã bỏ ghim tin nhắn");
     } catch (error: any) {
       console.error("Error unpinning message:", error);
@@ -2612,37 +2674,556 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
     }
   };
 
+  // Add function to fetch pinned messages
+  const fetchPinnedMessages = async () => {
+    if (!conversation || !conversation.conversationId) return;
+    
+    try {
+      setLoadingPinnedMessages(true);
+      
+      // Get pinned message IDs from conversation
+      const pinnedMessageIds = conversation.pinnedMessages || [];
+      
+      if (pinnedMessageIds.length === 0) {
+        setPinnedMessages([]);
+        return;
+      }
+      
+      try {
+        // Use the API to get all pinned messages for this conversation
+        const fetchedPinnedMessages = await getPinnedMessages(conversation.conversationId);
+        
+        if (fetchedPinnedMessages && fetchedPinnedMessages.length > 0) {
+          // Map the API messages to our display format
+          const displayPinnedMessages: DisplayMessage[] = fetchedPinnedMessages.map(msg => {
+            // Find sender info from userCache
+            const sender = userCache[msg.senderId] || {
+              fullname: "Người dùng",
+              urlavatar: "",
+            };
+            
+            // Normalize attachments
+            let parsedAttachments: Array<{ url: string; type: string; name?: string; size?: number }> = [];
+            if (typeof msg.attachments === 'string' && msg.attachments) {
+              try {
+                const parsed = JSON.parse(msg.attachments);
+                if (Array.isArray(parsed)) {
+                  parsedAttachments = parsed;
+                }
+              } catch (e) {
+                console.error('Failed to parse attachments string:', e);
+              }
+            } else if (Array.isArray(msg.attachments)) {
+              parsedAttachments = msg.attachments;
+            }
+            
+            // Ensure both attachment and attachments fields have consistent values
+            let mainAttachment = msg.attachment || (parsedAttachments.length > 0 ? parsedAttachments[0] : null);
+            
+            // Create the display message
+            const displayMessage: DisplayMessage = {
+              id: msg.messageDetailId,
+              content: msg.content || "",
+              timestamp: msg.createdAt || new Date().toISOString(),
+              sender: {
+                id: msg.senderId || "",
+                name: sender.fullname || "Người dùng",
+                avatar: sender.urlavatar || "",
+              },
+              type: (msg.type as "text" | "image" | "file") || "text",
+              isPinned: true,
+              pinnedAt: msg.pinnedAt || msg.createdAt,
+            };
+            
+            // Add attachments information
+            if (parsedAttachments.length > 0) {
+              displayMessage.attachments = parsedAttachments;
+            }
+            
+            if (mainAttachment) {
+              displayMessage.attachment = mainAttachment;
+            }
+            
+            // Process based on message type
+            if (msg.type === "image") {
+              if (mainAttachment && mainAttachment.url) {
+                displayMessage.fileUrl = mainAttachment.url;
+              }
+            } else if (msg.type === "file") {
+              if (mainAttachment && mainAttachment.url) {
+                displayMessage.fileUrl = mainAttachment.url;
+                displayMessage.fileName = mainAttachment.name;
+                displayMessage.fileSize = mainAttachment.size;
+              }
+            }
+            
+            return displayMessage;
+          });
+          
+          // Sort by most recently pinned
+          const sortedPinnedMessages = [...displayPinnedMessages].sort(
+            (a, b) => new Date(b.pinnedAt || b.timestamp).getTime() - new Date(a.pinnedAt || a.timestamp).getTime()
+          );
+          
+          // If we have pinned messages from the API, use those
+          setPinnedMessages(sortedPinnedMessages);
+          return;
+        }
+      } catch (apiError) {
+        console.error("Error fetching pinned messages from API:", apiError);
+        // Fall back to using local messages if API call fails
+      }
+      
+      // Fall back to using messages that are already in our messages array
+      const localPinnedMessages = messages.filter(
+        message => message.isPinned
+      );
+      
+      // Map the messages to our display format and sort by most recently pinned
+      const localSortedPinnedMessages = [...localPinnedMessages].sort(
+        (a, b) => new Date(b.pinnedAt || b.timestamp).getTime() - new Date(a.pinnedAt || a.timestamp).getTime()
+      );
+      
+      setPinnedMessages(localSortedPinnedMessages);
+    } catch (error) {
+      console.error("Error fetching pinned messages:", error);
+    } finally {
+      setLoadingPinnedMessages(false);
+    }
+  };
+
+  // Call fetchPinnedMessages when conversation changes or when messages are updated
+  useEffect(() => {
+    if (isValidConversation) {
+      fetchPinnedMessages();
+    }
+  }, [conversation, messages]);
+
+  // Render the pinned messages panel
+  const renderPinnedMessagesPanel = () => {
+    if (!showPinnedMessagesPanel) return null;
+    
+    return (
+      <div className="bg-white border-b border-gray-200 animate-slideIn transition-all duration-300">
+        <div className="flex items-center justify-between px-4 py-2 bg-gray-50 border-b border-gray-200">
+          <div className="flex items-center font-medium">
+            <PushpinOutlined className="text-yellow-600 mr-2" />
+            <span>Danh sách ghim ({pinnedMessages.length})</span>
+          </div>
+          <Button 
+            type="text" 
+            size="small"
+            className="text-gray-500"
+            onClick={() => setShowPinnedMessagesPanel(false)}
+          >
+            Thu gọn
+          </Button>
+        </div>
+        
+        <div className="max-h-80 overflow-y-auto p-2">
+          {loadingPinnedMessages ? (
+            <div className="flex justify-center py-4">
+              <Spin size="small" />
+            </div>
+          ) : pinnedMessages.length === 0 ? (
+            <div className="text-center py-4 text-gray-500">
+              Không có tin nhắn nào được ghim
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {pinnedMessages.map(pinnedMsg => {
+                const isOwn = isOwnMessage(pinnedMsg.sender.id);
+                
+                return (
+                  <div key={pinnedMsg.id} className="flex items-start p-2 hover:bg-gray-50 rounded-lg group">
+                    <Avatar 
+                      name={pinnedMsg.sender.name}
+                      avatarUrl={pinnedMsg.sender.avatar}
+                      size={36}
+                      className="mr-2 flex-shrink-0"
+                    />
+                    
+                    <div className="flex-grow overflow-hidden">
+                      <div className="flex justify-between">
+                        <div className="font-medium text-sm mb-1">{pinnedMsg.sender.name}</div>
+                        <div className="text-xs text-gray-500">{formatMessageTime(pinnedMsg.timestamp)}</div>
+                      </div>
+                      
+                      <div className="text-sm text-gray-800 truncate">
+                        {pinnedMsg.type === 'image' ? (
+                          <div className="flex items-center">
+                            <FileImageOutlined className="mr-1" />
+                            <span>Hình ảnh</span>
+                          </div>
+                        ) : pinnedMsg.type === 'file' ? (
+                          <div className="flex items-center">
+                            <FileOutlined className="mr-1" />
+                            <span>{pinnedMsg.fileName || "Tập tin"}</span>
+                          </div>
+                        ) : (
+                          pinnedMsg.content
+                        )}
+                      </div>
+                    </div>
+                    
+                    <Dropdown
+                      overlay={
+                        <Menu>
+                          <Menu.Item 
+                            key="unpin" 
+                            icon={<PushpinOutlined />}
+                            onClick={() => handleUnpinMessage(pinnedMsg.id)}
+                          >
+                            Bỏ ghim
+                          </Menu.Item>
+                          <Menu.Item 
+                            key="goto" 
+                            onClick={() => {
+                              setShowPinnedMessagesPanel(false);
+                              setTimeout(() => {
+                                scrollToPinnedMessage(pinnedMsg.id);
+                              }, 300);
+                            }}
+                          >
+                            Đi đến tin nhắn
+                          </Menu.Item>
+                        </Menu>
+                      }
+                      trigger={['click']}
+                      placement="bottomRight"
+                    >
+                      <Button 
+                        type="text" 
+                        size="small" 
+                        icon={<MoreOutlined />}
+                        className="text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                      />
+                    </Dropdown>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  // Add this new component in the ChatArea.tsx file
+  const NotificationMessage = ({ message, onViewClick }: { message: DisplayMessage, onViewClick: () => void }) => {
+    return (
+      <div className="flex justify-center my-2">
+        <div className="flex items-center bg-white rounded-full py-2 px-4 max-w-md border border-gray-100 shadow-sm">
+          <div className="mr-2 text-orange-500">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+              <path d="M16,12V4H17V2H7V4H8V12L6,14V16H11.2V22H12.8V16H18V14L16,12Z" />
+            </svg>
+          </div>
+          <div className="text-sm text-gray-700 flex-grow">
+            {message.content}
+          </div>
+          {message.content.includes("ghim tin nhắn") && (
+            <button 
+              className="text-blue-500 text-sm font-medium ml-2"
+              onClick={onViewClick}
+            >
+              Xem
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  // Add a new function to locate and scroll to a pinned message by ID
+  const scrollToPinnedMessage = async (messageId: string) => {
+    if (!messageId) {
+      setShowPinnedMessagesPanel(true);
+      return false;
+    }
+    
+    // First try to find the element in the current DOM
+    const element = document.getElementById(`message-${messageId}`);
+    if (element) {
+      // If found, scroll to it and highlight it
+      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      element.classList.add('highlight-message');
+      const elementRef = element; // Store reference for callback
+      setTimeout(() => {
+        elementRef.classList.remove('highlight-message');
+      }, 2000);
+      return true;
+    }
+    
+    // If not found in DOM, check if the message is in our loaded messages
+    const messageIndex = messages.findIndex(msg => msg.id === messageId);
+    if (messageIndex !== -1) {
+      // Message is in our state, but not rendered. Try to scroll to its estimated position
+      const messagesContainer = messagesContainerRef.current;
+      if (messagesContainer) {
+        // Try to scroll to approximate position
+        const approximatePosition = (messageIndex / messages.length) * messagesContainer.scrollHeight;
+        messagesContainer.scrollTop = approximatePosition;
+        
+        // Try again after a short delay for the message to render
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
+        // Check again
+        const foundElement = document.getElementById(`message-${messageId}`);
+        if (foundElement) {
+          foundElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          foundElement.classList.add('highlight-message');
+          const elementRef = foundElement; // Store reference for callback
+          setTimeout(() => {
+            elementRef.classList.remove('highlight-message');
+          }, 2000);
+          return true;
+        }
+      }
+    }
+    
+    // Message not found - try more aggressive loading, especially important after page reload
+    try {
+      // First, try normal fetch to see if it's in recent messages
+      await fetchMessages();
+      
+      // Try one more time after fetching
+      await new Promise(resolve => setTimeout(resolve, 300));
+      let foundElement = document.getElementById(`message-${messageId}`);
+      if (foundElement) {
+        foundElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        foundElement.classList.add('highlight-message');
+        const elementRef = foundElement; // Store reference for callback
+        setTimeout(() => {
+          elementRef.classList.remove('highlight-message');
+        }, 2000);
+        return true;
+      }
+      
+      // If still not found, try to load more historical messages
+      // This is crucial after page reload when we might need to go back in history
+      if (hasMore && conversation?.conversationId) {
+        console.log("Trying to load more historical messages to find pinned message:", messageId);
+        // Try loading more messages
+        await loadMoreMessages();
+        
+        await new Promise(resolve => setTimeout(resolve, 500));
+        foundElement = document.getElementById(`message-${messageId}`);
+        if (foundElement) {
+          foundElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          foundElement.classList.add('highlight-message');
+          const elementRef = foundElement; // Store reference for callback
+          setTimeout(() => {
+            elementRef.classList.remove('highlight-message');
+          }, 2000);
+          return true;
+        }
+        try {
+          // If still not found, make one more attempt with direct fetch
+          // This handles cases where the message is very old
+          const specificMessage = await getSpecificMessage(messageId, conversation.conversationId);
+          if (specificMessage) {
+            // If we successfully got the specific message, add it to our messages
+            // and create a visual indicator
+            console.log("Found specific pinned message:", specificMessage);
+            
+            // Try to load messages around it
+            // Access timestamp correctly based on Message interface
+            const timestamp = specificMessage.createdAt;
+            if (timestamp) {
+              await fetchMessages(timestamp);
+              
+              await new Promise(resolve => setTimeout(resolve, 500));
+              const finalElement = document.getElementById(`message-${messageId}`);
+              if (finalElement) {
+                finalElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                finalElement.classList.add('highlight-message');
+                const elementRef = finalElement; // Store reference for callback
+                setTimeout(() => {
+                  elementRef.classList.remove('highlight-message');
+                }, 2000);
+                return true;
+              }
+            }
+          }
+        } catch (innerError) {
+          console.error("Error fetching specific message:", innerError);
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching messages while trying to find pinned message:", error);
+    }
+    
+    // If all else fails, show the pinned messages panel
+    setShowPinnedMessagesPanel(true);
+    return false;
+  };
+
+  // Handle reply to message
+  const handleReplyMessage = (message: DisplayMessage) => {
+    setReplyingToMessage(message);
+    inputRef.current?.focus();
+  };
+
+  // Handle cancel reply
+  const handleCancelReply = () => {
+    setReplyingToMessage(null);
+  };
+
+  // Handle sending reply message
+  const handleSendReplyMessage = async () => {
+    if (!replyingToMessage || !inputValue.trim() || !conversation) return;
+    
+    try {
+      setIsSending(true);
+      const replyResult = await replyMessage(replyingToMessage.id, inputValue.trim());
+      
+      // Reset input and reply state
+      setInputValue('');
+      setReplyingToMessage(null);
+      setPastedImage(null);
+      
+      // Refresh messages to show the new reply
+      if (messages.length > 0) {
+        await fetchMessages(messages[messages.length - 1]?.timestamp, "after");
+      }
+    } catch (error: any) {
+      console.error("Error sending reply:", error);
+      message.error("Failed to send reply");
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  // Handle forward message
+  const handleForwardMessage = (message: DisplayMessage) => {
+    setForwardingMessage(message);
+    setShowForwardModal(true);
+  };
+
+  // Handle send forward message
+  const handleSendForwardMessage = async () => {
+    if (!forwardingMessage || !selectedConversationForForward) {
+      message.error("Cannot forward message: missing conversation or message");
+      return;
+    }
+
+    try {
+      // Xử lý theo loại tin nhắn
+      if (forwardingMessage.type === "image" && forwardingMessage.attachment) {
+        // Forward image message with attachment
+        await forwardImageMessage(
+          forwardingMessage.id,
+          selectedConversationForForward,
+          forwardingMessage.attachment
+        );
+      } else if (forwardingMessage.type === "video" && forwardingMessage.attachment) {
+        // Đặc biệt cho video - tải lại video từ URL và gửi
+        try {
+          // Tải file từ URL
+          const videoResponse = await fetch(forwardingMessage.attachment.url);
+          const videoBlob = await videoResponse.blob();
+          const videoFile = new File(
+            [videoBlob], 
+            forwardingMessage.attachment.name || "forwarded-video.mp4", 
+            { type: 'video/mp4' }
+          );
+          
+          // Gửi qua socketService
+          await socketService.sendFileMessage(selectedConversationForForward, videoFile);
+          
+          message.success("Video forwarded successfully");
+        } catch (videoError) {
+          console.error("Error forwarding video:", videoError);
+          message.error("Failed to forward video");
+        }
+      } else if (forwardingMessage.type === "text-with-image" && forwardingMessage.attachment && forwardingMessage.content) {
+        // Forward text with image using sendMessageWithImage
+        const imageFile = await fetch(forwardingMessage.attachment.url)
+          .then(res => res.blob())
+          .then(blob => new File([blob], forwardingMessage.attachment?.name || "forwarded-image.jpg", { type: blob.type }));
+        
+        await sendMessageWithImage(
+          selectedConversationForForward,
+          forwardingMessage.content,
+          imageFile
+        );
+      } else if (forwardingMessage.type === "file" && forwardingMessage.attachment) {
+        // Forward file message - tải lại file từ URL và gửi
+        try {
+          // Tải file từ URL
+          const fileResponse = await fetch(forwardingMessage.attachment.url);
+          const fileBlob = await fileResponse.blob();
+          const fileObject = new File(
+            [fileBlob], 
+            forwardingMessage.attachment.name || "forwarded-file", 
+            { type: fileBlob.type }
+          );
+          
+          // Gửi qua socketService
+          await socketService.sendFileMessage(selectedConversationForForward, fileObject);
+          
+          message.success("File forwarded successfully");
+        } catch (fileError) {
+          console.error("Error forwarding file:", fileError);
+          message.error("Failed to forward file");
+        }
+      } else if (forwardingMessage.content) {
+        // Forward regular text message
+        await sendMessage(
+          selectedConversationForForward,
+          forwardingMessage.content,
+          "text"
+        );
+      } else {
+        message.error("Cannot forward empty message");
+        return;
+      }
+      
+      setShowForwardModal(false);
+      setForwardingMessage(null);
+      setSelectedConversationForForward(null);
+    } catch (error) {
+      console.error("Error forwarding message:", error);
+      message.error("Failed to forward message");
+    }
+  };
+
+  // Helper function to get the name of the other user in a 1-on-1 conversation
+  const getOtherUserName = (conv: Conversation): string => {
+    const currentUserId = localStorage.getItem('userId') || '';
+    
+    if (conv.isGroup) {
+      return conv.groupName || 'Group Chat';
+    }
+    
+    const otherUserId = conv.creatorId === currentUserId ? conv.receiverId : conv.creatorId;
+    const user = userCache[otherUserId || ''];
+    
+    return user?.fullname || 'User';
+  };
+
   return (
     <div className="w-full h-full flex flex-col">
       <div className="flex flex-col h-full overflow-hidden bg-white rounded-lg relative">
-        {/* Pinned message banner */}
-        {messages.some(msg => msg.isPinned) && (
-          <div className="bg-yellow-50 border-b border-yellow-100 p-2 flex items-center justify-between">
-            <div className="flex items-center">
+        {/* Pinned message button */}
+        {pinnedMessages.length > 0 && (
+          <div 
+            className={`bg-white border-b border-gray-200 py-2 px-4 flex justify-between items-center cursor-pointer hover:bg-gray-50 transition-colors ${showPinnedMessagesPanel ? 'bg-gray-50' : ''}`}
+            onClick={() => setShowPinnedMessagesPanel(!showPinnedMessagesPanel)}
+          >
+            <div className="flex items-center text-gray-700">
               <PushpinOutlined className="text-yellow-600 mr-2" />
-              <span className="text-yellow-800 text-sm font-medium">
-                {messages.filter(msg => msg.isPinned).length} tin nhắn đã ghim
-              </span>
+              <span>+{pinnedMessages.length} ghim</span>
             </div>
-            <Button 
-              type="text" 
-              size="small"
-              className="text-yellow-700 hover:text-yellow-800"
-              onClick={() => {
-                // Scroll to the first pinned message
-                const firstPinnedMessage = messages.find(msg => msg.isPinned);
-                if (firstPinnedMessage) {
-                  const element = document.getElementById(`message-${firstPinnedMessage.id}`);
-                  if (element) {
-                    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                  }
-                }
-              }}
-            >
-              Xem tin nhắn đã ghim
-            </Button>
+            <DownOutlined 
+              className={`text-gray-400 transition-transform duration-300 ${showPinnedMessagesPanel ? 'transform rotate-180' : ''}`}
+            />
           </div>
         )}
+        
+        {/* Pinned messages panel */}
+        {renderPinnedMessagesPanel()}
         
         {/* Khu vực hiển thị tin nhắn */}
         <div
@@ -2752,6 +3333,31 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
               const isLastMessageFromUser = isOwn && 
                 messages.findIndex((msg, i) => i > index && msg.sender.id === currentUserId) === -1;
 
+              // If message is a notification, render it with the NotificationMessage component
+              if (message.type === "notification") {
+                return (
+                  <React.Fragment key={`${message.id}-${index}`}>
+                    {/* Timestamp separator */}
+                    {showTimestamp && (
+                      <div className="flex justify-center my-2">
+                        <div className="bg-gray-200 text-gray-600 text-xs px-3 py-1 rounded-full">
+                          {formatDateForSeparator(message.timestamp)}
+                        </div>
+                      </div>
+                    )}
+                    
+                    <NotificationMessage 
+                      message={message} 
+                      onViewClick={() => {
+                        // Find the pinned message ID from the message's attachment URL if available
+                        const pinnedMessageId = message.attachment?.url || "";
+                        scrollToPinnedMessage(pinnedMessageId);
+                      }}
+                    />
+                  </React.Fragment>
+                );
+              }
+
               return (
                 <React.Fragment key={`${message.id}-${index}`}>
                   {/* Timestamp separator */}
@@ -2799,7 +3405,7 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
                             e.stopPropagation();
                             e.preventDefault();
                             setActiveMessageMenu(message.id);
-                            // Functionality will be implemented later
+                            handleReplyMessage(message);
                           }}
                         />
                       </Tooltip>
@@ -2813,7 +3419,7 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
                             e.stopPropagation();
                             e.preventDefault();
                             setActiveMessageMenu(message.id);
-                            // Functionality will be implemented later
+                            handleForwardMessage(message);
                           }}
                         />
                       </Tooltip>
@@ -3279,6 +3885,24 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
         `}
       </style>
       
+      {/* Add highlight animation styles */}
+      <style>
+        {`
+        @keyframes highlight {
+          0% { background-color: rgba(255, 224, 102, 0.9); box-shadow: 0 0 8px rgba(255, 224, 102, 0.8); }
+          50% { background-color: rgba(255, 224, 102, 0.7); box-shadow: 0 0 5px rgba(255, 224, 102, 0.6); }
+          100% { background-color: transparent; box-shadow: none; }
+        }
+        
+        .highlight-message {
+          animation: highlight 2s ease-in-out;
+          transition: background-color 0.5s, box-shadow 0.5s;
+          border-radius: 8px;
+          z-index: 1;
+        }
+        `}
+      </style>
+      
       {/* Image preview modal */}
       <Modal
         open={isImageModalOpen}
@@ -3305,6 +3929,67 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
           </div>
         )}
       </Modal>
+
+      {/* Forward message modal */}
+      {showForwardModal && (
+        <Modal
+          title="Chuyển tiếp tin nhắn"
+          open={showForwardModal}
+          onCancel={() => setShowForwardModal(false)}
+          footer={[
+            <Button key="cancel" onClick={() => setShowForwardModal(false)}>
+              Hủy
+            </Button>,
+            <Button
+              key="forward"
+              type="primary"
+              onClick={handleSendForwardMessage}
+              disabled={!selectedConversationForForward}
+            >
+              Chuyển tiếp
+            </Button>
+          ]}
+        >
+          <div className="mb-4">
+            <div className="font-semibold mb-2">Chọn cuộc trò chuyện:</div>
+            <Select
+              style={{ width: '100%' }}
+              placeholder="Chọn người nhận"
+              onChange={(value) => setSelectedConversationForForward(value)}
+            >
+              {conversations
+                .filter((conv: Conversation) => conv.conversationId !== conversation?.conversationId)
+                .map((conv: Conversation) => {
+                  const name = conv.isGroup 
+                    ? conv.groupName 
+                    : getOtherUserName(conv);
+                  return (
+                    <Select.Option key={conv.conversationId} value={conv.conversationId}>
+                      {name}
+                    </Select.Option>
+                  );
+                })
+              }
+            </Select>
+          </div>
+          
+          <div className="border rounded p-3 bg-gray-50">
+            <div className="text-sm text-gray-500 mb-1">Tin nhắn gốc:</div>
+            {forwardingMessage?.type === 'image' && forwardingMessage.attachment && (
+              <div className="mb-2">
+                <img 
+                  src={forwardingMessage.attachment.url} 
+                  alt="Forward attachment" 
+                  className="max-h-40 rounded"
+                />
+              </div>
+            )}
+            {forwardingMessage?.content && (
+              <div className="text-sm">{forwardingMessage.content}</div>
+            )}
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }
