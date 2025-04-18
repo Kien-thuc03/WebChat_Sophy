@@ -70,11 +70,164 @@ import ReactPlayer from 'react-player';
 
 // Chuyển đổi Message từ API sang định dạng tin nhắn cần hiển thị
 
+// Thêm interface cho định dạng dữ liệu reply
+interface ReplyData {
+  content: string;
+  senderName: string;
+  senderId: string;
+  type: string;
+  attachment?: {
+    url: string;
+    type?: string;
+    name?: string;
+    size?: number;
+    downloadUrl?: string;
+    format?: string;
+  };
+}
 
 interface ChatAreaProps {
   conversation: Conversation | null;
   viewingImages?: boolean;
 }
+
+// Component hiển thị tin nhắn trả lời (chuyển từ ChatMessage)
+const ReplyPreview: React.FC<{
+  replyData: any;
+  isOwnMessage: boolean;
+  messageReplyId?: string | null;
+  onReplyClick?: (messageId: string) => void;
+}> = ({ replyData, isOwnMessage, messageReplyId, onReplyClick }) => {
+  // Default content if replyData is missing
+  if (!replyData) {
+    return null;
+  }
+
+  let replyContent = '';
+  let replySender = 'Người dùng';
+  let replyType = 'text';
+  let senderId = '';
+  let attachment = null;
+
+  // Parse replyData if it's a string
+  if (typeof replyData === 'string') {
+    try {
+      const parsedData = JSON.parse(replyData);
+      replyContent = parsedData.content || '';
+      replySender = parsedData.senderName || 'Người dùng';
+      senderId = parsedData.senderId || '';
+      replyType = parsedData.type || 'text';
+      attachment = parsedData.attachment || null;
+      
+      // Debug log
+      console.log('ReplyPreview parsed data:', parsedData);
+    } catch (error) {
+      // If parsing fails, use the string directly
+      replyContent = replyData;
+      console.error('Error parsing replyData string:', error, replyData);
+    }
+  } else if (typeof replyData === 'object') {
+    // If replyData is already an object (format from backend)
+    replyContent = replyData.content || '';
+    replySender = replyData.senderName || 'Người dùng';
+    senderId = replyData.senderId || '';
+    replyType = replyData.type || 'text';
+    attachment = replyData.attachment || null;
+    
+    // Debug log
+    console.log('ReplyPreview received object replyData:', replyData);
+  }
+
+  // If we have a senderId but no sender name, try to look up the user name
+  // from localStorage or elsewhere if possible
+  if (senderId && replySender === 'Người dùng') {
+    try {
+      // Try to get user info from localStorage or app state if available
+      const userCache = JSON.parse(localStorage.getItem('userCache') || '{}');
+      if (userCache[senderId]) {
+        replySender = userCache[senderId].fullname || 'Người dùng';
+      }
+    } catch (error) {
+      console.error('Error parsing userCache:', error);
+    }
+  }
+
+  const handleClick = () => {
+    if (messageReplyId && onReplyClick) {
+      onReplyClick(messageReplyId);
+    }
+  };
+
+  // Render content based on message type (similar to mobile app's renderReplyContent)
+  const renderReplyTypeContent = () => {
+    switch (replyType) {
+      case 'text':
+        return replyContent;
+      case 'image':
+        return (
+          <div className="flex items-center">
+            {attachment && attachment.url ? (
+              <div className="flex items-center">
+                <img 
+                  src={attachment.url} 
+                  alt="Preview" 
+                  className="w-8 h-8 object-cover rounded mr-1"
+                  onError={(e) => {
+                    e.currentTarget.onerror = null;
+                    e.currentTarget.src = '/images/image-placeholder.png'; 
+                  }}
+                />
+                <span>Hình ảnh</span>
+              </div>
+            ) : (
+              <>
+                <FileImageOutlined className="mr-1" />
+                <span>Hình ảnh</span>
+              </>
+            )}
+          </div>
+        );
+      case 'file':
+        return (
+          <div className="flex items-center">
+            <FileOutlined className="mr-1" />
+            <span>{attachment?.name || 'Tệp tin'}</span>
+          </div>
+        );
+      case 'audio':
+        return (
+          <div className="flex items-center">
+            <AudioOutlined className="mr-1" />
+            <span>Tin nhắn thoại</span>
+          </div>
+        );
+      case 'video':
+        return (
+          <div className="flex items-center">
+            <VideoCameraOutlined className="mr-1" />
+            <span>Video</span>
+          </div>
+        );
+      default:
+        return replyContent;
+    }
+  };
+
+  return (
+    <div 
+      className={`flex items-start pl-2 cursor-pointer text-gray-600 ${isOwnMessage ? 'text-white/80' : ''}`}
+      onClick={handleClick}
+    >
+      <div className={`w-1 self-stretch mr-2 ${isOwnMessage ? 'bg-blue-300' : 'bg-blue-500'}`}></div>
+      <div className="reply-preview-content flex-1 text-xs py-1">
+        <div className="reply-sender font-medium">{replySender}</div>
+        <div className="reply-content truncate">
+          {renderReplyTypeContent()}
+        </div>
+      </div>
+    </div>
+  );
+};
 
 export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
   const [messages, setMessages] = useState<DisplayMessage[]>([]);
@@ -113,7 +266,7 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
   // Thêm state để theo dõi ảnh từ paste
   const [pastedImage, setPastedImage] = useState<File | null>(null);
   const [pastedImagePreview, setPastedImagePreview] = useState<string | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<any>(null); // Changed to any to avoid type issues with Ant Design
   const [typingUsers, setTypingUsers] = useState<{[key: string]: {userId: string, fullname: string, timestamp: number}}>({});
   const [typingTimers, setTypingTimers] = useState<{[key: string]: NodeJS.Timeout}>({});
   
@@ -321,6 +474,7 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
               tempId: tempMessageWithSameContent.id,
               isRecall: messageData.isRecall || false,
               hiddenFrom: messageData.hiddenFrom || [],
+              isPinned: messageData.isPinned || false
             };
             
             // Gán cả hai trường attachment và attachments cho tin nhắn hiển thị
@@ -378,6 +532,32 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
               createdAt: messageData.createdAt,
               senderId: messageData.senderId
             });
+            
+            // Thêm thông tin reply nếu là tin nhắn trả lời
+            if (msg.isReply) {
+              displayMessage.isReply = true;
+              displayMessage.messageReplyId = msg.messageReplyId || null;
+              displayMessage.replyData = msg.replyData;
+              
+              // Log chi tiết hơn để debug tin nhắn reply
+              console.log("Found reply message (detailed):", {
+                id: messageId,
+                isReply: msg.isReply,
+                messageReplyId: msg.messageReplyId,
+                replyData: msg.replyData,
+                replyDataType: typeof msg.replyData
+              });
+              
+              // Đảm bảo replyData là đúng định dạng (object)
+              if (typeof msg.replyData === 'string') {
+                try {
+                  displayMessage.replyData = JSON.parse(msg.replyData);
+                  console.log("Parsed replyData from string:", displayMessage.replyData);
+                } catch (error) {
+                  console.error("Error parsing replyData string:", error);
+                }
+              }
+            }
             
             // Thay thế tin nhắn tạm bằng tin nhắn thực
             return prevMessages.map(m => m.id === tempMessageWithSameContent.id ? displayMessage : m);
@@ -441,6 +621,7 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
               (messageData.sendStatus || "sent") : "received",
             isRecall: messageData.isRecall || false,
             hiddenFrom: messageData.hiddenFrom || [],
+            isPinned: messageData.isPinned || false
           };
           
           // Gán cả hai trường attachment và attachments cho tin nhắn hiển thị
@@ -1100,6 +1281,7 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
         tempId: tempId,
         isRecall: newMessage.isRecall || false,
         hiddenFrom: newMessage.hiddenFrom || [],
+        isPinned: newMessage.isPinned || false
       };
       // Đặt các trường liên quan đến hình ảnh
       if (newMessage.attachment && newMessage.attachment.url) {
@@ -1963,7 +2145,55 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
             sendStatus: determineMessageStatus(msg, currentUserId),
             isRecall: msg.isRecall || false,
             hiddenFrom: msg.hiddenFrom || [],
+            isPinned: msg.isPinned || false
           };
+          
+          // Thêm thông tin reply nếu là tin nhắn trả lời
+          if (msg.isReply) {
+            displayMessage.isReply = true;
+            displayMessage.messageReplyId = msg.messageReplyId || null;
+            
+            // Kiểm tra và sử dụng dữ liệu replyData nếu có
+            if (msg.replyData) {
+              // Nếu replyData là string, thử parse thành object
+              if (typeof msg.replyData === 'string') {
+                try {
+                  displayMessage.replyData = JSON.parse(msg.replyData);
+                } catch (error) {
+                  console.error("Error parsing replyData string:", error);
+                  displayMessage.replyData = { content: msg.replyData };
+                }
+              } else {
+                // Nếu là object, sử dụng trực tiếp
+                displayMessage.replyData = msg.replyData;
+              }
+            } else if (msg.messageReplyId) {
+              // Thêm một task để fetch dữ liệu tin nhắn gốc sau
+              setTimeout(async () => {
+                try {
+                  const replyData = await fetchOriginalMessageForReply(msg.messageReplyId);
+                  if (replyData) {
+                    // Cập nhật replyData cho tin nhắn hiện tại trong state
+                    setMessages(prevMessages => prevMessages.map(m => {
+                      if (m.id === messageId) {
+                        return { ...m, replyData };
+                      }
+                      return m;
+                    }));
+                  }
+                } catch (error) {
+                  console.error("Failed to fetch original message for reply:", error);
+                }
+              }, 0);
+            }
+            
+            // Log để debug tin nhắn reply
+            console.log("Found reply message:", {
+              id: messageId,
+              replyTo: msg.messageReplyId,
+              replyData: msg.replyData
+            });
+          }
           
           // Gán cả hai trường attachment và attachments cho tin nhắn hiển thị
           if (parsedAttachments.length > 0) {
@@ -2214,15 +2444,64 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
           </div>
         )}
 
+        {/* Reply indicator */}
+        {replyingToMessage && (
+          <div className="reply-indicator p-2 border-b border-gray-100 flex items-center">
+            <div className="flex-grow flex items-start">
+              <div className="w-1 bg-blue-500 self-stretch mr-2"></div>
+              <div className="flex-grow">
+                <div className="font-medium text-sm text-blue-600">
+                  Đang trả lời {replyingToMessage.sender.name}
+                </div>
+                <div className="text-xs text-gray-600 truncate max-w-xs">
+                  {replyingToMessage.type === 'image' ? (
+                    <div className="flex items-center">
+                      <FileImageOutlined className="mr-1" />
+                      <span>Hình ảnh</span>
+                    </div>
+                  ) : replyingToMessage.type === 'file' ? (
+                    <div className="flex items-center">
+                      <FileOutlined className="mr-1" />
+                      <span>{replyingToMessage.fileName || "Tập tin"}</span>
+                    </div>
+                  ) : (
+                    replyingToMessage.content
+                  )}
+                </div>
+              </div>
+            </div>
+            <button
+              className="ml-2 text-gray-400 hover:text-gray-600 p-1"
+              onClick={handleCancelReply}
+              aria-label="Cancel reply"
+            >
+              <svg 
+                viewBox="0 0 24 24" 
+                width="16" 
+                height="16" 
+                stroke="currentColor" 
+                strokeWidth="2" 
+                fill="none"
+              >
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+          </div>
+        )}
+
         {/* Main input area */}
         <div className="flex items-center p-2">
           {/* Input field */}
           <div className="flex-grow">
             <Input
+              ref={inputRef}
               className="w-full py-2 px-2 bg-gray-100 rounded-2xl border-none focus:shadow-none"
               placeholder={
                 isUploading
                   ? "Đang tải lên..."
+                  : replyingToMessage
+                  ? `Trả lời ${replyingToMessage.sender.name}`
                   : `Nhắn @, tin nhắn tới ${conversation?.isGroup ? conversation.groupName : "Bạn"}`
               }
               bordered={false}
@@ -2288,7 +2567,7 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
                 type="primary"
                 shape="circle"
                 icon={<SendOutlined />}
-                onClick={handleSendMessage}
+                onClick={replyingToMessage ? handleSendReplyMessage : handleSendMessage}
                 disabled={!isValidConversation}
               />
             ) : (
@@ -3078,6 +3357,25 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
       setIsSending(true);
       const replyResult = await replyMessage(replyingToMessage.id, inputValue.trim());
       
+      // Nếu API không trả về replyData, bạn cần thêm vào sau khi nhận kết quả:
+      if (replyResult && !replyResult.replyData && replyingToMessage) {
+        // Tạo replyData từ thông tin của tin nhắn gốc
+        const replyInfo: ReplyData = {
+          content: replyingToMessage.content,
+          senderName: replyingToMessage.sender.name,
+          senderId: replyingToMessage.sender.id,
+          type: replyingToMessage.type
+        };
+        
+        // Thêm dữ liệu attachment nếu tin nhắn gốc là ảnh, video hoặc file
+        if (replyingToMessage.type !== 'text' && replyingToMessage.attachment) {
+          replyInfo.attachment = replyingToMessage.attachment;
+        }
+        
+        // Thêm vào kết quả trả về hoặc vào tin nhắn được thêm vào danh sách
+        replyResult.replyData = JSON.stringify(replyInfo);
+      }
+      
       // Reset input and reply state
       setInputValue('');
       setReplyingToMessage(null);
@@ -3201,6 +3499,74 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
     const user = userCache[otherUserId || ''];
     
     return user?.fullname || 'User';
+  };
+
+  // Chuyển đổi từ message từ API sang định dạng hiển thị trong UI
+  const convertApiMessageToDisplayMessage = (apiMessage: any): DisplayMessage => {
+    // Debug tin nhắn reply
+    if (apiMessage.isReply) {
+      console.log('Converting API Reply Message:', {
+        id: apiMessage.messageDetailId,
+        isReply: apiMessage.isReply,
+        messageReplyId: apiMessage.messageReplyId,
+        replyData: apiMessage.replyData,
+        content: apiMessage.content
+      });
+    }
+    return apiMessage;
+  };
+
+  // Thêm hàm để lấy thông tin tin nhắn gốc cho các tin nhắn reply
+  const fetchOriginalMessageForReply = async (messageReplyId: string): Promise<ReplyData | null> => {
+    try {
+      if (!messageReplyId || !conversation) return null;
+      
+      console.log(`Fetching original message for reply: ${messageReplyId}`);
+      const originalMessage = await getSpecificMessage(messageReplyId, conversation.conversationId);
+      
+      if (originalMessage) {
+        console.log("Found original message:", originalMessage);
+        
+        // Lấy thông tin người gửi từ cache
+        const sender = userCache[originalMessage.senderId] || {
+          fullname: "Người dùng",
+          urlavatar: "",
+        };
+        
+        // Xây dựng dữ liệu reply phù hợp
+        const replyData: ReplyData = {
+          content: originalMessage.content || "",
+          senderName: sender.fullname || "Người dùng",
+          senderId: originalMessage.senderId,
+          type: originalMessage.type || "text",
+        };
+        
+        // Nếu tin nhắn gốc có attachment, thêm vào replyData
+        if (originalMessage.attachment) {
+          replyData.attachment = originalMessage.attachment;
+        } else if (originalMessage.attachments) {
+          // Chuyển đổi attachments nếu là chuỗi JSON
+          if (typeof originalMessage.attachments === 'string') {
+            try {
+              const parsedAttachments = JSON.parse(originalMessage.attachments);
+              if (Array.isArray(parsedAttachments) && parsedAttachments.length > 0) {
+                replyData.attachment = parsedAttachments[0];
+              }
+            } catch (e) {
+              console.error('Failed to parse attachments in original message:', e);
+            }
+          } else if (Array.isArray(originalMessage.attachments) && originalMessage.attachments.length > 0) {
+            replyData.attachment = originalMessage.attachments[0];
+          }
+        }
+        
+        return replyData;
+      }
+      return null;
+    } catch (error) {
+      console.error("Error fetching original message for reply:", error);
+      return null;
+    }
   };
 
   return (
@@ -3469,6 +3835,20 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
                       </div>
                     )}
                     
+                    {/* Add Reply Preview here */}
+                    {message.isReply && message.replyData && (
+                      <div className="mb-1 rounded-t-md overflow-hidden">
+                        <div className={`${isOwn ? 'bg-blue-400' : 'bg-gray-200'} bg-opacity-60 rounded-t-md`}>
+                          <ReplyPreview 
+                            replyData={message.replyData} 
+                            isOwnMessage={isOwn} 
+                            messageReplyId={message.messageReplyId}
+                            onReplyClick={(msgId: string) => scrollToPinnedMessage(msgId)}
+                          />
+                        </div>
+                      </div>
+                    )}
+                    
                     <div 
                       className={`px-3 py-2 rounded-2xl ${
                         isOwn 
@@ -3476,7 +3856,7 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
                               ? "bg-red-100 text-red-800"
                               : "bg-blue-500 text-white rounded-tr-none"
                             : "bg-gray-100 text-gray-800 rounded-tl-none"
-                        } overflow-hidden`}
+                        } overflow-hidden ${message.isReply ? 'rounded-tl-none rounded-tr-none' : ''}`}
                         style={{ wordBreak: "break-word", maxWidth: "100%" }}
                         onClick={() => setActiveMessageMenu(message.id)}
                     >
@@ -3512,8 +3892,7 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
                           </div>
                         </div>
                       ) : message.type === "text-with-image" ? (
-                        // Rest of the message type conditions remain unchanged
-                        // ...
+                        // Tin nhắn văn bản kèm hình ảnh
                         <div className="flex flex-col">
                           <p className="text-sm whitespace-pre-wrap break-words mb-2">
                             {message.content}

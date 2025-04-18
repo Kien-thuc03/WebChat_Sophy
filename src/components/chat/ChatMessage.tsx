@@ -13,7 +13,9 @@ import {
   FileZipOutlined,
   FileUnknownOutlined,
   DownloadOutlined,
-  PlayCircleOutlined
+  PlayCircleOutlined,
+  AudioOutlined,
+  VideoCameraOutlined
 } from '@ant-design/icons';
 import { Button, Tooltip } from 'antd';
 import { formatFileSize } from '../../services/cloudinaryService';
@@ -29,7 +31,7 @@ interface ChatMessageProps {
       name: string;
       avatar?: string;
     };
-    type: 'text' | 'image' | 'file' | 'audio' | 'video' | 'document' | 'text-with-image';
+    type: 'text' | 'image' | 'file' | 'audio' | 'video' | 'document' | 'text-with-image' | 'notification';
     fileUrl?: string;
     fileName?: string;
     fileSize?: number;
@@ -53,6 +55,9 @@ interface ChatMessageProps {
       format?: string;
     };
     isPinned?: boolean;
+    isReply?: boolean;
+    messageReplyId?: string | null;
+    replyData?: any;
   };
   isOwnMessage: boolean;
   showAvatar?: boolean;
@@ -61,7 +66,146 @@ interface ChatMessageProps {
   onImageClick?: (url: string) => void;
   onPinMessage?: (messageId: string) => void;
   onUnpinMessage?: (messageId: string) => void;
+  onReplyClick?: (messageId: string) => void;
 }
+
+// Component to display the reply preview
+const ReplyPreview: React.FC<{
+  replyData: any;
+  isOwnMessage: boolean;
+  messageReplyId?: string | null;
+  onReplyClick?: (messageId: string) => void;
+}> = ({ replyData, isOwnMessage, messageReplyId, onReplyClick }) => {
+  // Default content if replyData is missing
+  if (!replyData) {
+    return null;
+  }
+
+  let replyContent = '';
+  let replySender = 'Người dùng';
+  let replyType = 'text';
+  let senderId = '';
+  let attachment = null;
+
+  // Parse replyData if it's a string
+  if (typeof replyData === 'string') {
+    try {
+      const parsedData = JSON.parse(replyData);
+      replyContent = parsedData.content || '';
+      replySender = parsedData.senderName || 'Người dùng';
+      senderId = parsedData.senderId || '';
+      replyType = parsedData.type || 'text';
+      attachment = parsedData.attachment || null;
+      
+      // Debug log
+      console.log('ReplyPreview parsed data:', parsedData);
+    } catch (error) {
+      // If parsing fails, use the string directly
+      replyContent = replyData;
+      console.error('Error parsing replyData string:', error, replyData);
+    }
+  } else if (typeof replyData === 'object') {
+    // If replyData is already an object (format from backend)
+    replyContent = replyData.content || '';
+    replySender = replyData.senderName || 'Người dùng';
+    senderId = replyData.senderId || '';
+    replyType = replyData.type || 'text';
+    attachment = replyData.attachment || null;
+    
+    // Debug log
+    console.log('ReplyPreview received object replyData:', replyData);
+  }
+
+  // If we have a senderId but no sender name, try to look up the user name
+  // from localStorage or elsewhere if possible
+  if (senderId && replySender === 'Người dùng') {
+    try {
+      // Try to get user info from localStorage or app state if available
+      const userCache = JSON.parse(localStorage.getItem('userCache') || '{}');
+      if (userCache[senderId]) {
+        replySender = userCache[senderId].fullname || 'Người dùng';
+      }
+    } catch (error) {
+      console.error('Error parsing userCache:', error);
+    }
+  }
+
+  const handleClick = () => {
+    if (messageReplyId && onReplyClick) {
+      onReplyClick(messageReplyId);
+    }
+  };
+
+  // Render content based on message type (similar to mobile app's renderReplyContent)
+  const renderReplyTypeContent = () => {
+    switch (replyType) {
+      case 'text':
+        return replyContent;
+      case 'image':
+        return (
+          <div className="flex items-center">
+            {attachment && attachment.url ? (
+              <div className="flex items-center">
+                <img 
+                  src={attachment.url} 
+                  alt="Preview" 
+                  className="w-8 h-8 object-cover rounded mr-1"
+                  onError={(e) => {
+                    e.currentTarget.onerror = null;
+                    e.currentTarget.src = '/images/image-placeholder.png'; 
+                  }}
+                />
+                <span>Hình ảnh</span>
+              </div>
+            ) : (
+              <>
+                <FileImageOutlined className="mr-1" />
+                <span>Hình ảnh</span>
+              </>
+            )}
+          </div>
+        );
+      case 'file':
+        return (
+          <div className="flex items-center">
+            <FileOutlined className="mr-1" />
+            <span>{attachment?.name || 'Tệp tin'}</span>
+          </div>
+        );
+      case 'audio':
+        return (
+          <div className="flex items-center">
+            <AudioOutlined className="mr-1" />
+            <span>Tin nhắn thoại</span>
+          </div>
+        );
+      case 'video':
+        return (
+          <div className="flex items-center">
+            <VideoCameraOutlined className="mr-1" />
+            <span>Video</span>
+          </div>
+        );
+      default:
+        return replyContent;
+    }
+  };
+
+  return (
+    <div 
+      className={`flex items-start pl-2 cursor-pointer text-gray-600 ${isOwnMessage ? 'text-white/80' : ''}`}
+      onClick={handleClick}
+    >
+      <div className={`w-1 self-stretch mr-2 ${isOwnMessage ? 'bg-blue-300' : 'bg-blue-500'}`}></div>
+      <div className="reply-preview-content flex-1 text-xs py-1">
+        <div className="reply-sender font-medium">{replySender}</div>
+        <div className="reply-content truncate">
+          {renderReplyTypeContent()}
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const ChatMessage: React.FC<ChatMessageProps> = ({
   message,
@@ -72,11 +216,25 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
   onImageClick,
   onPinMessage,
   onUnpinMessage,
+  onReplyClick,
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isOverflowing, setIsOverflowing] = useState(false);
   const [isVideoPlaying, setIsVideoPlaying] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
+
+  // Debug message data - especially for replies
+  useEffect(() => {
+    if (message.isReply) {
+      console.log('ChatMessage - Reply message:', {
+        id: message.id,
+        isReply: message.isReply,
+        messageReplyId: message.messageReplyId,
+        replyData: message.replyData,
+        content: message.content
+      });
+    }
+  }, [message]);
 
   useEffect(() => {
     if (contentRef.current) {
@@ -152,6 +310,15 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
     const downloadUrl = attachment?.downloadUrl || fileUrl;
 
     switch (message.type) {
+      case 'notification':
+        return (
+          <div className="flex items-center justify-center">
+            <div className="text-xs text-gray-500 italic">
+              {message.content}
+            </div>
+          </div>
+        );
+        
       case 'image':
         return (
           <div className="message-image">
@@ -392,11 +559,33 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
           </div>
         )}
         
-        <div className={`relative px-3 py-2 rounded-2xl ${
+        {/* Replace the existing reply preview with improved version */}
+        {message.isReply && message.replyData && (
+          <div className="mb-1 rounded-t-md overflow-hidden">
+            <div className={`${isOwnMessage ? 'bg-blue-400' : 'bg-gray-200'} bg-opacity-60 rounded-t-md`}>
+              <ReplyPreview 
+                replyData={message.replyData} 
+                isOwnMessage={isOwnMessage} 
+                messageReplyId={message.messageReplyId}
+                onReplyClick={onReplyClick}
+              />
+            </div>
+          </div>
+        )}
+        
+        {/* Console log để hiển thị dữ liệu tin nhắn Reply */}
+        {message.isReply && console.log('Reply Message Data:', {
+          id: message.id, 
+          isReply: message.isReply, 
+          replyData: message.replyData,
+          messageReplyId: message.messageReplyId
+        })}
+        
+        <div className={`message-container relative ${
           isOwnMessage 
-            ? message.isError ? 'bg-red-100 text-red-800' : 'bg-blue-500 text-white rounded-tr-none' 
-            : 'bg-gray-100 text-gray-800 rounded-tl-none'
-        }`}>
+            ? message.isError ? 'bg-red-100 text-red-800' : 'bg-blue-500 text-white' 
+            : 'bg-gray-100 text-gray-800'
+        } rounded-2xl ${message.isReply ? 'rounded-tl-none rounded-tr-none' : isOwnMessage ? 'rounded-tr-none' : 'rounded-tl-none'}`}>
           {/* Pin indicator */}
           {message.isPinned && (
             <div className="absolute -top-4 right-0 text-xs font-medium px-1.5 py-0.5 bg-yellow-100 text-yellow-800 rounded-t-lg flex items-center shadow-sm">
@@ -407,55 +596,58 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
             </div>
           )}
           
-          {renderMessageContent()}
-          
-          {/* Message footer with timestamp and status inside the bubble */}
-          <div className="flex justify-between items-center mt-1 pt-1 text-xs">
-            <span className={isOwnMessage ? 'text-blue-200' : 'text-gray-500'}>
-              {formatMessageTime(message.timestamp)}
-            </span>
+          {/* Message content */}
+          <div className="px-3 py-2">
+            {renderMessageContent()}
             
-            <div className="flex items-center">
-              {/* Pin/Unpin button */}
-              {message.isPinned ? (
-                <Tooltip title="Bỏ ghim">
-                  <Button 
-                    type="text" 
-                    size="small"
-                    className={`${isOwnMessage ? 'text-blue-200 hover:text-white' : 'text-gray-500 hover:text-gray-700'} mr-2`}
-                    onClick={() => onUnpinMessage && onUnpinMessage(message.id)}
-                    icon={
-                      <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
-                        <path d="M16,12V4H17V2H7V4H8V12L6,14V16H11.2V22H12.8V16H18V14L16,12Z" />
-                      </svg>
-                    }
-                  />
-                </Tooltip>
-              ) : (
-                <Tooltip title="Ghim tin nhắn">
-                  <Button 
-                    type="text" 
-                    size="small"
-                    className={`${isOwnMessage ? 'text-blue-200 hover:text-white' : 'text-gray-500 hover:text-gray-700'} mr-2 opacity-0 group-hover:opacity-100`}
-                    onClick={() => onPinMessage && onPinMessage(message.id)}
-                    icon={
-                      <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
-                        <path d="M16,12V4H17V2H7V4H8V12L6,14V16H11.2V22H12.8V16H18V14L16,12Z" />
-                      </svg>
-                    }
-                  />
-                </Tooltip>
-              )}
+            {/* Message footer with timestamp and status inside the bubble */}
+            <div className="flex justify-between items-center mt-1 pt-1 text-xs">
+              <span className={isOwnMessage ? 'text-blue-200' : 'text-gray-500'}>
+                {formatMessageTime(message.timestamp)}
+              </span>
               
-              {isOwnMessage && (
-                <span className={`ml-1 ${
-                  message.sendStatus === 'read' ? 'text-blue-200' : 
-                  message.isError ? 'text-red-400' : 'text-blue-200'
-                }`}>
-                  {message.sendStatus === 'sending' && <ClockCircleOutlined className="mr-1" style={{ fontSize: '10px' }} />}
-                  {getMessageStatusText()}
-                </span>
-              )}
+              <div className="flex items-center">
+                {/* Pin/Unpin button */}
+                {message.isPinned ? (
+                  <Tooltip title="Bỏ ghim">
+                    <Button 
+                      type="text" 
+                      size="small"
+                      className={`${isOwnMessage ? 'text-blue-200 hover:text-white' : 'text-gray-500 hover:text-gray-700'} mr-2`}
+                      onClick={() => onUnpinMessage && onUnpinMessage(message.id)}
+                      icon={
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+                          <path d="M16,12V4H17V2H7V4H8V12L6,14V16H11.2V22H12.8V16H18V14L16,12Z" />
+                        </svg>
+                      }
+                    />
+                  </Tooltip>
+                ) : (
+                  <Tooltip title="Ghim tin nhắn">
+                    <Button 
+                      type="text" 
+                      size="small"
+                      className={`${isOwnMessage ? 'text-blue-200 hover:text-white' : 'text-gray-500 hover:text-gray-700'} mr-2 opacity-0 group-hover:opacity-100`}
+                      onClick={() => onPinMessage && onPinMessage(message.id)}
+                      icon={
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+                          <path d="M16,12V4H17V2H7V4H8V12L6,14V16H11.2V22H12.8V16H18V14L16,12Z" />
+                        </svg>
+                      }
+                    />
+                  </Tooltip>
+                )}
+                
+                {isOwnMessage && (
+                  <span className={`ml-1 ${
+                    message.sendStatus === 'read' ? 'text-blue-200' : 
+                    message.isError ? 'text-red-400' : 'text-blue-200'
+                  }`}>
+                    {message.sendStatus === 'sending' && <ClockCircleOutlined className="mr-1" style={{ fontSize: '10px' }} />}
+                    {getMessageStatusText()}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
         </div>

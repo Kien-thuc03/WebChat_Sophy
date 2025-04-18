@@ -2165,14 +2165,18 @@ export const getPinnedMessages = async (conversationId: string): Promise<Message
 };
 
 // Get a specific message by ID
-export const getSpecificMessage = async (messageId: string): Promise<Message | null> => {
+export const getSpecificMessage = async (messageId: string, conversationId?: string): Promise<Message | null> => {
   try {
     const token = getAuthToken();
     if (!token) {
       throw new Error("Not authenticated");
     }
 
-    const response = await apiClient.get(`/api/messages/${messageId}`);
+    const endpoint = conversationId 
+      ? `/api/messages/${messageId}?conversationId=${conversationId}`
+      : `/api/messages/${messageId}`;
+      
+    const response = await apiClient.get(endpoint);
     
     if (response.status !== 200) {
       throw new Error(`Failed to get message. Status: ${response.status}`);
