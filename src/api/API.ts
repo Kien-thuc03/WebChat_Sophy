@@ -292,6 +292,16 @@ export const checkLogin = async (phone: string, password: string) => {
 
 const getAuthToken = () => localStorage.getItem("token");
 
+// Function to get config with auth token for axios requests
+const getConfig = () => {
+  const token = getAuthToken();
+  return {
+    headers: {
+      Authorization: token ? `Bearer ${token}` : "",
+    },
+  };
+};
+
 // Update apiClient to include auth token in headers when available
 apiClient.interceptors.request.use((config) => {
   const token = getAuthToken();
@@ -539,31 +549,34 @@ export const fetchConversations = async (): Promise<Conversation[]> => {
 // Tạo 1 hội thoại
 export const createConversation = async (receiverId: string) => {
   try {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      throw new Error("Không có token xác thực");
-    }
-
-    // Call the API to create a conversation (it will return existing one if found)
-    const response = await apiClient.post("/api/conversations/create", {
-      receiverId: receiverId,
-    });
-
-    console.log("Conversation created/retrieved:", response.data);
-
-    // Return the conversation object
-    return response.data;
-  } catch (error: any) {
-    console.error("Error creating/getting conversation:", error);
-    if (error.response?.status === 401) {
-      throw new Error("Phiên đăng nhập hết hạn, vui lòng đăng nhập lại");
-    }
-    if (error.response?.status === 404) {
-      throw new Error("Không tìm thấy người dùng");
-    }
-    throw new Error(
-      error.response?.data?.message || "Không thể tạo cuộc trò chuyện"
+    console.log("Creating conversation with receiverId:", receiverId);
+    const response = await apiClient.post("/api/conversations/create",
+      { receiverId },
+      getConfig()
     );
+
+    // After successful creation, emit a custom event that our app can listen for
+    const newConversation = response.data;
+    console.log("Conversation created:", newConversation);
+
+    // Emit a custom event that our components can listen for
+    try {
+      const customEvent = new CustomEvent("newConversationCreated", {
+        detail: {
+          conversation: newConversation,
+          timestamp: new Date().toISOString(),
+        },
+      });
+      window.dispatchEvent(customEvent);
+      console.log("Emitted newConversationCreated event");
+    } catch (eventError) {
+      console.error("Error emitting newConversationCreated event:", eventError);
+    }
+
+    return response.data;
+  } catch (error) {
+    logApiError("createConversation", error);
+    throw error;
   }
 };
 // Hàm xóa bạn bè
@@ -574,7 +587,9 @@ export const removeFriend = async (friendId: string) => {
       throw new Error("Không có token xác thực");
     }
 
-    const response = await apiClient.delete(`/api/users/friends/unfriend/${friendId}`);
+    const response = await apiClient.delete(
+      `/api/users/friends/unfriend/${friendId}`
+    );
 
     if (response.status === 200) {
       return response.data;
@@ -2104,7 +2119,7 @@ export const deleteMessage = async (messageId: string): Promise<void> => {
   }
 };
 
-    // Pin message
+// Pin message
 export const pinMessage = async (messageId: string): Promise<void> => {
   try {
     const token = getAuthToken();

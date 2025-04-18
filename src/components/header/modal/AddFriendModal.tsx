@@ -6,14 +6,17 @@ import {
   getUserByPhone,
   sendFriendRequest,
   fetchFriends,
+  createConversation,
 } from "../../../api/API";
 import UserInfoHeaderModal, { UserResult } from "./UserInfoHeaderModal";
 import UserModal from "../../content/modal/UserModal";
+import { Conversation } from "../../../features/chat/types/conversationTypes";
 
 interface AddFriendModalProps {
   visible: boolean;
   onClose: () => void;
   onRequestsUpdate?: () => void;
+  onSelectConversation?: (conversation: Conversation) => void;
 }
 
 interface Friend {
@@ -31,6 +34,7 @@ const AddFriendModal: React.FC<AddFriendModalProps> = ({
   visible,
   onClose,
   onRequestsUpdate,
+  onSelectConversation,
 }) => {
   const [phone, setPhone] = useState("");
   const [isSearching, setIsSearching] = useState(false);
@@ -142,10 +146,36 @@ const AddFriendModal: React.FC<AddFriendModalProps> = ({
     }
   };
 
-  const handleMessage = (userId: string) => {
-    message.info(`Đang mở cuộc trò chuyện với người dùng ID: ${userId}`);
-    setInfoModalVisible(false);
-    onClose();
+  const handleMessage = async (userId: string, conversation?: Conversation) => {
+    try {
+      // Nếu đã có conversation được truyền, sử dụng nó
+      if (conversation && onSelectConversation) {
+        console.log("AddFriendModal: Using passed conversation:", conversation);
+        onSelectConversation(conversation);
+        setInfoModalVisible(false);
+        onClose();
+        return;
+      }
+
+      // Nếu không, tạo conversation mới
+      message.loading("Đang mở cuộc trò chuyện...", 0.5);
+
+      // Tạo hoặc lấy conversation
+      const newConversation = await createConversation(userId);
+
+      if (newConversation && onSelectConversation) {
+        console.log("AddFriendModal: Created conversation:", newConversation);
+        onSelectConversation(newConversation);
+      } else {
+        message.error("Không thể tạo cuộc trò chuyện");
+      }
+
+      setInfoModalVisible(false);
+      onClose();
+    } catch (error) {
+      console.error("Lỗi khi tạo cuộc trò chuyện:", error);
+      message.error("Không thể tạo cuộc trò chuyện");
+    }
   };
 
   const handleUpdate = () => {
@@ -182,7 +212,7 @@ const AddFriendModal: React.FC<AddFriendModalProps> = ({
           onChange={(value) => setPhone(value || "")}
           className="mt-2 w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none"
           onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
-            if (e.key === 'Enter') {
+            if (e.key === "Enter") {
               e.preventDefault();
               handleSearch();
             }

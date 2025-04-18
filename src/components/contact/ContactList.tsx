@@ -4,12 +4,17 @@ import Header from "../header/Header";
 import { useLanguage } from "../../features/auth/context/LanguageContext";
 import { FaUserFriends, FaUsers, FaUserPlus, FaUsersCog } from "react-icons/fa";
 import ErrorBoundary from "../common/ErrorBoundary";
+import { Conversation } from "../../features/chat/types/conversationTypes";
 
 interface ContactListProps {
   onSelectOption?: (option: string) => void;
+  onSelectConversation?: (conversation: Conversation) => void;
 }
 
-const ContactList: React.FC<ContactListProps> = ({ onSelectOption }) => {
+const ContactList: React.FC<ContactListProps> = ({
+  onSelectOption,
+  onSelectConversation,
+}) => {
   const { t } = useLanguage();
   const [selectedOption, setSelectedOption] = useState<string>("friends");
 
@@ -48,9 +53,9 @@ const ContactList: React.FC<ContactListProps> = ({ onSelectOption }) => {
   ];
 
   return (
-    <div className="contact-list w-80 bg-white dark:bg-gray-900 border-r dark:border-gray-100 h-full flex flex-col overflow-hidden">
+    <div className="contact-list w-80 bg-white dark:bg-gray-900 border-r dark:border-gray-700 h-full flex flex-col overflow-hidden">
       <div className="flex-shrink-0">
-        <Header />
+        <Header onSelectConversation={onSelectConversation} />
       </div>
       <List
         className="overflow-y-auto flex-1"

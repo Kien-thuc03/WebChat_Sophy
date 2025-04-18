@@ -28,7 +28,9 @@ const Sidebar: React.FC<SidebarProps> = ({
   activeSection, // Receive activeSection from Dashboard
 }) => {
   const { user } = useAuth();
-  const [activeBottomSection, setActiveBottomSection] = useState<string | null>(null);
+  const [activeBottomSection, setActiveBottomSection] = useState<string | null>(
+    null
+  );
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   const [isSettingsMenuOpen, setIsSettingsMenuOpen] = useState(false);
   const popoverRef = useRef<HTMLDivElement | null>(null);
@@ -142,25 +144,29 @@ const Sidebar: React.FC<SidebarProps> = ({
             }`}
             onClick={() => handleSetActive("chat")}
             title={t.messages}
-          >
+            data-section="chat">
             <FaComments className="text-2xl" />
           </div>
           <div
             className={`p-2 rounded-lg cursor-pointer ${
-              activeSection === "friends" ? "bg-white text-blue-600" : "text-white"
+              activeSection === "friends"
+                ? "bg-white text-blue-600"
+                : "text-white"
             }`}
             onClick={() => handleSetActive("friends")}
             title={t.contacts}
-          >
+            data-section="friends">
             <FaUserFriends className="text-2xl" />
           </div>
           <div
             className={`p-2 rounded-lg cursor-pointer ${
-              activeSection === "tasks" ? "bg-white text-blue-600" : "text-white"
+              activeSection === "tasks"
+                ? "bg-white text-blue-600"
+                : "text-white"
             }`}
             onClick={() => handleSetActive("tasks")}
             title={t.utilities}
-          >
+            data-section="tasks">
             <FaTasks className="text-2xl" />
           </div>
         </div>
@@ -170,34 +176,37 @@ const Sidebar: React.FC<SidebarProps> = ({
           <div className="w-8 border-b border-white my-4"></div>
           <div
             className={`p-2 rounded-lg cursor-pointer bottom-section-icon ${
-              activeBottomSection === "cloud" ? "bg-white text-blue-600" : "text-white"
+              activeBottomSection === "cloud"
+                ? "bg-white text-blue-600"
+                : "text-white"
             }`}
             onClick={() => handleSetActive("cloud")}
-            title={t.data}
-          >
+            title={t.data}>
             <FaCloud className="text-2xl" />
           </div>
           <div
             className={`p-2 rounded-lg cursor-pointer bottom-section-icon ${
-              activeBottomSection === "briefcase" ? "bg-white text-blue-600" : "text-white"
+              activeBottomSection === "briefcase"
+                ? "bg-white text-blue-600"
+                : "text-white"
             }`}
             onClick={() => handleSetActive("briefcase")}
-            title={t.utilities}
-          >
+            title={t.utilities}>
             <FaBriefcase className="text-2xl" />
           </div>
           <div
             ref={settingsButtonRef}
             className={`p-2 rounded-lg cursor-pointer bottom-section-icon ${
-              activeBottomSection === "settings" ? "bg-white text-blue-600" : "text-white"
+              activeBottomSection === "settings"
+                ? "bg-white text-blue-600"
+                : "text-white"
             }`}
             onClick={() => {
               handleSetActive("settings");
               toggleSettingsMenu();
               if (onSettingsClick) onSettingsClick();
             }}
-            title={t.settings}
-          >
+            title={t.settings}>
             <FaCog className="text-2xl" />
           </div>
         </div>
@@ -205,8 +214,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           <div
             ref={settingsMenuRef}
             className="absolute bottom-16 left-16 z-50"
-            onClick={(event) => event.stopPropagation()}
-          ></div>
+            onClick={(event) => event.stopPropagation()}></div>
         )}
       </div>
     </div>
