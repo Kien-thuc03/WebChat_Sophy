@@ -542,7 +542,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
   return (
     <div className={`flex mb-1.5 ${isOwnMessage ? 'justify-end' : 'justify-start'}`}>
       {!isOwnMessage && showAvatar && (
-        <div className="flex-shrink-0 mr-2 mt-auto">
+        <div className="flex-shrink-0 mr-2 self-end">
           <Avatar 
             name={message.sender.name} 
             avatarUrl={message.sender.avatar}
