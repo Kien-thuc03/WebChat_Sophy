@@ -16,7 +16,7 @@ import {
   PlayCircleOutlined
 } from '@ant-design/icons';
 import { Button, Tooltip } from 'antd';
-import { formatFileSize } from '../../utils/cloudinaryService';
+import { formatFileSize } from '../../services/cloudinaryService';
 import ReactPlayer from 'react-player';
 
 interface ChatMessageProps {
@@ -52,12 +52,15 @@ interface ChatMessageProps {
       downloadUrl?: string;
       format?: string;
     };
+    isPinned?: boolean;
   };
   isOwnMessage: boolean;
   showAvatar?: boolean;
   showSender?: boolean;
   isGroupChat?: boolean;
   onImageClick?: (url: string) => void;
+  onPinMessage?: (messageId: string) => void;
+  onUnpinMessage?: (messageId: string) => void;
 }
 
 const ChatMessage: React.FC<ChatMessageProps> = ({
@@ -67,6 +70,8 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
   showSender = false,
   isGroupChat = false,
   onImageClick,
+  onPinMessage,
+  onUnpinMessage,
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isOverflowing, setIsOverflowing] = useState(false);
@@ -392,6 +397,16 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
             ? message.isError ? 'bg-red-100 text-red-800' : 'bg-blue-500 text-white rounded-tr-none' 
             : 'bg-gray-100 text-gray-800 rounded-tl-none'
         }`}>
+          {/* Pin indicator */}
+          {message.isPinned && (
+            <div className="absolute -top-4 right-0 text-xs font-medium px-1.5 py-0.5 bg-yellow-100 text-yellow-800 rounded-t-lg flex items-center shadow-sm">
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" className="mr-1">
+                <path d="M16,12V4H17V2H7V4H8V12L6,14V16H11.2V22H12.8V16H18V14L16,12Z" />
+              </svg>
+              <span>Đã ghim</span>
+            </div>
+          )}
+          
           {renderMessageContent()}
           
           {/* Message footer with timestamp and status inside the bubble */}
@@ -400,15 +415,48 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
               {formatMessageTime(message.timestamp)}
             </span>
             
-            {isOwnMessage && (
-              <span className={`ml-4 ${
-                message.sendStatus === 'read' ? 'text-blue-200' : 
-                message.isError ? 'text-red-400' : 'text-blue-200'
-              }`}>
-                {message.sendStatus === 'sending' && <ClockCircleOutlined className="mr-1" style={{ fontSize: '10px' }} />}
-                {getMessageStatusText()}
-              </span>
-            )}
+            <div className="flex items-center">
+              {/* Pin/Unpin button */}
+              {message.isPinned ? (
+                <Tooltip title="Bỏ ghim">
+                  <Button 
+                    type="text" 
+                    size="small"
+                    className={`${isOwnMessage ? 'text-blue-200 hover:text-white' : 'text-gray-500 hover:text-gray-700'} mr-2`}
+                    onClick={() => onUnpinMessage && onUnpinMessage(message.id)}
+                    icon={
+                      <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+                        <path d="M16,12V4H17V2H7V4H8V12L6,14V16H11.2V22H12.8V16H18V14L16,12Z" />
+                      </svg>
+                    }
+                  />
+                </Tooltip>
+              ) : (
+                <Tooltip title="Ghim tin nhắn">
+                  <Button 
+                    type="text" 
+                    size="small"
+                    className={`${isOwnMessage ? 'text-blue-200 hover:text-white' : 'text-gray-500 hover:text-gray-700'} mr-2 opacity-0 group-hover:opacity-100`}
+                    onClick={() => onPinMessage && onPinMessage(message.id)}
+                    icon={
+                      <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+                        <path d="M16,12V4H17V2H7V4H8V12L6,14V16H11.2V22H12.8V16H18V14L16,12Z" />
+                      </svg>
+                    }
+                  />
+                </Tooltip>
+              )}
+              
+              {isOwnMessage && (
+                <span className={`ml-1 ${
+                  message.sendStatus === 'read' ? 'text-blue-200' : 
+                  message.isError ? 'text-red-400' : 'text-blue-200'
+                }`}>
+                  {message.sendStatus === 'sending' && <ClockCircleOutlined className="mr-1" style={{ fontSize: '10px' }} />}
+                  {getMessageStatusText()}
+                </span>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -427,4 +475,4 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
   );
 };
 
-export default ChatMessage; 
+export default ChatMessage;

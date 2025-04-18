@@ -16,7 +16,7 @@ import {
   createConversation,
 } from "../../api/API";
 import { Conversation } from "../../features/chat/types/conversationTypes";
-import socketService from "../../utils/socketService";
+import socketService from "../../services/socketService";
 
 interface FriendRequest {
   friendRequestId: string;

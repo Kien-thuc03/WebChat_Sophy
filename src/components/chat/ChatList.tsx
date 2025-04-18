@@ -16,7 +16,7 @@ import { Conversation } from "../../features/chat/types/conversationTypes";
 import { useLanguage } from "../../features/auth/context/LanguageContext";
 import { getUserById } from "../../api/API";
 import { User } from "../../features/auth/types/authTypes";
-import  socketService  from "../../utils/socketService";
+import  socketService  from "../../services/socketService";
 
 interface ChatListProps {
   onSelectConversation: (conversation: Conversation) => void;

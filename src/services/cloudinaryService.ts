@@ -111,7 +111,7 @@ export const sendFileMessage = async (file: File, conversationId: string): Promi
     
     // 2. Prepare attachment object
     const attachment = prepareAttachment(cloudinaryResponse, file);
-    const fileType = getFileType(file);
+    // const fileType = getFileType(file);
     
     // 3. Send to backend API
     const token = localStorage.getItem('token');
