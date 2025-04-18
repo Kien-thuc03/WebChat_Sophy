@@ -1,6 +1,6 @@
 // SocketProvider.tsx
 import React, { useEffect, useRef, ReactNode } from "react";
-import socketService from "../../../utils/socketService";
+import socketService from "../../../services/socketService";
 
 interface SocketProviderProps {
   children: ReactNode;
@@ -59,6 +59,16 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
 
         socketService.onMessageDeleted((data) => {
           console.log("Message deleted for user:", data);
+          // No need to handle here, handled in ChatArea component
+        });
+
+        socketService.onMessagePinned((data) => {
+          console.log("Message pinned:", data);
+          // No need to handle here, handled in ChatArea component
+        });
+
+        socketService.onMessageUnpinned((data) => {
+          console.log("Message unpinned:", data);
           // No need to handle here, handled in ChatArea component
         });
       };

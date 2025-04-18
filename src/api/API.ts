@@ -2103,3 +2103,41 @@ export const deleteMessage = async (messageId: string): Promise<void> => {
     throw error;
   }
 };
+
+    // Pin message
+export const pinMessage = async (messageId: string): Promise<void> => {
+  try {
+    const token = getAuthToken();
+    if (!token) {
+      throw new Error("Not authenticated");
+    }
+
+    const response = await apiClient.put(`/api/messages/pin/${messageId}`);
+
+    if (response.status !== 200) {
+      throw new Error(`Failed to pin message. Status: ${response.status}`);
+    }
+  } catch (error) {
+    console.error("Error while pinning message:", error);
+    throw error;
+  }
+};
+
+// Unpin message
+export const unpinMessage = async (messageId: string): Promise<void> => {
+  try {
+    const token = getAuthToken();
+    if (!token) {
+      throw new Error("Not authenticated");
+    }
+
+    const response = await apiClient.put(`/api/messages/unpin/${messageId}`);
+
+    if (response.status !== 200) {
+      throw new Error(`Failed to unpin message. Status: ${response.status}`);
+    }
+  } catch (error) {
+    console.error("Error while unpinning message:", error);
+    throw error;
+  }
+};

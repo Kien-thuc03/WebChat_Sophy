@@ -59,7 +59,7 @@ import { DisplayMessage } from "../../features/chat/types/chatTypes";
 import { useConversationContext } from "../../features/chat/context/ConversationContext";
 import data from "@emoji-mart/data";
 import Picker from "@emoji-mart/react";
-import socketService from "../../utils/socketService";
+import socketService from "../../services/socketService";
 import FileUploader from './FileUploader';
 import ReactPlayer from 'react-player';
 

@@ -7,7 +7,7 @@ import {
   getUserByPhone,
   changePassword as apiChangePassword, // Import hàm changePassword từ API
 } from "../../../api/API";
-import socketService from "../../../utils/socketService";
+import socketService from "../../../services/socketService";
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);

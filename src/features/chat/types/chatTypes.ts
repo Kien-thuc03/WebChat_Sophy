@@ -39,6 +39,8 @@ export interface DisplayMessage {
   attachments?: AttachmentInfo[];
   isRecall?: boolean;
   hiddenFrom?: string[];
+  isPinned?: boolean;
+  pinnedAt?: string;
 }
 
 export interface AttachmentInfo {

@@ -1,9 +1,10 @@
 // socketService.ts
 import io, { Socket } from "socket.io-client";
 import cloudinaryService from './cloudinaryService';
-import axios from 'axios';
 
-const SOCKET_SERVER_URL = "http://localhost:3000";
+const IP_ADDRESS = "192.168.1.231";
+
+const SOCKET_SERVER_URL = `http://${IP_ADDRESS}:3000` || "http://localhost:3000";
 
 interface FriendRequestData {
   friendRequestId: string;
@@ -724,6 +725,47 @@ class SocketService {
       });
     } else {
       console.warn("SocketService: Socket not initialized for messageDeleted listener");
+    }
+  }
+
+  // Listen for message pin events
+  onMessagePinned(callback: (data: { 
+    conversationId: string, 
+    messageId: string, 
+    userId: string,
+    pinnedAt: string 
+  }) => void) {
+    if (!this.socket) {
+      this.connect();
+    }
+    
+    if (this.socket) {
+      this.socket.on("messagePinned", (data) => {
+        console.log("SocketService: Message pinned event:", data);
+        callback(data);
+      });
+    } else {
+      console.warn("SocketService: Socket not initialized for messagePinned listener");
+    }
+  }
+
+  // Listen for message unpin events
+  onMessageUnpinned(callback: (data: { 
+    conversationId: string, 
+    messageId: string, 
+    userId: string 
+  }) => void) {
+    if (!this.socket) {
+      this.connect();
+    }
+    
+    if (this.socket) {
+      this.socket.on("messageUnpinned", (data) => {
+        console.log("SocketService: Message unpinned event:", data);
+        callback(data);
+      });
+    } else {
+      console.warn("SocketService: Socket not initialized for messageUnpinned listener");
     }
   }
 }
