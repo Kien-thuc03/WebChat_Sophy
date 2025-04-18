@@ -18,11 +18,13 @@ import { useConversationContext } from "../features/chat/context/ConversationCon
 
 const Dashboard: React.FC = () => {
   const { t } = useLanguage();
-  const { isLoading, refreshConversations, conversations } = useConversationContext();
+  const { isLoading, refreshConversations, conversations } =
+    useConversationContext();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
+  const [selectedConversation, setSelectedConversation] =
+    useState<Conversation | null>(null);
   const [activeSection, setActiveSection] = useState<string>("chat");
   const [contactOption, setContactOption] = useState<string>("friends");
   const [showChatInfo, setShowChatInfo] = useState(true);
@@ -34,20 +36,28 @@ const Dashboard: React.FC = () => {
       return;
     }
 
-    if (!conversation.conversationId || typeof conversation.conversationId !== "string") {
+    if (
+      !conversation.conversationId ||
+      typeof conversation.conversationId !== "string"
+    ) {
       console.error("ID cuộc trò chuyện không hợp lệ:", conversation);
       return;
     }
 
     if (!conversation.conversationId.startsWith("conv")) {
-      console.error(`Định dạng ID cuộc trò chuyện không hợp lệ: ${conversation.conversationId}`);
+      console.error(
+        `Định dạng ID cuộc trò chuyện không hợp lệ: ${conversation.conversationId}`
+      );
       conversation = {
         ...conversation,
         conversationId: `conv${conversation.conversationId}`,
       };
     }
 
-    console.log("Đã chọn cuộc trò chuyện:", conversation.conversationId);
+    console.log(
+      "Dashboard: Đã chọn cuộc trò chuyện:",
+      conversation.conversationId
+    );
     setSelectedConversation(conversation);
     setActiveSection("chat"); // This will update Sidebar's activeSection
     setShowChatInfo(true);
@@ -61,7 +71,9 @@ const Dashboard: React.FC = () => {
       if (
         settingsRef.current &&
         !settingsRef.current.contains(event.target as Node) &&
-        !document.querySelector(".settings-modal")?.contains(event.target as Node) &&
+        !document
+          .querySelector(".settings-modal")
+          ?.contains(event.target as Node) &&
         !isMenuItem
       ) {
         console.log("Click outside SettingsMenu detected");
@@ -114,7 +126,8 @@ const Dashboard: React.FC = () => {
   };
 
   const handleFriendSelect = (friendId: string) => {
-    console.log("Selected friend:", friendId);
+    console.log("Dashboard: Selected friend:", friendId);
+    // No need to do anything here since the conversation will be selected by handleSelectConversation
   };
 
   const handleToggleChatInfo = () => {
@@ -135,6 +148,116 @@ const Dashboard: React.FC = () => {
     }
   }, [isLoading, conversations, refreshConversations]);
 
+  // Add event listener for custom showConversation event
+  useEffect(() => {
+    const handleShowConversation = (event: CustomEvent) => {
+      const { conversationId, forceSelect } = event.detail;
+      console.log(
+        `Dashboard: Received showConversation event for ${conversationId}, forceSelect: ${forceSelect}`
+      );
+
+      // First, set active section to chat
+      setActiveSection("chat");
+
+      // Then find the conversation in the context and select it
+      if (conversationId && conversations) {
+        const conversation = conversations.find(
+          (c) => c.conversationId === conversationId
+        );
+        if (conversation) {
+          console.log(
+            `Dashboard: Found conversation, selecting it:`,
+            conversation
+          );
+          setSelectedConversation(conversation);
+          setShowChatInfo(true);
+
+          // Force a re-render to ensure the UI updates
+          setTimeout(() => {
+            console.log("Dashboard: Forcing re-render of chat area");
+            // This is a hack to force re-render after state changes are applied
+            const chatContainer = document.querySelector(
+              ".chat-area-container"
+            );
+            if (chatContainer) {
+              chatContainer.classList.add("active");
+              setTimeout(() => chatContainer.classList.remove("active"), 50);
+            }
+          }, 100);
+        } else {
+          console.error(
+            `Dashboard: Conversation with ID ${conversationId} not found`
+          );
+          // If conversation not found in context, try refreshing conversations
+          console.log(
+            "Dashboard: Refreshing conversations to find the missing conversation"
+          );
+          refreshConversations().then(() => {
+            // Try finding again after refresh
+            const refreshedConversations = conversations; // Get the latest conversations
+            console.log(
+              "Dashboard: Conversations after refresh:",
+              refreshedConversations
+            );
+
+            const refreshedConversation = refreshedConversations.find(
+              (c) => c.conversationId === conversationId
+            );
+            if (refreshedConversation) {
+              console.log(
+                `Dashboard: Found conversation after refresh, selecting it:`,
+                refreshedConversation
+              );
+              setSelectedConversation(refreshedConversation);
+              setShowChatInfo(true);
+            } else if (forceSelect && conversationId) {
+              console.log(
+                `Dashboard: Still couldn't find conversation, creating placeholder:`,
+                conversationId
+              );
+              // If we still can't find it but forceSelect is true, create a placeholder
+              const placeholderConversation: Conversation = {
+                conversationId,
+                isGroup: false,
+                creatorId: "",
+                receiverId: "",
+                groupMembers: [],
+                createdAt: new Date().toISOString(),
+                lastChange: new Date().toISOString(),
+                blockedBy: [],
+                isDeleted: false,
+                deletedAt: null,
+                formerMembers: [],
+                listImage: [],
+                listFile: [],
+                pinnedMessages: [],
+                muteNotifications: [],
+                hasUnread: false,
+                unreadCount: 0,
+              };
+              setSelectedConversation(placeholderConversation);
+              setShowChatInfo(true);
+            }
+          });
+        }
+      }
+    };
+
+    // Add event listener
+    window.addEventListener(
+      "showConversation",
+      handleShowConversation as EventListener
+    );
+
+    // Cleanup
+    return () => {
+      window.removeEventListener(
+        "showConversation",
+        handleShowConversation as EventListener
+      );
+    };
+  }, [conversations, refreshConversations]);
+
   return (
     <div className="flex h-screen overflow-hidden">
       <Sidebar
@@ -143,23 +266,37 @@ const Dashboard: React.FC = () => {
         openSettingsModal={handleOpenSettingsModal}
         onSectionChange={handleSectionChange}
         activeSection={activeSection} // Pass activeSection to Sidebar
+        data-sections={["chat", "friends", "tasks"]} // Add this to make sections available for querying
       />
 
       {activeSection === "chat" && (
-        <ChatList onSelectConversation={handleSelectConversation} />
+        <ChatList
+          onSelectConversation={handleSelectConversation}
+          data-section="chat"
+        />
       )}
 
       {activeSection === "friends" && (
-        <ContactList onSelectOption={handleContactOptionSelect} />
+        <ContactList
+          onSelectOption={handleContactOptionSelect}
+          onSelectConversation={handleSelectConversation}
+          data-section="friends"
+        />
       )}
 
       {activeSection === "tasks" && (
-        <div className="w-80 bg-white dark:bg-gray-900 border-r dark:border-gray-700 h-full flex flex-col overflow-hidden">
+        <div
+          className="w-80 bg-white dark:bg-gray-900 border-r dark:border-gray-700 h-full flex flex-col overflow-hidden"
+          data-section="tasks">
           <div className="p-4 border-b dark:border-gray-700">
-            <h2 className="text-lg font-semibold">{t.utilities || "Tiện ích"}</h2>
+            <h2 className="text-lg font-semibold">
+              {t.utilities || "Tiện ích"}
+            </h2>
           </div>
           <div className="p-4">
-            <p className="text-gray-500">{t.utilities || "Danh sách tiện ích"}</p>
+            <p className="text-gray-500">
+              {t.utilities || "Danh sách tiện ích"}
+            </p>
           </div>
         </div>
       )}
@@ -178,8 +315,7 @@ const Dashboard: React.FC = () => {
               <Button
                 type="primary"
                 className="mt-4"
-                onClick={() => refreshConversations()}
-              >
+                onClick={() => refreshConversations()}>
                 Tải lại thủ công
               </Button>
             </div>
@@ -211,8 +347,12 @@ const Dashboard: React.FC = () => {
             onSelectFriend={handleFriendSelect}
             onSelectConversation={handleSelectConversation}
           />
-        ) : activeSection === "friends" && contactOption === "friendRequests" ? (
-          <RequestList onSelectFriend={handleFriendSelect} />
+        ) : activeSection === "friends" &&
+          contactOption === "friendRequests" ? (
+          <RequestList
+            onSelectFriend={handleFriendSelect}
+            onSelectConversation={handleSelectConversation}
+          />
         ) : activeSection === "friends" &&
           contactOption !== "friends" &&
           contactOption !== "friendRequests" ? (
@@ -226,7 +366,9 @@ const Dashboard: React.FC = () => {
           </div>
         ) : activeSection === "tasks" ? (
           <div className="flex items-center justify-center h-full bg-gray-50 dark:bg-gray-800">
-            <p className="text-gray-500 dark:text-gray-400">{t.utilities || "Tiện ích"}</p>
+            <p className="text-gray-500 dark:text-gray-400">
+              {t.utilities || "Tiện ích"}
+            </p>
           </div>
         ) : (
           <MainContent />
@@ -244,7 +386,10 @@ const Dashboard: React.FC = () => {
       )}
 
       <UserModal isOpen={isModalOpen} onClose={handleCloseModal} />
-      <SettingsModal visible={isSettingsModalOpen} onClose={handleCloseSettingsModal} />
+      <SettingsModal
+        visible={isSettingsModalOpen}
+        onClose={handleCloseSettingsModal}
+      />
     </div>
   );
 };

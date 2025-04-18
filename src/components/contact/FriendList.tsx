@@ -273,14 +273,12 @@ const FriendList: React.FC<FriendListProps> = ({
       </Menu.Item>
       <Menu.Item
         key="categorize"
-        onClick={() => console.log("Phân loại:", friend.id)}
-      >
+        onClick={() => console.log("Phân loại:", friend.id)}>
         Phân loại
       </Menu.Item>
       <Menu.Item
         key="set-nickname"
-        onClick={() => console.log("Đặt tên gợi nhớ:", friend.id)}
-      >
+        onClick={() => console.log("Đặt tên gợi nhớ:", friend.id)}>
         Đặt tên gợi nhớ
       </Menu.Item>
       <Menu.Item key="block" onClick={() => handleBlockUser(friend.id)}>
@@ -289,8 +287,7 @@ const FriendList: React.FC<FriendListProps> = ({
       <Menu.Item
         key="remove-friend"
         onClick={() => handleRemoveFriend(friend.id)}
-        style={{ color: "red" }}
-      >
+        style={{ color: "red" }}>
         Xóa bạn
       </Menu.Item>
     </Menu>
@@ -305,8 +302,7 @@ const FriendList: React.FC<FriendListProps> = ({
   const renderFriendItem = (friend: Friend) => (
     <List.Item
       className="px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
-      onClick={() => handleFriendClick(friend.id)}
-    >
+      onClick={() => handleFriendClick(friend.id)}>
       <div className="flex items-center w-full ">
         <div className="relative mr-3 pl-3">
           <Avatar
@@ -375,8 +371,7 @@ const FriendList: React.FC<FriendListProps> = ({
               label: option.key === "A-Z" ? "Tên (A-Z)" : t.all || "Tất cả",
               onClick: () => setSortOrder(option.key as "A-Z" | "All"),
             })),
-          }}
-        >
+          }}>
           <Button type="text">
             {sortOrder === "A-Z" ? "Tên (A-Z)" : t.all || "Tất cả"}
           </Button>
@@ -385,8 +380,7 @@ const FriendList: React.FC<FriendListProps> = ({
         <Dropdown
           menu={{
             items: [{ key: "all", label: t.all || "Tất cả" }],
-          }}
-        >
+          }}>
           <Button type="text">{t.all || "Tất cả"}</Button>
         </Dropdown>
       </div>
@@ -424,7 +418,17 @@ const FriendList: React.FC<FriendListProps> = ({
         isCurrentUser={isCurrentUser}
         isFriend={isFriend}
         handleUpdate={() => {}}
-        handleMessage={handleFriendClick}
+        handleMessage={(userId, conversation) => {
+          if (conversation && onSelectConversation) {
+            console.log(
+              "FriendList: Using passed conversation from modal:",
+              conversation
+            );
+            onSelectConversation(conversation);
+          } else {
+            handleFriendClick(userId);
+          }
+        }}
         handleSendFriendRequest={() => {}}
         isSending={false}
         onRequestsUpdate={() => {

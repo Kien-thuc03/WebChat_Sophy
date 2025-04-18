@@ -509,14 +509,31 @@ const RequestList: React.FC<RequestListProps> = ({
   const handleFriendClick = async (userId: string) => {
     try {
       console.log("RequestList: Handling friend click for user:", userId);
+
+      // Set loading state
+      const loadingMsg = message.loading("Đang mở cuộc trò chuyện...", 0);
+
+      // Create or get the conversation
       const conversation = await createConversation(userId);
-      if (onSelectConversation) {
+
+      // Clear loading message
+      loadingMsg();
+
+      // Close modal first AFTER we have the conversation
+      setIsModalVisible(false);
+
+      // This exactly matches FriendList.tsx behavior
+      if (conversation && onSelectConversation) {
+        console.log(
+          "RequestList: Using onSelectConversation with conversation:",
+          conversation
+        );
         onSelectConversation(conversation);
       }
+
       if (onSelectFriend) {
         onSelectFriend(userId);
       }
-      setIsModalVisible(false);
     } catch (error) {
       console.error("RequestList: Error creating conversation:", error);
       message.error("Không thể tạo cuộc trò chuyện");
@@ -752,7 +769,19 @@ const RequestList: React.FC<RequestListProps> = ({
         isCurrentUser={isCurrentUser}
         isFriend={isFriend}
         handleUpdate={() => {}}
-        handleMessage={handleFriendClick}
+        handleMessage={(userId, conversation) => {
+          // If conversation is passed, use it directly
+          if (conversation && onSelectConversation) {
+            console.log(
+              "RequestList: Using passed conversation from modal:",
+              conversation
+            );
+            onSelectConversation(conversation);
+          } else {
+            // Otherwise, fall back to the original behavior
+            handleFriendClick(userId);
+          }
+        }}
         handleSendFriendRequest={() => {}}
         isSending={false}
         onRequestsUpdate={onRequestsUpdate}
@@ -761,7 +790,7 @@ const RequestList: React.FC<RequestListProps> = ({
         requestId={selectedRequestId}
         onAccept={handleAccept}
         onReject={handleReject}
-        onCancelRequest={handleCancel}  // Changed from onCancel to onCancelRequest
+        onCancelRequest={handleCancel}
       />
     </div>
   );

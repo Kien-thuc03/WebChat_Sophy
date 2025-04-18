@@ -14,8 +14,10 @@ import {
   removeFriend,
   sendFriendRequest,
   getUserById,
+  createConversation,
 } from "../../../api/API";
 import socketService from "../../../services/socketService";
+import { Conversation } from "../../../features/chat/types/conversationTypes";
 
 interface UnfriendEventData {
   userId?: string;
@@ -76,7 +78,7 @@ interface UserInfoHeaderModalProps {
   isCurrentUser: (userId: string) => boolean;
   isFriend: (userId: string) => boolean;
   handleUpdate: () => void;
-  handleMessage: (userId: string) => void;
+  handleMessage: (userId: string, conversation: Conversation) => void;
   handleSendFriendRequest: (userId: string) => void;
   isSending: boolean;
   onRequestsUpdate?: () => void;
@@ -206,6 +208,7 @@ const UserInfoHeaderModal: React.FC<UserInfoHeaderModalProps> = ({
     useState<boolean>(false);
   const [currentUserFullname, setCurrentUserFullname] =
     useState<string>("Người dùng");
+  const [isMessageLoading, setIsMessageLoading] = useState<boolean>(false);
 
   // Helper function để check trạng thái yêu cầu kết bạn - định nghĩa ngoài useEffect
   const refreshStatus = async () => {
@@ -704,6 +707,54 @@ const UserInfoHeaderModal: React.FC<UserInfoHeaderModalProps> = ({
     }
   };
 
+  // Enhanced message handling to work consistently across all components
+  const handleMessageClick = async (userId: string) => {
+    try {
+      setIsMessageLoading(true);
+      console.log(
+        "UserInfoHeaderModal: Creating conversation with user:",
+        userId
+      );
+
+      // Create or get the conversation
+      const conversation = await createConversation(userId);
+
+      if (!conversation) {
+        throw new Error("Không thể tạo cuộc trò chuyện");
+      }
+
+      console.log(
+        "UserInfoHeaderModal: Conversation created successfully:",
+        conversation
+      );
+
+      // This is the critical part - PASS THE CONVERSATION OBJECT to handleMessage
+      // just like FriendList passes it to onSelectConversation
+      if (handleMessage) {
+        // Close the modal only after we have the conversation
+        onCancel();
+        console.log(
+          "UserInfoHeaderModal: Calling handleMessage with conversation:",
+          conversation
+        );
+        // Pass the entire conversation object instead of just userId
+        // This is the key change to match FriendList behavior
+        handleMessage(userId, conversation);
+      } else {
+        onCancel();
+        message.info(`Đang mở cuộc trò chuyện với người dùng ID: ${userId}`);
+        console.error(
+          "UserInfoHeaderModal: No handleMessage callback provided"
+        );
+      }
+    } catch (error) {
+      console.error("UserInfoHeaderModal: Error creating conversation:", error);
+      message.error("Không thể bắt đầu cuộc trò chuyện");
+    } finally {
+      setIsMessageLoading(false);
+    }
+  };
+
   if (!searchResult) return null;
 
   const isCurrentUserProfile = isCurrentUser(searchResult.userId);
@@ -810,7 +861,8 @@ const UserInfoHeaderModal: React.FC<UserInfoHeaderModalProps> = ({
                   <Button
                     type="primary"
                     block
-                    onClick={() => handleMessage(searchResult.userId)}>
+                    loading={isMessageLoading}
+                    onClick={() => handleMessageClick(searchResult.userId)}>
                     Nhắn tin
                   </Button>
                 </>
@@ -822,7 +874,8 @@ const UserInfoHeaderModal: React.FC<UserInfoHeaderModalProps> = ({
                   <Button
                     type="primary"
                     block
-                    onClick={() => handleMessage(searchResult.userId)}>
+                    loading={isMessageLoading}
+                    onClick={() => handleMessageClick(searchResult.userId)}>
                     Nhắn tin
                   </Button>
                 </>
@@ -853,7 +906,8 @@ const UserInfoHeaderModal: React.FC<UserInfoHeaderModalProps> = ({
                   <Button
                     type="primary"
                     block
-                    onClick={() => handleMessage(searchResult.userId)}>
+                    loading={isMessageLoading}
+                    onClick={() => handleMessageClick(searchResult.userId)}>
                     Nhắn tin
                   </Button>
                 </>
@@ -869,7 +923,8 @@ const UserInfoHeaderModal: React.FC<UserInfoHeaderModalProps> = ({
                   <Button
                     type="primary"
                     block
-                    onClick={() => handleMessage(searchResult.userId)}>
+                    loading={isMessageLoading}
+                    onClick={() => handleMessageClick(searchResult.userId)}>
                     Nhắn tin
                   </Button>
                 </>

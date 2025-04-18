@@ -1,4 +1,9 @@
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  Navigate,
+} from "react-router-dom";
 import Signin from "./components/auth/Signin";
 import Register from "./components/auth/Register";
 import Dashboard from "./pages/Dashboard";
@@ -30,6 +35,10 @@ const App = () => {
                       <Dashboard />
                     </PrivateRoute>
                   }
+                />
+                <Route
+                  path="/dashboard"
+                  element={<Navigate to="/main" replace />}
                 />
                 <Route path="/forgot-password" element={<ForgotPassword />} />
                 <Route path="/verify-otp" element={<VerifyOTP />} />
