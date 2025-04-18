@@ -2141,3 +2141,25 @@ export const unpinMessage = async (messageId: string): Promise<void> => {
     throw error;
   }
 };
+
+// Get pinned messages for a conversation
+export const getPinnedMessages = async (conversationId: string): Promise<Message[]> => {
+  try {
+    const token = getAuthToken();
+    if (!token) {
+      throw new Error("Not authenticated");
+    }
+
+    const response = await apiClient.get(`/api/conversations/${conversationId}`);
+    console.log("Pinned messages response:", response.data.pinnedMessages);
+    
+    if (response.status !== 200) {
+      throw new Error(`Failed to get pinned messages. Status: ${response.status}`);
+    }
+
+    return response.data.pinnedMessages;
+  } catch (error: any) {
+    console.error("Error while getting pinned messages:", error);
+    throw error;
+  }
+};

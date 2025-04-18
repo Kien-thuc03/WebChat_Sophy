@@ -53,6 +53,7 @@ import {
   deleteMessage,
   pinMessage,
   unpinMessage,
+  getPinnedMessages,
 } from "../../api/API";
 import { useLanguage } from "../../features/auth/context/LanguageContext";
 import { formatMessageTime } from "../../utils/dateUtils";
@@ -113,6 +114,11 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
   const [typingUsers, setTypingUsers] = useState<{[key: string]: {userId: string, fullname: string, timestamp: number}}>({});
   const [typingTimers, setTypingTimers] = useState<{[key: string]: NodeJS.Timeout}>({});
   
+  // Add state for pinned messages
+  const [pinnedMessages, setPinnedMessages] = useState<DisplayMessage[]>([]);
+  const [showPinnedMessagesPanel, setShowPinnedMessagesPanel] = useState(false);
+  const [loadingPinnedMessages, setLoadingPinnedMessages] = useState(false);
+  
   // Thêm typing timeout
   const TYPING_TIMEOUT = 3000; // 3 giây
 
@@ -143,7 +149,11 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
       setLoading(true);
       setMessages([]);
       setNotifications([]);
-      // ... existing code ...
+      
+      // Load pinned messages when conversation is first loaded
+      if (conversation && conversation.conversationId) {
+        fetchPinnedMessages();
+      }
     }
     
     initialLoad();
@@ -2580,9 +2590,13 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
       // Update the message status in the UI
       setMessages((prevMessages) =>
         prevMessages.map((msg) =>
-          msg.id === messageId ? { ...msg, isPinned: true } : msg
+          msg.id === messageId ? { ...msg, isPinned: true, pinnedAt: new Date().toISOString() } : msg
         )
       );
+      
+      // Refresh pinned messages
+      await fetchPinnedMessages();
+      
       message.success("Đã ghim tin nhắn");
     } catch (error: any) {
       console.error("Error pinning message:", error);
@@ -2600,9 +2614,13 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
       // Update the message status in the UI
       setMessages((prevMessages) =>
         prevMessages.map((msg) =>
-          msg.id === messageId ? { ...msg, isPinned: false } : msg
+          msg.id === messageId ? { ...msg, isPinned: false, pinnedAt: undefined } : msg
         )
       );
+      
+      // Refresh pinned messages
+      await fetchPinnedMessages();
+      
       message.success("Đã bỏ ghim tin nhắn");
     } catch (error: any) {
       console.error("Error unpinning message:", error);
@@ -2612,37 +2630,270 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
     }
   };
 
+  // Add function to fetch pinned messages
+  const fetchPinnedMessages = async () => {
+    if (!conversation || !conversation.conversationId) return;
+    
+    try {
+      setLoadingPinnedMessages(true);
+      
+      // Get pinned message IDs from conversation
+      const pinnedMessageIds = conversation.pinnedMessages || [];
+      
+      if (pinnedMessageIds.length === 0) {
+        setPinnedMessages([]);
+        return;
+      }
+      
+      try {
+        // Use the API to get all pinned messages for this conversation
+        const fetchedPinnedMessages = await getPinnedMessages(conversation.conversationId);
+        
+        if (fetchedPinnedMessages && fetchedPinnedMessages.length > 0) {
+          // Map the API messages to our display format
+          const displayPinnedMessages: DisplayMessage[] = fetchedPinnedMessages.map(msg => {
+            // Find sender info from userCache
+            const sender = userCache[msg.senderId] || {
+              fullname: "Người dùng",
+              urlavatar: "",
+            };
+            
+            // Normalize attachments
+            let parsedAttachments: Array<{ url: string; type: string; name?: string; size?: number }> = [];
+            if (typeof msg.attachments === 'string' && msg.attachments) {
+              try {
+                const parsed = JSON.parse(msg.attachments);
+                if (Array.isArray(parsed)) {
+                  parsedAttachments = parsed;
+                }
+              } catch (e) {
+                console.error('Failed to parse attachments string:', e);
+              }
+            } else if (Array.isArray(msg.attachments)) {
+              parsedAttachments = msg.attachments;
+            }
+            
+            // Ensure both attachment and attachments fields have consistent values
+            let mainAttachment = msg.attachment || (parsedAttachments.length > 0 ? parsedAttachments[0] : null);
+            
+            // Create the display message
+            const displayMessage: DisplayMessage = {
+              id: msg.messageDetailId,
+              content: msg.content || "",
+              timestamp: msg.createdAt || new Date().toISOString(),
+              sender: {
+                id: msg.senderId || "",
+                name: sender.fullname || "Người dùng",
+                avatar: sender.urlavatar || "",
+              },
+              type: (msg.type as "text" | "image" | "file") || "text",
+              isPinned: true,
+              pinnedAt: msg.pinnedAt || msg.createdAt,
+            };
+            
+            // Add attachments information
+            if (parsedAttachments.length > 0) {
+              displayMessage.attachments = parsedAttachments;
+            }
+            
+            if (mainAttachment) {
+              displayMessage.attachment = mainAttachment;
+            }
+            
+            // Process based on message type
+            if (msg.type === "image") {
+              if (mainAttachment && mainAttachment.url) {
+                displayMessage.fileUrl = mainAttachment.url;
+              }
+            } else if (msg.type === "file") {
+              if (mainAttachment && mainAttachment.url) {
+                displayMessage.fileUrl = mainAttachment.url;
+                displayMessage.fileName = mainAttachment.name;
+                displayMessage.fileSize = mainAttachment.size;
+              }
+            }
+            
+            return displayMessage;
+          });
+          
+          // Sort by most recently pinned
+          const sortedPinnedMessages = [...displayPinnedMessages].sort(
+            (a, b) => new Date(b.pinnedAt || b.timestamp).getTime() - new Date(a.pinnedAt || a.timestamp).getTime()
+          );
+          
+          // If we have pinned messages from the API, use those
+          setPinnedMessages(sortedPinnedMessages);
+          return;
+        }
+      } catch (apiError) {
+        console.error("Error fetching pinned messages from API:", apiError);
+        // Fall back to using local messages if API call fails
+      }
+      
+      // Fall back to using messages that are already in our messages array
+      const localPinnedMessages = messages.filter(
+        message => message.isPinned
+      );
+      
+      // Map the messages to our display format and sort by most recently pinned
+      const localSortedPinnedMessages = [...localPinnedMessages].sort(
+        (a, b) => new Date(b.pinnedAt || b.timestamp).getTime() - new Date(a.pinnedAt || a.timestamp).getTime()
+      );
+      
+      setPinnedMessages(localSortedPinnedMessages);
+    } catch (error) {
+      console.error("Error fetching pinned messages:", error);
+    } finally {
+      setLoadingPinnedMessages(false);
+    }
+  };
+
+  // Call fetchPinnedMessages when conversation changes or when messages are updated
+  useEffect(() => {
+    if (isValidConversation) {
+      fetchPinnedMessages();
+    }
+  }, [conversation, messages]);
+
+  // Render the pinned messages panel
+  const renderPinnedMessagesPanel = () => {
+    if (!showPinnedMessagesPanel) return null;
+    
+    return (
+      <div className="bg-white border-b border-gray-200 animate-slideIn transition-all duration-300">
+        <div className="flex items-center justify-between px-4 py-2 bg-gray-50 border-b border-gray-200">
+          <div className="flex items-center font-medium">
+            <PushpinOutlined className="text-yellow-600 mr-2" />
+            <span>Danh sách ghim ({pinnedMessages.length})</span>
+          </div>
+          <Button 
+            type="text" 
+            size="small"
+            className="text-gray-500"
+            onClick={() => setShowPinnedMessagesPanel(false)}
+          >
+            Thu gọn
+          </Button>
+        </div>
+        
+        <div className="max-h-80 overflow-y-auto p-2">
+          {loadingPinnedMessages ? (
+            <div className="flex justify-center py-4">
+              <Spin size="small" />
+            </div>
+          ) : pinnedMessages.length === 0 ? (
+            <div className="text-center py-4 text-gray-500">
+              Không có tin nhắn nào được ghim
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {pinnedMessages.map(pinnedMsg => {
+                const isOwn = isOwnMessage(pinnedMsg.sender.id);
+                
+                return (
+                  <div key={pinnedMsg.id} className="flex items-start p-2 hover:bg-gray-50 rounded-lg group">
+                    <Avatar 
+                      name={pinnedMsg.sender.name}
+                      avatarUrl={pinnedMsg.sender.avatar}
+                      size={36}
+                      className="mr-2 flex-shrink-0"
+                    />
+                    
+                    <div className="flex-grow overflow-hidden">
+                      <div className="flex justify-between">
+                        <div className="font-medium text-sm mb-1">{pinnedMsg.sender.name}</div>
+                        <div className="text-xs text-gray-500">{formatMessageTime(pinnedMsg.timestamp)}</div>
+                      </div>
+                      
+                      <div className="text-sm text-gray-800 truncate">
+                        {pinnedMsg.type === 'image' ? (
+                          <div className="flex items-center">
+                            <FileImageOutlined className="mr-1" />
+                            <span>Hình ảnh</span>
+                          </div>
+                        ) : pinnedMsg.type === 'file' ? (
+                          <div className="flex items-center">
+                            <FileOutlined className="mr-1" />
+                            <span>{pinnedMsg.fileName || "Tập tin"}</span>
+                          </div>
+                        ) : (
+                          pinnedMsg.content
+                        )}
+                      </div>
+                    </div>
+                    
+                    <Dropdown
+                      overlay={
+                        <Menu>
+                          <Menu.Item 
+                            key="unpin" 
+                            icon={<PushpinOutlined />}
+                            onClick={() => handleUnpinMessage(pinnedMsg.id)}
+                          >
+                            Bỏ ghim
+                          </Menu.Item>
+                          <Menu.Item 
+                            key="goto" 
+                            onClick={() => {
+                              const element = document.getElementById(`message-${pinnedMsg.id}`);
+                              if (element) {
+                                setShowPinnedMessagesPanel(false);
+                                setTimeout(() => {
+                                  element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                  // Highlight the message briefly
+                                  element.classList.add('highlight-message');
+                                  setTimeout(() => {
+                                    element.classList.remove('highlight-message');
+                                  }, 2000);
+                                }, 300);
+                              }
+                            }}
+                          >
+                            Đi đến tin nhắn
+                          </Menu.Item>
+                        </Menu>
+                      }
+                      trigger={['click']}
+                      placement="bottomRight"
+                    >
+                      <Button 
+                        type="text" 
+                        size="small" 
+                        icon={<MoreOutlined />}
+                        className="text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                      />
+                    </Dropdown>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="w-full h-full flex flex-col">
       <div className="flex flex-col h-full overflow-hidden bg-white rounded-lg relative">
-        {/* Pinned message banner */}
-        {messages.some(msg => msg.isPinned) && (
-          <div className="bg-yellow-50 border-b border-yellow-100 p-2 flex items-center justify-between">
-            <div className="flex items-center">
+        {/* Pinned message button */}
+        {pinnedMessages.length > 0 && (
+          <div 
+            className={`bg-white border-b border-gray-200 py-2 px-4 flex justify-between items-center cursor-pointer hover:bg-gray-50 transition-colors ${showPinnedMessagesPanel ? 'bg-gray-50' : ''}`}
+            onClick={() => setShowPinnedMessagesPanel(!showPinnedMessagesPanel)}
+          >
+            <div className="flex items-center text-gray-700">
               <PushpinOutlined className="text-yellow-600 mr-2" />
-              <span className="text-yellow-800 text-sm font-medium">
-                {messages.filter(msg => msg.isPinned).length} tin nhắn đã ghim
-              </span>
+              <span>+{pinnedMessages.length} ghim</span>
             </div>
-            <Button 
-              type="text" 
-              size="small"
-              className="text-yellow-700 hover:text-yellow-800"
-              onClick={() => {
-                // Scroll to the first pinned message
-                const firstPinnedMessage = messages.find(msg => msg.isPinned);
-                if (firstPinnedMessage) {
-                  const element = document.getElementById(`message-${firstPinnedMessage.id}`);
-                  if (element) {
-                    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                  }
-                }
-              }}
-            >
-              Xem tin nhắn đã ghim
-            </Button>
+            <DownOutlined 
+              className={`text-gray-400 transition-transform duration-300 ${showPinnedMessagesPanel ? 'transform rotate-180' : ''}`}
+            />
           </div>
         )}
+        
+        {/* Pinned messages panel */}
+        {renderPinnedMessagesPanel()}
         
         {/* Khu vực hiển thị tin nhắn */}
         <div
@@ -3275,6 +3526,21 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
         .message-hover-controls .ant-btn:active,
         .message-hover-controls .ant-btn:focus {
           background-color: rgba(0, 0, 0, 0.1);
+        }
+        `}
+      </style>
+      
+      {/* Add highlight animation styles */}
+      <style>
+        {`
+        @keyframes highlight {
+          0% { background-color: rgba(254, 240, 138, 0.8); }
+          70% { background-color: rgba(254, 240, 138, 0.5); }
+          100% { background-color: transparent; }
+        }
+        
+        .highlight-message {
+          animation: highlight 2s ease-in-out;
         }
         `}
       </style>
