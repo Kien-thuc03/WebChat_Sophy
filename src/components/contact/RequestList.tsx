@@ -488,6 +488,10 @@ const RequestList: React.FC<RequestListProps> = ({
       console.log(
         "RequestList: Notifying parent via onRequestsUpdate (cancel)"
       );
+      // Close the modal if it's open
+      if (isModalVisible) {
+        setIsModalVisible(false);
+      }
       onRequestsUpdate?.();
     } catch (error) {
       console.error("RequestList: Error canceling friend request:", error);

@@ -168,9 +168,11 @@ const UserInfoHeaderModal: React.FC<UserInfoHeaderModalProps> = ({
   isSending,
   onRequestsUpdate,
   isFromReceivedTab = false,
+  isFromSentTab = false,
   requestId = null,
   onAccept,
   onReject,
+  onCancelRequest,
 }) => {
   const [randomImageId, setRandomImageId] = useState<number>(1);
   const [hasSentFriendRequest, setHasSentFriendRequest] = useState<boolean>(false);
@@ -368,8 +370,20 @@ const UserInfoHeaderModal: React.FC<UserInfoHeaderModalProps> = ({
     setIsSendFriendModalVisible(true);
   };
 
-  const handleSendFriendRequestSuccess = () => {
+  const handleSendFriendRequestSuccess = async () => {
     setHasSentFriendRequest(true);
+    // Fetch the latest friend request to get the ID
+    try {
+      const sentResult = await getFriendRequestsSent();
+      const sentRequest = sentResult.find(
+        (req: FriendRequest) => req.receiverId.userId === searchResult?.userId
+      );
+      if (sentRequest) {
+        setFriendRequestId(sentRequest.friendRequestId);
+      }
+    } catch (err) {
+      console.error("Error fetching friend request:", err);
+    }
     onRequestsUpdate?.();
   };
 
@@ -486,6 +500,24 @@ const UserInfoHeaderModal: React.FC<UserInfoHeaderModalProps> = ({
                     Từ chối
                   </Button>
                 </>
+              ) : isFromSentTab && requestId ? (
+                <>
+                  <Button
+                    type="default"
+                    danger
+                    block
+                    onClick={() => onCancelRequest && requestId && onCancelRequest(requestId)}
+                  >
+                    Thu hồi yêu cầu kết bạn
+                  </Button>
+                  <Button
+                    type="primary"
+                    block
+                    onClick={() => handleMessage(searchResult.userId)}
+                  >
+                    Nhắn tin
+                  </Button>
+                </>
               ) : isFriendState ? (
                 <>
                   <Button type="default" block onClick={handleRemoveFriend}>
@@ -520,10 +552,11 @@ const UserInfoHeaderModal: React.FC<UserInfoHeaderModalProps> = ({
                 <>
                   <Button
                     type="default"
+                    danger
                     block
                     onClick={handleCancelFriendRequest}
                   >
-                    Hủy kết bạn
+                    Thu hồi yêu cầu kết bạn
                   </Button>
                   <Button
                     type="primary"
