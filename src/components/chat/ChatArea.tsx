@@ -6,11 +6,11 @@ import {
   Alert,
   Empty,
   Spin,
-  Popover,
   Tooltip,
   Modal,
   Dropdown,
   Menu,
+  Select,
 } from "antd";
 import {
   SendOutlined,
@@ -36,7 +36,6 @@ import {
   StarOutlined,
   UnorderedListOutlined,
   InfoCircleOutlined,
-  EllipsisOutlined,
 } from "@ant-design/icons";
 import {
   Conversation,
@@ -55,6 +54,8 @@ import {
   unpinMessage,
   getPinnedMessages,
   getSpecificMessage,
+  replyMessage,
+  forwardImageMessage,
 } from "../../api/API";
 import { useLanguage } from "../../features/auth/context/LanguageContext";
 import { formatMessageTime } from "../../utils/dateUtils";
@@ -100,7 +101,8 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
     markConversationAsRead, 
     updateConversationWithNewMessage,
     updateUnreadStatus,
-    userCache 
+    userCache,
+    conversations
   } = useConversationContext();
   const currentUserId = localStorage.getItem("userId") || "";
   const [imageInputVisible, setImageInputVisible] = useState(false);
@@ -143,6 +145,14 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
   // Add state for tracking dropdown visibility
   const [dropdownVisible, setDropdownVisible] = useState<{[key: string]: boolean}>({});
   
+  const [replyingToMessage, setReplyingToMessage] = useState<DisplayMessage | null>(null);
+  const [showForwardModal, setShowForwardModal] = useState(false);
+  const [forwardingMessage, setForwardingMessage] = useState<DisplayMessage | null>(null);
+  const [selectedConversationForForward, setSelectedConversationForForward] = useState<string | null>(null);
+
+  // Add this state variable
+  const [isSending, setIsSending] = useState(false);
+
   useEffect(() => {
     if (!conversation) return; // Early return if no conversation
     
@@ -1279,7 +1289,11 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      handleSendMessage();
+      if (replyingToMessage) {
+        handleSendReplyMessage();
+      } else {
+        handleSendMessage();
+      }
     }
   };
 
@@ -1433,22 +1447,6 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
     imageInputRef.current?.click();
   };
 
-  const handleVideoClick = () => {
-    videoInputRef.current?.click();
-  };
-
-  const handleAudioClick = () => {
-    audioInputRef.current?.click();
-  };
-
-  const handleLocationClick = () => {
-    // In a real implementation, this would access the user's location
-    message.info("Tính năng chia sẻ vị trí đang được phát triển");
-  };
-
-  const handlePollClick = () => {
-    message.info("Tính năng khảo sát đang được phát triển");
-  };
 
   // Add the determineMessageStatus function before it's used
   const determineMessageStatus = (msg: any, currentUserId: string): string => {
@@ -3061,6 +3059,150 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
     return false;
   };
 
+  // Handle reply to message
+  const handleReplyMessage = (message: DisplayMessage) => {
+    setReplyingToMessage(message);
+    inputRef.current?.focus();
+  };
+
+  // Handle cancel reply
+  const handleCancelReply = () => {
+    setReplyingToMessage(null);
+  };
+
+  // Handle sending reply message
+  const handleSendReplyMessage = async () => {
+    if (!replyingToMessage || !inputValue.trim() || !conversation) return;
+    
+    try {
+      setIsSending(true);
+      const replyResult = await replyMessage(replyingToMessage.id, inputValue.trim());
+      
+      // Reset input and reply state
+      setInputValue('');
+      setReplyingToMessage(null);
+      setPastedImage(null);
+      
+      // Refresh messages to show the new reply
+      if (messages.length > 0) {
+        await fetchMessages(messages[messages.length - 1]?.timestamp, "after");
+      }
+    } catch (error: any) {
+      console.error("Error sending reply:", error);
+      message.error("Failed to send reply");
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  // Handle forward message
+  const handleForwardMessage = (message: DisplayMessage) => {
+    setForwardingMessage(message);
+    setShowForwardModal(true);
+  };
+
+  // Handle send forward message
+  const handleSendForwardMessage = async () => {
+    if (!forwardingMessage || !selectedConversationForForward) {
+      message.error("Cannot forward message: missing conversation or message");
+      return;
+    }
+
+    try {
+      // Xử lý theo loại tin nhắn
+      if (forwardingMessage.type === "image" && forwardingMessage.attachment) {
+        // Forward image message with attachment
+        await forwardImageMessage(
+          forwardingMessage.id,
+          selectedConversationForForward,
+          forwardingMessage.attachment
+        );
+      } else if (forwardingMessage.type === "video" && forwardingMessage.attachment) {
+        // Đặc biệt cho video - tải lại video từ URL và gửi
+        try {
+          // Tải file từ URL
+          const videoResponse = await fetch(forwardingMessage.attachment.url);
+          const videoBlob = await videoResponse.blob();
+          const videoFile = new File(
+            [videoBlob], 
+            forwardingMessage.attachment.name || "forwarded-video.mp4", 
+            { type: 'video/mp4' }
+          );
+          
+          // Gửi qua socketService
+          await socketService.sendFileMessage(selectedConversationForForward, videoFile);
+          
+          message.success("Video forwarded successfully");
+        } catch (videoError) {
+          console.error("Error forwarding video:", videoError);
+          message.error("Failed to forward video");
+        }
+      } else if (forwardingMessage.type === "text-with-image" && forwardingMessage.attachment && forwardingMessage.content) {
+        // Forward text with image using sendMessageWithImage
+        const imageFile = await fetch(forwardingMessage.attachment.url)
+          .then(res => res.blob())
+          .then(blob => new File([blob], forwardingMessage.attachment?.name || "forwarded-image.jpg", { type: blob.type }));
+        
+        await sendMessageWithImage(
+          selectedConversationForForward,
+          forwardingMessage.content,
+          imageFile
+        );
+      } else if (forwardingMessage.type === "file" && forwardingMessage.attachment) {
+        // Forward file message - tải lại file từ URL và gửi
+        try {
+          // Tải file từ URL
+          const fileResponse = await fetch(forwardingMessage.attachment.url);
+          const fileBlob = await fileResponse.blob();
+          const fileObject = new File(
+            [fileBlob], 
+            forwardingMessage.attachment.name || "forwarded-file", 
+            { type: fileBlob.type }
+          );
+          
+          // Gửi qua socketService
+          await socketService.sendFileMessage(selectedConversationForForward, fileObject);
+          
+          message.success("File forwarded successfully");
+        } catch (fileError) {
+          console.error("Error forwarding file:", fileError);
+          message.error("Failed to forward file");
+        }
+      } else if (forwardingMessage.content) {
+        // Forward regular text message
+        await sendMessage(
+          selectedConversationForForward,
+          forwardingMessage.content,
+          "text"
+        );
+      } else {
+        message.error("Cannot forward empty message");
+        return;
+      }
+      
+      setShowForwardModal(false);
+      setForwardingMessage(null);
+      setSelectedConversationForForward(null);
+    } catch (error) {
+      console.error("Error forwarding message:", error);
+      message.error("Failed to forward message");
+    }
+  };
+
+  // Helper function to get the name of the other user in a 1-on-1 conversation
+  const getOtherUserName = (conv: Conversation): string => {
+    const currentUserId = localStorage.getItem('userId') || '';
+    
+    if (conv.isGroup) {
+      return conv.groupName || 'Group Chat';
+    }
+    
+    const otherUserId = conv.creatorId === currentUserId ? conv.receiverId : conv.creatorId;
+    const user = userCache[otherUserId || ''];
+    
+    return user?.fullname || 'User';
+  };
+
   return (
     <div className="w-full h-full flex flex-col">
       <div className="flex flex-col h-full overflow-hidden bg-white rounded-lg relative">
@@ -3263,7 +3405,7 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
                             e.stopPropagation();
                             e.preventDefault();
                             setActiveMessageMenu(message.id);
-                            // Functionality will be implemented later
+                            handleReplyMessage(message);
                           }}
                         />
                       </Tooltip>
@@ -3277,7 +3419,7 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
                             e.stopPropagation();
                             e.preventDefault();
                             setActiveMessageMenu(message.id);
-                            // Functionality will be implemented later
+                            handleForwardMessage(message);
                           }}
                         />
                       </Tooltip>
@@ -3787,6 +3929,67 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
           </div>
         )}
       </Modal>
+
+      {/* Forward message modal */}
+      {showForwardModal && (
+        <Modal
+          title="Chuyển tiếp tin nhắn"
+          open={showForwardModal}
+          onCancel={() => setShowForwardModal(false)}
+          footer={[
+            <Button key="cancel" onClick={() => setShowForwardModal(false)}>
+              Hủy
+            </Button>,
+            <Button
+              key="forward"
+              type="primary"
+              onClick={handleSendForwardMessage}
+              disabled={!selectedConversationForForward}
+            >
+              Chuyển tiếp
+            </Button>
+          ]}
+        >
+          <div className="mb-4">
+            <div className="font-semibold mb-2">Chọn cuộc trò chuyện:</div>
+            <Select
+              style={{ width: '100%' }}
+              placeholder="Chọn người nhận"
+              onChange={(value) => setSelectedConversationForForward(value)}
+            >
+              {conversations
+                .filter((conv: Conversation) => conv.conversationId !== conversation?.conversationId)
+                .map((conv: Conversation) => {
+                  const name = conv.isGroup 
+                    ? conv.groupName 
+                    : getOtherUserName(conv);
+                  return (
+                    <Select.Option key={conv.conversationId} value={conv.conversationId}>
+                      {name}
+                    </Select.Option>
+                  );
+                })
+              }
+            </Select>
+          </div>
+          
+          <div className="border rounded p-3 bg-gray-50">
+            <div className="text-sm text-gray-500 mb-1">Tin nhắn gốc:</div>
+            {forwardingMessage?.type === 'image' && forwardingMessage.attachment && (
+              <div className="mb-2">
+                <img 
+                  src={forwardingMessage.attachment.url} 
+                  alt="Forward attachment" 
+                  className="max-h-40 rounded"
+                />
+              </div>
+            )}
+            {forwardingMessage?.content && (
+              <div className="text-sm">{forwardingMessage.content}</div>
+            )}
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

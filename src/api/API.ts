@@ -2165,7 +2165,7 @@ export const getPinnedMessages = async (conversationId: string): Promise<Message
 };
 
 // Get a specific message by ID
-export const getSpecificMessage = async (messageId: string, conversationId?: string): Promise<Message | null> => {
+export const getSpecificMessage = async (messageId: string): Promise<Message | null> => {
   try {
     const token = getAuthToken();
     if (!token) {
@@ -2183,5 +2183,78 @@ export const getSpecificMessage = async (messageId: string, conversationId?: str
     console.error("Error fetching specific message:", error);
     // Return null instead of throwing to handle gracefully in UI
     return null;
+  }
+};
+
+// Reply to a message
+export const replyMessage = async (
+  messageId: string,
+  content: string
+): Promise<Message> => {
+  try {
+    const token = getAuthToken();
+    if (!token) {
+      throw new Error("Not authenticated");
+    }
+
+    const response = await apiClient.post(`/api/messages/reply/${messageId}`, {
+      content
+    });
+
+    if (response.status !== 201) {
+      throw new Error(`Failed to reply to message. Status: ${response.status}`);
+    }
+
+    // Normalize the response data to match the frontend message format
+    const message = response.data;
+    let result = {
+      ...message,
+      messageId: message.messageDetailId || message.messageId,
+    };
+
+    return result;
+  } catch (error) {
+    console.error("Error while replying to message:", error);
+    throw error;
+  }
+};
+
+// Forward an image message to another conversation
+export const forwardImageMessage = async (
+  messageId: string,
+  conversationId: string,
+  attachment: any
+): Promise<Message> => {
+  try {
+    const token = getAuthToken();
+    if (!token) {
+      throw new Error("Not authenticated");
+    }
+
+    const response = await apiClient.post(`/api/messages/forward/${messageId}`, {
+      conversationId,
+      attachment
+    });
+
+    if (response.status !== 201) {
+      throw new Error(`Failed to forward image message. Status: ${response.status}`);
+    }
+
+    // Normalize the response data to match the frontend message format
+    const message = response.data;
+    let result = {
+      ...message,
+      messageId: message.messageDetailId || message.messageId,
+    };
+
+    // Ensure attachment is properly formatted
+    if (message.attachment && !result.attachment) {
+      result.attachment = message.attachment;
+    }
+
+    return result;
+  } catch (error) {
+    console.error("Error while forwarding image message:", error);
+    throw error;
   }
 };
