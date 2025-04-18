@@ -128,10 +128,20 @@ export const ConversationProvider: React.FC<{ children: ReactNode }> = ({ childr
     setConversations(prevConversations => {
       return prevConversations.map(conv => {
         if (conv.conversationId === conversationId) {
-          // Only update if any of the message IDs match the newest message
-          const messageIdMatched = messageIds.includes(conv.newestMessageId || '');
-          
-          if (messageIdMatched) {
+          // Check if messageIds is defined before using includes
+          if (messageIds && Array.isArray(messageIds)) {
+            // Only update if any of the message IDs match the newest message
+            const messageIdMatched = messageIds.includes(conv.newestMessageId || '');
+            
+            if (messageIdMatched) {
+              return {
+                ...conv,
+                unreadCount: 0,
+                hasUnread: false
+              };
+            }
+          } else {
+            // If messageIds is undefined or not an array, just mark the conversation as read
             return {
               ...conv,
               unreadCount: 0,
