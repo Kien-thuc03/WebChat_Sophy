@@ -61,6 +61,13 @@ interface UserInfoHeaderModalProps {
   handleSendFriendRequest: (userId: string) => void;
   isSending: boolean;
   onRequestsUpdate?: () => void;
+  // Add these new props
+  isFromReceivedTab?: boolean;
+  isFromSentTab?: boolean;
+  requestId?: string | null;
+  onAccept?: (requestId: string, senderId: string) => Promise<void>;
+  onReject?: (requestId: string) => Promise<void>;
+  onCancelRequest?: (requestId: string) => Promise<void>;
 }
 
 interface SendFriendRequestModalProps {
@@ -160,6 +167,12 @@ const UserInfoHeaderModal: React.FC<UserInfoHeaderModalProps> = ({
   handleMessage,
   isSending,
   onRequestsUpdate,
+  isFromReceivedTab = false,
+  isFromSentTab = false,
+  requestId = null,
+  onAccept,
+  onReject,
+  onCancelRequest,
 }) => {
   const [randomImageId, setRandomImageId] = useState<number>(1);
   const [hasSentFriendRequest, setHasSentFriendRequest] = useState<boolean>(false);
@@ -357,9 +370,37 @@ const UserInfoHeaderModal: React.FC<UserInfoHeaderModalProps> = ({
     setIsSendFriendModalVisible(true);
   };
 
-  const handleSendFriendRequestSuccess = () => {
+  const handleSendFriendRequestSuccess = async () => {
     setHasSentFriendRequest(true);
+    // Fetch the latest friend request to get the ID
+    try {
+      const sentResult = await getFriendRequestsSent();
+      const sentRequest = sentResult.find(
+        (req: FriendRequest) => req.receiverId.userId === searchResult?.userId
+      );
+      if (sentRequest) {
+        setFriendRequestId(sentRequest.friendRequestId);
+      }
+    } catch (err) {
+      console.error("Error fetching friend request:", err);
+    }
     onRequestsUpdate?.();
+  };
+
+  // Add this function to handle accept from modal
+  const handleAcceptFromModal = () => {
+    if (requestId && searchResult && onAccept) {
+      onAccept(requestId, searchResult.userId);
+      onCancel();
+    }
+  };
+
+  // Add this function to handle reject from modal
+  const handleRejectFromModal = () => {
+    if (requestId && onReject) {
+      onReject(requestId);
+      onCancel();
+    }
   };
 
   return (
@@ -442,6 +483,41 @@ const UserInfoHeaderModal: React.FC<UserInfoHeaderModalProps> = ({
                 <Button type="primary" block onClick={handleUpdate}>
                   Cập nhật
                 </Button>
+              ) : isFromReceivedTab && requestId ? (
+                <>
+                  <Button
+                    type="primary"
+                    block
+                    onClick={handleAcceptFromModal}
+                  >
+                    Chấp nhận
+                  </Button>
+                  <Button
+                    type="default"
+                    block
+                    onClick={handleRejectFromModal}
+                  >
+                    Từ chối
+                  </Button>
+                </>
+              ) : isFromSentTab && requestId ? (
+                <>
+                  <Button
+                    type="default"
+                    danger
+                    block
+                    onClick={() => onCancelRequest && requestId && onCancelRequest(requestId)}
+                  >
+                    Thu hồi yêu cầu kết bạn
+                  </Button>
+                  <Button
+                    type="primary"
+                    block
+                    onClick={() => handleMessage(searchResult.userId)}
+                  >
+                    Nhắn tin
+                  </Button>
+                </>
               ) : isFriendState ? (
                 <>
                   <Button type="default" block onClick={handleRemoveFriend}>
@@ -476,10 +552,11 @@ const UserInfoHeaderModal: React.FC<UserInfoHeaderModalProps> = ({
                 <>
                   <Button
                     type="default"
+                    danger
                     block
                     onClick={handleCancelFriendRequest}
                   >
-                    Hủy kết bạn
+                    Thu hồi yêu cầu kết bạn
                   </Button>
                   <Button
                     type="primary"
