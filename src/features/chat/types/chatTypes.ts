@@ -41,6 +41,9 @@ export interface DisplayMessage {
   hiddenFrom?: string[];
   isPinned?: boolean;
   pinnedAt?: string;
+  isReply?: boolean;
+  messageReplyId?: string | null;
+  replyData?: any;
 }
 
 export interface AttachmentInfo {
