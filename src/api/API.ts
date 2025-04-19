@@ -507,7 +507,6 @@ export const getUserById = async (userId: string): Promise<any> => {
     }
 
     const response = await apiClient.get(`/api/users/get-user-by-id/${userId}`);
-    console.log("Get user by ID response:", response.data);
     return response.data;
   } catch (error: any) {
     if (error.response?.status === 401) {
