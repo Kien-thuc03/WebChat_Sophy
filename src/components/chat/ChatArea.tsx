@@ -2614,7 +2614,7 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
               className="emoji-button"
             />
             {emojiPickerVisible && (
-              <div className="emoji-picker absolute bottom-12 left-0 z-10 shadow-lg rounded-lg bg-white emoji-picker-container" style={{ width: '320px', height: '350px', zIndex: 5050,left: 'auto', right: '10' }}>
+              <div className="emoji-picker absolute bottom-12 left-0 z-10 shadow-lg rounded-lg bg-white emoji-picker-container" style={{ width: '320px', height: '350px', zIndex: 5050,left: 'auto', right: '10px' }}>
                 <Picker 
                   data={data} 
                   onEmojiSelect={handleEmojiSelect} 
