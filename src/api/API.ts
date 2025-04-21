@@ -6,7 +6,7 @@ import {
 // import bcrypt from "bcryptjs";
 
 // Khai báo URL API chính
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+const API_BASE_URL = "http://localhost:3000";
 
 // Tạo instance Axios
 const apiClient = axios.create({

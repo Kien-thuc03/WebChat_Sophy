@@ -84,7 +84,6 @@ const ReplyPreview: React.FC<{
   let replyContent = '';
   let replySender = 'Người dùng';
   let replyType = 'text';
-  let senderId = '';
   let attachment = null;
 
   // Parse replyData if it's a string
@@ -93,41 +92,18 @@ const ReplyPreview: React.FC<{
       const parsedData = JSON.parse(replyData);
       replyContent = parsedData.content || '';
       replySender = parsedData.senderName || 'Người dùng';
-      senderId = parsedData.senderId || '';
       replyType = parsedData.type || 'text';
       attachment = parsedData.attachment || null;
-      
-      // Debug log
-      console.log('ReplyPreview parsed data:', parsedData);
     } catch (error) {
       // If parsing fails, use the string directly
       replyContent = replyData;
-      console.error('Error parsing replyData string:', error, replyData);
     }
   } else if (typeof replyData === 'object') {
-    // If replyData is already an object (format from backend)
+    // If replyData is already an object
     replyContent = replyData.content || '';
     replySender = replyData.senderName || 'Người dùng';
-    senderId = replyData.senderId || '';
     replyType = replyData.type || 'text';
     attachment = replyData.attachment || null;
-    
-    // Debug log
-    console.log('ReplyPreview received object replyData:', replyData);
-  }
-
-  // If we have a senderId but no sender name, try to look up the user name
-  // from localStorage or elsewhere if possible
-  if (senderId && replySender === 'Người dùng') {
-    try {
-      // Try to get user info from localStorage or app state if available
-      const userCache = JSON.parse(localStorage.getItem('userCache') || '{}');
-      if (userCache[senderId]) {
-        replySender = userCache[senderId].fullname || 'Người dùng';
-      }
-    } catch (error) {
-      console.error('Error parsing userCache:', error);
-    }
   }
 
   const handleClick = () => {
@@ -136,11 +112,11 @@ const ReplyPreview: React.FC<{
     }
   };
 
-  // Render content based on message type (similar to mobile app's renderReplyContent)
+  // Render content based on message type
   const renderReplyTypeContent = () => {
     switch (replyType) {
       case 'text':
-        return replyContent;
+        return replyContent || 'Tin nhắn văn bản';
       case 'image':
         return (
           <div className="flex items-center">
@@ -187,7 +163,7 @@ const ReplyPreview: React.FC<{
           </div>
         );
       default:
-        return replyContent;
+        return replyContent || 'Tin nhắn';
     }
   };
 
@@ -560,7 +536,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
         )}
         
         {/* Replace the existing reply preview with improved version */}
-        {message.isReply && message.replyData && (
+        {message.isReply && message.replyData ? (
           <div className="mb-1 rounded-t-md overflow-hidden">
             <div className={`${isOwnMessage ? 'bg-blue-400' : 'bg-gray-200'} bg-opacity-60 rounded-t-md`}>
               <ReplyPreview 
@@ -571,15 +547,19 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
               />
             </div>
           </div>
-        )}
+        ) : null}
         
         {/* Console log để hiển thị dữ liệu tin nhắn Reply */}
-        {message.isReply && console.log('Reply Message Data:', {
-          id: message.id, 
-          isReply: message.isReply, 
-          replyData: message.replyData,
-          messageReplyId: message.messageReplyId
-        })}
+        {message.isReply ? (
+          console.log('ChatMessage - Reply Data:', {
+            id: message.id, 
+            isReply: message.isReply, 
+            replyData: message.replyData,
+            replyDataType: typeof message.replyData,
+            messageReplyId: message.messageReplyId
+          }),
+          null
+        ) : null}
         
         <div className={`message-container relative ${
           isOwnMessage 
