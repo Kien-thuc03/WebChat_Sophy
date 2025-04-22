@@ -64,6 +64,7 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation }) => {
   const [showGroupManagement, setShowGroupManagement] = useState(false);
   const { userCache, userAvatars } = useConversations();
   const { t } = useLanguage();
+  const [userRole, setUserRole] = useState<'owner' | 'co-owner' | 'member'>('member');
 
   // Fetch detailed conversation information
   useEffect(() => {
@@ -107,6 +108,24 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation }) => {
   
   // Number of mutual groups (would come from the API in a real implementation)
   const mutualGroups = detailedConversation?.mutualGroups || 20;
+
+  // Check user role when the conversation data is available
+  useEffect(() => {
+    if (currentConversation?.rules) {
+      const currentUserId = localStorage.getItem('userId') || '';
+      
+      if (currentConversation.rules.ownerId === currentUserId) {
+        setUserRole('owner');
+      } else if (currentConversation.rules.coOwnerIds?.includes(currentUserId)) {
+        setUserRole('co-owner');
+      } else {
+        setUserRole('member');
+      }
+    }
+  }, [currentConversation]);
+
+  // Determine if user can manage the group
+  const canManageGroup = userRole === 'owner' || userRole === 'co-owner';
 
   /**
    * Gets the ID of the other user in a one-on-one conversation
