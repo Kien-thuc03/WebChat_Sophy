@@ -2276,3 +2276,123 @@ export const forwardImageMessage = async (
     throw error;
   }
 };
+
+/**
+ * Sets co-owners for a group conversation
+ * @param conversationId The ID of the conversation
+ * @param coOwnerIds Array of user IDs to set as co-owners
+ */
+export const setCoOwner = async (conversationId: string, coOwnerIds: string[]) => {
+  try {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      throw new Error('User not authenticated');
+    }
+    const response = await apiClient.put(`/api/conversations/group/set-co-owner`, {
+      conversationId, 
+      coOwnerIds
+    });
+
+    if (response.status !== 200) {
+      throw new Error('Failed to set co-owners');
+    }
+
+    return response.data;
+  } catch (error: any) {
+    console.error('Error setting co-owners:', {
+      message: error.message,
+      status: error.response?.status,
+      data: error.response?.data
+    });
+    throw error;
+  }
+};
+
+/**
+ * Sets a new owner for a group conversation
+ * @param conversationId The ID of the conversation
+ * @param userId The ID of the user to set as the new owner
+ */
+export const setOwner = async (conversationId: string, userId: string) => {
+  try {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      throw new Error('User not authenticated');
+    }
+    
+    const response = await apiClient.put(`/api/conversations/group/set-owner/${userId}`, {
+      conversationId,
+      userId
+    });
+
+    if (response.status !== 200) {
+      throw new Error('Failed to set new owner');
+    }
+
+    return response.data;
+  } catch (error: any) {
+    console.error('Error setting new owner:', {
+      message: error.message,
+      status: error.response?.status,
+      data: error.response?.data
+    });
+    throw error;
+  }
+};
+
+/**
+ * Removes a co-owner from a group conversation
+ * @param conversationId The ID of the conversation
+ * @param userId The ID of the co-owner to remove
+ */
+export const removeCoOwnerById = async (conversationId: string, userId: string) => {
+  try {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      throw new Error('User not authenticated');
+    }
+    
+    const response = await apiClient.put(`/api/conversations/group/${conversationId}/remove-co-owner/${userId}`);
+
+    if (response.status !== 200) {
+      throw new Error('Failed to remove co-owner');
+    }
+
+    return response.data;
+  } catch (error: any) {
+    console.error('Error removing co-owner:', {
+      message: error.message,
+      status: error.response?.status,
+      data: error.response?.data
+    });
+    throw error;
+  }
+};
+
+/**
+ * Deletes a group conversation (owner only)
+ * @param conversationId The ID of the conversation to delete
+ */
+export const deleteGroup = async (conversationId: string) => {
+  try {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      throw new Error('User not authenticated');
+    }
+    
+    const response = await apiClient.put(`/api/conversations/group/delete/${conversationId}`);
+
+    if (response.status !== 200) {
+      throw new Error('Failed to delete group');
+    }
+
+    return response.data;
+  } catch (error: any) {
+    console.error('Error deleting group:', {
+      message: error.message,
+      status: error.response?.status,
+      data: error.response?.data
+    });
+    throw error;
+  }
+};

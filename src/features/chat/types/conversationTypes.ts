@@ -33,7 +33,7 @@ export interface Message {
 interface UnreadCount {
   userId: string;
   count: number;
-  lastRead?: string;
+  lastReadMessageId: string;
 }
 
 export interface Conversation {
@@ -59,7 +59,7 @@ export interface Conversation {
   listFile: string[];
   pinnedMessages: string[];
   muteNotifications: string[];
-  unreadCount: UnreadCount[] | number;
+  unreadCount: UnreadCount[] | object;
   hasUnread?: boolean;
   lastChange: string;
   createdAt: string;

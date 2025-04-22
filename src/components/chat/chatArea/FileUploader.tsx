@@ -14,8 +14,8 @@ import {
   VideoCameraOutlined,
   AudioOutlined
 } from '@ant-design/icons';
-import cloudinaryService, { formatFileSize } from '../../services/cloudinaryService';
-import socketService from '../../services/socketService';
+import cloudinaryService, { formatFileSize } from '../../../services/cloudinaryService';
+import socketService from '../../../services/socketService';
 import './FileUploader.css';
 
 interface FileUploaderProps {
