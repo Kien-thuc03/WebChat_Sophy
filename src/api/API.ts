@@ -549,7 +549,8 @@ export const fetchConversations = async (): Promise<Conversation[]> => {
 export const createConversation = async (receiverId: string) => {
   try {
     console.log("Creating conversation with receiverId:", receiverId);
-    const response = await apiClient.post("/api/conversations/create",
+    const response = await apiClient.post(
+      "/api/conversations/create",
       { receiverId },
       getConfig()
     );
@@ -2157,18 +2158,24 @@ export const unpinMessage = async (messageId: string): Promise<void> => {
 };
 
 // Get pinned messages for a conversation
-export const getPinnedMessages = async (conversationId: string): Promise<Message[]> => {
+export const getPinnedMessages = async (
+  conversationId: string
+): Promise<Message[]> => {
   try {
     const token = getAuthToken();
     if (!token) {
       throw new Error("Not authenticated");
     }
 
-    const response = await apiClient.get(`/api/conversations/${conversationId}`);
+    const response = await apiClient.get(
+      `/api/conversations/${conversationId}`
+    );
     console.log("Pinned messages response:", response.data.pinnedMessages);
-    
+
     if (response.status !== 200) {
-      throw new Error(`Failed to get pinned messages. Status: ${response.status}`);
+      throw new Error(
+        `Failed to get pinned messages. Status: ${response.status}`
+      );
     }
 
     return response.data.pinnedMessages;
@@ -2179,19 +2186,22 @@ export const getPinnedMessages = async (conversationId: string): Promise<Message
 };
 
 // Get a specific message by ID
-export const getSpecificMessage = async (messageId: string, conversationId?: string): Promise<Message | null> => {
+export const getSpecificMessage = async (
+  messageId: string,
+  conversationId?: string
+): Promise<Message | null> => {
   try {
     const token = getAuthToken();
     if (!token) {
       throw new Error("Not authenticated");
     }
 
-    const endpoint = conversationId 
+    const endpoint = conversationId
       ? `/api/messages/${messageId}?conversationId=${conversationId}`
       : `/api/messages/${messageId}`;
-      
+
     const response = await apiClient.get(endpoint);
-    
+
     if (response.status !== 200) {
       throw new Error(`Failed to get message. Status: ${response.status}`);
     }
@@ -2216,7 +2226,7 @@ export const replyMessage = async (
     }
 
     const response = await apiClient.post(`/api/messages/reply/${messageId}`, {
-      content
+      content,
     });
 
     if (response.status !== 201) {
@@ -2249,13 +2259,18 @@ export const forwardImageMessage = async (
       throw new Error("Not authenticated");
     }
 
-    const response = await apiClient.post(`/api/messages/forward/${messageId}`, {
-      conversationId,
-      attachment
-    });
+    const response = await apiClient.post(
+      `/api/messages/forward/${messageId}`,
+      {
+        conversationId,
+        attachment,
+      }
+    );
 
     if (response.status !== 201) {
-      throw new Error(`Failed to forward image message. Status: ${response.status}`);
+      throw new Error(
+        `Failed to forward image message. Status: ${response.status}`
+      );
     }
 
     // Normalize the response data to match the frontend message format
@@ -2276,6 +2291,236 @@ export const forwardImageMessage = async (
     throw error;
   }
 };
+
+// Add this function after fetchFriends
+
+// Tìm kiếm người dùng theo tên hoặc số điện thoại
+export const searchUsers = async (searchParam: string) => {
+  try {
+    if (!searchParam || searchParam.trim() === "") {
+      return [];
+    }
+
+    const token = getAuthToken();
+    if (!token) {
+      throw new Error("Không có token xác thực");
+    }
+
+    const response = await apiClient.get(
+      `/api/users/search/${encodeURIComponent(searchParam)}`
+    );
+
+    console.log("Search users response:", response.data);
+
+    if (!Array.isArray(response.data)) {
+      console.error("Invalid search result format:", response.data);
+      return [];
+    }
+
+    return response.data;
+  } catch (error) {
+    console.error("Lỗi khi tìm kiếm người dùng:", error);
+    const apiError = error as AxiosError<{ message?: string }>;
+    if (apiError.response?.status === 401) {
+      throw new Error("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.");
+    }
+    return [];
+  }
+};
+// Tạo nhóm mới
+
+export const createGroupConversation = async (
+  groupName: string,
+  groupMembers: string[]
+): Promise<Conversation> => {
+  try {
+    const token = getAuthToken();
+    if (!token) {
+      throw new Error("Vui lòng đăng nhập để tạo nhóm chat");
+    }
+
+    const response = await apiClient.post("/api/conversations/group/create", {
+      groupName,
+      groupMembers,
+    });
+
+    console.log("Tạo nhóm thành công:", response.data);
+    return response.data;
+  } catch (error: unknown) {
+    console.error("Lỗi khi tạo nhóm chat:", error);
+    const apiError = error as AxiosError<{ message?: string }>;
+    if (apiError.response?.status === 401) {
+      throw new Error("Phiên đăng nhập hết hạn, vui lòng đăng nhập lại");
+    }
+    throw new Error("Không thể tạo nhóm chat. Vui lòng thử lại.");
+  }
+};
+// Cập nhật ảnh đại diện nhóm
+export const updateGroupAvatar = async (
+  conversationId: string,
+  imageFile: File
+): Promise<string> => {
+  try {
+    console.log("UpdateGroupAvatar - Start", { conversationId });
+
+    const token = getAuthToken();
+    if (!token) {
+      throw new Error("Vui lòng đăng nhập để thực hiện chức năng này");
+    }
+
+    const formData = new FormData();
+    // Thử nhiều tên trường khác nhau mà backend có thể chấp nhận
+    formData.append("groupAvatar", imageFile);
+    formData.append("avatar", imageFile);
+    formData.append("file", imageFile);
+    formData.append("image", imageFile);
+    formData.append("conversationId", conversationId);
+
+    console.log(
+      "UpdateGroupAvatar - FormData prepared with file:",
+      imageFile.name,
+      imageFile.type,
+      imageFile.size
+    );
+
+    // Danh sách các endpoint có thể để thử
+    const possibleEndpoints = [
+      `/api/conversations/group/avatar/${conversationId}`,
+      `/api/conversations/${conversationId}/avatar`,
+      `/api/groups/${conversationId}/avatar`,
+      `/api/conversations/group/${conversationId}/avatar`,
+      `/api/group/update/avatar/${conversationId}`,
+      `/api/conversations/${conversationId}/update-avatar`,
+      `/api/conversations/update-avatar/${conversationId}`,
+    ];
+
+    let lastError = null;
+    let response = null;
+
+    // Thử từng endpoint cho đến khi thành công
+    for (const endpoint of possibleEndpoints) {
+      try {
+        console.log("UpdateGroupAvatar - Trying endpoint:", endpoint);
+        response = await apiClient.put(endpoint, formData, {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+          timeout: 15000, // Tăng timeout lên 15 giây
+        });
+
+        console.log("UpdateGroupAvatar - Success with endpoint:", endpoint);
+        console.log("UpdateGroupAvatar - Response:", response.data);
+        break; // Nếu thành công, dừng vòng lặp
+      } catch (endpointError) {
+        console.log(
+          "UpdateGroupAvatar - Failed with endpoint:",
+          endpoint,
+          endpointError
+        );
+        lastError = endpointError;
+        // Tiếp tục thử endpoint khác
+      }
+    }
+
+    // Nếu không có response thành công, thử phương thức POST thay vì PUT
+    if (!response) {
+      for (const endpoint of possibleEndpoints) {
+        try {
+          console.log("UpdateGroupAvatar - Trying POST to endpoint:", endpoint);
+          response = await apiClient.post(endpoint, formData, {
+            headers: {
+              "Content-Type": "multipart/form-data",
+            },
+            timeout: 15000,
+          });
+
+          console.log(
+            "UpdateGroupAvatar - Success with POST to endpoint:",
+            endpoint
+          );
+          console.log("UpdateGroupAvatar - Response:", response.data);
+          break;
+        } catch (endpointError) {
+          console.log(
+            "UpdateGroupAvatar - Failed POST to endpoint:",
+            endpoint,
+            endpointError
+          );
+          lastError = endpointError;
+        }
+      }
+    }
+
+    if (!response) {
+      throw (
+        lastError ||
+        new Error("Không thể cập nhật ảnh nhóm với bất kỳ endpoint nào")
+      );
+    }
+
+    // Xử lý response để lấy avatar URL, cố gắng tìm trong nhiều định dạng khác nhau
+    if (response.data) {
+      console.log(
+        "UpdateGroupAvatar - Full response data:",
+        JSON.stringify(response.data)
+      );
+
+      // Trích xuất URL từ response với nhiều định dạng có thể
+      const possiblePaths = [
+        response.data.groupAvatarUrl,
+        response.data.avatarUrl,
+        response.data.url,
+        response.data.imageUrl,
+        response.data.conversation?.groupAvatarUrl,
+        response.data.group?.avatarUrl,
+        response.data.data?.groupAvatarUrl,
+        response.data.data?.avatarUrl,
+      ];
+
+      // Lấy URL đầu tiên không phải null/undefined
+      const avatarUrl = possiblePaths.find((path) => path);
+
+      if (avatarUrl) {
+        console.log("UpdateGroupAvatar - Found avatar URL:", avatarUrl);
+        return avatarUrl;
+      }
+    }
+
+    // Nếu không thể trích xuất URL từ response, dùng URL tạm thời
+    const fallbackUrl = URL.createObjectURL(imageFile);
+    console.log("UpdateGroupAvatar - Using fallback local URL:", fallbackUrl);
+    return fallbackUrl;
+  } catch (error: unknown) {
+    console.error("UpdateGroupAvatar - Error details:", error);
+    if (error instanceof Error) {
+      console.error("UpdateGroupAvatar - Error message:", error.message);
+    }
+
+    // Phân tích lỗi axios
+    const axiosError = error as {
+      response?: { status: number; data: unknown; headers: unknown };
+    };
+    if (axiosError.response) {
+      console.error("UpdateGroupAvatar - Error response:", {
+        status: axiosError.response.status,
+        data: axiosError.response.data,
+        headers: axiosError.response.headers,
+      });
+    }
+
+    // Dùng URL tạm thời nếu lỗi
+    try {
+      const fallbackUrl = URL.createObjectURL(imageFile);
+      console.log(
+        "UpdateGroupAvatar - Using fallback local URL after error:",
+        fallbackUrl
+      );
+      return fallbackUrl;
+    } catch (fallbackError) {
+      console.error("UpdateGroupAvatar - Even fallback failed:", fallbackError);
+    }
+
+    throw new Error("Không thể cập nhật ảnh nhóm. Vui lòng thử lại sau.");
 
 /**
  * Sets co-owners for a group conversation

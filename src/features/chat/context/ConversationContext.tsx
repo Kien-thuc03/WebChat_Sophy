@@ -1,3 +1,4 @@
+// ConversationContext.tsx
 import React, {
   createContext,
   useState,
@@ -17,9 +18,9 @@ interface Message {
   type: string;
   senderId: string;
   createdAt: string;
-  messageDetailId?: string; // Used in ChatArea.tsx
-  messageId?: string; // Used elsewhere
-  id?: string; // Fallback
+  messageDetailId?: string;
+  messageId?: string;
+  id?: string;
   readBy?: string[];
   deliveredTo?: string[];
 }
@@ -47,6 +48,40 @@ interface ConversationContextType {
 const ConversationContext = createContext<ConversationContextType | undefined>(
   undefined
 );
+
+// Helper functions for localStorage avatars
+const saveGroupAvatarToLocalStorage = (
+  conversationId: string,
+  avatarUrl: string
+) => {
+  try {
+    const storedAvatars = JSON.parse(
+      localStorage.getItem("groupAvatars") || "{}"
+    );
+    storedAvatars[conversationId] = avatarUrl;
+    localStorage.setItem("groupAvatars", JSON.stringify(storedAvatars));
+    console.log(
+      "Saved avatar to localStorage for conversationId:",
+      conversationId
+    );
+    return true;
+  } catch (error) {
+    console.error("Error saving avatar to localStorage:", error);
+    return false;
+  }
+};
+
+const getGroupAvatarFromLocalStorage = (conversationId: string) => {
+  try {
+    const storedAvatars = JSON.parse(
+      localStorage.getItem("groupAvatars") || "{}"
+    );
+    return storedAvatars[conversationId] || null;
+  } catch (error) {
+    console.error("Error getting avatar from localStorage:", error);
+    return null;
+  }
+};
 
 export const ConversationProvider: React.FC<{ children: ReactNode }> = ({
   children,
@@ -79,7 +114,6 @@ export const ConversationProvider: React.FC<{ children: ReactNode }> = ({
     }
 
     const currentUserId = localStorage.getItem("userId");
-    // Xác định ID của người dùng khác trong cuộc trò chuyện
     const otherUserId =
       chat.creatorId === currentUserId ? chat.receiverId : chat.creatorId;
 
@@ -104,7 +138,6 @@ export const ConversationProvider: React.FC<{ children: ReactNode }> = ({
 
   // Tải danh sách hội thoại
   const loadConversations = async () => {
-    // Check if user is logged in
     const currentUserId = localStorage.getItem("userId");
     if (!currentUserId) {
       console.log("Không có ID người dùng, không thể tải hội thoại");
@@ -118,8 +151,30 @@ export const ConversationProvider: React.FC<{ children: ReactNode }> = ({
       const data = await fetchConversations();
       console.log("Đã nhận được dữ liệu hội thoại:", data.length, "hội thoại");
 
-      // Sắp xếp theo thời gian tin nhắn cuối cùng, mới nhất lên đầu
-      const sortedConversations = data.sort((a, b) => {
+      // Check localStorage for saved avatars and apply them
+      const processedData = data.map((conversation) => {
+        if (conversation.isGroup && conversation.conversationId) {
+          const localAvatar = getGroupAvatarFromLocalStorage(
+            conversation.conversationId
+          );
+          if (
+            localAvatar &&
+            (!conversation.groupAvatarUrl ||
+              conversation.groupAvatarUrl === "null")
+          ) {
+            console.log(
+              `Using localStorage avatar for ${conversation.conversationId}`
+            );
+            return {
+              ...conversation,
+              groupAvatarUrl: localAvatar,
+            };
+          }
+        }
+        return conversation;
+      });
+
+      const sortedConversations = processedData.sort((a, b) => {
         const timeA = a.lastMessage?.createdAt
           ? new Date(a.lastMessage.createdAt).getTime()
           : 0;
@@ -136,130 +191,159 @@ export const ConversationProvider: React.FC<{ children: ReactNode }> = ({
     }
   };
 
-  // New method to add a newly created conversation to the list
-  const addNewConversation = useCallback((conversationData: any) => {
-    console.log(
-      "ConversationContext: Adding new conversation to context:",
-      conversationData
-    );
-
-    // Ensure we have the required data
-    if (!conversationData.conversation?.conversationId) {
-      console.error(
-        "ConversationContext: Invalid conversation data received:",
+  // Thêm hội thoại mới
+  const addNewConversation = useCallback(
+    (conversationData: any) => {
+      console.log(
+        "ConversationContext: Adding new conversation:",
         conversationData
       );
-      return;
-    }
 
-    const { conversationId, creatorId, receiverId, createdAt } =
-      conversationData.conversation;
-
-    // Check if the conversation already exists to avoid duplicates
-    setConversations((prevConversations) => {
-      const exists = prevConversations.some(
-        (conv) => conv.conversationId === conversationId
-      );
-      if (exists) {
-        console.log(
-          "ConversationContext: Conversation already exists, skipping addition"
+      if (!conversationData.conversation?.conversationId) {
+        console.error(
+          "ConversationContext: Invalid conversation data:",
+          conversationData
         );
-        return prevConversations;
+        return;
       }
 
-      console.log(
-        "ConversationContext: Creating new conversation object with ID:",
-        conversationId
-      );
-
-      // Create a new conversation object with the data received
-      const newConversation: Conversation = {
+      const { conversation } = conversationData;
+      const {
         conversationId,
         creatorId,
         receiverId,
         createdAt,
-        isGroup: false,
-        lastChange: new Date().toISOString(),
-        unreadCount: 1, // Mark as unread initially
-        hasUnread: true,
-        // Add all required properties from the Conversation interface
-        groupMembers: [],
-        blockedBy: [],
-        isDeleted: false,
-        deletedAt: null,
-        groupName: undefined,
-        groupAvatarUrl: undefined,
-        formerMembers: [],
-        listImage: [],
-        listFile: [],
-        pinnedMessages: [],
-        muteNotifications: [],
+        isGroup,
+        groupName,
+        groupMembers,
+        groupAvatarUrl,
+      } = conversation;
+
+      // If it's a group conversation with an avatar, save it to localStorage
+      if (isGroup && conversationId && groupAvatarUrl) {
+        saveGroupAvatarToLocalStorage(conversationId, groupAvatarUrl);
+      }
+
+      setConversations((prevConversations) => {
+        const exists = prevConversations.some(
+          (conv) => conv.conversationId === conversationId
+        );
+        if (exists) {
+          console.log(
+            "ConversationContext: Conversation already exists:",
+            conversationId
+          );
+
+          // Update existing conversation's avatar if needed
+          if (isGroup && groupAvatarUrl) {
+            return prevConversations.map((conv) =>
+              conv.conversationId === conversationId
+                ? { ...conv, groupAvatarUrl, ...conversation }
+                : conv
+            );
+          }
+
+          return prevConversations;
+        }
+
+        // Tạo đối tượng hội thoại mới
+        const newConversation: Conversation = {
+          conversationId,
+          creatorId,
+          receiverId: isGroup ? undefined : receiverId,
+          createdAt: createdAt || new Date().toISOString(),
+          lastChange: createdAt || new Date().toISOString(),
+          isGroup: isGroup || false,
+          groupName: isGroup ? groupName : undefined,
+          groupMembers: isGroup ? groupMembers || [] : [],
+          groupAvatarUrl: isGroup ? groupAvatarUrl || undefined : undefined,
+          unreadCount: isGroup ? [] : 1,
+          hasUnread: !isGroup,
+          blockedBy: [],
+          isDeleted: false,
+          deletedAt: null,
+          formerMembers: [],
+          listImage: [],
+          listFile: [],
+          pinnedMessages: [],
+          muteNotifications: [],
+        };
+
+        console.log(
+          "ConversationContext: New conversation object:",
+          newConversation
+        );
+
+        // Thêm hội thoại mới vào đầu danh sách
+        const updatedConversations = [newConversation, ...prevConversations];
+        console.log(
+          "ConversationContext: Updated conversation count:",
+          updatedConversations.length
+        );
+        return updatedConversations;
+      });
+
+      // Lấy thông tin người dùng cho các thành viên
+      const fetchUserInfo = async () => {
+        try {
+          if (isGroup && groupMembers) {
+            for (const memberId of groupMembers) {
+              if (!userCache[memberId]) {
+                const userData = await getUserById(memberId);
+                setUserCache((prev) => ({
+                  ...prev,
+                  [memberId]: userData,
+                }));
+                if (userData?.urlavatar) {
+                  setUserAvatars((prev) => ({
+                    ...prev,
+                    [memberId]: userData.urlavatar,
+                  }));
+                }
+              }
+            }
+          } else {
+            if (creatorId && !userCache[creatorId]) {
+              const creatorData = await getUserById(creatorId);
+              setUserCache((prev) => ({
+                ...prev,
+                [creatorId]: creatorData,
+              }));
+              if (creatorData?.urlavatar) {
+                setUserAvatars((prev) => ({
+                  ...prev,
+                  [creatorId]: creatorData.urlavatar,
+                }));
+              }
+            }
+            if (receiverId && !userCache[receiverId]) {
+              const receiverData = await getUserById(receiverId);
+              setUserCache((prev) => ({
+                ...prev,
+                [receiverId]: receiverData,
+              }));
+              if (receiverData?.urlavatar) {
+                setUserAvatars((prev) => ({
+                  ...prev,
+                  [receiverId]: receiverData.urlavatar,
+                }));
+              }
+            }
+          }
+        } catch (error) {
+          console.error(
+            "ConversationContext: Error fetching user data:",
+            error
+          );
+        }
       };
 
-      // Log the conversation object and the current state
-      console.log(
-        "ConversationContext: New conversation object:",
-        newConversation
-      );
-      console.log(
-        "ConversationContext: Current conversation count:",
-        prevConversations.length
-      );
+      fetchUserInfo();
+    },
+    [userCache]
+  );
 
-      // Add the new conversation at the top of the list
-      const updatedConversations = [newConversation, ...prevConversations];
-      console.log(
-        "ConversationContext: Updated conversation count:",
-        updatedConversations.length
-      );
-      return updatedConversations;
-    });
-
-    // Fetch user data for the participants to display their names properly
-    const fetchUserInfo = async () => {
-      try {
-        // Fetch creator info if needed
-        if (creatorId) {
-          const creatorData = await getUserById(creatorId);
-          if (creatorData) {
-            setUserCache((prev) => ({
-              ...prev,
-              [creatorId]: creatorData,
-            }));
-            if (creatorData.urlavatar) {
-              setUserAvatars((prev) => ({
-                ...prev,
-                [creatorId]: creatorData.urlavatar,
-              }));
-            }
-          }
-        }
-
-        // Fetch receiver info if needed
-        if (receiverId) {
-          const receiverData = await getUserById(receiverId);
-          if (receiverData) {
-            setUserCache((prev) => ({
-              ...prev,
-              [receiverId]: receiverData,
-            }));
-            if (receiverData.urlavatar) {
-              setUserAvatars((prev) => ({
-                ...prev,
-                [receiverId]: receiverData.urlavatar,
-              }));
-            }
-          }
-        }
-      } catch (error) {
-        console.error("ConversationContext: Error fetching user data:", error);
-      }
-    };
-
-    fetchUserInfo();
-  }, []);
-
-  // New method to mark a conversation as read
+  // Đánh dấu hội thoại là đã đọc
   const markConversationAsRead = useCallback((conversationId: string) => {
     setConversations((prevConversations) => {
       return prevConversations.map((conv) => {
@@ -275,19 +359,16 @@ export const ConversationProvider: React.FC<{ children: ReactNode }> = ({
     });
   }, []);
 
-  // Update unread status when messages are marked as read
+  // Cập nhật trạng thái chưa đọc
   const updateUnreadStatus = useCallback(
     (conversationId: string, messageIds: string[]) => {
       setConversations((prevConversations) => {
         return prevConversations.map((conv) => {
           if (conv.conversationId === conversationId) {
-            // Check if messageIds is defined before using includes
             if (messageIds && Array.isArray(messageIds)) {
-              // Only update if any of the message IDs match the newest message
               const messageIdMatched = messageIds.includes(
                 conv.newestMessageId || ""
               );
-
               if (messageIdMatched) {
                 return {
                   ...conv,
@@ -296,7 +377,6 @@ export const ConversationProvider: React.FC<{ children: ReactNode }> = ({
                 };
               }
             } else {
-              // If messageIds is undefined or not an array, just mark the conversation as read
               return {
                 ...conv,
                 unreadCount: 0,
@@ -311,40 +391,43 @@ export const ConversationProvider: React.FC<{ children: ReactNode }> = ({
     []
   );
 
-  // Modify updateConversationWithNewMessage to handle unread status
+  // Cập nhật hội thoại với tin nhắn mới
   const updateConversationWithNewMessage = useCallback(
     (conversationId: string, message: Message) => {
       const currentUserId = localStorage.getItem("userId");
       const isFromCurrentUser = message.senderId === currentUserId;
 
       setConversations((prevConversations) => {
-        // Find the conversation to update
         const conversationIndex = prevConversations.findIndex(
           (conv) => conv.conversationId === conversationId
         );
 
         if (conversationIndex === -1) return prevConversations;
 
-        // Create a copy of the conversations list
         const updatedConversations = [...prevConversations];
         const existingConversation = updatedConversations[conversationIndex];
 
-        // Get the message ID (handling different property names)
         const messageId =
           message.messageDetailId || message.messageId || message.id || "";
 
-        // Calculate new unread count
-        let newUnreadCount: number;
-        if (typeof existingConversation.unreadCount === "number") {
+        let newUnreadCount: number | UnreadCount[];
+        if (Array.isArray(existingConversation.unreadCount)) {
+          newUnreadCount = isFromCurrentUser
+            ? existingConversation.unreadCount
+            : [
+                ...existingConversation.unreadCount,
+                {
+                  userId: currentUserId || "",
+                  count: 1,
+                  lastRead: new Date().toISOString(),
+                },
+              ];
+        } else {
           newUnreadCount = isFromCurrentUser
             ? 0
-            : existingConversation.unreadCount + 1;
-        } else {
-          // If it's an array or undefined, start with a new count
-          newUnreadCount = isFromCurrentUser ? 0 : 1;
+            : (existingConversation.unreadCount as number) + 1;
         }
 
-        // Update the conversation with the new message
         const updatedConversation: Conversation = {
           ...existingConversation,
           lastMessage: {
@@ -376,17 +459,14 @@ export const ConversationProvider: React.FC<{ children: ReactNode }> = ({
           hasUnread: !isFromCurrentUser,
         };
 
-        // Remove the conversation from its old position
         updatedConversations.splice(conversationIndex, 1);
-
-        // Add the updated conversation to the top of the list
         return [updatedConversation, ...updatedConversations];
       });
     },
     []
   );
 
-  // Làm mới danh sách cuộc trò chuyện
+  // Làm mới danh sách hội thoại
   const refreshConversations = useCallback(async () => {
     setIsLoading(true);
     await loadConversations();
@@ -396,7 +476,6 @@ export const ConversationProvider: React.FC<{ children: ReactNode }> = ({
   useEffect(() => {
     const fetchUserInfo = async () => {
       for (const chat of conversations) {
-        // Lấy thông tin người dùng trong nhóm
         if (chat.isGroup && chat.groupMembers) {
           for (const memberId of chat.groupMembers) {
             if (!userCache[memberId]) {
@@ -420,14 +499,12 @@ export const ConversationProvider: React.FC<{ children: ReactNode }> = ({
           }
         }
 
-        // Cập nhật tên hiển thị
         const displayName = await getDisplayName(chat);
         setDisplayNames((prev) => ({
           ...prev,
           [chat.conversationId]: displayName,
         }));
 
-        // Lấy thông tin người gửi tin nhắn cuối cùng
         if (
           chat.lastMessage?.senderId &&
           !userCache[chat.lastMessage.senderId]
@@ -450,64 +527,57 @@ export const ConversationProvider: React.FC<{ children: ReactNode }> = ({
     fetchUserInfo();
   }, [conversations]);
 
-  // Check for auth changes
+  // Kiểm tra trạng thái xác thực
   useEffect(() => {
     const checkAuthStatus = () => {
       const currentUserId = localStorage.getItem("userId");
-
-      // If user ID has changed or we got a user ID when we didn't have one before
       if (currentUserId !== userId) {
         setUserId(currentUserId);
         if (currentUserId) {
           console.log("Đã phát hiện đăng nhập mới, đang tải lại hội thoại...");
           loadConversations();
         } else {
-          // User logged out
           setConversations([]);
         }
       }
     };
 
-    // Check immediately
     checkAuthStatus();
-
-    // Set up interval to check periodically
     const interval = setInterval(checkAuthStatus, 2000);
-
     return () => clearInterval(interval);
   }, [userId]);
 
   // Tải dữ liệu khi khởi tạo
   useEffect(() => {
     const initializeData = async () => {
-      // Make sure to set loading state before attempting to load conversations
-      setIsLoading(true);
-
-      const currentUserId = localStorage.getItem("userId");
-      if (currentUserId) {
-        console.log(
-          "Khởi tạo dữ liệu hội thoại cho người dùng:",
-          currentUserId
-        );
-        await loadConversations();
-      } else {
-        console.log("Chưa đăng nhập, sẽ tải dữ liệu sau khi đăng nhập");
-        setIsLoading(false);
-      }
+      await loadConversations();
     };
 
-    initializeData();
-  }, []);
+    // Check if user is logged in
+    const currentUserId = localStorage.getItem("userId");
+    if (currentUserId) {
+      initializeData();
+      // Initialize socket connection if available
+      if (typeof socketService.initialize === "function") {
+        socketService.initialize();
+      }
+      // No need to add event listeners here as they're already set up in another useEffect
+    }
 
-  // Save conversations to localStorage whenever they change
+    // No event listeners to clean up here
+  }, [userId]);
+
+  // Lưu hội thoại vào localStorage
   useEffect(() => {
     if (conversations.length > 0) {
       try {
-        // Only save minimal conversation data needed to reconnect
         const minimalConversations = conversations.map((conv) => ({
           conversationId: conv.conversationId,
           creatorId: conv.creatorId,
           receiverId: conv.receiverId,
+          isGroup: conv.isGroup,
+          groupName: conv.groupName,
+          groupAvatarUrl: conv.groupAvatarUrl,
         }));
         localStorage.setItem(
           "lastConversations",
@@ -524,11 +594,9 @@ export const ConversationProvider: React.FC<{ children: ReactNode }> = ({
     }
   }, [conversations]);
 
-  // Ensure socket connections are reestablished when conversations are loaded
+  // Kết nối socket cho các hội thoại
   useEffect(() => {
     if (conversations.length > 0 && !isLoading) {
-      // There might be a slight delay after loading conversations before all socket
-      // connections are fully established. Try to refresh connections after a brief delay.
       const timer = setTimeout(() => {
         const conversationIds = conversations.map(
           (conv) => conv.conversationId
@@ -544,9 +612,8 @@ export const ConversationProvider: React.FC<{ children: ReactNode }> = ({
     }
   }, [conversations, isLoading]);
 
-  // Listen for custom events from API for new conversations
+  // Lắng nghe sự kiện tạo hội thoại mới
   useEffect(() => {
-    // Handler for custom event emitted by createConversation API
     const handleNewConversationEvent = (event: CustomEvent) => {
       console.log(
         "Received newConversationCreated custom event:",
@@ -555,13 +622,11 @@ export const ConversationProvider: React.FC<{ children: ReactNode }> = ({
       addNewConversation(event.detail);
     };
 
-    // Add event listener
     window.addEventListener(
       "newConversationCreated",
       handleNewConversationEvent as EventListener
     );
 
-    // Cleanup
     return () => {
       window.removeEventListener(
         "newConversationCreated",
@@ -570,23 +635,17 @@ export const ConversationProvider: React.FC<{ children: ReactNode }> = ({
     };
   }, [addNewConversation]);
 
-  // Periodic polling to make sure we don't miss any new conversations
+  // Polling để kiểm tra hội thoại mới
   useEffect(() => {
-    // Only poll if user is logged in
     const currentUserId = localStorage.getItem("userId");
     if (!currentUserId || isLoading) return;
 
     console.log("Setting up periodic conversation polling");
 
-    // Poll for new conversations every 5 seconds
     const pollInterval = setInterval(async () => {
       try {
-        // Get the current conversations from API
         const latestConversations = await fetchConversations();
-
-        // Compare with current state to find new ones
         if (latestConversations && latestConversations.length > 0) {
-          // Check if we have new conversations that aren't in our current state
           const currentIds = new Set(
             conversations.map((c) => c.conversationId)
           );
@@ -601,10 +660,8 @@ export const ConversationProvider: React.FC<{ children: ReactNode }> = ({
               newConversations
             );
 
-            // Update our conversations state with the new ones at the top
             setConversations((prev) => {
               const updated = [...newConversations, ...prev];
-              // Sort by latest message time
               return updated.sort((a, b) => {
                 const timeA = a.lastMessage?.createdAt
                   ? new Date(a.lastMessage.createdAt).getTime()
@@ -616,14 +673,11 @@ export const ConversationProvider: React.FC<{ children: ReactNode }> = ({
               });
             });
 
-            // Join the socket rooms for these new conversations
             const newIds = newConversations.map((c) => c.conversationId);
             console.log("Joining new conversation rooms from polling:", newIds);
             socketService.joinConversations(newIds);
 
-            // Flash a notification to the user about new conversations
             try {
-              // Show browser notification if supported
               if (
                 "Notification" in window &&
                 Notification.permission === "granted"
@@ -640,7 +694,7 @@ export const ConversationProvider: React.FC<{ children: ReactNode }> = ({
       } catch (error) {
         console.error("Error polling for conversations:", error);
       }
-    }, 5000); // Poll every 5 seconds
+    }, 5000);
 
     return () => clearInterval(pollInterval);
   }, [conversations, isLoading]);

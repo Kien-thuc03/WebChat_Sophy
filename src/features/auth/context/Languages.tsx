@@ -185,6 +185,9 @@ const translations = {
     cancel_request: "Thu hồi lời mời",
     unblock: "Bỏ chặn",
     no_blocked_users: "Không có người dùng nào bị chặn",
+    update_group_avatar_success: "Cập nhật ảnh đại diện nhóm thành công!",
+    update_group_avatar_error: "Cập nhật ảnh đại diện nhóm thất bại!",
+    update_group_avatar: "Cập nhật ảnh đại diện nhóm",
   },
   en: {
     settings: "Settings",
@@ -369,6 +372,9 @@ const translations = {
     cancel_request: "Cancel Request", // 
     unblock: "Unblock",
     no_blocked_users: "No users have been blocked",
+    update_group_avatar_success: "Group avatar updated successfully!",
+    update_group_avatar_error: "Failed to update group avatar!",
+    update_group_avatar: "Update Group Avatar",
   },
 };
 
