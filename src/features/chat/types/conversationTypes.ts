@@ -59,7 +59,7 @@ export interface Conversation {
   listFile: string[];
   pinnedMessages: string[];
   muteNotifications: string[];
-  unreadCount: UnreadCount[] | object;
+  unreadCount: UnreadCount[] | number;
   hasUnread?: boolean;
   lastChange: string;
   createdAt: string;

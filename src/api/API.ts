@@ -2643,3 +2643,30 @@ export const deleteGroup = async (conversationId: string) => {
     throw error;
   }
 };
+
+export const leaveGroup = async (conversationId: string) => {
+  try {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      throw new Error('User not authenticated');
+    }
+
+    // Sửa lại URL để khớp với định nghĩa router ở backend
+    // router.put('/group/:conversationId/leave', auth, conversationController.leaveGroup.bind(conversationController));
+    const response = await apiClient.put(`/api/conversations/group/${conversationId}/leave`);
+
+    if (response.status !== 200) {
+      throw new Error('Failed to leave group');
+    }
+
+    return response.data;
+  } catch (error: any) {
+    console.error('Error leaving group:', {
+      message: error.message,
+      status: error.response?.status,
+      data: error.response?.data
+    });
+    logApiError('leaveGroup', error);
+    throw error;
+  }
+};

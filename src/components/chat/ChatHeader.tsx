@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { SearchOutlined, VideoCameraOutlined, UserAddOutlined, RightOutlined, InfoCircleOutlined, PhoneOutlined } from '@ant-design/icons';
+import { VideoCameraOutlined, UserAddOutlined, InfoCircleOutlined, PhoneOutlined } from '@ant-design/icons';
 import { ChatHeaderProps } from '../../features/chat/types/chatTypes';
 import { Conversation } from '../../features/chat/types/conversationTypes';
 import GroupAvatar from './GroupAvatar';
@@ -167,8 +167,6 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({ conversation, onInfoCli
           <div className="flex items-center text-sm text-gray-500">
             {isGroup ? (
               <>
-                <span>{t.community || 'Cộng đồng'}</span>
-                <span className="mx-1">•</span>
                 <div className="flex items-center cursor-pointer hover:text-blue-500">
                   <i className="far fa-user mr-1" />
                   <span>{groupMembers.length} {t.members || 'thành viên'}</span>

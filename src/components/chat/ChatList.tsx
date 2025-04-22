@@ -389,7 +389,19 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
       ) : (
         <List
           className="overflow-y-auto flex-1"
-          dataSource={conversations}
+          dataSource={conversations.filter(conv => {
+            // Filter out deleted conversations
+            if (conv.isDeleted) return false;
+            
+            // Filter out conversations where current user is in formerMembers
+            const currentUserId = localStorage.getItem("userId") || "";
+            if (conv.formerMembers && conv.formerMembers.includes(currentUserId)) {
+              console.log(`Filtering out conversation ${conv.conversationId} as user ${currentUserId} is in formerMembers`);
+              return false;
+            }
+            
+            return true;
+          })}
           renderItem={(chat) => (
             <List.Item
               className={`flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer px-3 py-2 ${

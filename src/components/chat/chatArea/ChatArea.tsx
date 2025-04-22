@@ -93,7 +93,7 @@ interface ChatAreaProps {
 // Component hiển thị tin nhắn trả lời (chuyển từ ChatMessage)
 
 
-export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
+export function ChatArea({ conversation }: ChatAreaProps) {
   const [messages, setMessages] = useState<DisplayMessage[]>([]);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [inputValue, setInputValue] = useState("");
@@ -725,8 +725,6 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
       // Callback cho sự kiện tin nhắn đã gửi
       const handleMessageDelivered = (data: { conversationId: string, messageIds: string[], userId: string }) => {
         if (data.conversationId !== conversation.conversationId) return;
-        
-        console.log("📬 MessageDelivered event received:", data);
         
         // Cập nhật trạng thái đã gửi cho tin nhắn
         setMessages(prevMessages => {
@@ -1587,7 +1585,6 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
         // Nếu có ít nhất một người khác đã đọc tin nhắn (không tính người gửi)
         const otherReadersCount = msg.readBy.filter((id: string) => id !== currentUserId).length;
         if (otherReadersCount > 0) {
-          console.log("Message marked as READ based on readBy array:", msg.messageDetailId || msg.id);
           return "read";
         }
       }

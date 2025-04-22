@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Button, Switch, Tooltip, Modal, Input, List, Avatar as AntAvatar, App, notification } from "antd";
+import { Button, Switch, Tooltip, Modal, Input, List , notification } from "antd";
 import {
   ArrowLeftOutlined,
   QuestionCircleOutlined,
@@ -10,8 +10,6 @@ import {
   TeamOutlined,
   DeleteOutlined,
   LockOutlined,
-  CloseCircleOutlined,
-  CheckOutlined,
   SearchOutlined,
 } from "@ant-design/icons";
 import { Conversation } from "../../../features/chat/types/conversationTypes";
@@ -25,6 +23,7 @@ interface GroupManagementProps {
   conversation: Conversation;
   groupLink: string;
   onBack: () => void;
+  onDisband?: () => void;
 }
 
 // User roles enum
@@ -38,6 +37,7 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
   conversation: initialConversation,
   groupLink,
   onBack,
+  onDisband
 }) => {
   // State for the conversation (now local to allow updates)
   const [conversation, setConversation] = useState<Conversation>(initialConversation);
@@ -53,8 +53,8 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
   const [localUserCache, setLocalUserCache] = useState<Record<string, User>>({});
   
   // Use the chat info hook
-  const { loading, error, setCoOwners, addCoOwner, removeCoOwner, removeCoOwnerDirectly, transferOwnership, deleteGroupConversation } = useChatInfo();
-  const { userCache, userAvatars } = useConversations();
+  const { loading, error, addCoOwner, removeCoOwnerDirectly, transferOwnership, deleteGroupConversation } = useChatInfo();
+  const { userCache } = useConversations();
 
   // State for the permission settings
   const [permissions, setPermissions] = useState({
@@ -204,12 +204,17 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
             notification.success({
               key,
               message: 'Thành công',
-              description: 'Đã giải tán nhóm thành công',
+              description: 'Đã giải tán nhóm thành công.',
               duration: 2
             });
             
-            // Redirect to conversation list or home
-            onBack();
+            // Gọi callback để cập nhật giao diện ngay lập tức
+            if (onDisband) {
+              onDisband();
+            } else {
+              // Fallback nếu không có callback
+              onBack();
+            }
           } else {
             notification.error({
               key,
@@ -230,9 +235,6 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
     });
   };
 
-  // Check if user can modify settings
-  const canModifySettings =
-    userRole === UserRole.OWNER || userRole === UserRole.CO_OWNER;
 
   // Get owner and co-owner data
   const owner = conversation.rules?.ownerId || "";
@@ -387,13 +389,22 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
         notification.success({
           key,
           message: 'Thành công',
-          description: 'Đã chuyển quyền trưởng nhóm thành công',
-          duration: 2
+          description: 'Đã chuyển quyền trưởng nhóm thành công. Bạn có thể rời nhóm an toàn bây giờ.',
+          duration: 5
         });
         setIsTransferOwnerModalVisible(false);
         setSelectedNewOwner(null);
         // Trở về màn hình chính sau khi chuyển quyền
         setShowOwnerManagement(false);
+
+        // Hiển thị thông báo hướng dẫn rời nhóm
+        setTimeout(() => {
+          Modal.info({
+            title: 'Chuyển quyền thành công',
+            content: 'Bạn đã chuyển quyền trưởng nhóm thành công và hiện là thành viên thường. Bạn có thể rời nhóm bằng cách nhấn vào "Rời nhóm" ở cuối trang.',
+            okText: 'Đã hiểu'
+          });
+        }, 1000);
       } else {
         notification.error({
           key,

@@ -2,7 +2,7 @@
 import io, { Socket } from "socket.io-client";
 import cloudinaryService from "./cloudinaryService";
 
-const IP_ADDRESS = "172.28.43.19";
+// const IP_ADDRESS = "172.28.43.19";
 
 // const SOCKET_SERVER_URL = `http://${IP_ADDRESS}:3000` || "http://localhost:3000";
 const SOCKET_SERVER_URL = "http://localhost:3000";
@@ -281,10 +281,6 @@ class SocketService {
       // Thử lại sau 1 giây
       setTimeout(() => {
         if (this.socket?.connected) {
-          console.log(
-            "Joining conversations after reconnect:",
-            conversationIds
-          );
           this.socket.emit("joinUserConversations", conversationIds);
         } else {
           console.error("Failed to connect socket for joining conversations");

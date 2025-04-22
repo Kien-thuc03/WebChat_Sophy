@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Conversation } from '../types/conversationTypes';
-import { setCoOwner, setOwner, removeCoOwnerById, deleteGroup } from '../../../api/API';
+import { setCoOwner, setOwner, removeCoOwnerById, deleteGroup, leaveGroup } from '../../../api/API';
 
 export const useChatInfo = () => {
   const [loading, setLoading] = useState(false);
@@ -191,6 +191,48 @@ export const useChatInfo = () => {
     }
   };
 
+  /**
+   * Leave a group conversation
+   * @param conversationId - The ID of the conversation to leave
+   */
+  const leaveGroupConversation = async (conversationId: string): Promise<Conversation | null> => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      console.log('Leaving group conversation:', { conversationId });
+      const response = await leaveGroup(conversationId);
+      setLoading(false);
+      
+      // Ensure we have a valid conversation object
+      if (response && response.conversation) {
+        console.log('Response after leaving group:', response.conversation);
+        
+        // Dọn dẹp mọi cache hoặc state cục bộ để đảm bảo không còn hiển thị
+        // Ví dụ: Nếu có state cache lưu conversation ở đây, hãy xóa nó
+        
+        return response.conversation;
+      } else {
+        setError('Invalid response format');
+        return null;
+      }
+    } catch (err: any) {
+      setLoading(false);
+      
+      // Handle different error formats
+      let errorMessage = 'Failed to leave group';
+      if (err.message) {
+        errorMessage = err.message;
+      } else if (err.response?.data?.message) {
+        errorMessage = err.response.data.message;
+      }
+      
+      setError(errorMessage);
+      console.error('Error leaving group:', errorMessage);
+      return null;
+    }
+  };
+
   return {
     loading,
     error,
@@ -199,6 +241,7 @@ export const useChatInfo = () => {
     removeCoOwnerDirectly,
     addCoOwner,
     transferOwnership,
-    deleteGroupConversation
+    deleteGroupConversation,
+    leaveGroupConversation
   };
 };
