@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Avatar } from '../../common/Avatar';
-import { Button, Tooltip, Collapse, Badge, Switch, Modal, Divider, Input } from 'antd';
+import { Button, Tooltip, Collapse, Badge, Switch, Modal, Divider, Input, App } from 'antd';
 import { 
   BellOutlined,
   PushpinOutlined,
@@ -32,9 +32,11 @@ import { User } from "../../../features/auth/types/authTypes";
 import GroupAvatar from '../GroupAvatar';
 import { useLanguage } from "../../../features/auth/context/LanguageContext";
 import GroupManagement from './GroupManagement';
+import { useChatInfo } from '../../../features/chat/hooks/useChatInfo';
 
 interface ChatInfoProps {
   conversation: Conversation;
+  onLeaveGroup?: () => void; // Callback khi rời nhóm thành công
 }
 
 // Extended conversation interface with additional properties returned by the API
@@ -51,7 +53,7 @@ interface DetailedConversation extends Conversation {
   sharedLinks?: any[];
 }
 
-const ChatInfo: React.FC<ChatInfoProps> = ({ conversation }) => {
+const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
   const [activeKeys, setActiveKeys] = useState<string[]>([]);
   const [isEditNameModalVisible, setIsEditNameModalVisible] = useState(false);
   const [localName, setLocalName] = useState('');
@@ -65,6 +67,8 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation }) => {
   const { userCache, userAvatars } = useConversations();
   const { t } = useLanguage();
   const [userRole, setUserRole] = useState<'owner' | 'co-owner' | 'member'>('member');
+  const { leaveGroupConversation } = useChatInfo();
+  const { message, modal } = App.useApp();
 
   // Fetch detailed conversation information
   useEffect(() => {
@@ -235,18 +239,91 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation }) => {
     // Share group link logic here
   };
 
-  const handleLeaveGroup = () => {
-    Modal.confirm({
-      title: 'Rời nhóm',
-      content: 'Bạn có chắc chắn muốn rời khỏi nhóm này?',
-      okText: 'Rời nhóm',
-      cancelText: 'Hủy',
-      okButtonProps: { danger: true },
-      onOk: () => {
-        // Leave group logic using the API
-        // Example: leaveGroup(currentConversation.conversationId);
+  const handleLeaveGroup = async () => {
+    // Lấy thông tin cuộc trò chuyện mới nhất trước khi kiểm tra
+    if (currentConversation.conversationId) {
+      try {
+        // Hiển thị trạng thái đang tải
+        const loadingKey = 'check-role';
+        message.loading({ content: 'Đang kiểm tra...', key: loadingKey });
+        
+        // Lấy lại thông tin conversation mới nhất để có quyền mới nhất
+        const updatedConversation = await getConversationDetail(currentConversation.conversationId);
+        
+        // Cập nhật conversation detail
+        setDetailedConversation(updatedConversation as DetailedConversation);
+        
+        // Kiểm tra lại quyền dựa trên thông tin mới nhất
+        const currentUserId = localStorage.getItem('userId') || '';
+        const isOwner = updatedConversation.rules?.ownerId === currentUserId;
+        
+        message.destroy(loadingKey);
+        
+        // Nếu là chủ nhóm, yêu cầu chuyển quyền
+        if (isOwner) {
+          modal.confirm({
+            title: 'Không thể rời nhóm',
+            content: 'Bạn là trưởng nhóm. Vui lòng chuyển quyền trưởng nhóm cho người khác trước khi rời nhóm.',
+            okText: 'Chuyển quyền',
+            cancelText: 'Hủy',
+            onOk: () => {
+              // Chuyển đến trang quản lý nhóm để chuyển quyền trưởng nhóm
+              setShowGroupManagement(true);
+            }
+          });
+          return;
+        }
+        
+        // Xử lý rời nhóm cho các thành viên khác
+        modal.confirm({
+          title: 'Rời nhóm',
+          content: 'Bạn có chắc chắn muốn rời khỏi nhóm này?',
+          okText: 'Rời nhóm',
+          cancelText: 'Hủy',
+          okButtonProps: { danger: true },
+          onOk: async () => {
+            try {
+              const key = 'leave-group';
+              message.loading({ content: 'Đang xử lý...', key });
+              
+              const result = await leaveGroupConversation(currentConversation.conversationId);
+              
+              if (result) {
+                message.success({ 
+                  content: 'Đã rời nhóm thành công.',
+                  key, 
+                  duration: 2 
+                });
+                
+                // Đảm bảo xóa hết state local về cuộc trò chuyện này
+                setDetailedConversation(null);
+                
+                // Gọi callback để cập nhật giao diện ngay lập tức
+                if (onLeaveGroup) {
+                  onLeaveGroup();
+                } else {
+                  // Fallback: Reload trang nếu không có callback
+                  setTimeout(() => window.location.reload(), 1000);
+                }
+              } else {
+                message.error({ content: 'Không thể rời nhóm', key, duration: 2 });
+              }
+            } catch (err: any) {
+              console.error('Failed to leave group:', err);
+              // Xử lý trường hợp lỗi cụ thể
+              if (err.response?.status === 400 && err.response?.data?.message?.includes('owner')) {
+                message.error('Bạn là trưởng nhóm, không thể rời nhóm. Vui lòng chuyển quyền trước.');
+              } else {
+                message.error('Không thể rời nhóm. Vui lòng thử lại.');
+              }
+            }
+          }
+        });
+      } catch (err) {
+        console.error('Error checking user role:', err);
+        message.error('Đã xảy ra lỗi. Vui lòng thử lại sau.');
       }
-    });
+    }
   };
 
   const handleShowGroupManagement = () => {
@@ -277,6 +354,7 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation }) => {
         conversation={currentConversation}
         groupLink={groupLink}
         onBack={handleBackFromGroupManagement}
+        onDisband={onLeaveGroup}
       />
     );
   }

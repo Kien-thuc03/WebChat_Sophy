@@ -258,6 +258,31 @@ const Dashboard: React.FC = () => {
     };
   }, [conversations, refreshConversations]);
 
+  // Xử lý khi người dùng rời nhóm hoặc giải tán nhóm thành công
+  const handleGroupLeaveOrDisband = async () => {
+    // Đầu tiên, đặt selectedConversation thành null để tránh hiển thị khu vực chat
+    setSelectedConversation(null);
+    
+    // Đảm bảo UI được cập nhật trước
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    // Tải lại danh sách cuộc trò chuyện
+    await refreshConversations();
+    
+    // Chuyển về màn hình chính
+    setActiveSection("chat");
+    
+    // Đảm bảo mọi phần tử UI được cập nhật
+    setTimeout(() => {
+      // Force refresh nếu cần thiết
+      const chatListContainer = document.querySelector(".chat-list");
+      if (chatListContainer) {
+        chatListContainer.classList.add("refreshed");
+        setTimeout(() => chatListContainer.classList.remove("refreshed"), 50);
+      }
+    }, 300);
+  };
+
   return (
     <div className="flex h-screen overflow-hidden">
       <Sidebar
@@ -338,7 +363,7 @@ const Dashboard: React.FC = () => {
             </div>
             {showChatInfo && (
               <div className="w-[350px] border-l border-gray-200 flex-shrink-0 overflow-hidden">
-                <ChatInfo conversation={selectedConversation} />
+                <ChatInfo conversation={selectedConversation} onLeaveGroup={handleGroupLeaveOrDisband} />
               </div>
             )}
           </div>
