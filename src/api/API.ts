@@ -2368,3 +2368,31 @@ export const removeCoOwnerById = async (conversationId: string, userId: string) 
     throw error;
   }
 };
+
+/**
+ * Deletes a group conversation (owner only)
+ * @param conversationId The ID of the conversation to delete
+ */
+export const deleteGroup = async (conversationId: string) => {
+  try {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      throw new Error('User not authenticated');
+    }
+    
+    const response = await apiClient.put(`/api/conversations/group/delete/${conversationId}`);
+
+    if (response.status !== 200) {
+      throw new Error('Failed to delete group');
+    }
+
+    return response.data;
+  } catch (error: any) {
+    console.error('Error deleting group:', {
+      message: error.message,
+      status: error.response?.status,
+      data: error.response?.data
+    });
+    throw error;
+  }
+};

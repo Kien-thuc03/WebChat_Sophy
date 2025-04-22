@@ -53,7 +53,7 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
   const [localUserCache, setLocalUserCache] = useState<Record<string, User>>({});
   
   // Use the chat info hook
-  const { loading, error, setCoOwners, addCoOwner, removeCoOwner, removeCoOwnerDirectly, transferOwnership } = useChatInfo();
+  const { loading, error, setCoOwners, addCoOwner, removeCoOwner, removeCoOwnerDirectly, transferOwnership, deleteGroupConversation } = useChatInfo();
   const { userCache, userAvatars } = useConversations();
 
   // State for the permission settings
@@ -173,6 +173,61 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
     if (userRole !== UserRole.OWNER) return;
 
     // Implement disband group functionality with confirmation
+    Modal.confirm({
+      title: 'Giải tán nhóm',
+      content: 'Bạn có chắc chắn muốn giải tán nhóm? Tất cả thành viên sẽ bị xóa khỏi nhóm và không thể hoàn tác hành động này.',
+      okText: 'Giải tán',
+      cancelText: 'Hủy',
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        if (!conversation.conversationId) {
+          notification.error({
+            message: 'Lỗi',
+            description: 'Không thể giải tán nhóm. Vui lòng thử lại.'
+          });
+          return;
+        }
+        
+        try {
+          // Turn on loading state
+          const key = 'disband-group';
+          notification.open({
+            key,
+            message: 'Đang xử lý',
+            description: 'Đang giải tán nhóm...',
+            duration: 0
+          });
+          
+          const result = await deleteGroupConversation(conversation.conversationId);
+          
+          if (result) {
+            notification.success({
+              key,
+              message: 'Thành công',
+              description: 'Đã giải tán nhóm thành công',
+              duration: 2
+            });
+            
+            // Redirect to conversation list or home
+            onBack();
+          } else {
+            notification.error({
+              key,
+              message: 'Lỗi',
+              description: error || 'Không thể giải tán nhóm',
+              duration: 2
+            });
+          }
+        } catch (err) {
+          console.error('Failed to disband group:', err);
+          notification.error({
+            message: 'Lỗi',
+            description: 'Không thể giải tán nhóm. Vui lòng thử lại.',
+            duration: 2
+          });
+        }
+      }
+    });
   };
 
   // Check if user can modify settings

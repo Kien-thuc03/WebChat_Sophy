@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Conversation } from '../types/conversationTypes';
-import { setCoOwner, setOwner, removeCoOwnerById } from '../../../api/API';
+import { setCoOwner, setOwner, removeCoOwnerById, deleteGroup } from '../../../api/API';
 
 export const useChatInfo = () => {
   const [loading, setLoading] = useState(false);
@@ -153,6 +153,44 @@ export const useChatInfo = () => {
     }
   };
 
+  /**
+   * Delete a group conversation (owner only)
+   * @param conversationId - The ID of the conversation to delete
+   */
+  const deleteGroupConversation = async (conversationId: string): Promise<Conversation | null> => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      console.log('Deleting group conversation:', { conversationId });
+      const response = await deleteGroup(conversationId);
+      setLoading(false);
+      
+      // Ensure we have a valid conversation object
+      if (response && response.conversation) {
+        console.log('Response after deleting group:', response.conversation);
+        return response.conversation;
+      } else {
+        setError('Invalid response format');
+        return null;
+      }
+    } catch (err: any) {
+      setLoading(false);
+      
+      // Handle different error formats
+      let errorMessage = 'Failed to delete group';
+      if (err.message) {
+        errorMessage = err.message;
+      } else if (err.response?.data?.message) {
+        errorMessage = err.response.data.message;
+      }
+      
+      setError(errorMessage);
+      console.error('Error deleting group:', errorMessage);
+      return null;
+    }
+  };
+
   return {
     loading,
     error,
@@ -160,6 +198,7 @@ export const useChatInfo = () => {
     removeCoOwner,
     removeCoOwnerDirectly,
     addCoOwner,
-    transferOwnership
+    transferOwnership,
+    deleteGroupConversation
   };
 };
