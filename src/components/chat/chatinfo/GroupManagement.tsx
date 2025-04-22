@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Button, Switch, Tooltip } from "antd";
+import { Button, Switch, Tooltip, Modal, Input, List, Avatar as AntAvatar, App, notification } from "antd";
 import {
   ArrowLeftOutlined,
   QuestionCircleOutlined,
@@ -10,8 +10,16 @@ import {
   TeamOutlined,
   DeleteOutlined,
   LockOutlined,
+  CloseCircleOutlined,
+  CheckOutlined,
+  SearchOutlined,
 } from "@ant-design/icons";
 import { Conversation } from "../../../features/chat/types/conversationTypes";
+import { User } from "../../../features/auth/types/authTypes";
+import { useChatInfo } from "../../../features/chat/hooks/useChatInfo";
+import { useConversations } from "../../../features/chat/hooks/useConversations";
+import { getUserById } from "../../../api/API";
+import { Avatar } from "../../common/Avatar";
 
 interface GroupManagementProps {
   conversation: Conversation;
@@ -27,12 +35,26 @@ enum UserRole {
 }
 
 const GroupManagement: React.FC<GroupManagementProps> = ({
-  conversation,
+  conversation: initialConversation,
   groupLink,
   onBack,
 }) => {
+  // State for the conversation (now local to allow updates)
+  const [conversation, setConversation] = useState<Conversation>(initialConversation);
+  
   // State for user role
   const [userRole, setUserRole] = useState<UserRole>(UserRole.MEMBER);
+  
+  // State for managing owners and co-owners
+  const [showOwnerManagement, setShowOwnerManagement] = useState(false);
+  const [isAddCoOwnerModalVisible, setIsAddCoOwnerModalVisible] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedMember, setSelectedMember] = useState<string | null>(null);
+  const [localUserCache, setLocalUserCache] = useState<Record<string, User>>({});
+  
+  // Use the chat info hook
+  const { loading, error, setCoOwners, addCoOwner, removeCoOwner, removeCoOwnerDirectly, transferOwnership } = useChatInfo();
+  const { userCache, userAvatars } = useConversations();
 
   // State for the permission settings
   const [permissions, setPermissions] = useState({
@@ -50,6 +72,10 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
     allowAccessToHistory: false,
     allowLinkInvitation: true,
   });
+
+  // Thêm state cho modal chuyển quyền
+  const [isTransferOwnerModalVisible, setIsTransferOwnerModalVisible] = useState(false);
+  const [selectedNewOwner, setSelectedNewOwner] = useState<string | null>(null);
 
   // Determine user role when component mounts
   useEffect(() => {
@@ -70,6 +96,41 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
       }
     }
   }, [conversation]);
+
+  // Load user data for members not in the cache
+  useEffect(() => {
+    const loadMemberData = async () => {
+      // Get all member IDs that need to be loaded
+      const allMemberIds = conversation.groupMembers || [];
+      const missingMemberIds = allMemberIds.filter(
+        id => !userCache[id] && !localUserCache[id]
+      );
+
+      if (missingMemberIds.length === 0) return;
+
+      // Load data for each missing member
+      for (const memberId of missingMemberIds) {
+        try {
+          const userData = await getUserById(memberId);
+          if (userData) {
+            setLocalUserCache(prev => ({
+              ...prev,
+              [memberId]: userData
+            }));
+          }
+        } catch (error) {
+          console.error(`Failed to load data for user ${memberId}:`, error);
+        }
+      }
+    };
+
+    loadMemberData();
+  }, [conversation.groupMembers, userCache, localUserCache]);
+
+  // Update the local conversation when the prop changes
+  useEffect(() => {
+    setConversation(initialConversation);
+  }, [initialConversation]);
 
   const handlePermissionChange = (permissionKey: keyof typeof permissions) => {
     // Only owner and co-owners can change permissions
@@ -117,6 +178,494 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
   // Check if user can modify settings
   const canModifySettings =
     userRole === UserRole.OWNER || userRole === UserRole.CO_OWNER;
+
+  // Get owner and co-owner data
+  const owner = conversation.rules?.ownerId || "";
+  const coOwners = conversation.rules?.coOwnerIds || [];
+  
+  // Filter group members that aren't owner or co-owners
+  const regularMembers = conversation.groupMembers?.filter(
+    (memberId) => 
+      memberId !== owner && 
+      !coOwners.includes(memberId)
+  ) || [];
+
+  // Function to get user details from cache or local state
+  const getUserDetails = (userId: string): User | null => {
+    return userCache[userId] || localUserCache[userId] || null;
+  };
+
+  const handleAddCoOwner = async () => {
+    if (!selectedMember || !conversation.conversationId) {
+      notification.error({
+        message: 'Lỗi',
+        description: 'Không thể thêm phó nhóm. Vui lòng thử lại.'
+      });
+      return;
+    }
+    
+    try {
+      // Turn on loading state
+      const key = 'coowner';
+      notification.open({
+        key,
+        message: 'Đang xử lý',
+        description: 'Đang thêm phó nhóm...',
+        duration: 0
+      });
+      
+      const updatedConversation = await addCoOwner(
+        conversation.conversationId,
+        selectedMember,
+        coOwners
+      );
+      
+      if (updatedConversation) {
+        // Update the local conversation state with the new data
+        setConversation(updatedConversation);
+        notification.success({
+          key,
+          message: 'Thành công',
+          description: 'Đã thêm phó nhóm thành công',
+          duration: 2
+        });
+        setIsAddCoOwnerModalVisible(false);
+        setSelectedMember(null);
+      } else {
+        notification.error({
+          key,
+          message: 'Lỗi',
+          description: error || 'Không thể thêm phó nhóm',
+          duration: 2
+        });
+      }
+    } catch (err) {
+      console.error('Failed to add co-owner:', err);
+      notification.error({
+        message: 'Lỗi',
+        description: 'Không thể thêm phó nhóm. Vui lòng thử lại.',
+        duration: 2
+      });
+    }
+  };
+
+  const handleRemoveCoOwner = async (coOwnerId: string) => {
+    if (!conversation.conversationId) {
+      notification.error({
+        message: 'Lỗi',
+        description: 'Không thể xóa phó nhóm. Vui lòng thử lại.'
+      });
+      return;
+    }
+    
+    try {
+      // Turn on loading state
+      const key = 'coowner-remove';
+      notification.open({
+        key,
+        message: 'Đang xử lý',
+        description: 'Đang xóa phó nhóm...',
+        duration: 0
+      });
+      
+      // Sử dụng API mới thay vì removeCoOwner
+      const updatedConversation = await removeCoOwnerDirectly(
+        conversation.conversationId,
+        coOwnerId
+      );
+      
+      if (updatedConversation) {
+        // Update the local conversation state with the new data
+        setConversation(updatedConversation);
+        notification.success({
+          key,
+          message: 'Thành công',
+          description: 'Đã xóa phó nhóm thành công',
+          duration: 2
+        });
+      } else {
+        notification.error({
+          key,
+          message: 'Lỗi',
+          description: error || 'Không thể xóa phó nhóm',
+          duration: 2
+        });
+      }
+    } catch (err) {
+      console.error('Failed to remove co-owner:', err);
+      notification.error({
+        message: 'Lỗi',
+        description: 'Không thể xóa phó nhóm. Vui lòng thử lại.',
+        duration: 2
+      });
+    }
+  };
+
+  // Thêm hàm xử lý chuyển quyền trưởng nhóm
+  const handleTransferOwnership = async () => {
+    if (!selectedNewOwner || !conversation.conversationId) {
+      notification.error({
+        message: 'Lỗi',
+        description: 'Vui lòng chọn thành viên để chuyển quyền trưởng nhóm.'
+      });
+      return;
+    }
+    
+    try {
+      // Turn on loading state
+      const key = 'transfer-owner';
+      notification.open({
+        key,
+        message: 'Đang xử lý',
+        description: 'Đang chuyển quyền trưởng nhóm...',
+        duration: 0
+      });
+      
+      const updatedConversation = await transferOwnership(
+        conversation.conversationId,
+        selectedNewOwner
+      );
+      
+      if (updatedConversation) {
+        // Update the local conversation state with the new data
+        setConversation(updatedConversation);
+        notification.success({
+          key,
+          message: 'Thành công',
+          description: 'Đã chuyển quyền trưởng nhóm thành công',
+          duration: 2
+        });
+        setIsTransferOwnerModalVisible(false);
+        setSelectedNewOwner(null);
+        // Trở về màn hình chính sau khi chuyển quyền
+        setShowOwnerManagement(false);
+      } else {
+        notification.error({
+          key,
+          message: 'Lỗi',
+          description: error || 'Không thể chuyển quyền trưởng nhóm',
+          duration: 2
+        });
+      }
+    } catch (err) {
+      console.error('Failed to transfer ownership:', err);
+      notification.error({
+        message: 'Lỗi',
+        description: 'Không thể chuyển quyền trưởng nhóm. Vui lòng thử lại.',
+        duration: 2
+      });
+    }
+  };
+
+  const renderOwnerCoOwnerView = () => {
+    const ownerData = getUserDetails(owner);
+
+    return (
+      <div className="group-management flex flex-col h-full bg-white">
+        {/* Header */}
+        <div className="flex items-center p-4 border-b border-gray-200 relative">
+          <Button
+            type="text"
+            icon={<ArrowLeftOutlined />}
+            className="absolute"
+            onClick={() => setShowOwnerManagement(false)}
+          />
+          <div className="flex items-center justify-center w-full">
+            <h2 className="text-lg font-semibold text-center">Trưởng & phó nhóm</h2>
+          </div>
+        </div>
+
+        {/* Scrollable content */}
+        <div className="flex-1 overflow-y-auto p-4">
+          {/* Owner section */}
+          <div className="mb-4">
+            <div className="flex items-center mb-3">
+              {ownerData ? (
+                <>
+                  <Avatar 
+                    name={ownerData.fullname}
+                    avatarUrl={ownerData.urlavatar}
+                    size={40}
+                  />
+                  <div className="ml-3">
+                    <div className="font-semibold">{ownerData.fullname}</div>
+                    <div className="text-sm text-gray-500">Trưởng nhóm</div>
+                  </div>
+                </>
+              ) : (
+                <div className="flex items-center">
+                  <div className="w-10 h-10 bg-gray-200 rounded-full animate-pulse"></div>
+                  <div className="ml-3">
+                    <div className="h-4 bg-gray-200 rounded w-24 animate-pulse"></div>
+                    <div className="h-3 bg-gray-100 rounded w-16 mt-1 animate-pulse"></div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Co-owner section */}
+          <div className="mb-4">
+            {coOwners.length > 0 ? (
+              coOwners.map((coOwnerId) => {
+                const coOwnerData = getUserDetails(coOwnerId);
+                
+                return (
+                  <div key={coOwnerId} className="flex items-center justify-between mb-3">
+                    <div className="flex items-center">
+                      {coOwnerData ? (
+                        <>
+                          <Avatar 
+                            name={coOwnerData.fullname}
+                            avatarUrl={coOwnerData.urlavatar}
+                            size={40}
+                          />
+                          <div className="ml-3">
+                            <div className="font-semibold">{coOwnerData.fullname}</div>
+                            <div className="text-sm text-gray-500">Phó nhóm</div>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="flex items-center">
+                          <div className="w-10 h-10 bg-gray-200 rounded-full animate-pulse"></div>
+                          <div className="ml-3">
+                            <div className="h-4 bg-gray-200 rounded w-24 animate-pulse"></div>
+                            <div className="h-3 bg-gray-100 rounded w-16 mt-1 animate-pulse"></div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    {userRole === UserRole.OWNER && (
+                      <Button 
+                        danger
+                        type="text"
+                        onClick={() => handleRemoveCoOwner(coOwnerId)}
+                      >
+                        Xóa
+                      </Button>
+                    )}
+                  </div>
+                );
+              })
+            ) : (
+              <div className="text-center text-gray-500 py-2">
+                Chưa có phó nhóm
+              </div>
+            )}
+          </div>
+
+          {/* Add co-owner button - only for owner */}
+          {userRole === UserRole.OWNER && (
+            <Button
+              type="default"
+              block
+              className="mt-4"
+              onClick={() => setIsAddCoOwnerModalVisible(true)}
+            >
+              Thêm phó nhóm
+            </Button>
+          )}
+
+          {/* Transfer ownership button - only for owner */}
+          {userRole === UserRole.OWNER && (
+            <Button
+              type="default"
+              block
+              className="mt-4"
+              onClick={() => setIsTransferOwnerModalVisible(true)}
+            >
+              Chuyển quyền trưởng nhóm
+            </Button>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  // Modal for adding co-owner
+  const renderAddCoOwnerModal = () => {
+    // Filter members based on search query
+    const filteredMembers = regularMembers.filter(memberId => {
+      const memberDetails = getUserDetails(memberId);
+      return memberDetails?.fullname.toLowerCase().includes(searchQuery.toLowerCase()) || false;
+    });
+
+    return (
+      <Modal
+        title="Điều chỉnh phó nhóm"
+        open={isAddCoOwnerModalVisible}
+        onCancel={() => setIsAddCoOwnerModalVisible(false)}
+        footer={[
+          <Button key="cancel" onClick={() => setIsAddCoOwnerModalVisible(false)}>
+            Hủy
+          </Button>,
+          <Button
+            key="submit"
+            type="primary"
+            disabled={!selectedMember}
+            loading={loading}
+            onClick={handleAddCoOwner}
+          >
+            Xác nhận
+          </Button>
+        ]}
+      >
+        <div className="py-2">
+          <Input
+            placeholder="Tìm kiếm thành viên"
+            prefix={<SearchOutlined />}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="mb-4"
+          />
+          
+          <List
+            dataSource={filteredMembers}
+            renderItem={(memberId) => {
+              const memberDetails = getUserDetails(memberId);
+              const isSelected = selectedMember === memberId;
+              
+              if (!memberDetails) return null;
+              
+              return (
+                <List.Item
+                  className={`cursor-pointer hover:bg-gray-50 ${isSelected ? 'bg-blue-50' : ''}`}
+                  onClick={() => setSelectedMember(memberId)}
+                >
+                  <div className="flex items-center w-full">
+                    <div className="mr-3">
+                      <input
+                        type="radio"
+                        checked={isSelected}
+                        onChange={() => {}}
+                        className="form-radio h-4 w-4 text-blue-600"
+                        aria-label={`Select ${memberDetails.fullname}`}
+                      />
+                    </div>
+                    <Avatar 
+                      name={memberDetails.fullname} 
+                      avatarUrl={memberDetails.urlavatar}
+                      size={32}
+                    />
+                    <div className="ml-3">{memberDetails.fullname}</div>
+                  </div>
+                </List.Item>
+              );
+            }}
+          />
+          
+          {filteredMembers.length === 0 && (
+            <div className="text-center py-4 text-gray-500">
+              Không tìm thấy thành viên
+            </div>
+          )}
+        </div>
+      </Modal>
+    );
+  };
+
+  // Thêm modal chuyển quyền trưởng nhóm
+  const renderTransferOwnerModal = () => {
+    // Lọc thành viên theo từ khóa tìm kiếm
+    const filteredMembers = [...regularMembers, ...coOwners].filter(memberId => {
+      const memberDetails = getUserDetails(memberId);
+      return memberDetails?.fullname.toLowerCase().includes(searchQuery.toLowerCase()) || false;
+    });
+
+    return (
+      <Modal
+        title="Chuyển quyền trưởng nhóm"
+        open={isTransferOwnerModalVisible}
+        onCancel={() => setIsTransferOwnerModalVisible(false)}
+        footer={[
+          <Button key="cancel" onClick={() => setIsTransferOwnerModalVisible(false)}>
+            Hủy
+          </Button>,
+          <Button
+            key="submit"
+            type="primary"
+            danger
+            disabled={!selectedNewOwner}
+            loading={loading}
+            onClick={handleTransferOwnership}
+          >
+            Xác nhận
+          </Button>
+        ]}
+      >
+        <div className="py-2">
+          <div className="mb-3 text-red-500">
+            <b>Lưu ý:</b> Sau khi chuyển quyền trưởng nhóm, bạn sẽ trở thành thành viên thường và không thể hoàn tác thao tác này.
+          </div>
+          
+          <Input
+            placeholder="Tìm kiếm thành viên"
+            prefix={<SearchOutlined />}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="mb-4"
+          />
+          
+          <List
+            dataSource={filteredMembers}
+            renderItem={(memberId) => {
+              const memberDetails = getUserDetails(memberId);
+              const isSelected = selectedNewOwner === memberId;
+              
+              if (!memberDetails) return null;
+              
+              return (
+                <List.Item
+                  className={`cursor-pointer hover:bg-gray-50 ${isSelected ? 'bg-blue-50' : ''}`}
+                  onClick={() => setSelectedNewOwner(memberId)}
+                >
+                  <div className="flex items-center w-full">
+                    <div className="mr-3">
+                      <input
+                        type="radio"
+                        checked={isSelected}
+                        onChange={() => {}}
+                        className="form-radio h-4 w-4 text-blue-600"
+                        aria-label={`Select ${memberDetails.fullname}`}
+                      />
+                    </div>
+                    <Avatar 
+                      name={memberDetails.fullname} 
+                      avatarUrl={memberDetails.urlavatar}
+                      size={32}
+                    />
+                    <div className="ml-3">
+                      <div>{memberDetails.fullname}</div>
+                      {coOwners.includes(memberId) && (
+                        <span className="text-xs text-blue-500">Phó nhóm</span>
+                      )}
+                    </div>
+                  </div>
+                </List.Item>
+              );
+            }}
+          />
+          
+          {filteredMembers.length === 0 && (
+            <div className="text-center py-4 text-gray-500">
+              Không tìm thấy thành viên
+            </div>
+          )}
+        </div>
+      </Modal>
+    );
+  };
+
+  // If in owner/co-owner management view
+  if (showOwnerManagement) {
+    return (
+      <>
+        {renderOwnerCoOwnerView()}
+        {renderAddCoOwnerModal()}
+        {renderTransferOwnerModal()}
+      </>
+    );
+  }
 
   // For regular members, show simplified view
   if (userRole === UserRole.MEMBER) {
@@ -302,7 +851,7 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
           className="absolute"
           onClick={onBack}
         />
-        <div className="flex items-center justify-center">
+        <div className="flex items-center justify-center w-full">
           <h2 className="text-lg font-semibold text-center">Quản lý nhóm</h2>
         </div>
       </div>
@@ -513,10 +1062,13 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
             <UserDeleteOutlined className="mr-2 text-gray-600" />
             <span>Chặn khỏi nhóm</span>
           </div>
-
+          
           {/* Only show for owner */}
           {userRole === UserRole.OWNER && (
-            <div className="flex items-center py-2 cursor-pointer">
+            <div 
+              className="flex items-center py-2 cursor-pointer"
+              onClick={() => setShowOwnerManagement(true)}
+            >
               <TeamOutlined className="mr-2 text-gray-600" />
               <span>Trưởng & phó nhóm</span>
             </div>
@@ -541,6 +1093,9 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
           </div>
         )}
       </div>
+      
+      {/* Co-owner management modal */}
+      {renderAddCoOwnerModal()}
     </div>
   );
 };
