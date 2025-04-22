@@ -119,7 +119,7 @@ const ChatNav: React.FC = () => {
   return (
     <div className="chat-list w-80">
       {/* Navigation buttons */}
-      <div className="flex items-center justify-between border-b relative px-4">
+      <div className="flex items-center justify-between border-b border-gray-200 relative px-4">
         {/* Left side - Tất cả & Chưa đọc */}
         <div className="flex">
           <div

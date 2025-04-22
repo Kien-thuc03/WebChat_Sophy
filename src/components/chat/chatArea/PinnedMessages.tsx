@@ -1,10 +1,10 @@
 import React, { useState, useMemo } from 'react';
 import { Tooltip, Badge, Button, Spin, Dropdown, Menu } from 'antd';
 import { PushpinOutlined, DownOutlined, UpOutlined, CloseOutlined, MoreOutlined, FileImageOutlined, FileOutlined } from '@ant-design/icons';
-import { DisplayMessage } from '../../features/chat/types/chatTypes';
-import { formatMessagePreview } from '../../utils/messageUtils';
-import { formatMessageTime } from '../../utils/dateUtils';
-import { Avatar } from '../common/Avatar';
+import { DisplayMessage } from '../../../features/chat/types/chatTypes';
+import { formatMessagePreview } from '../../../utils/messageUtils';
+import { formatMessageTime } from '../../../utils/dateUtils';
+import { Avatar } from '../../common/Avatar';
 
 interface PinnedMessagesProps {
   pinnedMessages: DisplayMessage[];

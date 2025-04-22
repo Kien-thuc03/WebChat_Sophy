@@ -373,7 +373,7 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
   }, [conversations]);
 
   return (
-    <div className="chat-list w-80 bg-white dark:bg-gray-900 border-r dark:border-gray-700 h-full flex flex-col overflow-hidden">
+    <div className="chat-list w-80 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 h-full flex flex-col overflow-hidden">
       <Header onSelectConversation={onSelectConversation} />
       <div className="flex-shrink-0">
         <ChatNav />

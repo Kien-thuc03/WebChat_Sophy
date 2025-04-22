@@ -124,7 +124,7 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({ conversation, onInfoCli
   }, [otherUserInfo]);
 
   return (
-    <header className="flex items-center justify-between px-4 py-2 bg-white border-b">
+    <header className="flex items-center justify-between px-4 py-2 bg-white border-b border-gray-200">
       <div className="flex items-center flex-1 group">
         {/* Avatar Group */}
         <div className="relative cursor-pointer mr-3">
