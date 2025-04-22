@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import Sidebar from "../components/sidebar/Sidebar";
 import ChatList from "../components/chat/ChatList";
 import ChatHeader from "../components/chat/ChatHeader";
-import { ChatArea } from "../components/chat/ChatArea";
+import { ChatArea } from "../components/chat/chatArea/ChatArea";
 import SettingsMenu from "../components/content/SettingsMenu";
 import UserModal from "../components/content/modal/UserModal";
 import SettingsModal from "../components/content/modal/SettingsModal";
@@ -12,7 +12,7 @@ import FriendList from "../components/contact/FriendList";
 import RequestList from "../components/contact/RequestList";
 import { Conversation } from "../features/chat/types/conversationTypes";
 import { useLanguage } from "../features/auth/context/LanguageContext";
-import ChatInfo from "../components/chat/ChatInfo";
+import ChatInfo from "../components/chat/chatinfo/ChatInfo";
 import { Spin, Button } from "antd";
 import { useConversationContext } from "../features/chat/context/ConversationContext";
 

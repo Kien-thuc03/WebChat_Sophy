@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Avatar } from '../common/Avatar';
-import { formatMessageTime } from '../../utils/dateUtils';
+import { Avatar } from '../../common/Avatar';
+import { formatMessageTime } from '../../../utils/dateUtils';
 import { 
   CheckOutlined, 
   ClockCircleOutlined, 
@@ -18,7 +18,7 @@ import {
   VideoCameraOutlined
 } from '@ant-design/icons';
 import { Button, Tooltip } from 'antd';
-import { formatFileSize } from '../../services/cloudinaryService';
+import { formatFileSize } from '../../../services/cloudinaryService';
 import ReactPlayer from 'react-player';
 
 interface ChatMessageProps {

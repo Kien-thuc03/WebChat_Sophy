@@ -37,8 +37,8 @@ import {
   UnorderedListOutlined,
   InfoCircleOutlined,
 } from "@ant-design/icons";
-import {Conversation} from "../../features/chat/types/conversationTypes";
-import { User } from "../../features/auth/types/authTypes";
+import {Conversation} from "../../../features/chat/types/conversationTypes";
+import { User } from "../../../features/auth/types/authTypes";
 import {
   getMessages,
   sendMessage,
@@ -53,15 +53,15 @@ import {
   getSpecificMessage,
   replyMessage,
   forwardImageMessage,
-} from "../../api/API";
-import { useLanguage } from "../../features/auth/context/LanguageContext";
-import { formatMessageTime } from "../../utils/dateUtils";
-import { Avatar } from "../common/Avatar";
-import { DisplayMessage } from "../../features/chat/types/chatTypes";
-import { useConversationContext } from "../../features/chat/context/ConversationContext";
+} from "../../../api/API";
+import { useLanguage } from "../../../features/auth/context/LanguageContext";
+import { formatMessageTime } from "../../../utils/dateUtils";
+import { Avatar } from "../../common/Avatar";
+import { DisplayMessage } from "../../../features/chat/types/chatTypes";
+import { useConversationContext } from "../../../features/chat/context/ConversationContext";
 import data from "@emoji-mart/data";
 import Picker from "@emoji-mart/react";
-import socketService from "../../services/socketService";
+import socketService from "../../../services/socketService";
 import FileUploader from './FileUploader';
 import ReactPlayer from 'react-player';
 import PinnedMessages from './PinnedMessages';
