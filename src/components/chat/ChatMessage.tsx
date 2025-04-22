@@ -91,7 +91,8 @@ const ReplyPreview: React.FC<{
     try {
       const parsedData = JSON.parse(replyData);
       replyContent = parsedData.content || '';
-      replySender = parsedData.senderName || 'Người dùng';
+      // Thứ tự ưu tiên cho tên người gửi
+      replySender = parsedData.senderName || (parsedData.sender && parsedData.sender.name) || 'Người dùng';
       replyType = parsedData.type || 'text';
       attachment = parsedData.attachment || null;
     } catch (error) {
@@ -101,10 +102,19 @@ const ReplyPreview: React.FC<{
   } else if (typeof replyData === 'object') {
     // If replyData is already an object
     replyContent = replyData.content || '';
-    replySender = replyData.senderName || 'Người dùng';
+    // Thứ tự ưu tiên cho tên người gửi
+    replySender = replyData.senderName || (replyData.sender && replyData.sender.name) || 'Người dùng';
     replyType = replyData.type || 'text';
     attachment = replyData.attachment || null;
   }
+
+  // Debug thông tin sender để theo dõi
+  console.log('ReplyPreview final sender:', {
+    replyDataType: typeof replyData,
+    senderName: replySender,
+    originalSenderName: typeof replyData === 'object' ? replyData.senderName : 'N/A',
+    hasSenderObject: typeof replyData === 'object' && !!replyData.sender
+  });
 
   const handleClick = () => {
     if (messageReplyId && onReplyClick) {

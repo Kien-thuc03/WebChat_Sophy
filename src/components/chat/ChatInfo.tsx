@@ -20,7 +20,7 @@ import {
 } from '@ant-design/icons';
 import { Conversation } from '../../features/chat/types/conversationTypes';
 import { useConversations } from '../../features/chat/hooks/useConversations';
-import { getUserById } from "../../api/API";
+import { getUserById, getConversationDetail } from "../../api/API";
 import { User } from "../../features/auth/types/authTypes";
 import GroupAvatar from './GroupAvatar';
 import { useLanguage } from "../../features/auth/context/LanguageContext";

@@ -37,17 +37,14 @@ import {
   UnorderedListOutlined,
   InfoCircleOutlined,
 } from "@ant-design/icons";
-import {
-  Conversation,
-  Message,
-} from "../../features/chat/types/conversationTypes";
+import {Conversation} from "../../features/chat/types/conversationTypes";
+import { User } from "../../features/auth/types/authTypes";
 import {
   getMessages,
   sendMessage,
   sendImageMessage,
   sendMessageWithImage,
   fetchConversations,
-  getConversationDetail,
   recallMessage,
   deleteMessage,
   pinMessage,
@@ -67,6 +64,8 @@ import Picker from "@emoji-mart/react";
 import socketService from "../../services/socketService";
 import FileUploader from './FileUploader';
 import ReactPlayer from 'react-player';
+import PinnedMessages from './PinnedMessages';
+import { ReplyPreview } from './PreviewReply';
 
 // Chuyển đổi Message từ API sang định dạng tin nhắn cần hiển thị
 
@@ -92,143 +91,7 @@ interface ChatAreaProps {
 }
 
 // Component hiển thị tin nhắn trả lời (chuyển từ ChatMessage)
-const ReplyPreview: React.FC<{
-  replyData: any;
-  isOwnMessage: boolean;
-  messageReplyId?: string | null;
-  onReplyClick?: (messageId: string) => void;
-}> = ({ replyData, isOwnMessage, messageReplyId, onReplyClick }) => {
-  // Default content if replyData is missing
-  if (!replyData) {
-    console.log('ReplyPreview: No reply data provided');
-    return null;
-  }
 
-  let replyContent = '';
-  let replySender = 'Người dùng';
-  let replyType = 'text';
-  let senderId = '';
-  let attachment = null;
-
-  // Parse replyData if it's a string
-  if (typeof replyData === 'string') {
-    try {
-      const parsedData = JSON.parse(replyData);
-      replyContent = parsedData.content || '';
-      replySender = parsedData.senderName || 'Người dùng';
-      senderId = parsedData.senderId || '';
-      replyType = parsedData.type || 'text';
-      attachment = parsedData.attachment || null;
-      
-      // Debug log
-      console.log('ReplyPreview parsed data:', parsedData);
-    } catch (error) {
-      // If parsing fails, use the string directly
-      replyContent = replyData;
-      console.error('Error parsing replyData string:', error, replyData);
-    }
-  } else if (typeof replyData === 'object') {
-    // If replyData is already an object (format from backend)
-    replyContent = replyData.content || '';
-    replySender = replyData.senderName || 'Người dùng';
-    senderId = replyData.senderId || '';
-    replyType = replyData.type || 'text';
-    attachment = replyData.attachment || null;
-    
-    // Debug log
-    console.log('ReplyPreview received object replyData:', replyData);
-  }
-
-  // If we have a senderId but no sender name, try to look up the user name
-  // from localStorage or elsewhere if possible
-  if (senderId && (replySender === 'Người dùng' || !replySender)) {
-    try {
-      // Try to get user info from localStorage or app state if available
-      const userCache = JSON.parse(localStorage.getItem('userCache') || '{}');
-      if (userCache[senderId]) {
-        replySender = userCache[senderId].fullname || 'Người dùng';
-      }
-    } catch (error) {
-      console.error('Error parsing userCache:', error);
-    }
-  }
-
-  const handleClick = () => {
-    if (messageReplyId && onReplyClick) {
-      onReplyClick(messageReplyId);
-    }
-  };
-
-  // Render content based on message type (similar to mobile app's renderReplyContent)
-  const renderReplyTypeContent = () => {
-    switch (replyType) {
-      case 'text':
-        return replyContent;
-      case 'image':
-        return (
-          <div className="flex items-center">
-            {attachment && attachment.url ? (
-              <div className="flex items-center">
-                <img 
-                  src={attachment.url} 
-                  alt="Preview" 
-                  className="w-8 h-8 object-cover rounded mr-1"
-                  onError={(e) => {
-                    e.currentTarget.onerror = null;
-                    e.currentTarget.src = '/images/image-placeholder.png'; 
-                  }}
-                />
-                <span>Hình ảnh</span>
-              </div>
-            ) : (
-              <>
-                <FileImageOutlined className="mr-1" />
-                <span>Hình ảnh</span>
-              </>
-            )}
-          </div>
-        );
-      case 'file':
-        return (
-          <div className="flex items-center">
-            <FileOutlined className="mr-1" />
-            <span>{attachment?.name || 'Tệp tin'}</span>
-          </div>
-        );
-      case 'audio':
-        return (
-          <div className="flex items-center">
-            <AudioOutlined className="mr-1" />
-            <span>Tin nhắn thoại</span>
-          </div>
-        );
-      case 'video':
-        return (
-          <div className="flex items-center">
-            <VideoCameraOutlined className="mr-1" />
-            <span>Video</span>
-          </div>
-        );
-      default:
-        return replyContent;
-    }
-  };
-
-  return (
-    <div 
-      className={`flex items-start pl-2 cursor-pointer ${isOwnMessage ? 'text-white/80' : 'text-gray-700'}`}
-      onClick={handleClick}
-    >
-      <div className={`w-1 self-stretch mr-2 ${isOwnMessage ? 'bg-blue-300' : 'bg-blue-500'}`}></div>
-      <div className="reply-preview-content flex-1 text-xs py-1">
-        <div className="reply-sender font-medium">{replySender}</div>
-        <div className="reply-content truncate">
-          {renderReplyTypeContent()}
-        </div>
-      </div>
-    </div>
-  );
-};
 
 export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
   const [messages, setMessages] = useState<DisplayMessage[]>([]);
@@ -306,6 +169,14 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
 
   // Add this state variable
   const [isSending, setIsSending] = useState(false);
+  
+  // Ref para guardar una copia de userCache para operaciones asíncronas
+  const userCacheRef = useRef<Record<string, User>>({});
+
+  // Actualizar la referencia cuando cambie userCache - mantener este efecto antes de otros efectos
+  useEffect(() => {
+    userCacheRef.current = { ...userCache };
+  }, [userCache]);
 
   useEffect(() => {
     if (!conversation) return; // Early return if no conversation
@@ -551,7 +422,7 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
                     // Nếu parse lỗi, cố gắng tạo một đối tượng hợp lệ
                     displayMessage.replyData = { 
                       content: msg.replyData,
-                      senderName: 'Người dùng',
+                      senderName: msg.replyData.senderName,
                       senderId: '',
                       type: 'text'
                     };
@@ -673,7 +544,7 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
                   console.error("Error parsing replyData string for new message:", error);
                   displayMessage.replyData = { 
                     content: messageData.replyData,
-                    senderName: 'Người dùng',
+                    senderName: messageData.replyData.senderName,
                     senderId: '',
                     type: 'text'
                   };
@@ -1909,8 +1780,6 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
   const deduplicateMessages = (messagesToDeduplicate: DisplayMessage[]): DisplayMessage[] => {
     if (!messagesToDeduplicate.length) return [];
     
-    console.log("Deduplicating messages, input count:", messagesToDeduplicate.length);
-    
     // Get current user ID to check hidden messages
     const currentUserId = localStorage.getItem("userId") || "";
     
@@ -3020,25 +2889,29 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
 
   // Add function to fetch pinned messages
   const fetchPinnedMessages = async () => {
-    if (!conversation || !conversation.conversationId) return;
-    
+    if (!conversation || !conversation.conversationId) {
+      setPinnedMessages([]);
+      return;
+    }
+
     try {
       setLoadingPinnedMessages(true);
-      
+
       // Get pinned message IDs from conversation
       const pinnedMessageIds = conversation.pinnedMessages || [];
-      
+
       if (pinnedMessageIds.length === 0) {
         setPinnedMessages([]);
+        setLoadingPinnedMessages(false);
         return;
       }
-      
+
       try {
         // Use the API to get all pinned messages for this conversation
         const fetchedPinnedMessages = await getPinnedMessages(conversation.conversationId);
-        
+
         if (fetchedPinnedMessages && fetchedPinnedMessages.length > 0) {
-          // Map the API messages to our display format
+          // Convert to our DisplayMessage format
           const displayPinnedMessages: DisplayMessage[] = fetchedPinnedMessages.map(msg => {
             // Find sender info from userCache
             const sender = userCache[msg.senderId] || {
@@ -3047,88 +2920,89 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
             };
             
             // Normalize attachments
-            let parsedAttachments: Array<{ url: string; type: string; name?: string; size?: number }> = [];
-            if (typeof msg.attachments === 'string' && msg.attachments) {
-              try {
-                const parsed = JSON.parse(msg.attachments);
-                if (Array.isArray(parsed)) {
-                  parsedAttachments = parsed;
-                }
-              } catch (e) {
-                console.error('Failed to parse attachments string:', e);
-              }
-            } else if (Array.isArray(msg.attachments)) {
-              parsedAttachments = msg.attachments;
-            }
+            let fileUrl = '';
+            let fileName = '';
+            let fileSize = 0;
             
-            // Ensure both attachment and attachments fields have consistent values
-            let mainAttachment = msg.attachment || (parsedAttachments.length > 0 ? parsedAttachments[0] : null);
+            // Process attachments
+            if (msg.attachment) {
+              fileUrl = msg.attachment.url || '';
+              fileName = msg.attachment.name || '';
+              fileSize = msg.attachment.size || 0;
+            } else if (msg.attachments) {
+              // Handle string or array
+              if (typeof msg.attachments === 'string') {
+                try {
+                  const parsed = JSON.parse(msg.attachments);
+                  if (Array.isArray(parsed) && parsed.length > 0) {
+                    fileUrl = parsed[0].url || '';
+                    fileName = parsed[0].name || '';
+                    fileSize = parsed[0].size || 0;
+                  }
+                } catch (e) {
+                  console.error('Failed to parse attachments:', e);
+                }
+              } else if (Array.isArray(msg.attachments) && msg.attachments.length > 0) {
+                fileUrl = msg.attachments[0].url || '';
+                fileName = msg.attachments[0].name || '';
+                fileSize = msg.attachments[0].size || 0;
+              }
+            }
             
             // Create the display message
-            const displayMessage: DisplayMessage = {
-              id: msg.messageDetailId,
-              content: msg.content || "",
+            return {
+              id: msg.messageDetailId || '',
+              content: msg.content || '',
               timestamp: msg.createdAt || new Date().toISOString(),
+              type: msg.type as "text" | "image" | "file" || "text",
               sender: {
-                id: msg.senderId || "",
+                id: msg.senderId || '',
                 name: sender.fullname || "Người dùng",
-                avatar: sender.urlavatar || "",
+                avatar: sender.urlavatar || '',
               },
-              type: (msg.type as "text" | "image" | "file") || "text",
+              fileUrl: fileUrl || undefined,
+              fileName: fileName || undefined,
+              fileSize: fileSize || undefined,
+              attachment: msg.attachment || (fileUrl ? {
+                url: fileUrl,
+                type: msg.type || '',
+                name: fileName,
+                size: fileSize,
+                downloadUrl: fileUrl,
+              } : undefined),
+              isRead: true,
+              sendStatus: 'read',
               isPinned: true,
               pinnedAt: msg.pinnedAt || msg.createdAt,
+              isReply: msg.isReply || false,
+              messageReplyId: (msg as any).messageReplyId || null,
+              replyData: (msg as any).replyData || null
             };
-            
-            // Add attachments information
-            if (parsedAttachments.length > 0) {
-              displayMessage.attachments = parsedAttachments;
-            }
-            
-            if (mainAttachment) {
-              displayMessage.attachment = mainAttachment;
-            }
-            
-            // Process based on message type
-            if (msg.type === "image") {
-              if (mainAttachment && mainAttachment.url) {
-                displayMessage.fileUrl = mainAttachment.url;
-              }
-            } else if (msg.type === "file") {
-              if (mainAttachment && mainAttachment.url) {
-                displayMessage.fileUrl = mainAttachment.url;
-                displayMessage.fileName = mainAttachment.name;
-                displayMessage.fileSize = mainAttachment.size;
-              }
-            }
-            
-            return displayMessage;
           });
-          
+
           // Sort by most recently pinned
           const sortedPinnedMessages = [...displayPinnedMessages].sort(
             (a, b) => new Date(b.pinnedAt || b.timestamp).getTime() - new Date(a.pinnedAt || a.timestamp).getTime()
           );
-          
+
           // If we have pinned messages from the API, use those
           setPinnedMessages(sortedPinnedMessages);
-          return;
         }
       } catch (apiError) {
         console.error("Error fetching pinned messages from API:", apiError);
-        // Fall back to using local messages if API call fails
+        
+        // Fallback to local state if API fails
+        const localPinnedMessages = messages.filter(
+          message => message.isPinned
+        );
+        
+        // Map the messages to our display format and sort by most recently pinned
+        const localSortedPinnedMessages = [...localPinnedMessages].sort(
+          (a, b) => new Date(b.pinnedAt || b.timestamp).getTime() - new Date(a.pinnedAt || a.timestamp).getTime()
+        );
+        
+        setPinnedMessages(localSortedPinnedMessages);
       }
-      
-      // Fall back to using messages that are already in our messages array
-      const localPinnedMessages = messages.filter(
-        message => message.isPinned
-      );
-      
-      // Map the messages to our display format and sort by most recently pinned
-      const localSortedPinnedMessages = [...localPinnedMessages].sort(
-        (a, b) => new Date(b.pinnedAt || b.timestamp).getTime() - new Date(a.pinnedAt || a.timestamp).getTime()
-      );
-      
-      setPinnedMessages(localSortedPinnedMessages);
     } catch (error) {
       console.error("Error fetching pinned messages:", error);
     } finally {
@@ -3138,118 +3012,28 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
 
   // Call fetchPinnedMessages when conversation changes or when messages are updated
   useEffect(() => {
-    if (isValidConversation) {
+    if (conversation?.conversationId) {
       fetchPinnedMessages();
     }
-  }, [conversation, messages]);
+  }, [conversation?.conversationId, messages.length, messages.some(m => m.isPinned)]);
 
   // Render the pinned messages panel
   const renderPinnedMessagesPanel = () => {
     if (!showPinnedMessagesPanel) return null;
     
     return (
-      <div className="bg-white border-b border-gray-200 animate-slideIn transition-all duration-300">
-        <div className="flex items-center justify-between px-4 py-2 bg-gray-50 border-b border-gray-200">
-          <div className="flex items-center font-medium">
-            <PushpinOutlined className="text-yellow-600 mr-2" />
-            <span>Danh sách ghim ({pinnedMessages.length})</span>
-          </div>
-          <Button 
-            type="text" 
-            size="small"
-            className="text-gray-500"
-            onClick={() => setShowPinnedMessagesPanel(false)}
-          >
-            Thu gọn
-          </Button>
-        </div>
-        
-        <div className="max-h-80 overflow-y-auto p-2">
-          {loadingPinnedMessages ? (
-            <div className="flex justify-center py-4">
-              <Spin size="small" />
-            </div>
-          ) : pinnedMessages.length === 0 ? (
-            <div className="text-center py-4 text-gray-500">
-              Không có tin nhắn nào được ghim
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {pinnedMessages.map(pinnedMsg => {
-                const isOwn = isOwnMessage(pinnedMsg.sender.id);
-                
-                return (
-                  <div key={pinnedMsg.id} className="flex items-start p-2 hover:bg-gray-50 rounded-lg group">
-                    <Avatar 
-                      name={pinnedMsg.sender.name}
-                      avatarUrl={pinnedMsg.sender.avatar}
-                      size={36}
-                      className="mr-2 flex-shrink-0"
-                    />
-                    
-                    <div className="flex-grow overflow-hidden">
-                      <div className="flex justify-between">
-                        <div className="font-medium text-sm mb-1">{pinnedMsg.sender.name}</div>
-                        <div className="text-xs text-gray-500">{formatMessageTime(pinnedMsg.timestamp)}</div>
-                      </div>
-                      
-                      <div className="text-sm text-gray-800 truncate">
-                        {pinnedMsg.type === 'image' ? (
-                          <div className="flex items-center">
-                            <FileImageOutlined className="mr-1" />
-                            <span>Hình ảnh</span>
-                          </div>
-                        ) : pinnedMsg.type === 'file' ? (
-                          <div className="flex items-center">
-                            <FileOutlined className="mr-1" />
-                            <span>{pinnedMsg.fileName || "Tập tin"}</span>
-                          </div>
-                        ) : (
-                          pinnedMsg.content
-                        )}
-                      </div>
-                    </div>
-                    
-                    <Dropdown
-                      overlay={
-                        <Menu>
-                          <Menu.Item 
-                            key="unpin" 
-                            icon={<PushpinOutlined />}
-                            onClick={() => handleUnpinMessage(pinnedMsg.id)}
-                          >
-                            Bỏ ghim
-                          </Menu.Item>
-                          <Menu.Item 
-                            key="goto" 
-                            onClick={() => {
-                              setShowPinnedMessagesPanel(false);
-                              setTimeout(() => {
-                                scrollToPinnedMessage(pinnedMsg.id);
-                              }, 300);
-                            }}
-                          >
-                            Đi đến tin nhắn
-                          </Menu.Item>
-                        </Menu>
-                      }
-                      trigger={['click']}
-                      placement="bottomRight"
-                    >
-                      <Button 
-                        type="text" 
-                        size="small" 
-                        icon={<MoreOutlined />}
-                        className="text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity"
-                      />
-                    </Dropdown>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </div>
+      <PinnedMessages 
+        pinnedMessages={pinnedMessages}
+        onViewMessage={(messageId) => {
+          setShowPinnedMessagesPanel(false);
+          setTimeout(() => {
+            scrollToPinnedMessage(messageId);
+          }, 300);
+        }}
+        onUnpinMessage={handleUnpinMessage}
+        onClose={() => setShowPinnedMessagesPanel(false)}
+        isLoading={loadingPinnedMessages}
+      />
     );
   };
 
@@ -3405,7 +3189,24 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
 
   // Handle reply to message
   const handleReplyMessage = (message: DisplayMessage) => {
-    setReplyingToMessage(message);
+    // Lưu trữ tên người gửi ngay tại thời điểm nhấn trả lời
+    const enhancedMessage = {
+      ...message,
+      sender: {
+        ...message.sender,
+        // Đảm bảo lưu đúng tên
+        cachedName: message.sender.name || userCache[message.sender.id]?.fullname || "Người dùng"
+      }
+    };
+    
+    // Log để theo dõi
+    console.log("Setting reply to message with sender:", {
+      id: message.id,
+      originalName: message.sender.name,
+      cachedName: enhancedMessage.sender.cachedName
+    });
+    
+    setReplyingToMessage(enhancedMessage);
     inputRef.current?.focus();
   };
 
@@ -3421,13 +3222,22 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
     try {
       setIsSending(true);
       
-      // Tạo replyData từ thông tin của tin nhắn gốc
+      // Tạo replyData đầy đủ từ thông tin của tin nhắn gốc
+      // Đảm bảo lấy đúng tên người dùng từ thông tin hiện có
       const replyInfo: ReplyData = {
         content: replyingToMessage.content,
-        senderName: replyingToMessage.sender.name,
+        senderName: replyingToMessage.sender.name || userCache[replyingToMessage.sender.id]?.fullname || "Người dùng",
         senderId: replyingToMessage.sender.id,
         type: replyingToMessage.type
       };
+      
+      // Debug để theo dõi dữ liệu
+      console.log("Creating reply with sender info:", {
+        originalSenderName: replyingToMessage.sender.name,
+        originalSenderId: replyingToMessage.sender.id,
+        userCacheInfo: userCache[replyingToMessage.sender.id],
+        finalSenderName: replyInfo.senderName
+      });
       
       // Thêm dữ liệu attachment nếu tin nhắn gốc là ảnh, video hoặc file
       if (replyingToMessage.type !== 'text' && replyingToMessage.attachment) {
@@ -3468,10 +3278,16 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
       // Gửi tin nhắn trả lời đến server
       const replyResult = await replyMessage(replyingToMessage.id, tempMessage.content);
       
-      // Nếu API không trả về replyData, bạn cần thêm vào sau khi nhận kết quả:
+      // Ghi đè thông tin replyData trả về từ server với thông tin đã chuẩn bị
       if (replyResult) {
-        // Thêm vào kết quả trả về
-        if (!replyResult.replyData) {
+        // Kiểm tra nếu API không trả về replyData hoặc replyData không đầy đủ
+        const replyData = typeof replyResult.replyData === 'string' 
+          ? JSON.parse(replyResult.replyData) 
+          : replyResult.replyData || {};
+        
+        // Đảm bảo senderName được giữ nguyên từ dữ liệu ban đầu
+        if (!replyData.senderName || replyData.senderName === 'Người dùng') {
+          // Sử dụng replyInfo đã tạo từ trước đó có đầy đủ thông tin
           replyResult.replyData = JSON.stringify(replyInfo);
         }
         
@@ -3484,7 +3300,9 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
                 ? { 
                     ...msg, 
                     id: messageId, 
-                    sendStatus: "sent" 
+                    sendStatus: "sent",
+                    // Đảm bảo giữ replyData đã chuẩn bị
+                    replyData: replyInfo
                   } 
                 : msg
             )
@@ -3687,19 +3505,17 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
   return (
     <div className="w-full h-full flex flex-col">
       <div className="flex flex-col h-full overflow-hidden bg-white rounded-lg relative">
-        {/* Pinned message button */}
-        {pinnedMessages.length > 0 && (
+        {/* Pinned messages panel - Only show the toggle button when panel is closed, otherwise show the full component */}
+        {pinnedMessages.length > 0 && !showPinnedMessagesPanel && (
           <div 
-            className={`bg-white border-b border-gray-200 py-2 px-4 flex justify-between items-center cursor-pointer hover:bg-gray-50 transition-colors ${showPinnedMessagesPanel ? 'bg-gray-50' : ''}`}
-            onClick={() => setShowPinnedMessagesPanel(!showPinnedMessagesPanel)}
+            className="bg-white border-b border-gray-200 py-2 px-4 flex justify-between items-center cursor-pointer hover:bg-gray-50 transition-colors"
+            onClick={() => setShowPinnedMessagesPanel(true)}
           >
             <div className="flex items-center text-gray-700">
               <PushpinOutlined className="text-yellow-600 mr-2" />
               <span>+{pinnedMessages.length} ghim</span>
             </div>
-            <DownOutlined 
-              className={`text-gray-400 transition-transform duration-300 ${showPinnedMessagesPanel ? 'transform rotate-180' : ''}`}
-            />
+            <DownOutlined className="text-gray-400" />
           </div>
         )}
         
@@ -3954,48 +3770,15 @@ export function ChatArea({ conversation, viewingImages }: ChatAreaProps) {
                     {message.isReply && message.replyData && (
                       <div className="mb-1 rounded-t-md overflow-hidden">
                         <div className={`${isOwn ? 'bg-blue-400' : 'bg-gray-200'} bg-opacity-60 rounded-t-md`}>
-                          <div 
-                            className="flex items-start pl-2 cursor-pointer text-gray-600"
-                            onClick={() => {
-                              if (message.messageReplyId) {
-                                console.log("Scrolling to original message:", message.messageReplyId);
-                                setTimeout(() => scrollToPinnedMessage(message.messageReplyId || ""), 0);
-                              }
+                          <ReplyPreview
+                            replyData={message.replyData}
+                            isOwnMessage={isOwn}
+                            messageReplyId={message.messageReplyId}
+                            onReplyClick={(msgId: string) => {
+                              console.log("Scrolling to original message:", msgId);
+                              setTimeout(() => scrollToPinnedMessage(msgId), 0);
                             }}
-                          >
-                            <div className={`w-1 self-stretch mr-2 ${isOwn ? 'bg-blue-300' : 'bg-blue-500'}`}></div>
-                            <div className="reply-preview-content flex-1 text-xs py-1 flex items-start">
-                              <div className="flex-shrink-0 mr-2">
-                                <Avatar 
-                                  name={
-                                    typeof message.replyData === 'string' 
-                                      ? 'User' 
-                                      : message.replyData.senderName || 'User'
-                                  }
-                                  // Sử dụng đúng thuộc tính avatar cho người gửi tin nhắn reply
-                                  avatarUrl={
-                                    typeof message.replyData !== 'string' && message.replyData.senderId
-                                      ? userCache[message.replyData.senderId]?.urlavatar || ''
-                                      : ''
-                                  }
-                                  size={16}
-                                  className="rounded-full"
-                                />
-                              </div>
-                              <div className="flex-1">
-                                <div className={`reply-sender font-medium ${isOwn ? 'text-white' : 'text-gray-700'}`}>
-                                  {typeof message.replyData === 'string' 
-                                    ? 'Tin nhắn trả lời' 
-                                    : message.replyData.senderName || 'Người dùng'}
-                                </div>
-                                <div className={`reply-content truncate ${isOwn ? 'text-white/80' : 'text-gray-600'}`}>
-                                  {typeof message.replyData === 'string' 
-                                    ? message.replyData 
-                                    : message.replyData.content || 'Tin nhắn'}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
+                          />
                         </div>
                       </div>
                     )}

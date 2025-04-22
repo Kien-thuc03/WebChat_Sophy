@@ -5,7 +5,7 @@ import {
   VideoCameraOutlined,
 } from "@ant-design/icons";
 
-const ReplyPreview: React.FC<{
+export const ReplyPreview: React.FC<{
   replyData: any;
   isOwnMessage: boolean;
   messageReplyId?: string | null;
