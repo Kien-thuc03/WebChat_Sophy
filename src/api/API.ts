@@ -2521,6 +2521,8 @@ export const updateGroupAvatar = async (
     }
 
     throw new Error("Không thể cập nhật ảnh nhóm. Vui lòng thử lại sau.");
+  }
+};
 
 /**
  * Sets co-owners for a group conversation
