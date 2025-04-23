@@ -32,15 +32,15 @@ import {
 } from '@ant-design/icons';
 import { Conversation } from '../../../features/chat/types/conversationTypes';
 import { useConversations } from '../../../features/chat/hooks/useConversations';
-import { getUserById, getConversationDetail } from "../../../api/API";
+import { getUserById, getConversationDetail, createConversation, fetchFriends } from "../../../api/API";
 import { User } from "../../../features/auth/types/authTypes";
 import GroupAvatar from '../GroupAvatar';
 import { useLanguage } from "../../../features/auth/context/LanguageContext";
 import GroupManagement from './GroupManagement';
 import MediaGallery from './MediaGallery';
 import { useChatInfo } from '../../../features/chat/hooks/useChatInfo';
-import { formatMessageTime, formatRelativeTime } from '../../../utils/dateUtils';
 import { useNavigate } from 'react-router-dom';
+import UserInfoHeaderModal from '../../header/modal/UserInfoHeaderModal';
 
 interface ChatInfoProps {
   conversation: Conversation;
@@ -59,6 +59,16 @@ interface DetailedConversation extends Conversation {
   sharedMedia?: any[];
   sharedFiles?: any[];
   sharedLinks?: any[];
+}
+
+// Define a simplified user interface for the selected member
+interface MemberInfo {
+  userId: string;
+  fullname: string;
+  phone?: string;
+  urlavatar?: string;
+  isMale?: boolean;
+  birthday?: string;
 }
 
 const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
@@ -101,6 +111,9 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
   const [hoveredMemberId, setHoveredMemberId] = useState<string | null>(null);
   const [showOwnershipTransfer, setShowOwnershipTransfer] = useState(false);
   const [newOwnerSelected, setNewOwnerSelected] = useState<string | null>(null);
+  const [selectedMember, setSelectedMember] = useState<MemberInfo | null>(null);
+  const [isUserInfoModalVisible, setIsUserInfoModalVisible] = useState(false);
+  const [friendList, setFriendList] = useState<string[]>([]);
 
   // Fetch detailed conversation information
   useEffect(() => {
@@ -625,6 +638,98 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
     });
   };
 
+  // Function to refresh friend list data without closing the modal
+  const refreshFriendList = async () => {
+    try {
+      const friendsData = await fetchFriends();
+      if (friendsData && Array.isArray(friendsData)) {
+        // Extract user IDs from friend list
+        const friendIds = friendsData.map(friend => 
+          friend.userId || friend._id || friend.id || ''
+        ).filter(id => id);
+        setFriendList(friendIds);
+        console.log('Friend list refreshed:', friendIds);
+      }
+    } catch (err) {
+      console.error('Error refreshing friend list:', err);
+    }
+  };
+
+  // Fetch friend list to determine which members are already friends
+  useEffect(() => {
+    if (showMembersList) {
+      refreshFriendList();
+    }
+  }, [showMembersList]);
+
+  // Check if a user is a friend
+  const isFriend = (userId: string): boolean => {
+    const currentUserId = localStorage.getItem('userId');
+    if (userId === currentUserId) return true; // Self is considered a "friend"
+    return friendList.includes(userId);
+  };
+
+  // Handle click on friend request button
+  const handleFriendRequest = async (memberId: string) => {
+    try {
+      // Refresh friend list first to ensure it's up to date
+      await refreshFriendList();
+      
+      const memberData = await getUserById(memberId);
+      if (memberData) {
+        setSelectedMember({
+          userId: memberData.userId,
+          fullname: memberData.fullname,
+          phone: memberData.phone,
+          urlavatar: memberData.urlavatar,
+          isMale: memberData.isMale,
+          birthday: memberData.birthday
+        });
+        setIsUserInfoModalVisible(true);
+      }
+    } catch (err) {
+      console.error('Error fetching member data:', err);
+      message.error('Không thể tải thông tin người dùng');
+    }
+  };
+
+  // Handle when friend request successful or completed
+  const handleFriendActionComplete = () => {
+    // Close the modal
+    setIsUserInfoModalVisible(false);
+    setSelectedMember(null);
+    
+    // Refresh the friend list after a short delay
+    setTimeout(() => {
+      refreshFriendList();
+    }, 500);
+  };
+
+  // Only refresh friend list without closing modal
+  const handleFriendListRefresh = () => {
+    refreshFriendList();
+  };
+
+  // Handle messaging a user
+  const handleMessage = async (userId: string, conversation: Conversation) => {
+    // Navigate to conversation
+    if (conversation?.conversationId) {
+      navigate(`/chat/${conversation.conversationId}`);
+    }
+  };
+
+  // Handle send friend request from modal
+  const handleSendFriendRequest = (userId: string) => {
+    // This is handled by the UserInfoHeaderModal
+    console.log('Send friend request to:', userId);
+  };
+
+  // Check if the current user is the user being viewed
+  const isCurrentUser = (userId: string): boolean => {
+    const currentUserId = localStorage.getItem('userId');
+    return userId === currentUserId;
+  };
+
   // If showing members list view
   if (showMembersList && isGroup) {
     return (
@@ -664,6 +769,7 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
             const isCurrentUser = memberId === localStorage.getItem('userId');
             const isOwner = currentConversation.rules?.ownerId === memberId;
             const isCoOwner = currentConversation.rules?.coOwnerIds?.includes(memberId) || false;
+            const isMemberFriend = isFriend(memberId);
             
             // Determine if the current user should see the menu for this member
             const currentUserRole = userRole;
@@ -702,8 +808,33 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
                   </div>
                 </div>
                 
-                {hoveredMemberId === memberId && canShowMenu && (
-                  <div className="absolute right-4">
+                {/* Buttons container with proper spacing */}
+                <div className="flex items-center space-x-2">
+                  {/* Kết bạn/Nhắn tin button (only for non-current user) */}
+                  {!isCurrentUser && (
+                    <>
+                      {!isMemberFriend ? (
+                        <Button
+                          type="link"
+                          className="text-blue-500"
+                          onClick={() => handleFriendRequest(memberId)}
+                        >
+                          Kết bạn
+                        </Button>
+                      ) : (
+                        <Button
+                          type="link"
+                          className="text-blue-500"
+                          onClick={() => handleFriendRequest(memberId)}
+                        >
+                          Nhắn tin
+                        </Button>
+                      )}
+                    </>
+                  )}
+                  
+                  {/* Three dots menu (only show when hovering) */}
+                  {hoveredMemberId === memberId && canShowMenu && (
                     <Dropdown
                       overlay={
                         <Menu>
@@ -741,21 +872,38 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
                         className="flex items-center justify-center"
                       />
                     </Dropdown>
-                  </div>
-                )}
-                
-                {isOwner && !isCurrentUser && (
-                  <Button
-                    type="link"
-                    className="text-blue-500"
-                  >
-                    Kết bạn
-                  </Button>
-                )}
+                  )}
+                </div>
               </div>
             );
           })}
         </div>
+
+        {/* User Info Modal for friend requests */}
+        {selectedMember && (
+          <UserInfoHeaderModal
+            visible={isUserInfoModalVisible}
+            onCancel={() => setIsUserInfoModalVisible(false)}
+            searchResult={{
+              userId: selectedMember.userId,
+              fullname: selectedMember.fullname,
+              phone: selectedMember.phone || '',
+              avatar: selectedMember.urlavatar,
+              isMale: selectedMember.isMale,
+              birthday: selectedMember.birthday
+            }}
+            isCurrentUser={isCurrentUser}
+            isFriend={isFriend}
+            handleUpdate={() => {}}
+            handleMessage={(userId, conversation) => {
+              handleMessage(userId, conversation);
+              handleFriendActionComplete();
+            }}
+            handleSendFriendRequest={handleSendFriendRequest}
+            isSending={false}
+            onRequestsUpdate={handleFriendListRefresh}
+          />
+        )}
       </div>
     );
   }
