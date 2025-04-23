@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Avatar } from '../../common/Avatar';
-import { Button, Switch, Modal, Input, App, } from 'antd';
+import { Button, Switch, Modal, Input, App, Dropdown, Menu } from 'antd';
 import { 
   BellOutlined,
   PushpinOutlined,
@@ -25,6 +25,9 @@ import {
   PlayCircleOutlined,
   CloseOutlined,
   LeftOutlined,
+  MoreOutlined,
+  LockOutlined,
+  UserDeleteOutlined,
   RightOutlined as RightArrowOutlined
 } from '@ant-design/icons';
 import { Conversation } from '../../../features/chat/types/conversationTypes';
@@ -75,7 +78,15 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
   const { userCache, userAvatars } = useConversations();
   const { t } = useLanguage();
   const [userRole, setUserRole] = useState<'owner' | 'co-owner' | 'member'>('member');
-  const { leaveGroupConversation, fetchSharedMedia, fetchSharedFiles, downloadFile } = useChatInfo();
+  const { 
+    leaveGroupConversation, 
+    fetchSharedMedia, 
+    fetchSharedFiles, 
+    downloadFile,
+    addCoOwner,
+    removeCoOwnerDirectly,
+    removeGroupMember
+  } = useChatInfo();
   const { message, modal } = App.useApp();
   const [sharedMedia, setSharedMedia] = useState<any[]>([]);
   const [sharedFiles, setSharedFiles] = useState<any[]>([]);
@@ -85,6 +96,8 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
   const [isMediaModalOpen, setIsMediaModalOpen] = useState<boolean>(false);
   const [currentMediaIndex, setCurrentMediaIndex] = useState<number>(0);
   const navigate = useNavigate();
+  const [showMembersList, setShowMembersList] = useState(false);
+  const [hoveredMemberId, setHoveredMemberId] = useState<string | null>(null);
 
   // Fetch detailed conversation information
   useEffect(() => {
@@ -465,6 +478,239 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
     }
   };
 
+  // Function to handle click on members count
+  const handleShowMembers = () => {
+    setShowMembersList(true);
+  };
+
+  const handleBackFromMembersList = () => {
+    setShowMembersList(false);
+  };
+
+  // Function to add a co-owner
+  const handleAddCoOwner = async (memberId: string) => {
+    if (!currentConversation.conversationId || !currentConversation.rules) return;
+    
+    try {
+      message.loading({ content: 'Đang thêm phó nhóm...', key: 'add-co-owner' });
+      const result = await addCoOwner(
+        currentConversation.conversationId,
+        memberId,
+        currentConversation.rules.coOwnerIds || []
+      );
+      
+      if (result) {
+        message.success({ content: 'Đã thêm phó nhóm thành công', key: 'add-co-owner', duration: 2 });
+        // Update the conversation data
+        setDetailedConversation(result as DetailedConversation);
+      } else {
+        message.error({ content: 'Không thể thêm phó nhóm', key: 'add-co-owner', duration: 2 });
+      }
+    } catch (err) {
+      console.error('Error adding co-owner:', err);
+      message.error('Đã xảy ra lỗi. Vui lòng thử lại sau.');
+    }
+  };
+
+  // Function to remove a co-owner
+  const handleRemoveCoOwner = async (memberId: string) => {
+    if (!currentConversation.conversationId || !currentConversation.rules) return;
+    
+    try {
+      message.loading({ content: 'Đang gỡ quyền phó nhóm...', key: 'remove-co-owner' });
+      const result = await removeCoOwnerDirectly(
+        currentConversation.conversationId,
+        memberId
+      );
+      
+      if (result) {
+        message.success({ content: 'Đã gỡ quyền phó nhóm thành công', key: 'remove-co-owner', duration: 2 });
+        // Update the conversation data
+        setDetailedConversation(result as DetailedConversation);
+      } else {
+        message.error({ content: 'Không thể gỡ quyền phó nhóm', key: 'remove-co-owner', duration: 2 });
+      }
+    } catch (err) {
+      console.error('Error removing co-owner:', err);
+      message.error('Đã xảy ra lỗi. Vui lòng thử lại sau.');
+    }
+  };
+
+  // Function to remove a member
+  const handleRemoveMember = async (memberId: string) => {
+    if (!currentConversation.conversationId) return;
+    
+    modal.confirm({
+      title: 'Xóa thành viên',
+      content: 'Bạn có chắc chắn muốn xóa thành viên này khỏi nhóm?',
+      okText: 'Xóa',
+      cancelText: 'Hủy',
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        try {
+          const key = 'remove-member';
+          message.loading({ content: 'Đang xóa thành viên...', key });
+          
+          const success = await removeGroupMember(currentConversation.conversationId, memberId);
+          
+          if (success) {
+            message.success({ content: 'Đã xóa thành viên khỏi nhóm', key, duration: 2 });
+            
+            // Update the conversation data to reflect the change
+            const updatedConversation = await getConversationDetail(currentConversation.conversationId);
+            setDetailedConversation(updatedConversation as DetailedConversation);
+          } else {
+            message.error({ content: 'Không thể xóa thành viên', key, duration: 2 });
+          }
+        } catch (err: any) {
+          console.error('Error removing member:', err);
+          
+          // Handle specific error messages from the API
+          if (err.response?.status === 403) {
+            message.error('Bạn không có quyền xóa thành viên này khỏi nhóm');
+          } else {
+            message.error('Không thể xóa thành viên. Vui lòng thử lại sau.');
+          }
+        }
+      }
+    });
+  };
+
+  // If showing members list view
+  if (showMembersList && isGroup) {
+    return (
+      <div className="h-full bg-white">
+        <div className="flex-none p-4 border-b border-gray-200 flex items-center">
+          <Button 
+            type="text"
+            className="flex items-center mr-2"
+            icon={<LeftOutlined />}
+            onClick={handleBackFromMembersList}
+          />
+          <h2 className="text-lg font-semibold">
+            Thành viên
+          </h2>
+        </div>
+        
+        <div className="p-4 mb-4">
+          <Button 
+            block 
+            icon={<UserAddOutlined />} 
+            className="flex items-center justify-center bg-gray-100 hover:bg-gray-200 border-gray-200"
+          >
+            <span>Thêm thành viên</span>
+          </Button>
+        </div>
+        
+        <div className="px-4">
+          <div className="flex justify-between items-center mb-2">
+            <span>Danh sách thành viên ({groupMembers.length})</span>
+            <MoreOutlined className="text-gray-500" />
+          </div>
+        </div>
+        
+        <div className="member-list overflow-y-auto">
+          {groupMembers.map(memberId => {
+            const memberInfo = userCache[memberId] || localUserCache[memberId];
+            const isCurrentUser = memberId === localStorage.getItem('userId');
+            const isOwner = currentConversation.rules?.ownerId === memberId;
+            const isCoOwner = currentConversation.rules?.coOwnerIds?.includes(memberId) || false;
+            
+            // Determine if the current user should see the menu for this member
+            const currentUserRole = userRole;
+            let canShowMenu = false;
+            
+            if (currentUserRole === 'owner') {
+              // Owner can see menu for everyone
+              canShowMenu = true;
+            } else if (currentUserRole === 'co-owner') {
+              // Co-owner can see menu for regular members only
+              canShowMenu = !isOwner && !isCoOwner;
+            }
+            
+            return (
+              <div 
+                key={memberId}
+                className="flex items-center justify-between p-3 hover:bg-gray-100 relative"
+                onMouseEnter={() => setHoveredMemberId(memberId)}
+                onMouseLeave={() => setHoveredMemberId(null)}
+              >
+                <div className="flex items-center">
+                  <Avatar 
+                    name={memberInfo?.fullname || 'User'}
+                    avatarUrl={memberInfo?.urlavatar || userAvatars[memberId]}
+                    size={48}
+                    className="rounded-full mr-3"
+                  />
+                  <div>
+                    <div className="font-medium flex items-center">
+                      {memberInfo?.fullname || `User-${memberId.substring(0, 6)}`}
+                      {isCurrentUser && <span className="text-gray-500 ml-2">(Bạn)</span>}
+                    </div>
+                    <div className="text-sm text-gray-500">
+                      {isOwner ? 'Trưởng nhóm' : isCoOwner ? 'Phó nhóm' : ''}
+                    </div>
+                  </div>
+                </div>
+                
+                {hoveredMemberId === memberId && canShowMenu && (
+                  <div className="absolute right-4">
+                    <Dropdown
+                      overlay={
+                        <Menu>
+                          {isCurrentUser && userRole === 'owner' ? (
+                            <Menu.Item key="leave" onClick={handleLeaveGroup} icon={<LogoutOutlined />}>
+                              Rời nhóm
+                            </Menu.Item>
+                          ) : userRole === 'owner' && isCoOwner ? (
+                            <>
+                              <Menu.Item key="remove-co-owner" onClick={() => handleRemoveCoOwner(memberId)} icon={<LockOutlined />}>
+                                Gỡ quyền phó nhóm
+                              </Menu.Item>
+                              <Menu.Item key="remove-member" onClick={() => handleRemoveMember(memberId)} icon={<UserDeleteOutlined />}>
+                                Xóa khỏi nhóm
+                              </Menu.Item>
+                            </>
+                          ) : userRole === 'owner' && !isOwner && !isCoOwner ? (
+                            <>
+                              <Menu.Item key="add-co-owner" onClick={() => handleAddCoOwner(memberId)} icon={<LockOutlined />}>
+                                Thêm phó nhóm
+                              </Menu.Item>
+                              <Menu.Item key="remove-member" onClick={() => handleRemoveMember(memberId)} icon={<UserDeleteOutlined />}>
+                                Xóa khỏi nhóm
+                              </Menu.Item>
+                            </>
+                          ) : null}
+                        </Menu>
+                      }
+                      trigger={['click']}
+                      placement="bottomRight"
+                    >
+                      <Button 
+                        type="text" 
+                        icon={<MoreOutlined />} 
+                        className="flex items-center justify-center"
+                      />
+                    </Dropdown>
+                  </div>
+                )}
+                
+                {isOwner && !isCurrentUser && (
+                  <Button
+                    type="link"
+                    className="text-blue-500"
+                  >
+                    Kết bạn
+                  </Button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
   // If showing group management view
   if (showGroupManagement && isGroup) {
     return (
@@ -647,7 +893,7 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
                   <div className="p-4 border-t border-gray-100">
                     <div className="flex items-center mb-4">
                       <TeamOutlined className="text-gray-500 mr-2" />
-                      <span>{groupMembers.length} thành viên</span>
+                      <span className="cursor-pointer hover:text-blue-500" onClick={handleShowMembers}>{groupMembers.length} thành viên</span>
                     </div>
                     
                     <div className="mb-4">

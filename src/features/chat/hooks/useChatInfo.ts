@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Conversation } from '../types/conversationTypes';
-import { setCoOwner, setOwner, removeCoOwnerById, deleteGroup, leaveGroup, getConversationDetail } from '../../../api/API';
+import { setCoOwner, setOwner, removeCoOwnerById, deleteGroup, leaveGroup, getConversationDetail, removeUserFromGroup } from '../../../api/API';
 
 // Define interface for media item
 interface MediaItem {
@@ -573,6 +573,44 @@ export const useChatInfo = () => {
     }
   };
 
+  /**
+   * Remove a user from a group conversation
+   * @param conversationId - The ID of the conversation
+   * @param userId - The ID of the user to remove
+   */
+  const removeGroupMember = async (conversationId: string, userId: string): Promise<boolean> => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      console.log('Removing user from group:', { conversationId, userId });
+      const response = await removeUserFromGroup(conversationId, userId);
+      setLoading(false);
+      
+      if (response && response.message) {
+        console.log('Response after removing member:', response);
+        return true;
+      } else {
+        setError('Invalid response format');
+        return false;
+      }
+    } catch (err: any) {
+      setLoading(false);
+      
+      // Handle different error formats
+      let errorMessage = 'Failed to remove user from group';
+      if (err.message) {
+        errorMessage = err.message;
+      } else if (err.response?.data?.message) {
+        errorMessage = err.response.data.message;
+      }
+      
+      setError(errorMessage);
+      console.error('Error removing user from group:', errorMessage);
+      return false;
+    }
+  };
+
   return {
     loading,
     error,
@@ -587,6 +625,7 @@ export const useChatInfo = () => {
     leaveGroupConversation,
     fetchSharedMedia,
     fetchSharedFiles,
-    downloadFile
+    downloadFile,
+    removeGroupMember
   };
 };

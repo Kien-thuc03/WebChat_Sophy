@@ -2668,3 +2668,31 @@ export const leaveGroup = async (conversationId: string) => {
     throw error;
   }
 };
+/**
+ * Removes a user from a group conversation
+ * @param conversationId The ID of the conversation
+ * @param userId The ID of the user to remove
+ */
+export const removeUserFromGroup = async (conversationId: string, userId: string) => {
+  try {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      throw new Error('User not authenticated');
+    }
+    
+    const response = await apiClient.put(`/api/conversations/group/${conversationId}/remove/${userId}`);
+
+    if (response.status !== 200) {
+      throw new Error('Failed to remove user from group');
+    }
+
+    return response.data;
+  } catch (error: any) {
+    console.error('Error removing user from group:', {
+      message: error.message,
+      status: error.response?.status,
+      data: error.response?.data
+    });
+    throw error;
+  }
+};
