@@ -7,12 +7,12 @@ interface MediaItem {
   url: string;
   downloadUrl?: string;
   type: string;
-  timestamp: string;
+  timestamp?: string;
+  createdAt?: string;
   name?: string;
   size?: number;
   senderId?: string;
   messageId?: string;
-  thumbnailUrl?: string;
   content?: string;
 }
 
@@ -23,9 +23,13 @@ interface FileItem {
   type: string;
   name: string;
   size: number;
-  timestamp: string;
+  timestamp?: string;
+  createdAt: string;
   senderId?: string;
   messageId?: string;
+  fromMessageId?: string;
+  isRecall?: boolean;
+  hiddenFrom?: string[];
 }
 
 // Extended conversation interface with additional properties returned by the API
@@ -310,7 +314,6 @@ export const useChatInfo = () => {
               timestamp: new Date().toISOString(),
               name: isVideo ? 'Video' : 'Image',
               size: 0,
-              thumbnailUrl: item
             };
           }
           
@@ -336,15 +339,16 @@ export const useChatInfo = () => {
             }
           }
           
+          // Cấu trúc mới cho listImage
           return {
             url: itemUrl,
             downloadUrl: downloadUrl,
             type: mediaType,
-            timestamp: item.timestamp || new Date().toISOString(),
+            timestamp: item.createdAt || item.timestamp || new Date().toISOString(),
             name: item.name || (mediaType === 'video' ? 'Video' : 'Image'),
             size: item.size || 0,
-            messageId: item.messageId || '',
-            thumbnailUrl: item.thumbnailUrl || itemUrl
+            messageId: item.fromMessageId || item.messageId || '',
+            senderId: item.senderId || '',
           };
         });
       }
@@ -360,9 +364,13 @@ export const useChatInfo = () => {
           name?: string;
           type?: string;
           timestamp?: string;
+          createdAt?: string;
           size?: number;
           messageId?: string;
+          fromMessageId?: string;
           senderId?: string;
+          isRecall?: boolean;
+          hiddenFrom?: string[];
           [key: string]: any; // For any other properties
         }
         
@@ -374,7 +382,7 @@ export const useChatInfo = () => {
             }
             
             const itemName = (item as FileListItem).name || '';
-            const itemUrl = (item as FileListItem).url || '';
+            const itemUrl = (item as FileListItem).url || (item as FileListItem).downloadUrl || '';
             const itemType = (item as FileListItem).type || '';
             
             return itemType.startsWith('video') || 
@@ -390,19 +398,20 @@ export const useChatInfo = () => {
                 timestamp: new Date().toISOString(),
                 name: 'Video',
                 size: 0,
-                thumbnailUrl: item
               };
             }
             
+            const itemAsFile = item as FileListItem;
+            
             return {
-              url: (item as FileListItem).url || '',
-              downloadUrl: (item as FileListItem).downloadUrl || (item as FileListItem).url || '',
+              url: itemAsFile.url || itemAsFile.downloadUrl || '',
+              downloadUrl: itemAsFile.downloadUrl || itemAsFile.url || '',
               type: 'video',
-              timestamp: (item as FileListItem).timestamp || new Date().toISOString(),
-              name: (item as FileListItem).name || 'Video',
-              size: (item as FileListItem).size || 0,
-              messageId: (item as FileListItem).messageId || '',
-              thumbnailUrl: (item as FileListItem).url || ''
+              timestamp: itemAsFile.createdAt || itemAsFile.timestamp || new Date().toISOString(),
+              name: itemAsFile.name || 'Video',
+              size: itemAsFile.size || 0,
+              messageId: itemAsFile.fromMessageId || itemAsFile.messageId || '',
+              senderId: itemAsFile.senderId || '',
             };
           });
         
@@ -458,6 +467,7 @@ export const useChatInfo = () => {
       
       // Check if the conversation has files in listFile
       if (conversationData?.listFile && Array.isArray(conversationData.listFile)) {
+        console.log('Processing listFile:', conversationData.listFile);
         
         // Map each item to the correct FileItem format
         files = conversationData.listFile.map((item: any) => {
@@ -469,12 +479,10 @@ export const useChatInfo = () => {
               type: 'file',
               name: 'File.txt',
               size: 1024,
-              timestamp: new Date().toISOString(),
+              createdAt: new Date().toISOString(),
             };
           }
           
-          // Log the item for debugging
-          console.log('Processing file item:', item);
           
           // Extract file type from name if available
           let fileType = 'file';
@@ -485,17 +493,26 @@ export const useChatInfo = () => {
             }
           }
           
+          // Dùng cấu trúc mới của listFile với các field mới
           return {
-            url: item.url || '',
+            url: item.url || item.downloadUrl || '',
             downloadUrl: item.downloadUrl || item.url || '',
             type: item.type || fileType,
             name: item.name || 'File',
             size: item.size || 0,
-            timestamp: item.timestamp || new Date().toISOString(),
-            messageId: item.messageId || '',
-            senderId: item.senderId || ''
+            createdAt: item.createdAt || item.timestamp || new Date().toISOString(),
+            messageId: item.fromMessageId || item.messageId || '',
+            senderId: item.senderId || '',
+            isRecall: item.isRecall || false,
+            hiddenFrom: item.hiddenFrom || []
           };
         });
+        
+        // Không hiển thị các file đã bị thu hồi hoặc ẩn
+        files = files.filter(file => 
+          !file.isRecall && 
+          (!file.hiddenFrom || !Array.isArray(file.hiddenFrom) || file.hiddenFrom.length === 0)
+        );
       }
       
       // No mock data generation - we only want real data from the API

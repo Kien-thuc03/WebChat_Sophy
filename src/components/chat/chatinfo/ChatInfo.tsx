@@ -1,17 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { Avatar } from '../../common/Avatar';
-import { Button, Tooltip, Collapse, Badge, Switch, Modal, Divider, Input, App, message } from 'antd';
+import { Button, Switch, Modal, Input, App, } from 'antd';
 import { 
   BellOutlined,
   PushpinOutlined,
   UsergroupAddOutlined,
   ClockCircleOutlined,
-  EyeInvisibleOutlined,
-  SearchOutlined,
+  EyeInvisibleOutlined,  
   EditOutlined,
   WarningOutlined,
   DeleteOutlined,
-  PlusOutlined,
   FileImageOutlined,
   FileOutlined,
   LinkOutlined,
@@ -22,7 +20,6 @@ import {
   SettingOutlined,
   UserAddOutlined,
   LogoutOutlined,
-  NotificationOutlined,
   FileTextOutlined,
   DownloadOutlined,
   PlayCircleOutlined,
@@ -37,7 +34,10 @@ import { User } from "../../../features/auth/types/authTypes";
 import GroupAvatar from '../GroupAvatar';
 import { useLanguage } from "../../../features/auth/context/LanguageContext";
 import GroupManagement from './GroupManagement';
+import MediaGallery from './MediaGallery';
 import { useChatInfo } from '../../../features/chat/hooks/useChatInfo';
+import { formatMessageTime, formatRelativeTime } from '../../../utils/dateUtils';
+import { useNavigate } from 'react-router-dom';
 
 interface ChatInfoProps {
   conversation: Conversation;
@@ -69,6 +69,9 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
   const [detailedConversation, setDetailedConversation] = useState<DetailedConversation | null>(null);
   const [loading, setLoading] = useState(true);
   const [showGroupManagement, setShowGroupManagement] = useState(false);
+  const [showMediaGallery, setShowMediaGallery] = useState(false);
+  const [showFileGallery, setShowFileGallery] = useState(false);
+  const [mediaGalleryType, setMediaGalleryType] = useState<'media' | 'files' | null>(null);
   const { userCache, userAvatars } = useConversations();
   const { t } = useLanguage();
   const [userRole, setUserRole] = useState<'owner' | 'co-owner' | 'member'>('member');
@@ -81,6 +84,7 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
   const [selectedMediaType, setSelectedMediaType] = useState<'image' | 'video' | null>(null);
   const [isMediaModalOpen, setIsMediaModalOpen] = useState<boolean>(false);
   const [currentMediaIndex, setCurrentMediaIndex] = useState<number>(0);
+  const navigate = useNavigate();
 
   // Fetch detailed conversation information
   useEffect(() => {
@@ -349,6 +353,16 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
     setShowGroupManagement(false);
   };
 
+  const handleShowMediaGallery = (type: 'media' | 'files') => {
+    setMediaGalleryType(type);
+    setShowMediaGallery(true);
+  };
+
+  const handleBackFromMediaGallery = () => {
+    setShowMediaGallery(false);
+    setMediaGalleryType(null);
+  };
+
   // Determine the display name based on whether it's a group or individual conversation
   const displayName = isGroup 
     ? groupName || 'Nhóm chat' 
@@ -400,6 +414,20 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
     setIsMediaModalOpen(false);
     setSelectedMedia(null);
     setSelectedMediaType(null);
+    
+    // Tìm và dừng video
+    const videoElement = document.getElementById('media-preview-video') as HTMLVideoElement;
+    if (videoElement) {
+      videoElement.pause();
+      videoElement.currentTime = 0;
+    }
+    
+    // Để đảm bảo, dừng tất cả các video
+    const videos = document.querySelectorAll('video');
+    videos.forEach(video => {
+      video.pause();
+      video.currentTime = 0;
+    });
   };
 
   // Chuyển đến ảnh/video trước
@@ -446,6 +474,45 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
         onBack={handleBackFromGroupManagement}
         onDisband={onLeaveGroup}
       />
+    );
+  }
+
+  // If showing media gallery view
+  if (showMediaGallery && mediaGalleryType) {
+    return (
+      <div className="h-full bg-white">
+        <div className="flex-none p-4 border-b border-gray-200 flex items-center">
+          <Button 
+            type="text"
+            className="flex items-center mr-2"
+            icon={<LeftOutlined />}
+            onClick={handleBackFromMediaGallery}
+          />
+          <h2 className="text-lg font-semibold">
+            Kho lưu trữ
+          </h2>
+        </div>
+        
+        <div className="flex-1 overflow-y-auto">
+          {mediaGalleryType === 'media' ? (
+            <MediaGallery
+              type="media" 
+              items={sharedMedia}
+              conversationId={conversation.conversationId}
+              onPreviewMedia={handleMediaPreview}
+              onDownload={handleDownloadFile}
+            />
+          ) : (
+            <MediaGallery
+              type="files"
+              items={sharedFiles}
+              conversationId={conversation.conversationId}
+              onPreviewMedia={handleMediaPreview}
+              onDownload={handleDownloadFile}
+            />
+          )}
+        </div>
+      </div>
     );
   }
 
@@ -741,7 +808,7 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
                   {sharedMedia.length > 0 && (
                     <div 
                       className="flex justify-center items-center mt-3 py-2 bg-gray-100 rounded cursor-pointer hover:bg-gray-200"
-                      onClick={() => window.open(`#/media/${conversation.conversationId}`, '_self')}
+                      onClick={() => handleShowMediaGallery('media')}
                     >
                       <span>Xem tất cả</span>
                     </div>
@@ -788,9 +855,34 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
                           }
                         }
                         
-                        // Format date
-                        const fileDate = file.timestamp ? new Date(file.timestamp) : new Date();
-                        const formattedDate = `${fileDate.getDate().toString().padStart(2, '0')}/${(fileDate.getMonth() + 1).toString().padStart(2, '0')}/${fileDate.getFullYear()}`;
+                        // Format date - không sử dụng padStart để tránh số 0 phía trước
+                        let formattedDate = '';
+                        if (file.createdAt) {
+                          const fileDate = new Date(file.createdAt);
+                          const today = new Date();
+                          const yesterday = new Date();
+                          yesterday.setDate(yesterday.getDate() - 1);
+                          
+                          // Format thời gian
+                          const hours = fileDate.getHours();
+                          const minutes = fileDate.getMinutes() < 10 ? '0' + fileDate.getMinutes() : fileDate.getMinutes();
+                          const timeString = `${hours}:${minutes}`;
+                          
+                          // Định dạng ngày
+                          if (fileDate.toDateString() === today.toDateString()) {
+                            formattedDate = `Hôm nay, ${timeString}`;
+                          } else if (fileDate.toDateString() === yesterday.toDateString()) {
+                            formattedDate = `Hôm qua, ${timeString}`;
+                          } else if (fileDate.getFullYear() === today.getFullYear()) {
+                            const day = fileDate.getDate();
+                            const month = fileDate.getMonth() + 1;
+                            formattedDate = `${day}/${month}`;
+                          } else {
+                            const day = fileDate.getDate();
+                            const month = fileDate.getMonth() + 1;
+                            formattedDate = `${day}/${month}/${fileDate.getFullYear()}`;
+                          }
+                        }
                         
                         return (
                           <div key={`file-${index}`} className="flex items-center justify-between py-2">
@@ -827,7 +919,7 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
                   {sharedFiles.length > 0 && (
                     <div 
                       className="flex justify-center items-center mt-3 py-2 bg-gray-100 rounded cursor-pointer hover:bg-gray-200"
-                      onClick={() => window.open(`#/files/${conversation.conversationId}`, '_self')}
+                      onClick={() => handleShowMediaGallery('files')}
                     >
                       <span>Xem tất cả</span>
                     </div>
@@ -955,6 +1047,7 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
         }}
         className="media-preview-modal"
         closeIcon={false}
+        keyboard={true}
       >
         <div className="relative flex flex-col h-[90vh] justify-center items-center bg-black">
           {/* Thanh trên cùng với nút đóng và chỉ số */}
@@ -988,6 +1081,8 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
                 autoPlay
                 style={{ maxWidth: '100%', maxHeight: '80vh' }}
                 className="select-none"
+                id="media-preview-video"
+                onError={(e) => console.error("Video load error:", e)}
               />
             ) : null}
           </div>
@@ -1009,11 +1104,6 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
                 style={{ border: 'none' }}
               />
             </div>
-          </div>
-
-          {/* Hiển thị vị trí hiện tại / tổng số */}
-          <div className="absolute top-4 left-0 right-0 text-center text-white text-sm">
-            {currentMediaIndex + 1} / {sharedMedia.length}
           </div>
 
           {/* Nút điều hướng trước/sau */}
