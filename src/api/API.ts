@@ -1915,7 +1915,6 @@ export const fetchFriends = async () => {
       throw new Error("Không có token xác thực");
     }
 
-    console.log("Fetching friends with token:", token);
     const response = await apiClient.get("/api/users/friends");
     console.log("Friends response:", response.data);
 
