@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Avatar } from '../../common/Avatar';
-import { Button, Tooltip, Collapse, Badge, Switch, Modal, Divider, Input, App } from 'antd';
+import { Button, Tooltip, Collapse, Badge, Switch, Modal, Divider, Input, App, message } from 'antd';
 import { 
   BellOutlined,
   PushpinOutlined,
@@ -23,7 +23,12 @@ import {
   UserAddOutlined,
   LogoutOutlined,
   NotificationOutlined,
-  FileTextOutlined
+  FileTextOutlined,
+  DownloadOutlined,
+  PlayCircleOutlined,
+  CloseOutlined,
+  LeftOutlined,
+  RightOutlined as RightArrowOutlined
 } from '@ant-design/icons';
 import { Conversation } from '../../../features/chat/types/conversationTypes';
 import { useConversations } from '../../../features/chat/hooks/useConversations';
@@ -67,8 +72,15 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
   const { userCache, userAvatars } = useConversations();
   const { t } = useLanguage();
   const [userRole, setUserRole] = useState<'owner' | 'co-owner' | 'member'>('member');
-  const { leaveGroupConversation } = useChatInfo();
+  const { leaveGroupConversation, fetchSharedMedia, fetchSharedFiles, downloadFile } = useChatInfo();
   const { message, modal } = App.useApp();
+  const [sharedMedia, setSharedMedia] = useState<any[]>([]);
+  const [sharedFiles, setSharedFiles] = useState<any[]>([]);
+  const [sharedLinks, setSharedLinks] = useState<any[]>([]);
+  const [selectedMedia, setSelectedMedia] = useState<string | null>(null);
+  const [selectedMediaType, setSelectedMediaType] = useState<'image' | 'video' | null>(null);
+  const [isMediaModalOpen, setIsMediaModalOpen] = useState<boolean>(false);
+  const [currentMediaIndex, setCurrentMediaIndex] = useState<number>(0);
 
   // Fetch detailed conversation information
   useEffect(() => {
@@ -86,6 +98,9 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
             setIsMuted(detailedData.isMuted || false);
             setIsPinned(detailedData.isPinned || false);
             setIsHidden(detailedData.isHidden || false);
+            
+            // Fetch media and files
+            loadMediaAndFiles(conversation.conversationId);
           }
         } catch (error) {
           console.error('Failed to load conversation details:', error);
@@ -342,10 +357,85 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
   // Determine online status
   const onlineStatus = isGroup ? `${groupMembers.length} thành viên` : 'Online';
 
-  // Mock data for shared media/files/links
-  const sharedMedia = detailedConversation?.sharedMedia || [];
-  const sharedFiles = detailedConversation?.sharedFiles || [];
-  const sharedLinks = detailedConversation?.sharedLinks || [];
+  // Function to load media and files
+  const loadMediaAndFiles = async (conversationId: string) => {
+    try {
+      // Fetch shared media
+      const media = await fetchSharedMedia(conversationId);
+      setSharedMedia(media);
+      
+      // Fetch shared files
+      const files = await fetchSharedFiles(conversationId);
+      setSharedFiles(files);
+      
+      // For links, we'll use the mock data for now since it's not clear if there's an API for it
+      // In a real implementation, you'd fetch this from the API as well
+      if (detailedConversation?.sharedLinks) {
+        setSharedLinks(detailedConversation.sharedLinks);
+      }
+    } catch (error) {
+      console.error('Error loading media and files:', error);
+    }
+  };
+
+  // Function to handle file download
+  const handleDownloadFile = (url: string, downloadUrl: string | undefined, filename: string) => {
+    // Use the downloadUrl if available, otherwise fall back to regular url
+    const fileUrl = downloadUrl || url;
+    downloadFile(fileUrl, filename);
+    message.success(`Đang tải xuống ${filename}`);
+  };
+
+  // Thêm hàm xử lý xem trước media
+  const handleMediaPreview = (media: any, type: 'image' | 'video', index: number) => {
+    const url = media.downloadUrl || media.url;
+    setSelectedMedia(url);
+    setSelectedMediaType(type);
+    setIsMediaModalOpen(true);
+    setCurrentMediaIndex(index);
+  };
+
+  // Đóng modal xem trước
+  const closeMediaModal = () => {
+    setIsMediaModalOpen(false);
+    setSelectedMedia(null);
+    setSelectedMediaType(null);
+  };
+
+  // Chuyển đến ảnh/video trước
+  const handlePrevMedia = () => {
+    if (currentMediaIndex > 0) {
+      const prevIndex = currentMediaIndex - 1;
+      const prevMedia = sharedMedia[prevIndex];
+      setCurrentMediaIndex(prevIndex);
+
+      const mediaType = prevMedia.type?.startsWith('image') ? 'image' : 'video';
+      setSelectedMediaType(mediaType);
+      setSelectedMedia(prevMedia.downloadUrl || prevMedia.url);
+    }
+  };
+
+  // Chuyển đến ảnh/video tiếp theo
+  const handleNextMedia = () => {
+    if (currentMediaIndex < sharedMedia.length - 1) {
+      const nextIndex = currentMediaIndex + 1;
+      const nextMedia = sharedMedia[nextIndex];
+      setCurrentMediaIndex(nextIndex);
+      
+      const mediaType = nextMedia.type?.startsWith('image') ? 'image' : 'video';
+      setSelectedMediaType(mediaType);
+      setSelectedMedia(nextMedia.downloadUrl || nextMedia.url);
+    }
+  };
+
+  // Tải xuống media
+  const handleDownloadMedia = () => {
+    if (selectedMedia) {
+      const fileName = sharedMedia[currentMediaIndex]?.name || (selectedMediaType === 'image' ? 'image.jpg' : 'video.mp4');
+      downloadFile(selectedMedia, fileName);
+      message.success(`Đang tải xuống ${fileName}`);
+    }
+  };
 
   // If showing group management view
   if (showGroupManagement && isGroup) {
@@ -576,92 +666,170 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
               </div>
             )}
 
-            {/* Media Section */}
-            <div className="cursor-pointer hover:bg-gray-50" onClick={() => setActiveKeys(prev => prev.includes("media") ? prev.filter(k => k !== "media") : [...prev, "media"])}>
-              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+            {/* Media Section - Update to use downloadUrl */}
+            <div className="border-b border-gray-100">
+              <div className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-gray-50"
+                onClick={() => setActiveKeys(prev => prev.includes("media") ? prev.filter(k => k !== "media") : [...prev, "media"])}>
                 <div className="flex items-center">
                   <FileImageOutlined className="text-gray-500 mr-3" />
-                  <span>Ảnh/Video</span>
+                  <span className="font-medium">Ảnh/Video</span>
                 </div>
                 <RightOutlined className={`text-gray-400 transition-transform ${activeKeys.includes("media") ? 'transform rotate-90' : ''}`} />
               </div>
+              
               {activeKeys.includes("media") && (
-                <div className="p-4 border-b border-gray-100 bg-gray-50">
+                <div className="p-4 border-t border-gray-100">
                   {sharedMedia.length > 0 ? (
-                    <div className="grid grid-cols-4 gap-2">
-                      {/* Mock images/videos - in real implementation, these would come from the API */}
-                      <div className="aspect-square bg-gray-200 rounded overflow-hidden relative">
-                        <div className="absolute inset-0 flex items-center justify-center">
-                          <FileImageOutlined className="text-gray-500 text-xl" />
+                    <div className="grid grid-cols-3 gap-2">
+                      {sharedMedia.slice(0, 6).map((item, index) => (
+                        <div 
+                          key={`media-${index}`} 
+                          className="aspect-square bg-gray-100 rounded overflow-hidden relative cursor-pointer border border-gray-200"
+                          onClick={() => {
+                            const mediaType = item.type?.startsWith('image') ? 'image' : 'video';
+                            handleMediaPreview(item, mediaType, index);
+                          }}
+                        >
+                          {item.type && item.type.startsWith('image') ? (
+                            <img 
+                              src={item.url}
+                              alt={item.name || `Image ${index}`}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : item.type && item.type.startsWith('video') ? (
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              {/* Nếu có thumbnailUrl thì hiển thị thumbnail */}
+                              {item.thumbnailUrl ? (
+                                <>
+                                  <img 
+                                    src={item.thumbnailUrl} 
+                                    alt={item.name || "Video"} 
+                                    className="w-full h-full object-cover absolute inset-0"
+                                  />
+                                  <div className="absolute inset-0 bg-black opacity-30"></div>
+                                </>
+                              ) : (
+                                <div className="absolute inset-0 bg-black opacity-70"></div>
+                              )}
+                              
+                              {/* Icon play video */}
+                              <div className="z-10 text-white bg-black bg-opacity-50 rounded-full p-2">
+                                <PlayCircleOutlined className="text-3xl" />
+                              </div>
+                              
+                              {/* Hiển thị nhãn video ở góc dưới */}
+                              <div className="absolute bottom-1 right-2 bg-black bg-opacity-70 text-white text-xs px-1 rounded">
+                                Video
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="aspect-square bg-gray-200 rounded overflow-hidden relative">
+                              <div className="absolute inset-0 flex items-center justify-center">
+                                <FileImageOutlined className="text-gray-500 text-xl" />
+                              </div>
+                            </div>
+                          )}
                         </div>
-                      </div>
-                      <div className="aspect-square bg-gray-200 rounded overflow-hidden relative">
-                        <div className="absolute inset-0 flex items-center justify-center">
-                          <FileImageOutlined className="text-gray-500 text-xl" />
-                        </div>
-                      </div>
-                      <div className="aspect-square bg-gray-200 rounded overflow-hidden relative">
-                        <div className="absolute inset-0 flex items-center justify-center">
-                          <FileImageOutlined className="text-gray-500 text-xl" />
-                        </div>
-                      </div>
-                      <div className="aspect-square bg-gray-200 rounded overflow-hidden relative">
-                        <div className="absolute inset-0 flex items-center justify-center">
-                          <FileImageOutlined className="text-gray-500 text-xl" />
-                        </div>
-                      </div>
+                      ))}
                     </div>
                   ) : (
                     <div className="text-sm text-gray-500 text-center py-2">
                       Chưa có ảnh/video nào
                     </div>
                   )}
+                  
+                  {sharedMedia.length > 0 && (
+                    <div 
+                      className="flex justify-center items-center mt-3 py-2 bg-gray-100 rounded cursor-pointer hover:bg-gray-200"
+                      onClick={() => window.open(`#/media/${conversation.conversationId}`, '_self')}
+                    >
+                      <span>Xem tất cả</span>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
 
-            {/* File Section */}
-            <div className="cursor-pointer hover:bg-gray-50" onClick={() => setActiveKeys(prev => prev.includes("files") ? prev.filter(k => k !== "files") : [...prev, "files"])}>
-              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+            {/* File Section - Update to use downloadUrl */}
+            <div className="border-b border-gray-100">
+              <div className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-gray-50"
+                onClick={() => setActiveKeys(prev => prev.includes("files") ? prev.filter(k => k !== "files") : [...prev, "files"])}>
                 <div className="flex items-center">
                   <FileOutlined className="text-gray-500 mr-3" />
-                  <span>File</span>
+                  <span className="font-medium">File</span>
                 </div>
                 <RightOutlined className={`text-gray-400 transition-transform ${activeKeys.includes("files") ? 'transform rotate-90' : ''}`} />
               </div>
+              
               {activeKeys.includes("files") && (
-                <div className="p-4 border-b border-gray-100 bg-gray-50">
-                  {isGroup && sharedFiles.length > 0 ? (
+                <div className="p-4 border-t border-gray-100">
+                  {sharedFiles.length > 0 ? (
                     <div className="space-y-3">
-                      {/* Mock files - in real implementation, these would come from the API */}
-                      <div className="flex items-center justify-between p-2 bg-white rounded">
-                        <div className="flex items-center">
-                          <FileOutlined className="text-blue-500 mr-2" />
-                          <div>
-                            <div className="font-medium">user_data.json</div>
-                            <div className="text-xs text-gray-500">105.22 KB</div>
+                      {sharedFiles.map((file, index) => {
+                        // Determine file type icon and background color
+                        let FileIcon = FileOutlined;
+                        let bgColor = "bg-blue-500";
+                        
+                        if (file.name) {
+                          const ext = file.name.split('.').pop()?.toLowerCase();
+                          if (ext === 'json') {
+                            bgColor = "bg-blue-400";
+                          } else if (ext === 'env') {
+                            bgColor = "bg-cyan-400";
+                          } else if (['jpg', 'png', 'gif', 'jpeg'].includes(ext || '')) {
+                            FileIcon = FileImageOutlined;
+                            bgColor = "bg-purple-400";
+                          } else if (['mp4', 'avi', 'mov'].includes(ext || '')) {
+                            bgColor = "bg-red-400";
+                          } else if (['zip', 'rar', '7z'].includes(ext || '')) {
+                            bgColor = "bg-yellow-500";
+                          } else if (['docx', 'doc', 'pdf'].includes(ext || '')) {
+                            bgColor = "bg-blue-600";
+                          }
+                        }
+                        
+                        // Format date
+                        const fileDate = file.timestamp ? new Date(file.timestamp) : new Date();
+                        const formattedDate = `${fileDate.getDate().toString().padStart(2, '0')}/${(fileDate.getMonth() + 1).toString().padStart(2, '0')}/${fileDate.getFullYear()}`;
+                        
+                        return (
+                          <div key={`file-${index}`} className="flex items-center justify-between py-2">
+                            <div className="flex items-center">
+                              <div className={`w-10 h-10 rounded flex items-center justify-center text-white ${bgColor} mr-3`}>
+                                <span className="text-xs font-bold uppercase">{file.name?.split('.').pop() || 'FILE'}</span>
+                              </div>
+                              <div>
+                                <div className="font-medium">{file.name}</div>
+                                <div className="flex items-center text-xs text-gray-500">
+                                  <span>{file.size ? `${Math.round(file.size / 1024)} KB` : ''}</span>
+                                  {file.size && <span className="mx-1">•</span>}
+                                  <span>{formattedDate}</span>
+                                </div>
+                              </div>
+                            </div>
+                            <Button 
+                              type="link" 
+                              className="text-gray-400 hover:text-blue-500"
+                              onClick={() => handleDownloadFile(file.url, file.downloadUrl, file.name)}
+                            >
+                              <DownloadOutlined />
+                            </Button>
                           </div>
-                        </div>
-                        <div className="flex space-x-1">
-                          <Button type="text" icon={<ShareAltOutlined />} size="small" />
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between p-2 bg-white rounded">
-                        <div className="flex items-center">
-                          <FileOutlined className="text-blue-500 mr-2" />
-                          <div>
-                            <div className="font-medium">.env</div>
-                            <div className="text-xs text-gray-500">913 B</div>
-                          </div>
-                        </div>
-                        <div className="flex space-x-1">
-                          <Button type="text" icon={<ShareAltOutlined />} size="small" />
-                        </div>
-                      </div>
+                        );
+                      })}
                     </div>
                   ) : (
                     <div className="text-sm text-gray-500 text-center py-2">
                       {isGroup ? 'Chưa có file nào' : 'Chưa có File được chia sẻ từ sau 10/3/2025'}
+                    </div>
+                  )}
+                  
+                  {sharedFiles.length > 0 && (
+                    <div 
+                      className="flex justify-center items-center mt-3 py-2 bg-gray-100 rounded cursor-pointer hover:bg-gray-200"
+                      onClick={() => window.open(`#/files/${conversation.conversationId}`, '_self')}
+                    >
+                      <span>Xem tất cả</span>
                     </div>
                   )}
                 </div>
@@ -772,6 +940,112 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
           </>
         )}
       </div>
+
+      {/* Modal xem trước ảnh/video */}
+      <Modal
+        open={isMediaModalOpen}
+        onCancel={closeMediaModal}
+        footer={null}
+        centered
+        width="auto"
+        bodyStyle={{ padding: 0, backgroundColor: '#000000' }}
+        style={{ 
+          maxWidth: '100vw',
+          backgroundColor: '#000000'
+        }}
+        className="media-preview-modal"
+        closeIcon={false}
+      >
+        <div className="relative flex flex-col h-[90vh] justify-center items-center bg-black">
+          {/* Thanh trên cùng với nút đóng và chỉ số */}
+          <div className="absolute top-0 left-0 right-0 bg-black bg-opacity-70 py-3 px-4 flex justify-between items-center z-20">
+            <div className="w-8"></div> {/* Phần trống để cân bằng với nút đóng */}
+            <div className="text-white font-medium text-sm">
+              {currentMediaIndex + 1} / {sharedMedia.length}
+            </div>
+            <Button
+              type="text"
+              icon={<CloseOutlined style={{ fontSize: '20px' }} />}
+              onClick={closeMediaModal}
+              className="flex items-center justify-center h-8 w-8 bg-transparent hover:bg-opacity-80 text-white"
+              style={{ border: 'none' }}
+            />
+          </div>
+
+          {/* Hiển thị ảnh hoặc video */}
+          <div className="flex justify-center items-center w-full h-full">
+            {selectedMediaType === 'image' ? (
+              <img
+                src={selectedMedia || ''}
+                alt="Preview"
+                style={{ maxWidth: '100%', maxHeight: '80vh', objectFit: 'contain' }}
+                className="select-none"
+              />
+            ) : selectedMediaType === 'video' ? (
+              <video
+                src={selectedMedia || ''}
+                controls
+                autoPlay
+                style={{ maxWidth: '100%', maxHeight: '80vh' }}
+                className="select-none"
+              />
+            ) : null}
+          </div>
+
+          {/* Thanh công cụ ở dưới */}
+          <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white p-4 flex justify-between items-center">
+            {/* Thông tin về ảnh/video */}
+            <div className="text-sm max-w-[50%] truncate">
+              {sharedMedia[currentMediaIndex]?.name || (selectedMediaType === 'image' ? 'Hình ảnh' : 'Video')}
+            </div>
+            
+            {/* Các nút chức năng */}
+            <div className="flex space-x-4">
+              <Button
+                type="link"
+                icon={<DownloadOutlined style={{ fontSize: '20px', color: 'white' }} />}
+                onClick={handleDownloadMedia}
+                className="flex items-center justify-center h-10 w-10 bg-transparent text-white"
+                style={{ border: 'none' }}
+              />
+            </div>
+          </div>
+
+          {/* Hiển thị vị trí hiện tại / tổng số */}
+          <div className="absolute top-4 left-0 right-0 text-center text-white text-sm">
+            {currentMediaIndex + 1} / {sharedMedia.length}
+          </div>
+
+          {/* Nút điều hướng trước/sau */}
+          <div className="absolute inset-y-0 left-0 right-0 flex justify-between items-center px-2 pointer-events-none">
+            {/* Nút trước */}
+            <div className="pointer-events-auto">
+              {currentMediaIndex > 0 && (
+                <Button
+                  type="text"
+                  icon={<LeftOutlined style={{ fontSize: '20px', color: 'white' }} />}
+                  onClick={handlePrevMedia}
+                  className="flex items-center justify-center h-12 w-12 bg-red-600 rounded-none"
+                  style={{ border: 'none' }}
+                />
+              )}
+            </div>
+            
+            {/* Nút sau */}
+            <div className="pointer-events-auto">
+              {currentMediaIndex < sharedMedia.length - 1 && (
+                <Button
+                  type="text"
+                  icon={<RightArrowOutlined style={{ fontSize: '20px', color: 'white' }} />}
+                  onClick={handleNextMedia}
+                  className="flex items-center justify-center h-12 w-12 bg-black bg-opacity-50 rounded-full"
+                  style={{ border: 'none' }}
+                />
+              )}
+            </div>
+          </div>
+        </div>
+      </Modal>
 
       {/* Edit Local Name Modal */}
       <Modal

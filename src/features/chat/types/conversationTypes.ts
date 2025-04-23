@@ -30,7 +30,7 @@ export interface Message {
   deletedFor: string[];
 }
 
-interface UnreadCount {
+export interface UnreadCount {
   userId: string;
   count: number;
   lastReadMessageId: string;
@@ -59,7 +59,7 @@ export interface Conversation {
   listFile: string[];
   pinnedMessages: string[];
   muteNotifications: string[];
-  unreadCount: UnreadCount[] | number;
+  unreadCount: UnreadCount[];
   hasUnread?: boolean;
   lastChange: string;
   createdAt: string;

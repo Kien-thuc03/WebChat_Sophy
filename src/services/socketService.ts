@@ -99,23 +99,19 @@ class SocketService {
   connect() {
     // Nếu đang trong quá trình kết nối, không thực hiện kết nối mới
     if (this.isConnecting) {
-      console.log("Socket connection already in progress, skipping");
       return this.socket;
     }
 
     // Nếu đã có kết nối hoạt động, trả về kết nối hiện tại
     if (this.socket?.connected) {
-      console.log("Socket already connected, reusing connection");
       return this.socket;
     }
 
     this.isConnecting = true;
-    console.log("Initializing socket connection...");
 
     try {
       // Đóng kết nối cũ nếu có
       if (this.socket) {
-        console.log("Closing existing socket before creating new one");
         this.socket.close();
         this.socket = null;
       }
@@ -131,7 +127,6 @@ class SocketService {
       });
 
       this.socket.on("connect", () => {
-        console.log("Socket connected successfully:", this.socket?.id);
         this.connectionAttempts = 0;
         this.isConnecting = false;
 
@@ -139,9 +134,7 @@ class SocketService {
         const userId = localStorage.getItem("userId");
         if (userId) {
           this.authenticate(userId);
-
           // Ensure we're listening to all important events
-          console.log("Setting up all socket event listeners after connection");
           // Join all existing conversations
           this.setupInitialConversations();
         }
@@ -158,11 +151,10 @@ class SocketService {
       });
 
       this.socket.on("reconnect_attempt", (attemptNumber: number) => {
-        console.log("Socket reconnection attempt:", attemptNumber);
+        // Connection attempt logic
       });
 
       this.socket.on("reconnect", () => {
-        console.log("Socket reconnected successfully");
         const userId = localStorage.getItem("userId");
         if (userId) {
           this.authenticate(userId);
@@ -180,7 +172,6 @@ class SocketService {
       });
 
       this.socket.on("disconnect", (reason) => {
-        console.log("Socket disconnected, reason:", reason);
         this.isConnecting = false;
 
         // Thử kết nối lại nếu server ngắt kết nối
@@ -211,7 +202,6 @@ class SocketService {
   authenticate(userId: string) {
     if (this.socket) {
       this.socket.emit("authenticate", userId);
-      console.log("Socket authentication sent for user:", userId);
     } else {
       console.warn("Cannot authenticate: Socket not connected");
       // Tự động kết nối nếu chưa có socket
@@ -220,10 +210,6 @@ class SocketService {
       setTimeout(() => {
         if (this.socket) {
           this.socket.emit("authenticate", userId);
-          console.log(
-            "Socket authentication sent after reconnect for user:",
-            userId
-          );
         }
       }, 500);
     }
@@ -246,50 +232,38 @@ class SocketService {
       // Gửi event thông báo cho server là đang ngắt kết nối có chủ ý
       try {
         this.socket.emit("intentionalDisconnect");
-        console.log("Emitted intentional disconnect event");
       } catch (error) {
         console.error("Error emitting intentional disconnect:", error);
       }
 
       try {
         this.socket.disconnect();
-        console.log("Socket disconnected successfully");
       } catch (error) {
         console.error("Error disconnecting socket:", error);
       }
 
       this.socket = null;
       this.isConnecting = false;
-      console.log("Socket reference cleared");
-    } else {
-      console.log("Socket already disconnected, nothing to do");
     }
   }
 
   cleanup() {
-    console.log("Performing socket cleanup");
     this.disconnect();
   }
 
   // Thêm phương thức để tham gia vào các cuộc trò chuyện
   joinConversations(conversationIds: string[]) {
     if (!this.socket || !this.socket.connected) {
-      console.warn(
-        "Socket not connected while trying to join conversations, reconnecting..."
-      );
       this.connect();
       // Thử lại sau 1 giây
       setTimeout(() => {
         if (this.socket?.connected) {
           this.socket.emit("joinUserConversations", conversationIds);
-        } else {
-          console.error("Failed to connect socket for joining conversations");
         }
       }, 1000);
       return;
     }
 
-    console.log("Joining conversations:", conversationIds);
     this.socket.emit("joinUserConversations", conversationIds);
   }
 
@@ -302,7 +276,6 @@ class SocketService {
       return;
     }
 
-    console.log("Leaving conversation:", conversationId);
     this.socket.emit("leaveUserConversations", [conversationId]);
   }
 
@@ -342,7 +315,6 @@ class SocketService {
 
     if (this.socket) {
       this.socket.on("userTyping", (data) => {
-        console.log("SocketService: User typing:", data);
         callback(data);
       });
     } else {
@@ -366,8 +338,6 @@ class SocketService {
       const processedMessageIds = new Map<string, number>(); // Map lưu ID tin nhắn và thời gian nhận
 
       this.socket.on("newMessage", (data: any) => {
-        console.log("SocketService: Received new message:", data);
-
         // Xử lý trường hợp nhận được document MongoDB
         let messageData = data.message;
 
@@ -390,9 +360,6 @@ class SocketService {
           const lastProcessedTime = processedMessageIds.get(messageId);
 
           if (lastProcessedTime && now - lastProcessedTime < 10000) {
-            console.log(
-              `SocketService: Duplicate message detected and skipped (ID: ${messageId})`
-            );
             return; // Bỏ qua tin nhắn trùng lặp
           }
 
@@ -449,14 +416,7 @@ class SocketService {
       // Remove any existing listeners for this event first to prevent duplicates
       this.socket.off("newConversation");
 
-      console.log("SocketService: Registering newConversation event listener");
-
       this.socket.on("newConversation", (rawData: any) => {
-        console.log(
-          "SocketService: Received raw newConversation event:",
-          rawData
-        );
-
         // Normalize the data based on possible server formats
         let normalizedData: ConversationData;
 
@@ -487,21 +447,11 @@ class SocketService {
         }
 
         const userId = localStorage.getItem("userId");
-        const { creatorId, receiverId } = normalizedData.conversation;
-
-        console.log(
-          `SocketService: New conversation - creator: ${creatorId}, receiver: ${receiverId}, current user: ${userId}`
-        );
-
         // Process the conversation data
         callback(normalizedData);
 
         // Also join the conversation room immediately
         if (normalizedData.conversation.conversationId) {
-          console.log(
-            "SocketService: Auto-joining new conversation room:",
-            normalizedData.conversation.conversationId
-          );
           this.joinConversations([normalizedData.conversation.conversationId]);
         }
       });
@@ -526,7 +476,6 @@ class SocketService {
 
     if (this.socket) {
       this.socket.on("messageRead", (data) => {
-        console.log("SocketService: Message read event:", data);
         callback(data);
       });
     } else {
@@ -547,11 +496,6 @@ class SocketService {
       // Thử lại sau 500ms
       setTimeout(() => {
         if (this.socket?.connected && userId) {
-          console.log("Socket reconnected, marking messages as read:", {
-            conversationId,
-            messageIds,
-            userId,
-          });
           this.socket.emit("markMessagesRead", {
             conversationId,
             messageIds,
@@ -563,11 +507,6 @@ class SocketService {
     }
 
     if (userId) {
-      console.log("SocketService: Marking messages as read:", {
-        conversationId,
-        messageIds,
-        userId,
-      });
       // Đảm bảo chúng ta gửi đầy đủ thông tin để cập nhật mảng readBy trên server
       this.socket.emit("markMessagesRead", {
         conversationId,
@@ -589,11 +528,6 @@ class SocketService {
       // Thử lại sau 500ms
       setTimeout(() => {
         if (this.socket?.connected && userId) {
-          console.log("Socket reconnected, marking messages as delivered:", {
-            conversationId,
-            messageIds,
-            userId,
-          });
           this.socket.emit("messageDelivered", {
             conversationId,
             messageIds,
@@ -605,11 +539,6 @@ class SocketService {
     }
 
     if (userId) {
-      console.log("SocketService: Marking messages as delivered:", {
-        conversationId,
-        messageIds,
-        userId,
-      });
       // Đảm bảo chúng ta gửi đầy đủ thông tin để cập nhật mảng deliveredTo trên server
       this.socket.emit("messageDelivered", {
         conversationId,
@@ -634,7 +563,6 @@ class SocketService {
 
     if (this.socket) {
       this.socket.on("messageDelivered", (data) => {
-        console.log("SocketService: Message delivered event:", data);
         callback(data);
       });
     }
@@ -653,17 +581,6 @@ class SocketService {
 
     if (this.socket) {
       this.socket.on("newFriendRequest", (data: FriendRequestData) => {
-        console.log("SocketService: Received newFriendRequest event:", data);
-        // Only notify if the current user is the sender
-        if (this.isFriendRequestSender(data)) {
-          console.log(
-            "SocketService: Current user is the sender, showing notification"
-          );
-        } else {
-          console.log(
-            "SocketService: Current user is the receiver, skipping notification"
-          );
-        }
         callback(data);
       });
     } else {
@@ -680,10 +597,6 @@ class SocketService {
 
     if (this.socket) {
       this.socket.on("rejectedFriendRequest", (data: FriendRequestData) => {
-        console.log(
-          "SocketService: Received rejectedFriendRequest event:",
-          data
-        );
         callback(data);
       });
     } else {
@@ -700,10 +613,6 @@ class SocketService {
 
     if (this.socket) {
       this.socket.on("acceptedFriendRequest", (data: FriendRequestData) => {
-        console.log(
-          "SocketService: Received acceptedFriendRequest event:",
-          data
-        );
         callback(data);
       });
     } else {
@@ -720,10 +629,6 @@ class SocketService {
 
     if (this.socket) {
       this.socket.on("retrievedFriendRequest", (data: FriendRequestData) => {
-        console.log(
-          "SocketService: Received retrievedFriendRequest event:",
-          data
-        );
         callback(data);
       });
     } else {
@@ -859,16 +764,12 @@ class SocketService {
         });
       }
 
-      console.log("Bắt đầu tải lên file và gửi tin nhắn...");
-
       // Sử dụng hàm sendFileMessage từ cloudinaryService thay vì chỉ uploadToCloudinary
       // Đây là bước quan trọng vì hàm này đã được cập nhật để gửi dữ liệu đến API
       const result = await cloudinaryService.sendFileMessage(
         file,
         conversationId
       );
-
-      console.log("Hoàn tất quá trình tải lên và lưu vào database:", result);
 
       return result;
     } catch (error) {
@@ -917,7 +818,6 @@ class SocketService {
 
     if (this.socket) {
       this.socket.on("messageRecalled", (data) => {
-        console.log("SocketService: Message recall event:", data);
         callback(data);
       });
     } else {
@@ -941,7 +841,6 @@ class SocketService {
 
     if (this.socket) {
       this.socket.on("messageDeleted", (data) => {
-        console.log("SocketService: Message delete event:", data);
         callback(data);
       });
     } else {
@@ -966,7 +865,6 @@ class SocketService {
 
     if (this.socket) {
       this.socket.on("messagePinned", (data) => {
-        console.log("SocketService: Message pinned event:", data);
         callback(data);
       });
     } else {
@@ -990,7 +888,6 @@ class SocketService {
 
     if (this.socket) {
       this.socket.on("messageUnpinned", (data) => {
-        console.log("SocketService: Message unpinned event:", data);
         callback(data);
       });
     } else {
@@ -1003,11 +900,9 @@ class SocketService {
   // Add a helper method to set up initial conversations
   private async setupInitialConversations() {
     try {
-      console.log("Looking for existing conversations to join...");
       // Get the current user's ID
       const userId = localStorage.getItem("userId");
       if (!userId) {
-        console.log("No user ID found, skipping conversation setup");
         return;
       }
 
@@ -1020,10 +915,6 @@ class SocketService {
             .map((conv) => conv.conversationId)
             .filter(Boolean);
           if (conversationIds.length > 0) {
-            console.log(
-              "Joining previously saved conversations:",
-              conversationIds
-            );
             this.joinConversations(conversationIds);
           }
         }

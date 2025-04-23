@@ -254,7 +254,6 @@ export const fetchUserData = async (userId: string) => {
 
     const response = await apiClient.get(`/api/users/get-user-by-id/${userId}`);
 
-    console.log("Fetch user data response:", response.data);
     return response.data;
   } catch (error) {
     console.error("Error fetching user data:", error);
@@ -538,7 +537,6 @@ export const fetchConversations = async (): Promise<Conversation[]> => {
     // Transform and validate conversations
     const validConversations = response.data;
 
-    console.log("Processed conversations:", validConversations);
     return validConversations;
   } catch (error) {
     console.error("Lỗi khi lấy danh sách hội thoại:", error);

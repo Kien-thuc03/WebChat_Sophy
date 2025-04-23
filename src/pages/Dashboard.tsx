@@ -233,7 +233,7 @@ const Dashboard: React.FC = () => {
                 pinnedMessages: [],
                 muteNotifications: [],
                 hasUnread: false,
-                unreadCount: 0,
+                unreadCount: [],
               };
               setSelectedConversation(placeholderConversation);
               setShowChatInfo(true);
