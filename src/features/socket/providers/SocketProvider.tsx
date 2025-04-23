@@ -31,7 +31,6 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
 
         // Register listener for new conversations
         socketService.onNewConversation((data) => {
-          console.log("SocketProvider: Received new conversation event:", data);
           // Make sure this conversation is for the current user
           const { creatorId, receiverId } = data.conversation;
 
@@ -76,10 +75,6 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
                 .map((conv) => conv.conversationId)
                 .filter(Boolean);
               if (conversationIds.length > 0) {
-                console.log(
-                  "SocketProvider: Joining conversations from localStorage:",
-                  conversationIds
-                );
                 socketService.joinConversations(conversationIds);
               }
             }

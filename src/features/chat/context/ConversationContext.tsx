@@ -8,7 +8,7 @@ import React, {
   ReactNode,
 } from "react";
 import { fetchConversations, getUserById } from "../../../api/API";
-import { Conversation } from "../types/conversationTypes";
+import { Conversation ,UnreadCount} from "../types/conversationTypes";
 import { User } from "../../auth/types/authTypes";
 import socketService from "../../../services/socketService";
 
@@ -147,9 +147,7 @@ export const ConversationProvider: React.FC<{ children: ReactNode }> = ({
 
     setIsLoading(true);
     try {
-      console.log("Đang tải danh sách hội thoại...");
       const data = await fetchConversations();
-      console.log("Đã nhận được dữ liệu hội thoại:", data.length, "hội thoại");
 
       // Check localStorage for saved avatars and apply them
       const processedData = data.map((conversation) => {
@@ -257,9 +255,13 @@ export const ConversationProvider: React.FC<{ children: ReactNode }> = ({
           groupName: isGroup ? groupName : undefined,
           groupMembers: isGroup ? groupMembers || [] : [],
           groupAvatarUrl: isGroup ? groupAvatarUrl || undefined : undefined,
-          unreadCount: isGroup ? [] : 1,
+          unreadCount: isGroup ? [] : [{
+            userId: localStorage.getItem("userId") || "",
+            count: 1,
+            lastReadMessageId: ""
+          }],
           hasUnread: !isGroup,
-          blockedBy: [],
+          blocked: [],
           isDeleted: false,
           deletedAt: null,
           formerMembers: [],
@@ -350,7 +352,7 @@ export const ConversationProvider: React.FC<{ children: ReactNode }> = ({
         if (conv.conversationId === conversationId) {
           return {
             ...conv,
-            unreadCount: 0,
+            unreadCount: [] as UnreadCount[],
             hasUnread: false,
           };
         }
@@ -372,14 +374,14 @@ export const ConversationProvider: React.FC<{ children: ReactNode }> = ({
               if (messageIdMatched) {
                 return {
                   ...conv,
-                  unreadCount: 0,
+                  unreadCount: [] as UnreadCount[],
                   hasUnread: false,
                 };
               }
             } else {
               return {
                 ...conv,
-                unreadCount: 0,
+                unreadCount: [] as UnreadCount[],
                 hasUnread: false,
               };
             }
@@ -410,7 +412,7 @@ export const ConversationProvider: React.FC<{ children: ReactNode }> = ({
         const messageId =
           message.messageDetailId || message.messageId || message.id || "";
 
-        let newUnreadCount: number | UnreadCount[];
+        let newUnreadCount: UnreadCount[];
         if (Array.isArray(existingConversation.unreadCount)) {
           newUnreadCount = isFromCurrentUser
             ? existingConversation.unreadCount
@@ -419,13 +421,16 @@ export const ConversationProvider: React.FC<{ children: ReactNode }> = ({
                 {
                   userId: currentUserId || "",
                   count: 1,
-                  lastRead: new Date().toISOString(),
+                  lastReadMessageId: "",
                 },
               ];
         } else {
-          newUnreadCount = isFromCurrentUser
-            ? 0
-            : (existingConversation.unreadCount as number) + 1;
+          // Convert number to UnreadCount array
+          newUnreadCount = [{
+            userId: currentUserId || "",
+            count: isFromCurrentUser ? 0 : 1,
+            lastReadMessageId: ""
+          }];
         }
 
         const updatedConversation: Conversation = {
@@ -557,10 +562,8 @@ export const ConversationProvider: React.FC<{ children: ReactNode }> = ({
     const currentUserId = localStorage.getItem("userId");
     if (currentUserId) {
       initializeData();
-      // Initialize socket connection if available
-      if (typeof socketService.initialize === "function") {
-        socketService.initialize();
-      }
+      // Initialize socket connection
+      socketService.connect();
       // No need to add event listeners here as they're already set up in another useEffect
     }
 
@@ -583,11 +586,6 @@ export const ConversationProvider: React.FC<{ children: ReactNode }> = ({
           "lastConversations",
           JSON.stringify(minimalConversations)
         );
-        console.log(
-          "Saved",
-          minimalConversations.length,
-          "conversations to localStorage"
-        );
       } catch (error) {
         console.error("Error saving conversations to localStorage:", error);
       }
@@ -600,10 +598,6 @@ export const ConversationProvider: React.FC<{ children: ReactNode }> = ({
       const timer = setTimeout(() => {
         const conversationIds = conversations.map(
           (conv) => conv.conversationId
-        );
-        console.log(
-          "Refreshing socket connections for all conversations:",
-          conversationIds
         );
         socketService.joinConversations(conversationIds);
       }, 1000);
@@ -639,8 +633,6 @@ export const ConversationProvider: React.FC<{ children: ReactNode }> = ({
   useEffect(() => {
     const currentUserId = localStorage.getItem("userId");
     if (!currentUserId || isLoading) return;
-
-    console.log("Setting up periodic conversation polling");
 
     const pollInterval = setInterval(async () => {
       try {
