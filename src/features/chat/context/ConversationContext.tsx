@@ -261,7 +261,7 @@ export const ConversationProvider: React.FC<{ children: ReactNode }> = ({
             lastReadMessageId: ""
           }],
           hasUnread: !isGroup,
-          blockedBy: [],
+          blocked: [],
           isDeleted: false,
           deletedAt: null,
           formerMembers: [],

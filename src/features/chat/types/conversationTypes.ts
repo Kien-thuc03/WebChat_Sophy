@@ -51,7 +51,7 @@ export interface Conversation {
   };
   lastMessage?: Message | null;
   newestMessageId?: string;
-  blockedBy: string[];
+  blocked: string[];
   isDeleted: boolean;
   deletedAt: string | null;
   formerMembers: string[];

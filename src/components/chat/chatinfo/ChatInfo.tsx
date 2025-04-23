@@ -85,7 +85,8 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
     downloadFile,
     addCoOwner,
     removeCoOwnerDirectly,
-    removeGroupMember
+    removeGroupMember,
+    transferOwnership
   } = useChatInfo();
   const { message, modal } = App.useApp();
   const [sharedMedia, setSharedMedia] = useState<any[]>([]);
@@ -98,6 +99,8 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
   const navigate = useNavigate();
   const [showMembersList, setShowMembersList] = useState(false);
   const [hoveredMemberId, setHoveredMemberId] = useState<string | null>(null);
+  const [showOwnershipTransfer, setShowOwnershipTransfer] = useState(false);
+  const [newOwnerSelected, setNewOwnerSelected] = useState<string | null>(null);
 
   // Fetch detailed conversation information
   useEffect(() => {
@@ -294,13 +297,13 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
         // Nếu là chủ nhóm, yêu cầu chuyển quyền
         if (isOwner) {
           modal.confirm({
-            title: 'Không thể rời nhóm',
-            content: 'Bạn là trưởng nhóm. Vui lòng chuyển quyền trưởng nhóm cho người khác trước khi rời nhóm.',
+            title: 'Chuyển quyền trưởng nhóm',
+            content: 'Bạn là trưởng nhóm. Để rời nhóm, bạn cần chuyển quyền trưởng nhóm cho người khác trước. Lưu ý: Sau khi chuyển quyền trưởng nhóm, bạn sẽ trở thành thành viên thường và không thể hoàn tác thao tác này.',
             okText: 'Chuyển quyền',
             cancelText: 'Hủy',
             onOk: () => {
-              // Chuyển đến trang quản lý nhóm để chuyển quyền trưởng nhóm
-              setShowGroupManagement(true);
+              // Chuyển đến trang chuyển quyền trưởng nhóm
+              setShowOwnershipTransfer(true);
             }
           });
           return;
@@ -346,7 +349,7 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
               if (err.response?.status === 400 && err.response?.data?.message?.includes('owner')) {
                 message.error('Bạn là trưởng nhóm, không thể rời nhóm. Vui lòng chuyển quyền trước.');
               } else {
-                message.error('Không thể rời nhóm. Vui lòng thử lại.');
+                message.error('Không thể rời nhóm. Vui lòng thử lại sau.');
               }
             }
           }
@@ -356,6 +359,52 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
         message.error('Đã xảy ra lỗi. Vui lòng thử lại sau.');
       }
     }
+  };
+
+  const handleTransferOwnership = async (newOwnerId: string) => {
+    if (!currentConversation.conversationId) return;
+
+    try {
+      message.loading({ content: 'Đang chuyển quyền...', key: 'transfer-ownership' });
+      const result = await transferOwnership(currentConversation.conversationId, newOwnerId);
+      
+      if (result) {
+        message.success({ 
+          content: 'Đã chuyển quyền trưởng nhóm thành công', 
+          key: 'transfer-ownership',
+          duration: 2 
+        });
+        
+        // Cập nhật lại conversation sau khi chuyển quyền
+        setDetailedConversation(result as DetailedConversation);
+        
+        // Quay lại màn hình thông tin nhóm
+        setShowOwnershipTransfer(false);
+        
+        // Hỏi người dùng có muốn rời nhóm sau khi chuyển quyền không
+        modal.confirm({
+          title: 'Rời nhóm',
+          content: 'Bạn đã chuyển quyền trưởng nhóm thành công. Bạn có muốn rời nhóm ngay bây giờ không?',
+          okText: 'Rời nhóm',
+          cancelText: 'Ở lại',
+          onOk: () => handleLeaveGroup()
+        });
+      } else {
+        message.error({ 
+          content: 'Không thể chuyển quyền trưởng nhóm', 
+          key: 'transfer-ownership',
+          duration: 2 
+        });
+      }
+    } catch (err) {
+      console.error('Error transferring ownership:', err);
+      message.error('Không thể chuyển quyền trưởng nhóm. Vui lòng thử lại.');
+    }
+  };
+
+  const handleBackFromOwnershipTransfer = () => {
+    setShowOwnershipTransfer(false);
+    setNewOwnerSelected(null);
   };
 
   const handleShowGroupManagement = () => {
@@ -706,6 +755,95 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
               </div>
             );
           })}
+        </div>
+      </div>
+    );
+  }
+
+  // If showing ownership transfer view
+  if (showOwnershipTransfer && isGroup) {
+    return (
+      <div className="h-full bg-white">
+        <div className="flex-none p-4 border-b border-gray-200 flex items-center">
+          <Button 
+            type="text"
+            className="flex items-center mr-2"
+            icon={<LeftOutlined />}
+            onClick={handleBackFromOwnershipTransfer}
+          />
+          <h2 className="text-lg font-semibold">
+            Chuyển quyền trưởng nhóm
+          </h2>
+        </div>
+        
+        <div className="p-4">
+          <div className="bg-yellow-50 p-3 rounded border border-yellow-200 mb-4">
+            <p className="text-yellow-700 text-sm">
+              Lưu ý: Sau khi chuyển quyền trưởng nhóm, bạn sẽ trở thành thành viên thường và không thể hoàn tác thao tác này.
+            </p>
+          </div>
+        </div>
+        
+        <div className="px-4 mb-3">
+          <h3 className="font-medium text-gray-700">Chọn trưởng nhóm mới</h3>
+        </div>
+        
+        <div className="member-list overflow-y-auto">
+          {groupMembers.map(memberId => {
+            const memberInfo = userCache[memberId] || localUserCache[memberId];
+            const isCurrentUser = memberId === localStorage.getItem('userId');
+            const isOwner = currentConversation.rules?.ownerId === memberId;
+            const isCoOwner = currentConversation.rules?.coOwnerIds?.includes(memberId) || false;
+            const isSelected = newOwnerSelected === memberId;
+            
+            // Skip the current user (owner) from the list
+            if (isCurrentUser) return null;
+            
+            return (
+              <div 
+                key={memberId}
+                className={`flex items-center justify-between p-3 hover:bg-gray-100 relative cursor-pointer ${isSelected ? 'bg-blue-50' : ''}`}
+                onClick={() => setNewOwnerSelected(memberId)}
+              >
+                <div className="flex items-center">
+                  <Avatar 
+                    name={memberInfo?.fullname || 'User'}
+                    avatarUrl={memberInfo?.urlavatar || userAvatars[memberId]}
+                    size={48}
+                    className="rounded-full mr-3"
+                  />
+                  <div>
+                    <div className="font-medium flex items-center">
+                      {memberInfo?.fullname || `User-${memberId.substring(0, 6)}`}
+                    </div>
+                    <div className="text-sm text-gray-500">
+                      {isCoOwner ? 'Phó nhóm' : 'Thành viên'}
+                    </div>
+                  </div>
+                </div>
+                
+                {isSelected && (
+                  <div className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center text-white">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        
+        <div className="p-4 border-t border-gray-200 flex justify-center">
+          <Button 
+            type="primary" 
+            size="large"
+            disabled={!newOwnerSelected}
+            onClick={() => newOwnerSelected && handleTransferOwnership(newOwnerSelected)}
+            className="w-full"
+          >
+            Chuyển quyền
+          </Button>
         </div>
       </div>
     );

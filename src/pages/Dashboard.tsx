@@ -224,7 +224,7 @@ const Dashboard: React.FC = () => {
                 groupMembers: [],
                 createdAt: new Date().toISOString(),
                 lastChange: new Date().toISOString(),
-                blockedBy: [],
+                blocked: [],
                 isDeleted: false,
                 deletedAt: null,
                 formerMembers: [],
