@@ -48,8 +48,6 @@ export const ReplyPreview: React.FC<{
     replyType = replyData.type || "text";
     attachment = replyData.attachment || null;
 
-    // Debug log
-    console.log("ReplyPreview received object replyData:", replyData);
   }
 
   // If we have a senderId but no sender name, try to look up the user name
