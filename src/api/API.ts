@@ -2584,40 +2584,6 @@ export const leaveGroup = async (conversationId: string) => {
 };
 
 /**
- * Removes a user from a group conversation
- * @param conversationId The ID of the conversation
- * @param userId The ID of the user to remove
- */
-export const removeUserFromGroup = async (
-  conversationId: string,
-  userId: string
-) => {
-  try {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      throw new Error("User not authenticated");
-    }
-
-    const response = await apiClient.put(
-      `/api/conversations/group/${conversationId}/remove/${userId}`
-    );
-
-    if (response.status !== 200) {
-      throw new Error("Failed to remove user from group");
-    }
-
-    return response.data;
-  } catch (error: any) {
-    console.error("Error removing user from group:", {
-      message: error.message,
-      status: error.response?.status,
-      data: error.response?.data,
-    });
-    throw error;
-  }
-};
-
-/**
  * Block a user from a group conversation
  * @param conversationId - ID of the group conversation
  * @param userId - ID of the user to block
@@ -2763,6 +2729,38 @@ export const addMemberToGroup = async (
     }
     throw new Error(
       error.response?.data?.message || "Không thể thêm thành viên vào nhóm"
+    );
+  }
+};
+
+export const removeUserFromGroup = async (
+  conversationId: string,
+  userId: string
+): Promise<{ message: string }> => {
+  try {
+    const response = await apiClient.put(
+      `/api/conversations/group/${conversationId}/remove/${userId}`
+    );
+    return response.data;
+  } catch (error: any) {
+    console.error("Error removing member from group:", error);
+    if (error.response?.status === 403) {
+      throw new Error("Bạn không có quyền xóa thành viên khỏi nhóm này");
+    }
+    if (error.response?.status === 404) {
+      throw new Error(
+        error.response.data.message ||
+          "Không tìm thấy người dùng hoặc cuộc trò chuyện"
+      );
+    }
+    if (error.response?.status === 400) {
+      throw new Error(
+        error.response.data.message ||
+          "Người dùng không phải là thành viên của nhóm"
+      );
+    }
+    throw new Error(
+      error.response?.data?.message || "Không thể xóa thành viên khỏi nhóm"
     );
   }
 };
