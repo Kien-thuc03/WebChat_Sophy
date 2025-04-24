@@ -128,7 +128,7 @@ const AddGroupModal: React.FC<AddGroupModalProps> = ({
         lastChange: newConversation.lastChange || new Date().toISOString(),
         unreadCount: newConversation.unreadCount || [],
         hasUnread: false,
-        blockedBy: newConversation.blockedBy || [],
+        blocked: newConversation.blocked || [],
         isDeleted: false,
         deletedAt: null,
         formerMembers: [],
@@ -312,6 +312,7 @@ const AddGroupModal: React.FC<AddGroupModalProps> = ({
                           key={user.userId}
                           className="flex items-center space-x-2 py-1 pl-2">
                           <input
+                            title={user.fullname}
                             type="checkbox"
                             checked={selectedContacts.includes(user.userId)}
                             onChange={() => toggleContactSelection(user.userId)}

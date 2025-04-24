@@ -258,10 +258,6 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
     if (conversations.length > 0 && !isLoading) {
       const conversationIds = conversations.map((conv) => conv.conversationId);
       socketService.joinConversations(conversationIds);
-      console.log(
-        "Đã tham gia vào tất cả các cuộc trò chuyện:",
-        conversationIds
-      );
     }
   }, [conversations, isLoading]);
 
@@ -396,7 +392,7 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
             // Filter out conversations where current user is in formerMembers
             const currentUserId = localStorage.getItem("userId") || "";
             if (conv.formerMembers && conv.formerMembers.includes(currentUserId)) {
-              // console.log(`Filtering out conversation ${conv.conversationId} as user ${currentUserId} is in formerMembers`);
+
               return false;
             }
             

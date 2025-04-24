@@ -10,8 +10,8 @@ export const formatMessageTime = (timestamp: string) => {
 };
 
 // Original relative time format for ChatList
-export const formatRelativeTime = (timestamp: string) => {
-  const date = new Date(timestamp);
+export const formatRelativeTime = (timestamp: string | number) => {
+  const date = typeof timestamp === 'number' ? new Date(timestamp) : new Date(timestamp);
   const now = new Date();
   const diff = now.getTime() - date.getTime();
   
