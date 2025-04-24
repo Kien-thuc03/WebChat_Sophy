@@ -200,7 +200,59 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
         });
       };
 
+      // Register listeners for group management events
+      const setupGroupManagementListeners = () => {
+        // When a user leaves a group
+        socketService.onUserLeftGroup((data) => {
+          console.log("User left group:", data);
+          // If the current user was removed, we should update the conversation list
+          if (data.userId === userId) {
+            // Force reload conversations
+            window.dispatchEvent(new CustomEvent("refreshConversations"));
+          }
+        });
+
+        // When a group is deleted
+        socketService.onGroupDeleted((data) => {
+          console.log("Group deleted:", data);
+          // Force reload conversations
+          window.dispatchEvent(new CustomEvent("refreshConversations"));
+        });
+
+        // When a co-owner is removed
+        socketService.onGroupCoOwnerRemoved((data) => {
+          console.log("Group co-owner removed:", data);
+          // If it's the current user being removed as co-owner, refresh conversation for updated permissions
+          if (data.removedCoOwner === userId) {
+            window.dispatchEvent(new CustomEvent("refreshConversationDetail", { 
+              detail: { conversationId: data.conversationId } 
+            }));
+          }
+        });
+
+        // When a co-owner is added
+        socketService.onGroupCoOwnerAdded((data) => {
+          console.log("Group co-owner added:", data);
+          // If current user is in the new co-owners list, refresh conversation for updated permissions
+          if (data.newCoOwnerIds.includes(userId)) {
+            window.dispatchEvent(new CustomEvent("refreshConversationDetail", { 
+              detail: { conversationId: data.conversationId } 
+            }));
+          }
+        });
+
+        // When group owner changes
+        socketService.onGroupOwnerChanged((data) => {
+          console.log("Group owner changed:", data);
+          // If current user is the new owner or was previously the owner, refresh
+          window.dispatchEvent(new CustomEvent("refreshConversationDetail", { 
+            detail: { conversationId: data.conversationId } 
+          }));
+        });
+      };
+
       setupMessageListeners();
+      setupGroupManagementListeners();
     }
   }, []);
 
