@@ -2656,32 +2656,54 @@ export const deleteGroup = async (conversationId: string) => {
   }
 };
 
+/**
+ * Leave a group conversation
+ * @param conversationId ID of the group to leave
+ * @returns Response with confirmation message
+ */
 export const leaveGroup = async (conversationId: string) => {
   try {
-    const token = localStorage.getItem("token");
+    const token = getAuthToken();
     if (!token) {
-      throw new Error("User not authenticated");
+      throw new Error("Vui lòng đăng nhập để thực hiện chức năng này");
     }
 
-    // Sửa lại URL để khớp với định nghĩa router ở backend
-    // router.put('/group/:conversationId/leave', auth, conversationController.leaveGroup.bind(conversationController));
     const response = await apiClient.put(
       `/api/conversations/group/${conversationId}/leave`
     );
 
-    if (response.status !== 200) {
-      throw new Error("Failed to leave group");
+    console.log("Rời nhóm thành công:", response.data);
+    return response.data;
+  } catch (error) {
+    console.error("Lỗi khi rời nhóm:", error);
+
+    // Dịch các thông báo lỗi từ tiếng Anh sang tiếng Việt
+    if (error instanceof AxiosError && error.response?.status === 400) {
+      const errorMessage = error.response.data.message;
+
+      // Kiểm tra các loại lỗi cụ thể
+      if (errorMessage.includes("You cant leave because you are the owner")) {
+        throw new Error("Bạn không thể rời nhóm vì bạn là chủ nhóm");
+      } else if (errorMessage.includes("This is not a group conversation")) {
+        throw new Error("Đây không phải là nhóm trò chuyện");
+      } else if (errorMessage.includes("Group rules not defined")) {
+        throw new Error("Quy tắc nhóm chưa được thiết lập");
+      } else {
+        throw new Error(
+          errorMessage || "Không thể rời nhóm. Vui lòng thử lại sau."
+        );
+      }
     }
 
-    return response.data;
-  } catch (error: any) {
-    console.error("Error leaving group:", {
-      message: error.message,
-      status: error.response?.status,
-      data: error.response?.data,
-    });
-    logApiError("leaveGroup", error);
-    throw error;
+    if (error instanceof AxiosError && error.response?.status === 403) {
+      throw new Error("Bạn không phải là thành viên của nhóm này");
+    }
+
+    if (error instanceof AxiosError && error.response?.status === 404) {
+      throw new Error("Không tìm thấy nhóm hoặc người dùng");
+    }
+
+    throw new Error("Không thể rời nhóm. Vui lòng thử lại sau.");
   }
 };
 
@@ -2690,25 +2712,30 @@ export const leaveGroup = async (conversationId: string) => {
  * @param conversationId The ID of the conversation
  * @param userId The ID of the user to remove
  */
-export const removeUserFromGroup = async (conversationId: string, userId: string) => {
+export const removeUserFromGroup = async (
+  conversationId: string,
+  userId: string
+) => {
   try {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem("token");
     if (!token) {
-      throw new Error('User not authenticated');
+      throw new Error("User not authenticated");
     }
-    
-    const response = await apiClient.put(`/api/conversations/group/${conversationId}/remove/${userId}`);
+
+    const response = await apiClient.put(
+      `/api/conversations/group/${conversationId}/remove/${userId}`
+    );
 
     if (response.status !== 200) {
-      throw new Error('Failed to remove user from group');
+      throw new Error("Failed to remove user from group");
     }
 
     return response.data;
   } catch (error: any) {
-    console.error('Error removing user from group:', {
+    console.error("Error removing user from group:", {
       message: error.message,
       status: error.response?.status,
-      data: error.response?.data
+      data: error.response?.data,
     });
     throw error;
   }
@@ -2719,25 +2746,31 @@ export const removeUserFromGroup = async (conversationId: string, userId: string
  * @param conversationId - ID of the group conversation
  * @param userId - ID of the user to block
  */
-export const blockUserFromGroup = async (conversationId: string, userId: string) => {
+export const blockUserFromGroup = async (
+  conversationId: string,
+  userId: string
+) => {
   try {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem("token");
     if (!token) {
-      throw new Error('User not authenticated');
+      throw new Error("User not authenticated");
     }
-    
-    const response = await apiClient.put(`/api/conversations/group/${conversationId}/block/${userId}`, { userId });
+
+    const response = await apiClient.put(
+      `/api/conversations/group/${conversationId}/block/${userId}`,
+      { userId }
+    );
 
     if (response.status !== 200) {
-      throw new Error('Failed to block user from group');
+      throw new Error("Failed to block user from group");
     }
 
     return response.data;
   } catch (error: unknown) {
     if (error instanceof Error) {
-      console.error('Error blocking user from group:', error.message);
+      console.error("Error blocking user from group:", error.message);
     } else {
-      console.error('Unknown error blocking user from group');
+      console.error("Unknown error blocking user from group");
     }
     throw error;
   }
@@ -2749,26 +2782,55 @@ export const blockUserFromGroup = async (conversationId: string, userId: string)
  * @param userId user id to unblock
  * @returns the updated conversation details
  */
-export const unblockUserFromGroup = async (conversationId: string, userId: string) => {
+export const unblockUserFromGroup = async (
+  conversationId: string,
+  userId: string
+) => {
   try {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem("token");
     if (!token) {
-      throw new Error('User not authenticated');
+      throw new Error("User not authenticated");
     }
-    
-    const response = await apiClient.put(`/api/conversations/group/${conversationId}/unblock/${userId}`, { userId });
+
+    const response = await apiClient.put(
+      `/api/conversations/group/${conversationId}/unblock/${userId}`,
+      { userId }
+    );
 
     if (response.status !== 200) {
-      throw new Error('Failed to unblock user from group');
+      throw new Error("Failed to unblock user from group");
     }
 
     return response.data;
   } catch (error: unknown) {
     if (error instanceof Error) {
-      console.error('Error unblocking user from group:', error.message);
+      console.error("Error unblocking user from group:", error.message);
     } else {
-      console.error('Unknown error unblocking user from group');
+      console.error("Unknown error unblocking user from group");
     }
     throw error;
+  }
+};
+
+/**
+ Lấy danh sách nhóm của mình
+ */
+export const fetchUserGroups = async (): Promise<Conversation[]> => {
+  try {
+    const token = getAuthToken();
+    if (!token) {
+      throw new Error("Vui lòng đăng nhập để xem danh sách nhóm");
+    }
+
+    const response = await apiClient.get("/api/conversations/groups");
+
+    console.log("Lấy danh sách nhóm thành công:", response.data);
+    return response.data;
+  } catch (error) {
+    console.error("Lỗi khi lấy danh sách nhóm:", error);
+    if (error instanceof AxiosError && error.response?.status === 401) {
+      throw new Error("Phiên đăng nhập hết hạn, vui lòng đăng nhập lại");
+    }
+    throw new Error("Không thể lấy danh sách nhóm. Vui lòng thử lại.");
   }
 };

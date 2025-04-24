@@ -10,6 +10,8 @@ import MainContent from "../components/content/MainContent";
 import ContactList from "../components/contact/ContactList";
 import FriendList from "../components/contact/FriendList";
 import RequestList from "../components/contact/RequestList";
+import GroupList from "../components/contact/GroupList";
+import GroupRequestList from "../components/contact/GroupRequestList";
 import { Conversation } from "../features/chat/types/conversationTypes";
 import { useLanguage } from "../features/auth/context/LanguageContext";
 import ChatInfo from "../components/chat/chatinfo/ChatInfo";
@@ -175,7 +177,6 @@ const Dashboard: React.FC = () => {
           // Force a re-render to ensure the UI updates
           setTimeout(() => {
             console.log("Dashboard: Forcing re-render of chat area");
-            // This is a hack to force re-render after state changes are applied
             const chatContainer = document.querySelector(
               ".chat-area-container"
             );
@@ -193,8 +194,7 @@ const Dashboard: React.FC = () => {
             "Dashboard: Refreshing conversations to find the missing conversation"
           );
           refreshConversations().then(() => {
-            // Try finding again after refresh
-            const refreshedConversations = conversations; // Get the latest conversations
+            const refreshedConversations = conversations;
             console.log(
               "Dashboard: Conversations after refresh:",
               refreshedConversations
@@ -215,7 +215,6 @@ const Dashboard: React.FC = () => {
                 `Dashboard: Still couldn't find conversation, creating placeholder:`,
                 conversationId
               );
-              // If we still can't find it but forceSelect is true, create a placeholder
               const placeholderConversation: Conversation = {
                 conversationId,
                 isGroup: false,
@@ -243,13 +242,11 @@ const Dashboard: React.FC = () => {
       }
     };
 
-    // Add event listener
     window.addEventListener(
       "showConversation",
       handleShowConversation as EventListener
     );
 
-    // Cleanup
     return () => {
       window.removeEventListener(
         "showConversation",
@@ -258,23 +255,12 @@ const Dashboard: React.FC = () => {
     };
   }, [conversations, refreshConversations]);
 
-  // Xử lý khi người dùng rời nhóm hoặc giải tán nhóm thành công
   const handleGroupLeaveOrDisband = async () => {
-    // Đầu tiên, đặt selectedConversation thành null để tránh hiển thị khu vực chat
     setSelectedConversation(null);
-    
-    // Đảm bảo UI được cập nhật trước
-    await new Promise(resolve => setTimeout(resolve, 100));
-    
-    // Tải lại danh sách cuộc trò chuyện
+    await new Promise((resolve) => setTimeout(resolve, 100));
     await refreshConversations();
-    
-    // Chuyển về màn hình chính
     setActiveSection("chat");
-    
-    // Đảm bảo mọi phần tử UI được cập nhật
     setTimeout(() => {
-      // Force refresh nếu cần thiết
       const chatListContainer = document.querySelector(".chat-list");
       if (chatListContainer) {
         chatListContainer.classList.add("refreshed");
@@ -290,8 +276,8 @@ const Dashboard: React.FC = () => {
         onOpenModal={handleOpenModal}
         openSettingsModal={handleOpenSettingsModal}
         onSectionChange={handleSectionChange}
-        activeSection={activeSection} // Pass activeSection to Sidebar
-        data-sections={["chat", "friends", "tasks"]} // Add this to make sections available for querying
+        activeSection={activeSection}
+        data-sections={["chat", "friends", "tasks"]}
       />
 
       {activeSection === "chat" && (
@@ -311,7 +297,7 @@ const Dashboard: React.FC = () => {
 
       {activeSection === "tasks" && (
         <div
-          className="w-80 bg-white dark:bg-gray-900 border-r dark:border-gray-700 h-full flex flex-col overflow-hidden"
+          className="w-80 bg-white dark:bg-gray-900 border-r dark:border-gray-700 h-full flex flexRocket Sciencecol overflow-hidden"
           data-section="tasks">
           <div className="p-4 border-b dark:border-gray-700">
             <h2 className="text-lg font-semibold">
@@ -363,7 +349,10 @@ const Dashboard: React.FC = () => {
             </div>
             {showChatInfo && (
               <div className="w-[350px] border-l border-gray-200 flex-shrink-0 overflow-hidden">
-                <ChatInfo conversation={selectedConversation} onLeaveGroup={handleGroupLeaveOrDisband} />
+                <ChatInfo
+                  conversation={selectedConversation}
+                  onLeaveGroup={handleGroupLeaveOrDisband}
+                />
               </div>
             )}
           </div>
@@ -378,17 +367,10 @@ const Dashboard: React.FC = () => {
             onSelectFriend={handleFriendSelect}
             onSelectConversation={handleSelectConversation}
           />
-        ) : activeSection === "friends" &&
-          contactOption !== "friends" &&
-          contactOption !== "friendRequests" ? (
-          <div className="flex items-center justify-center h-full bg-gray-50 dark:bg-gray-800">
-            <p className="text-gray-500 dark:text-gray-400">
-              {contactOption === "groups" &&
-                (t.group_community_list || "Danh sách nhóm và cộng đồng")}
-              {contactOption === "groupInvites" &&
-                (t.group_invites || "Lời mời vào nhóm và cộng đồng")}
-            </p>
-          </div>
+        ) : activeSection === "friends" && contactOption === "groups" ? (
+          <GroupList onSelectConversation={handleSelectConversation} />
+        ) : activeSection === "friends" && contactOption === "groupInvites" ? (
+          <GroupRequestList onSelectConversation={handleSelectConversation} />
         ) : activeSection === "tasks" ? (
           <div className="flex items-center justify-center h-full bg-gray-50 dark:bg-gray-800">
             <p className="text-gray-500 dark:text-gray-400">
