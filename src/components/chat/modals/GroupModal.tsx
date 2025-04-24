@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Modal, Button, Avatar, Tooltip, Spin, Input, App } from "antd";
 import {
   EditOutlined,
@@ -65,6 +65,9 @@ const GroupModal: React.FC<GroupModalProps> = ({
   const [updatingGroupName, setUpdatingGroupName] = useState(false);
   const [updatedName, setUpdatedName] = useState<string | null>(null);
 
+  // Use a ref to track previous member count to avoid unnecessary refreshes
+  const prevMemberCountRef = useRef<number | null>(null);
+
   // Update local state when initial conversation changes
   useEffect(() => {
     setConversation(initialConversation);
@@ -102,28 +105,46 @@ const GroupModal: React.FC<GroupModalProps> = ({
     updateConversationField,
   ]);
 
-  // Fetch member details when the modal is visible
+  // Replace both existing useEffects with a single one that controls refreshing
   useEffect(() => {
     const fetchMemberDetails = async () => {
+      // Only fetch if modal is visible and is a group conversation
+      if (!visible || !conversation.isGroup) return;
+
       try {
         setFetchingMembers(true);
 
-        // Get latest conversation details to ensure we have current members
+        // Get current members count for comparison
+        const currentMemberCount = conversation.groupMembers?.length || 0;
+
+        // Get latest conversation details from API
         const conversationDetails = await getConversationDetail(
           conversation.conversationId
         );
         const memberIds = conversationDetails.groupMembers || [];
+        const newMemberCount = memberIds.length;
 
-        // Create a cache for users we've already fetched
-        const memberCache: Record<string, MemberInfo> = {};
-        // Don't try to use initialMembers as MemberInfo objects
+        // Decide whether to update based on member count comparison
+        const shouldUpdateMembers =
+          // First load (prevMemberCount is null)
+          prevMemberCountRef.current === null ||
+          // Member count has changed
+          newMemberCount !== prevMemberCountRef.current;
+
+        // Save current member count for next comparison
+        prevMemberCountRef.current = newMemberCount;
+
+        // Only update conversation if member count changed
+        if (shouldUpdateMembers && newMemberCount !== currentMemberCount) {
+          // Important: update without causing a loop
+          setConversation((prev) => ({
+            ...prev,
+            groupMembers: memberIds,
+          }));
+        }
 
         // Fetch details for each member
         const fetchPromises = memberIds.map(async (userId) => {
-          if (memberCache[userId]) {
-            return memberCache[userId];
-          }
-
           try {
             const userDetails = await getUserById(userId);
             return {
@@ -150,10 +171,34 @@ const GroupModal: React.FC<GroupModalProps> = ({
       }
     };
 
-    if (visible && conversation.isGroup) {
-      fetchMemberDetails();
+    fetchMemberDetails();
+
+    // Also set up a refresh interval IF the modal is visible
+    let intervalId: NodeJS.Timeout | null = null;
+
+    if (visible) {
+      // Refresh member data every 30 seconds if modal stays open
+      intervalId = setInterval(() => {
+        fetchMemberDetails();
+      }, 30000);
     }
-  }, [visible, conversation.conversationId, conversation.isGroup]);
+
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [
+    visible,
+    conversation.conversationId,
+    conversation.isGroup,
+    initialConversation,
+  ]);
+
+  // Reset the prev member count ref when modal closes
+  useEffect(() => {
+    if (!visible) {
+      prevMemberCountRef.current = null;
+    }
+  }, [visible]);
 
   // Đảm bảo giá trị của groupAvatarUrl được log ra để kiểm tra
   useEffect(() => {
@@ -428,7 +473,8 @@ const GroupModal: React.FC<GroupModalProps> = ({
           {/* Danh sách thành viên */}
           <div className="py-4 border-b">
             <h4 className="text-base font-medium mb-3">
-              Thành viên ({conversation.groupMembers?.length || 0})
+              Thành viên (
+              {memberDetails.length || conversation.groupMembers?.length || 0})
             </h4>
             {fetchingMembers ? (
               <div className="flex justify-center py-4">

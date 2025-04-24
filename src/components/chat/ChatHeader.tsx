@@ -18,6 +18,7 @@ import { Button, Tooltip, Modal, message } from "antd";
 import { zegoService } from "../../services/zegoService";
 import socketService from "../../services/socketService";
 import { ZegoUIKitPrebuilt } from "@zegocloud/zego-uikit-prebuilt";
+import AddMemberModal from "./modals/AddMemberModal";
 
 interface ZegoTokenResponse {
   token: string;
@@ -69,6 +70,7 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
   const isRequestingToken = useRef(false);
   const lastCallRequest = useRef(0);
   const currentUserId = localStorage.getItem("userId") || "";
+  const [isAddMemberModalVisible, setIsAddMemberModalVisible] = useState(false);
 
   const getOtherUserId = (conversation: Conversation): string => {
     if (conversation.isGroup) return "";
@@ -480,6 +482,23 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
     };
   }, [otherUserInfo, currentUserId]);
 
+  // Show add member modal
+  const showAddMemberModal = () => {
+    if (!conversation.isGroup) {
+      message.warning("Tính năng chỉ áp dụng cho nhóm chat");
+      return;
+    }
+    setIsAddMemberModalVisible(true);
+  };
+
+  // Function to refresh the conversation data
+  const refreshConversationData = async () => {
+    // We don't need to do anything here since we're
+    // using the conversation context which will update
+    // automatically when the groupMembers field is updated
+    console.log("ChatHeader: Conversation data refreshed");
+  };
+
   return (
     <header className="flex items-center justify-between px-4 py-2 bg-white border-b border-gray-200">
       <div className="flex items-center flex-1 group">
@@ -541,7 +560,8 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
       <div className="flex items-center space-x-2">
         <button
           className="p-2 rounded-lg hover:bg-gray-100"
-          title={t.add_to_community || "Thêm bạn vào cộng đồng"}>
+          title={t.add_to_community || "Thêm bạn vào cộng đồng"}
+          onClick={showAddMemberModal}>
           <UserAddOutlined className="text-xl text-gray-600" />
         </button>
         <Tooltip title={t.calls || "Gọi thoại"}>
@@ -600,6 +620,15 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
           {otherUserInfo?.fullname || "Người dùng"}.
         </p>
       </Modal>
+
+      {/* Use the AddMemberModal component with refreshConversationData callback */}
+      <AddMemberModal
+        visible={isAddMemberModalVisible}
+        onClose={() => setIsAddMemberModalVisible(false)}
+        conversationId={conversation.conversationId}
+        groupMembers={conversation.groupMembers || []}
+        refreshConversationData={refreshConversationData}
+      />
     </header>
   );
 };

@@ -2735,3 +2735,34 @@ export const updateGroupName = async (
     throw new Error("Không thể cập nhật tên nhóm, vui lòng thử lại sau");
   }
 };
+
+export const addMemberToGroup = async (
+  conversationId: string,
+  userId: string
+): Promise<Conversation> => {
+  try {
+    const response = await apiClient.put(
+      `/api/conversations/group/${conversationId}/add/${userId}`
+    );
+    return response.data;
+  } catch (error: any) {
+    console.error("Error adding member to group:", error);
+    if (error.response?.status === 403) {
+      throw new Error("Bạn không có quyền thêm thành viên vào nhóm này");
+    }
+    if (error.response?.status === 404) {
+      throw new Error(
+        error.response.data.message ||
+          "Không tìm thấy người dùng hoặc cuộc trò chuyện"
+      );
+    }
+    if (error.response?.status === 400) {
+      throw new Error(
+        error.response.data.message || "Người dùng đã là thành viên của nhóm"
+      );
+    }
+    throw new Error(
+      error.response?.data?.message || "Không thể thêm thành viên vào nhóm"
+    );
+  }
+};

@@ -40,6 +40,7 @@ import { useChatInfo } from "../../../features/chat/hooks/useChatInfo";
 import { useNavigate } from "react-router-dom";
 import GroupModal from "../modals/GroupModal";
 import { useConversationContext } from "../../../features/chat/context/ConversationContext";
+import AddMemberModal from "../modals/AddMemberModal";
 
 interface ChatInfoProps {
   conversation: Conversation;
@@ -124,6 +125,7 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
   const [friendList, setFriendList] = useState<string[]>([]);
   const [showGroupModal, setShowGroupModal] = useState(false);
   const { conversations } = useConversationContext();
+  const [isAddMemberModalVisible, setIsAddMemberModalVisible] = useState(false);
 
   // Find the most up-to-date conversation data from context
   const updatedConversation =
@@ -259,7 +261,11 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
   // Fetch detailed conversation information
   useEffect(() => {
     refreshConversationData();
-  }, [conversation?.conversationId, updatedConversation?.groupName]); // Add groupName as dependency
+  }, [
+    conversation?.conversationId,
+    updatedConversation?.groupName,
+    updatedConversation?.groupMembers?.length,
+  ]);
 
   const handlePanelChange = (keys: string | string[]) => {
     setActiveKeys(Array.isArray(keys) ? keys : [keys]);
@@ -873,6 +879,7 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
                           shape="circle"
                           icon={<UserAddOutlined className="text-gray-500" />}
                           className="flex items-center justify-center h-10 w-10 bg-gray-100"
+                          onClick={() => setIsAddMemberModalVisible(true)}
                         />
                         <span className="text-xs mt-1">Thêm thành viên</span>
                       </div>
@@ -934,7 +941,11 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
                       <span
                         className="cursor-pointer hover:text-blue-500"
                         onClick={handleShowMembers}>
-                        {groupMembers.length} thành viên
+                        <i className="far fa-user mr-1" />
+                        <span>
+                          {currentConversation.groupMembers?.length || 0}{" "}
+                          {t.members || "thành viên"}
+                        </span>
                       </span>
                     </div>
 
@@ -1570,6 +1581,17 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
           userAvatars={userAvatars}
           members={groupMembers}
           onLeaveGroup={onLeaveGroup}
+          refreshConversationData={refreshConversationData}
+        />
+      )}
+
+      {/* AddMemberModal */}
+      {isAddMemberModalVisible && (
+        <AddMemberModal
+          visible={isAddMemberModalVisible}
+          onClose={() => setIsAddMemberModalVisible(false)}
+          conversationId={currentConversation.conversationId}
+          groupMembers={currentConversation.groupMembers || []}
           refreshConversationData={refreshConversationData}
         />
       )}
