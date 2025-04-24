@@ -447,6 +447,9 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
 
         // Cập nhật lại conversation sau khi chuyển quyền
         setDetailedConversation(result as DetailedConversation);
+        
+        // Explicitly update the user role to member
+        setUserRole("member");
 
         // Quay lại màn hình thông tin nhóm
         setShowOwnershipTransfer(false);
@@ -479,7 +482,25 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
   };
 
   const handleShowGroupManagement = () => {
-    setShowGroupManagement(true);
+    // Get the current userId and check if it's still the owner or co-owner
+    const currentUserId = localStorage.getItem("userId") || "";
+    const isOwner = currentConversation.rules?.ownerId === currentUserId;
+    const isCoOwner = currentConversation.rules?.coOwnerIds?.includes(currentUserId);
+    
+    // Force refresh the user role based on the latest data
+    if (isOwner) {
+      setUserRole("owner");
+    } else if (isCoOwner) {
+      setUserRole("co-owner");
+    } else {
+      setUserRole("member");
+    }
+    
+    // Refresh conversation data first to ensure we have latest data
+    refreshConversationData().then(() => {
+      // Now show the group management screen
+      setShowGroupManagement(true);
+    });
   };
 
   const handleBackFromGroupManagement = () => {
@@ -611,7 +632,10 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
   };
 
   const handleShowMembers = () => {
-    setShowMembersList(true);
+    // Refresh conversation data first to ensure we have latest data
+    refreshConversationData().then(() => {
+      setShowMembersList(true);
+    });
   };
 
   const handleBackFromMembersList = () => {
