@@ -188,6 +188,7 @@ const translations = {
     update_group_avatar_success: "Cập nhật ảnh đại diện nhóm thành công!",
     update_group_avatar_error: "Cập nhật ảnh đại diện nhóm thất bại!",
     update_group_avatar: "Cập nhật ảnh đại diện nhóm",
+    group_call: "Cuộc gọi nhóm",
   },
   en: {
     settings: "Settings",
@@ -375,6 +376,7 @@ const translations = {
     update_group_avatar_success: "Group avatar updated successfully!",
     update_group_avatar_error: "Failed to update group avatar!",
     update_group_avatar: "Update Group Avatar",
+    group_call: "Group Call",
   },
 };
 

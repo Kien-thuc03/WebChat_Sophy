@@ -21,6 +21,7 @@
     "@mui/icons-material": "^7.0.2",
     "@mui/material": "^7.0.2",
     "@tailwindcss/vite": "^4.0.0",
+    "@zegocloud/zego-uikit-prebuilt": "^2.14.3-beta",
     "antd": "^5.24.7",
     "autoprefixer": "^10.4.20",
     "axios": "^1.8.2",
@@ -42,7 +43,9 @@
     "react-world-flags": "^1.6.0",
     "socket.io-client": "^4.8.1",
     "styled-components": "^6.1.14",
-    "tailwindcss": "^4.0.8"
+    "tailwindcss": "^4.0.8",
+    "zego-express-engine-webrtc": "^3.9.0",
+    "zego-zim-web": "^2.20.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",
