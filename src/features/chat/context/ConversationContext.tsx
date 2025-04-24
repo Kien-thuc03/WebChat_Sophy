@@ -8,7 +8,7 @@ import React, {
   ReactNode,
 } from "react";
 import { fetchConversations, getUserById } from "../../../api/API";
-import { Conversation ,UnreadCount} from "../types/conversationTypes";
+import { Conversation, UnreadCount } from "../types/conversationTypes";
 import { User } from "../../auth/types/authTypes";
 import socketService from "../../../services/socketService";
 
@@ -43,6 +43,11 @@ interface ConversationContextType {
   markConversationAsRead: (conversationId: string) => void;
   updateUnreadStatus: (conversationId: string, messageIds: string[]) => void;
   addNewConversation: (conversationData: any) => void;
+  updateConversationField: (
+    conversationId: string,
+    field: string,
+    value: any
+  ) => void;
 }
 
 const ConversationContext = createContext<ConversationContextType | undefined>(
@@ -255,11 +260,15 @@ export const ConversationProvider: React.FC<{ children: ReactNode }> = ({
           groupName: isGroup ? groupName : undefined,
           groupMembers: isGroup ? groupMembers || [] : [],
           groupAvatarUrl: isGroup ? groupAvatarUrl || undefined : undefined,
-          unreadCount: isGroup ? [] : [{
-            userId: localStorage.getItem("userId") || "",
-            count: 1,
-            lastReadMessageId: ""
-          }],
+          unreadCount: isGroup
+            ? []
+            : [
+                {
+                  userId: localStorage.getItem("userId") || "",
+                  count: 1,
+                  lastReadMessageId: "",
+                },
+              ],
           hasUnread: !isGroup,
           blocked: [],
           isDeleted: false,
@@ -426,11 +435,13 @@ export const ConversationProvider: React.FC<{ children: ReactNode }> = ({
               ];
         } else {
           // Convert number to UnreadCount array
-          newUnreadCount = [{
-            userId: currentUserId || "",
-            count: isFromCurrentUser ? 0 : 1,
-            lastReadMessageId: ""
-          }];
+          newUnreadCount = [
+            {
+              userId: currentUserId || "",
+              count: isFromCurrentUser ? 0 : 1,
+              lastReadMessageId: "",
+            },
+          ];
         }
 
         const updatedConversation: Conversation = {
@@ -691,6 +702,24 @@ export const ConversationProvider: React.FC<{ children: ReactNode }> = ({
     return () => clearInterval(pollInterval);
   }, [conversations, isLoading]);
 
+  // Function to update a specific field in a conversation
+  const updateConversationField = useCallback(
+    (conversationId: string, field: string, value: any) => {
+      setConversations((prevConversations) => {
+        return prevConversations.map((conv) => {
+          if (conv.conversationId === conversationId) {
+            return {
+              ...conv,
+              [field]: value,
+            };
+          }
+          return conv;
+        });
+      });
+    },
+    []
+  );
+
   const value = {
     conversations,
     userCache,
@@ -704,6 +733,7 @@ export const ConversationProvider: React.FC<{ children: ReactNode }> = ({
     markConversationAsRead,
     updateUnreadStatus,
     addNewConversation,
+    updateConversationField,
   };
 
   return (

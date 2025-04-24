@@ -2834,3 +2834,28 @@ export const fetchUserGroups = async (): Promise<Conversation[]> => {
     throw new Error("Không thể lấy danh sách nhóm. Vui lòng thử lại.");
   }
 };
+
+export const updateGroupName = async (
+  conversationId: string,
+  newName: string
+): Promise<{ message: string; conversation: any }> => {
+  try {
+    const response = await apiClient.put(
+      `/api/conversations/group/update/name/${conversationId}`,
+      { newName }
+    );
+    return response.data;
+  } catch (error: any) {
+    console.error("Error updating group name:", error);
+    if (error.response?.status === 400) {
+      throw new Error(error.response.data.message || "Tên nhóm không hợp lệ");
+    }
+    if (error.response?.status === 403) {
+      throw new Error("Bạn không có quyền cập nhật tên nhóm");
+    }
+    if (error.response?.status === 404) {
+      throw new Error("Không tìm thấy nhóm chat");
+    }
+    throw new Error("Không thể cập nhật tên nhóm, vui lòng thử lại sau");
+  }
+};

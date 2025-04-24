@@ -1,12 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { Avatar } from '../../common/Avatar';
-import { Button, Switch, Modal, Input, App, Dropdown, Menu } from 'antd';
-import { 
+import React, { useState, useEffect } from "react";
+import { Avatar } from "../../common/Avatar";
+import { Button, Switch, Modal, Input, App } from "antd";
+import {
   BellOutlined,
   PushpinOutlined,
   UsergroupAddOutlined,
   ClockCircleOutlined,
-  EyeInvisibleOutlined,  
+  EyeInvisibleOutlined,
   EditOutlined,
   WarningOutlined,
   DeleteOutlined,
@@ -25,30 +25,28 @@ import {
   PlayCircleOutlined,
   CloseOutlined,
   LeftOutlined,
-  MoreOutlined,
-  LockOutlined,
-  UserDeleteOutlined,
-  RightOutlined as RightArrowOutlined
-} from '@ant-design/icons';
-import { Conversation } from '../../../features/chat/types/conversationTypes';
-import { useConversations } from '../../../features/chat/hooks/useConversations';
-import { getUserById, getConversationDetail, createConversation, fetchFriends } from "../../../api/API";
+  RightOutlined as RightArrowOutlined,
+} from "@ant-design/icons";
+import { Conversation } from "../../../features/chat/types/conversationTypes";
+import { useConversations } from "../../../features/chat/hooks/useConversations";
+import { getUserById, getConversationDetail } from "../../../api/API";
 import { User } from "../../../features/auth/types/authTypes";
-import GroupAvatar from '../GroupAvatar';
+import GroupAvatar from "../GroupAvatar";
 import { useLanguage } from "../../../features/auth/context/LanguageContext";
-import GroupManagement from './GroupManagement';
-import MediaGallery from './MediaGallery';
-import MembersList from './MembersList';
-import { useChatInfo } from '../../../features/chat/hooks/useChatInfo';
-import { useNavigate } from 'react-router-dom';
-import UserInfoHeaderModal from '../../header/modal/UserInfoHeaderModal';
+import GroupManagement from "./GroupManagement";
+import MediaGallery from "./MediaGallery";
+import MembersList from "./MembersList";
+import { useChatInfo } from "../../../features/chat/hooks/useChatInfo";
+import { useNavigate } from "react-router-dom";
+import GroupModal from "../modals/GroupModal";
+import { useConversationContext } from "../../../features/chat/context/ConversationContext";
 
 interface ChatInfoProps {
   conversation: Conversation;
   onLeaveGroup?: () => void; // Callback khi rời nhóm thành công
 }
 
-// Extended conversation interface with additional properties returned by the API
+// DetailedConversation extends the base Conversation type
 interface DetailedConversation extends Conversation {
   isMuted?: boolean;
   isPinned?: boolean;
@@ -75,36 +73,45 @@ interface MemberInfo {
 const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
   const [activeKeys, setActiveKeys] = useState<string[]>([]);
   const [isEditNameModalVisible, setIsEditNameModalVisible] = useState(false);
-  const [localName, setLocalName] = useState('');
+  const [localName, setLocalName] = useState("");
   const [isMuted, setIsMuted] = useState(false);
   const [isPinned, setIsPinned] = useState(false);
   const [isHidden, setIsHidden] = useState(false);
-  const [localUserCache, setLocalUserCache] = useState<Record<string, User>>({});
-  const [detailedConversation, setDetailedConversation] = useState<DetailedConversation | null>(null);
+  const [localUserCache, setLocalUserCache] = useState<Record<string, User>>(
+    {}
+  );
+  const [detailedConversation, setDetailedConversation] =
+    useState<DetailedConversation | null>(null);
   const [loading, setLoading] = useState(true);
   const [showGroupManagement, setShowGroupManagement] = useState(false);
   const [showMediaGallery, setShowMediaGallery] = useState(false);
   const [showFileGallery, setShowFileGallery] = useState(false);
-  const [mediaGalleryType, setMediaGalleryType] = useState<'media' | 'files' | null>(null);
+  const [mediaGalleryType, setMediaGalleryType] = useState<
+    "media" | "files" | null
+  >(null);
   const { userCache, userAvatars } = useConversations();
   const { t } = useLanguage();
-  const [userRole, setUserRole] = useState<'owner' | 'co-owner' | 'member'>('member');
-  const { 
-    leaveGroupConversation, 
-    fetchSharedMedia, 
-    fetchSharedFiles, 
+  const [userRole, setUserRole] = useState<"owner" | "co-owner" | "member">(
+    "member"
+  );
+  const {
+    leaveGroupConversation,
+    fetchSharedMedia,
+    fetchSharedFiles,
     downloadFile,
     addCoOwner,
     removeCoOwnerDirectly,
     removeGroupMember,
-    transferOwnership
+    transferOwnership,
   } = useChatInfo();
   const { message, modal } = App.useApp();
   const [sharedMedia, setSharedMedia] = useState<any[]>([]);
   const [sharedFiles, setSharedFiles] = useState<any[]>([]);
   const [sharedLinks, setSharedLinks] = useState<any[]>([]);
   const [selectedMedia, setSelectedMedia] = useState<string | null>(null);
-  const [selectedMediaType, setSelectedMediaType] = useState<'image' | 'video' | null>(null);
+  const [selectedMediaType, setSelectedMediaType] = useState<
+    "image" | "video" | null
+  >(null);
   const [isMediaModalOpen, setIsMediaModalOpen] = useState<boolean>(false);
   const [currentMediaIndex, setCurrentMediaIndex] = useState<number>(0);
   const navigate = useNavigate();
@@ -115,93 +122,76 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
   const [selectedMember, setSelectedMember] = useState<MemberInfo | null>(null);
   const [isUserInfoModalVisible, setIsUserInfoModalVisible] = useState(false);
   const [friendList, setFriendList] = useState<string[]>([]);
+  const [showGroupModal, setShowGroupModal] = useState(false);
+  const { conversations } = useConversationContext();
 
-  // Fetch detailed conversation information
-  useEffect(() => {
-    const fetchConversationDetails = async () => {
-      if (conversation?.conversationId) {
-        try {
-          setLoading(true);
-          const conversationData = await getConversationDetail(conversation.conversationId);
-          setDetailedConversation(conversationData as DetailedConversation);
-          
-          // Initialize state values based on fetched data
-          if (conversationData) {
-            // Cast to DetailedConversation to access extended properties
-            const detailedData = conversationData as DetailedConversation;
-            setIsMuted(detailedData.isMuted || false);
-            setIsPinned(detailedData.isPinned || false);
-            setIsHidden(detailedData.isHidden || false);
-            
-            // Fetch media and files
-            loadMediaAndFiles(conversation.conversationId);
-          }
-        } catch (error) {
-          console.error('Failed to load conversation details:', error);
-        } finally {
-          setLoading(false);
-        }
-      }
-    };
+  // Find the most up-to-date conversation data from context
+  const updatedConversation =
+    conversations.find(
+      (conv: Conversation) =>
+        conv.conversationId === conversation.conversationId
+    ) || conversation;
 
-    fetchConversationDetails();
-  }, [conversation?.conversationId]);
-
-  // Use detailed conversation data if available, otherwise fallback to prop
-  const currentConversation = detailedConversation || conversation;
+  // Combine the updated conversation with detailed data
+  const currentConversation: DetailedConversation = {
+    ...updatedConversation,
+    ...(detailedConversation || {}),
+  };
 
   // Determine if this is a group conversation
   const isGroup = currentConversation.isGroup;
   const groupName = currentConversation.groupName;
   const groupAvatarUrl = currentConversation.groupAvatarUrl;
   const groupMembers = currentConversation.groupMembers || [];
-  
+
   // Group link for sharing (would come from the API in a real implementation)
-  const groupLink = detailedConversation?.groupLink || "zalo.me/g/hotcjo791";
-  
+  const groupLink = currentConversation?.groupLink || "zalo.me/g/hotcjo791";
+
   // Number of mutual groups (would come from the API in a real implementation)
-  const mutualGroups = detailedConversation?.mutualGroups || 20;
+  const mutualGroups = currentConversation?.mutualGroups || 20;
 
   // Check user role when the conversation data is available
   useEffect(() => {
     if (currentConversation?.rules) {
-      const currentUserId = localStorage.getItem('userId') || '';
-      
+      const currentUserId = localStorage.getItem("userId") || "";
+
       if (currentConversation.rules.ownerId === currentUserId) {
-        setUserRole('owner');
-      } else if (currentConversation.rules.coOwnerIds?.includes(currentUserId)) {
-        setUserRole('co-owner');
+        setUserRole("owner");
+      } else if (
+        currentConversation.rules.coOwnerIds?.includes(currentUserId)
+      ) {
+        setUserRole("co-owner");
       } else {
-        setUserRole('member');
+        setUserRole("member");
       }
     }
   }, [currentConversation]);
 
   // Determine if user can manage the group
-  const canManageGroup = userRole === 'owner' || userRole === 'co-owner';
+  const canManageGroup = userRole === "owner" || userRole === "co-owner";
 
   /**
    * Gets the ID of the other user in a one-on-one conversation
    */
   const getOtherUserId = (conversation: Conversation): string => {
     // Get current user ID from localStorage (or any authentication method you use)
-    const currentUserId = localStorage.getItem('userId') || '';
-    
+    const currentUserId = localStorage.getItem("userId") || "";
+
     // If it's a group chat, there's no single "other user"
     if (conversation.isGroup) {
-      return '';
+      return "";
     }
-    
+
     // If the current user is the creator, return the receiverId
     if (currentUserId === conversation.creatorId) {
-      return conversation.receiverId || '';
+      return conversation.receiverId || "";
     }
-    
+
     // If the current user is the receiver, return the creatorId
     if (currentUserId === conversation.receiverId) {
       return conversation.creatorId;
     }
-    
+
     // Fallback: Return receiverId if we can't determine
     return conversation.receiverId || conversation.creatorId;
   };
@@ -214,13 +204,18 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
   // Load user data if not already in cache
   useEffect(() => {
     const loadUserData = async () => {
-      if (!isGroup && otherUserId && !userCache[otherUserId] && !localUserCache[otherUserId]) {
+      if (
+        !isGroup &&
+        otherUserId &&
+        !userCache[otherUserId] &&
+        !localUserCache[otherUserId]
+      ) {
         try {
           const userData = await getUserById(otherUserId);
           if (userData) {
-            setLocalUserCache(prev => ({
+            setLocalUserCache((prev) => ({
               ...prev,
-              [otherUserId]: userData
+              [otherUserId]: userData,
             }));
           }
         } catch (error) {
@@ -228,9 +223,43 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
         }
       }
     };
-    
+
     loadUserData();
   }, [isGroup, otherUserId, userCache, localUserCache]);
+
+  // Add this function to allow refreshing conversation data
+  const refreshConversationData = async () => {
+    if (conversation?.conversationId) {
+      try {
+        setLoading(true);
+        const conversationData = await getConversationDetail(
+          conversation.conversationId
+        );
+        setDetailedConversation(conversationData as DetailedConversation);
+
+        // Initialize state values based on fetched data
+        if (conversationData) {
+          // Cast to DetailedConversation to access extended properties
+          const detailedData = conversationData as DetailedConversation;
+          setIsMuted(detailedData.isMuted || false);
+          setIsPinned(detailedData.isPinned || false);
+          setIsHidden(detailedData.isHidden || false);
+
+          // Fetch media and files
+          loadMediaAndFiles(conversation.conversationId);
+        }
+      } catch (error) {
+        console.error("Failed to load conversation details:", error);
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
+
+  // Fetch detailed conversation information
+  useEffect(() => {
+    refreshConversationData();
+  }, [conversation?.conversationId, updatedConversation?.groupName]); // Add groupName as dependency
 
   const handlePanelChange = (keys: string | string[]) => {
     setActiveKeys(Array.isArray(keys) ? keys : [keys]);
@@ -255,7 +284,7 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
   };
 
   const handleEditName = () => {
-    setLocalName(isGroup ? groupName || '' : otherUserInfo?.fullname || '');
+    setLocalName(isGroup ? groupName || "" : otherUserInfo?.fullname || "");
     setIsEditNameModalVisible(true);
   };
 
@@ -267,15 +296,16 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
 
   const handleDeleteChat = () => {
     Modal.confirm({
-      title: 'Xóa lịch sử trò chuyện',
-      content: 'Bạn có chắc chắn muốn xóa toàn bộ lịch sử trò chuyện? Hành động này không thể hoàn tác.',
-      okText: 'Xóa',
-      cancelText: 'Hủy',
+      title: "Xóa lịch sử trò chuyện",
+      content:
+        "Bạn có chắc chắn muốn xóa toàn bộ lịch sử trò chuyện? Hành động này không thể hoàn tác.",
+      okText: "Xóa",
+      cancelText: "Hủy",
       okButtonProps: { danger: true },
       onOk: () => {
         // Delete chat history logic using the API
         // Example: deleteConversationHistory(currentConversation.conversationId);
-      }
+      },
     });
   };
 
@@ -293,60 +323,65 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
     if (currentConversation.conversationId) {
       try {
         // Hiển thị trạng thái đang tải
-        const loadingKey = 'check-role';
-        message.loading({ content: 'Đang kiểm tra...', key: loadingKey });
-        
+        const loadingKey = "check-role";
+        message.loading({ content: "Đang kiểm tra...", key: loadingKey });
+
         // Lấy lại thông tin conversation mới nhất để có quyền mới nhất
-        const updatedConversation = await getConversationDetail(currentConversation.conversationId);
-        
+        const updatedConversation = await getConversationDetail(
+          currentConversation.conversationId
+        );
+
         // Cập nhật conversation detail
         setDetailedConversation(updatedConversation as DetailedConversation);
-        
+
         // Kiểm tra lại quyền dựa trên thông tin mới nhất
-        const currentUserId = localStorage.getItem('userId') || '';
+        const currentUserId = localStorage.getItem("userId") || "";
         const isOwner = updatedConversation.rules?.ownerId === currentUserId;
-        
+
         message.destroy(loadingKey);
-        
+
         // Nếu là chủ nhóm, yêu cầu chuyển quyền
         if (isOwner) {
           modal.confirm({
-            title: 'Chuyển quyền trưởng nhóm',
-            content: 'Bạn là trưởng nhóm. Để rời nhóm, bạn cần chuyển quyền trưởng nhóm cho người khác trước. Lưu ý: Sau khi chuyển quyền trưởng nhóm, bạn sẽ trở thành thành viên thường và không thể hoàn tác thao tác này.',
-            okText: 'Chuyển quyền',
-            cancelText: 'Hủy',
+            title: "Chuyển quyền trưởng nhóm",
+            content:
+              "Bạn là trưởng nhóm. Để rời nhóm, bạn cần chuyển quyền trưởng nhóm cho người khác trước. Lưu ý: Sau khi chuyển quyền trưởng nhóm, bạn sẽ trở thành thành viên thường và không thể hoàn tác thao tác này.",
+            okText: "Chuyển quyền",
+            cancelText: "Hủy",
             onOk: () => {
               // Chuyển đến trang chuyển quyền trưởng nhóm
               setShowOwnershipTransfer(true);
-            }
+            },
           });
           return;
         }
-        
+
         // Xử lý rời nhóm cho các thành viên khác
         modal.confirm({
-          title: 'Rời nhóm',
-          content: 'Bạn có chắc chắn muốn rời khỏi nhóm này?',
-          okText: 'Rời nhóm',
-          cancelText: 'Hủy',
+          title: "Rời nhóm",
+          content: "Bạn có chắc chắn muốn rời khỏi nhóm này?",
+          okText: "Rời nhóm",
+          cancelText: "Hủy",
           okButtonProps: { danger: true },
           onOk: async () => {
             try {
-              const key = 'leave-group';
-              message.loading({ content: 'Đang xử lý...', key });
-              
-              const result = await leaveGroupConversation(currentConversation.conversationId);
-              
+              const key = "leave-group";
+              message.loading({ content: "Đang xử lý...", key });
+
+              const result = await leaveGroupConversation(
+                currentConversation.conversationId
+              );
+
               if (result) {
-                message.success({ 
-                  content: 'Đã rời nhóm thành công.',
-                  key, 
-                  duration: 2 
+                message.success({
+                  content: "Đã rời nhóm thành công.",
+                  key,
+                  duration: 2,
                 });
-                
+
                 // Đảm bảo xóa hết state local về cuộc trò chuyện này
                 setDetailedConversation(null);
-                
+
                 // Gọi callback để cập nhật giao diện ngay lập tức
                 if (onLeaveGroup) {
                   onLeaveGroup();
@@ -355,22 +390,31 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
                   setTimeout(() => window.location.reload(), 1000);
                 }
               } else {
-                message.error({ content: 'Không thể rời nhóm', key, duration: 2 });
+                message.error({
+                  content: "Không thể rời nhóm",
+                  key,
+                  duration: 2,
+                });
               }
             } catch (err: any) {
-              console.error('Failed to leave group:', err);
+              console.error("Failed to leave group:", err);
               // Xử lý trường hợp lỗi cụ thể
-              if (err.response?.status === 400 && err.response?.data?.message?.includes('owner')) {
-                message.error('Bạn là trưởng nhóm, không thể rời nhóm. Vui lòng chuyển quyền trước.');
+              if (
+                err.response?.status === 400 &&
+                err.response?.data?.message?.includes("owner")
+              ) {
+                message.error(
+                  "Bạn là trưởng nhóm, không thể rời nhóm. Vui lòng chuyển quyền trước."
+                );
               } else {
-                message.error('Không thể rời nhóm. Vui lòng thử lại sau.');
+                message.error("Không thể rời nhóm. Vui lòng thử lại sau.");
               }
             }
-          }
+          },
         });
       } catch (err) {
-        console.error('Error checking user role:', err);
-        message.error('Đã xảy ra lỗi. Vui lòng thử lại sau.');
+        console.error("Error checking user role:", err);
+        message.error("Đã xảy ra lỗi. Vui lòng thử lại sau.");
       }
     }
   };
@@ -379,40 +423,47 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
     if (!currentConversation.conversationId) return;
 
     try {
-      message.loading({ content: 'Đang chuyển quyền...', key: 'transfer-ownership' });
-      const result = await transferOwnership(currentConversation.conversationId, newOwnerId);
-      
+      message.loading({
+        content: "Đang chuyển quyền...",
+        key: "transfer-ownership",
+      });
+      const result = await transferOwnership(
+        currentConversation.conversationId,
+        newOwnerId
+      );
+
       if (result) {
-        message.success({ 
-          content: 'Đã chuyển quyền trưởng nhóm thành công', 
-          key: 'transfer-ownership',
-          duration: 2 
+        message.success({
+          content: "Đã chuyển quyền trưởng nhóm thành công",
+          key: "transfer-ownership",
+          duration: 2,
         });
-        
+
         // Cập nhật lại conversation sau khi chuyển quyền
         setDetailedConversation(result as DetailedConversation);
-        
+
         // Quay lại màn hình thông tin nhóm
         setShowOwnershipTransfer(false);
-        
+
         // Hỏi người dùng có muốn rời nhóm sau khi chuyển quyền không
         modal.confirm({
-          title: 'Rời nhóm',
-          content: 'Bạn đã chuyển quyền trưởng nhóm thành công. Bạn có muốn rời nhóm ngay bây giờ không?',
-          okText: 'Rời nhóm',
-          cancelText: 'Ở lại',
-          onOk: () => handleLeaveGroup()
+          title: "Rời nhóm",
+          content:
+            "Bạn đã chuyển quyền trưởng nhóm thành công. Bạn có muốn rời nhóm ngay bây giờ không?",
+          okText: "Rời nhóm",
+          cancelText: "Ở lại",
+          onOk: () => handleLeaveGroup(),
         });
       } else {
-        message.error({ 
-          content: 'Không thể chuyển quyền trưởng nhóm', 
-          key: 'transfer-ownership',
-          duration: 2 
+        message.error({
+          content: "Không thể chuyển quyền trưởng nhóm",
+          key: "transfer-ownership",
+          duration: 2,
         });
       }
     } catch (err) {
-      console.error('Error transferring ownership:', err);
-      message.error('Không thể chuyển quyền trưởng nhóm. Vui lòng thử lại.');
+      console.error("Error transferring ownership:", err);
+      message.error("Không thể chuyển quyền trưởng nhóm. Vui lòng thử lại.");
     }
   };
 
@@ -429,7 +480,7 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
     setShowGroupManagement(false);
   };
 
-  const handleShowMediaGallery = (type: 'media' | 'files') => {
+  const handleShowMediaGallery = (type: "media" | "files") => {
     setMediaGalleryType(type);
     setShowMediaGallery(true);
   };
@@ -440,12 +491,12 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
   };
 
   // Determine the display name based on whether it's a group or individual conversation
-  const displayName = isGroup 
-    ? groupName || 'Nhóm chat' 
-    : otherUserInfo?.fullname || t.loading || 'Đang tải...';
+  const displayName = isGroup
+    ? groupName || "Nhóm chat"
+    : otherUserInfo?.fullname || t.loading || "Đang tải...";
 
   // Determine online status
-  const onlineStatus = isGroup ? `${groupMembers.length} thành viên` : 'Online';
+  const onlineStatus = isGroup ? `${groupMembers.length} thành viên` : "Online";
 
   // Function to load media and files
   const loadMediaAndFiles = async (conversationId: string) => {
@@ -453,23 +504,27 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
       // Fetch shared media
       const media = await fetchSharedMedia(conversationId);
       setSharedMedia(media);
-      
+
       // Fetch shared files
       const files = await fetchSharedFiles(conversationId);
       setSharedFiles(files);
-      
+
       // For links, we'll use the mock data for now since it's not clear if there's an API for it
       // In a real implementation, you'd fetch this from the API as well
-      if (detailedConversation?.sharedLinks) {
-        setSharedLinks(detailedConversation.sharedLinks);
+      if (currentConversation?.sharedLinks) {
+        setSharedLinks(currentConversation.sharedLinks);
       }
     } catch (error) {
-      console.error('Error loading media and files:', error);
+      console.error("Error loading media and files:", error);
     }
   };
 
   // Function to handle file download
-  const handleDownloadFile = (url: string, downloadUrl: string | undefined, filename: string) => {
+  const handleDownloadFile = (
+    url: string,
+    downloadUrl: string | undefined,
+    filename: string
+  ) => {
     // Use the downloadUrl if available, otherwise fall back to regular url
     const fileUrl = downloadUrl || url;
     downloadFile(fileUrl, filename);
@@ -477,7 +532,11 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
   };
 
   // Thêm hàm xử lý xem trước media
-  const handleMediaPreview = (media: any, type: 'image' | 'video', index: number) => {
+  const handleMediaPreview = (
+    media: any,
+    type: "image" | "video",
+    index: number
+  ) => {
     const url = media.downloadUrl || media.url;
     setSelectedMedia(url);
     setSelectedMediaType(type);
@@ -490,17 +549,19 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
     setIsMediaModalOpen(false);
     setSelectedMedia(null);
     setSelectedMediaType(null);
-    
+
     // Tìm và dừng video
-    const videoElement = document.getElementById('media-preview-video') as HTMLVideoElement;
+    const videoElement = document.getElementById(
+      "media-preview-video"
+    ) as HTMLVideoElement;
     if (videoElement) {
       videoElement.pause();
       videoElement.currentTime = 0;
     }
-    
+
     // Để đảm bảo, dừng tất cả các video
-    const videos = document.querySelectorAll('video');
-    videos.forEach(video => {
+    const videos = document.querySelectorAll("video");
+    videos.forEach((video) => {
       video.pause();
       video.currentTime = 0;
     });
@@ -513,7 +574,7 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
       const prevMedia = sharedMedia[prevIndex];
       setCurrentMediaIndex(prevIndex);
 
-      const mediaType = prevMedia.type?.startsWith('image') ? 'image' : 'video';
+      const mediaType = prevMedia.type?.startsWith("image") ? "image" : "video";
       setSelectedMediaType(mediaType);
       setSelectedMedia(prevMedia.downloadUrl || prevMedia.url);
     }
@@ -525,8 +586,8 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
       const nextIndex = currentMediaIndex + 1;
       const nextMedia = sharedMedia[nextIndex];
       setCurrentMediaIndex(nextIndex);
-      
-      const mediaType = nextMedia.type?.startsWith('image') ? 'image' : 'video';
+
+      const mediaType = nextMedia.type?.startsWith("image") ? "image" : "video";
       setSelectedMediaType(mediaType);
       setSelectedMedia(nextMedia.downloadUrl || nextMedia.url);
     }
@@ -535,7 +596,9 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
   // Tải xuống media
   const handleDownloadMedia = () => {
     if (selectedMedia) {
-      const fileName = sharedMedia[currentMediaIndex]?.name || (selectedMediaType === 'image' ? 'image.jpg' : 'video.mp4');
+      const fileName =
+        sharedMedia[currentMediaIndex]?.name ||
+        (selectedMediaType === "image" ? "image.jpg" : "video.mp4");
       downloadFile(selectedMedia, fileName);
       message.success(`Đang tải xuống ${fileName}`);
     }
@@ -552,7 +615,7 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
   // If showing members list view
   if (showMembersList && isGroup) {
     return (
-      <MembersList 
+      <MembersList
         conversation={currentConversation}
         userCache={userCache}
         userAvatars={userAvatars}
@@ -571,67 +634,76 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
     return (
       <div className="h-full bg-white">
         <div className="flex-none p-4 border-b border-gray-200 flex items-center">
-          <Button 
+          <Button
             type="text"
             className="flex items-center mr-2"
             icon={<LeftOutlined />}
             onClick={handleBackFromOwnershipTransfer}
           />
-          <h2 className="text-lg font-semibold">
-            Chuyển quyền trưởng nhóm
-          </h2>
+          <h2 className="text-lg font-semibold">Chuyển quyền trưởng nhóm</h2>
         </div>
-        
+
         <div className="p-4">
           <div className="bg-yellow-50 p-3 rounded border border-yellow-200 mb-4">
             <p className="text-yellow-700 text-sm">
-              Lưu ý: Sau khi chuyển quyền trưởng nhóm, bạn sẽ trở thành thành viên thường và không thể hoàn tác thao tác này.
+              Lưu ý: Sau khi chuyển quyền trưởng nhóm, bạn sẽ trở thành thành
+              viên thường và không thể hoàn tác thao tác này.
             </p>
           </div>
         </div>
-        
+
         <div className="px-4 mb-3">
           <h3 className="font-medium text-gray-700">Chọn trưởng nhóm mới</h3>
         </div>
-        
+
         <div className="member-list overflow-y-auto">
-          {groupMembers.map(memberId => {
+          {groupMembers.map((memberId) => {
             const memberInfo = userCache[memberId] || localUserCache[memberId];
-            const isCurrentUser = memberId === localStorage.getItem('userId');
+            const isCurrentUser = memberId === localStorage.getItem("userId");
             const isOwner = currentConversation.rules?.ownerId === memberId;
-            const isCoOwner = currentConversation.rules?.coOwnerIds?.includes(memberId) || false;
+            const isCoOwner =
+              currentConversation.rules?.coOwnerIds?.includes(memberId) ||
+              false;
             const isSelected = newOwnerSelected === memberId;
-            
+
             // Skip the current user (owner) from the list
             if (isCurrentUser) return null;
-            
+
             return (
-              <div 
+              <div
                 key={memberId}
-                className={`flex items-center justify-between p-3 hover:bg-gray-100 relative cursor-pointer ${isSelected ? 'bg-blue-50' : ''}`}
-                onClick={() => setNewOwnerSelected(memberId)}
-              >
+                className={`flex items-center justify-between p-3 hover:bg-gray-100 relative cursor-pointer ${isSelected ? "bg-blue-50" : ""}`}
+                onClick={() => setNewOwnerSelected(memberId)}>
                 <div className="flex items-center">
-                  <Avatar 
-                    name={memberInfo?.fullname || 'User'}
+                  <Avatar
+                    name={memberInfo?.fullname || "User"}
                     avatarUrl={memberInfo?.urlavatar || userAvatars[memberId]}
                     size={48}
                     className="rounded-full mr-3"
                   />
                   <div>
                     <div className="font-medium flex items-center">
-                      {memberInfo?.fullname || `User-${memberId.substring(0, 6)}`}
+                      {memberInfo?.fullname ||
+                        `User-${memberId.substring(0, 6)}`}
                     </div>
                     <div className="text-sm text-gray-500">
-                      {isCoOwner ? 'Phó nhóm' : 'Thành viên'}
+                      {isCoOwner ? "Phó nhóm" : "Thành viên"}
                     </div>
                   </div>
                 </div>
-                
+
                 {isSelected && (
                   <div className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center text-white">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="h-4 w-4"
+                      viewBox="0 0 20 20"
+                      fill="currentColor">
+                      <path
+                        fillRule="evenodd"
+                        d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                        clipRule="evenodd"
+                      />
                     </svg>
                   </div>
                 )}
@@ -639,15 +711,16 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
             );
           })}
         </div>
-        
+
         <div className="p-4 border-t border-gray-200 flex justify-center">
-          <Button 
-            type="primary" 
+          <Button
+            type="primary"
             size="large"
             disabled={!newOwnerSelected}
-            onClick={() => newOwnerSelected && handleTransferOwnership(newOwnerSelected)}
-            className="w-full"
-          >
+            onClick={() =>
+              newOwnerSelected && handleTransferOwnership(newOwnerSelected)
+            }
+            className="w-full">
             Chuyển quyền
           </Button>
         </div>
@@ -658,7 +731,7 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
   // If showing group management view
   if (showGroupManagement && isGroup) {
     return (
-      <GroupManagement 
+      <GroupManagement
         conversation={currentConversation}
         groupLink={groupLink}
         onBack={handleBackFromGroupManagement}
@@ -672,21 +745,19 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
     return (
       <div className="h-full bg-white">
         <div className="flex-none p-4 border-b border-gray-200 flex items-center">
-          <Button 
+          <Button
             type="text"
             className="flex items-center mr-2"
             icon={<LeftOutlined />}
             onClick={handleBackFromMediaGallery}
           />
-          <h2 className="text-lg font-semibold">
-            Kho lưu trữ
-          </h2>
+          <h2 className="text-lg font-semibold">Kho lưu trữ</h2>
         </div>
-        
+
         <div className="flex-1 overflow-y-auto">
-          {mediaGalleryType === 'media' ? (
+          {mediaGalleryType === "media" ? (
             <MediaGallery
-              type="media" 
+              type="media"
               items={sharedMedia}
               conversationId={conversation.conversationId}
               onPreviewMedia={handleMediaPreview}
@@ -711,7 +782,7 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
       {/* Header - Fixed */}
       <div className="flex-none p-4 border-b border-gray-200">
         <h2 className="text-lg font-semibold text-center">
-          {isGroup ? 'Thông tin nhóm' : 'Thông tin hội thoại'}
+          {isGroup ? "Thông tin nhóm" : "Thông tin hội thoại"}
         </h2>
       </div>
 
@@ -721,7 +792,7 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
           <div className="flex justify-center items-center h-full">
             <div className="text-center">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-2"></div>
-              <p className="text-gray-500">{t.loading || 'Đang tải...'}</p>
+              <p className="text-gray-500">{t.loading || "Đang tải..."}</p>
             </div>
           </div>
         ) : (
@@ -730,26 +801,28 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
             <div className="py-6 text-center border-b border-gray-100">
               <div className="flex flex-col items-center">
                 {isGroup ? (
-                  <GroupAvatar
-                    members={groupMembers}
-                    userAvatars={userAvatars}
-                    size={80}
-                    className="mb-3 border-2 border-white"
-                    groupAvatarUrl={groupAvatarUrl || undefined}
-                  />
+                  <div
+                    className="cursor-pointer"
+                    onClick={() => setShowGroupModal(true)}>
+                    <GroupAvatar
+                      members={groupMembers}
+                      userAvatars={userAvatars}
+                      size={80}
+                      className="mb-3 border-2 border-white"
+                      groupAvatarUrl={groupAvatarUrl || undefined}
+                    />
+                  </div>
                 ) : (
-                  <Avatar 
-                    name={otherUserInfo?.fullname || 'User'}
+                  <Avatar
+                    name={otherUserInfo?.fullname || "User"}
                     avatarUrl={otherUserInfo?.urlavatar}
                     size={80}
                     className="rounded-full mb-3"
                   />
                 )}
                 <div className="flex items-center justify-center gap-2 mb-1">
-                  <h3 className="text-lg font-semibold">
-                    {displayName}
-                  </h3>
-                  <EditOutlined 
+                  <h3 className="text-lg font-semibold">{displayName}</h3>
+                  <EditOutlined
                     onClick={handleEditName}
                     className="text-gray-500 hover:text-blue-500 cursor-pointer"
                   />
@@ -762,24 +835,36 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
                     <Button
                       type="text"
                       shape="circle"
-                      icon={<BellOutlined className={isMuted ? 'text-blue-500' : 'text-gray-500'} />}
+                      icon={
+                        <BellOutlined
+                          className={
+                            isMuted ? "text-blue-500" : "text-gray-500"
+                          }
+                        />
+                      }
                       onClick={handleToggleMute}
                       className="flex items-center justify-center h-10 w-10 bg-gray-100"
                     />
                     <span className="text-xs mt-1">Tắt thông báo</span>
                   </div>
-                  
+
                   <div className="flex flex-col items-center">
                     <Button
                       type="text"
                       shape="circle"
-                      icon={<PushpinOutlined className={isPinned ? 'text-blue-500' : 'text-gray-500'} />}
+                      icon={
+                        <PushpinOutlined
+                          className={
+                            isPinned ? "text-blue-500" : "text-gray-500"
+                          }
+                        />
+                      }
                       onClick={handleTogglePin}
                       className="flex items-center justify-center h-10 w-10 bg-gray-100"
                     />
                     <span className="text-xs mt-1">Ghim hội thoại</span>
                   </div>
-                  
+
                   {isGroup ? (
                     <>
                       <div className="flex flex-col items-center">
@@ -791,7 +876,7 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
                         />
                         <span className="text-xs mt-1">Thêm thành viên</span>
                       </div>
-                      
+
                       <div className="flex flex-col items-center">
                         <Button
                           type="text"
@@ -808,7 +893,9 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
                       <Button
                         type="text"
                         shape="circle"
-                        icon={<UsergroupAddOutlined className="text-gray-500" />}
+                        icon={
+                          <UsergroupAddOutlined className="text-gray-500" />
+                        }
                         className="flex items-center justify-center h-10 w-10 bg-gray-100"
                       />
                       <span className="text-xs mt-1">Tạo nhóm</span>
@@ -822,39 +909,54 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
             {isGroup ? (
               // Group Members Section for Groups
               <div className="border-b border-gray-100">
-                <div 
+                <div
                   className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-gray-50"
-                  onClick={() => setActiveKeys(prev => prev.includes("members") ? prev.filter(k => k !== "members") : [...prev, "members"])}
-                >
+                  onClick={() =>
+                    setActiveKeys((prev) =>
+                      prev.includes("members")
+                        ? prev.filter((k) => k !== "members")
+                        : [...prev, "members"]
+                    )
+                  }>
                   <div className="flex items-center">
                     <TeamOutlined className="text-gray-500 mr-3" />
                     <span className="font-medium">Thành viên nhóm</span>
                   </div>
-                  <RightOutlined className={`text-gray-400 transition-transform ${activeKeys.includes("members") ? 'transform rotate-90' : ''}`} />
+                  <RightOutlined
+                    className={`text-gray-400 transition-transform ${activeKeys.includes("members") ? "transform rotate-90" : ""}`}
+                  />
                 </div>
-                
+
                 {activeKeys.includes("members") && (
                   <div className="p-4 border-t border-gray-100">
                     <div className="flex items-center mb-4">
                       <TeamOutlined className="text-gray-500 mr-2" />
-                      <span className="cursor-pointer hover:text-blue-500" onClick={handleShowMembers}>{groupMembers.length} thành viên</span>
+                      <span
+                        className="cursor-pointer hover:text-blue-500"
+                        onClick={handleShowMembers}>
+                        {groupMembers.length} thành viên
+                      </span>
                     </div>
-                    
+
                     <div className="mb-4">
                       <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium">Link tham gia nhóm</span>
+                        <span className="text-sm font-medium">
+                          Link tham gia nhóm
+                        </span>
                       </div>
                       <div className="flex items-center mt-2 p-2 bg-gray-50 rounded">
-                        <span className="text-blue-500 flex-1 truncate">{groupLink}</span>
-                        <Button 
-                          type="text" 
-                          icon={<CopyOutlined />} 
+                        <span className="text-blue-500 flex-1 truncate">
+                          {groupLink}
+                        </span>
+                        <Button
+                          type="text"
+                          icon={<CopyOutlined />}
                           onClick={handleCopyGroupLink}
                           className="text-gray-500 hover:text-blue-500"
                         />
-                        <Button 
-                          type="text" 
-                          icon={<ShareAltOutlined />} 
+                        <Button
+                          type="text"
+                          icon={<ShareAltOutlined />}
                           onClick={handleShareGroupLink}
                           className="text-gray-500 hover:text-blue-500"
                         />
@@ -874,21 +976,28 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
                 </div>
               </div>
             )}
-            
+
             {/* Group Board Section - Only for Groups */}
             {isGroup && (
               <div className="border-b border-gray-100">
-                <div 
+                <div
                   className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-gray-50"
-                  onClick={() => setActiveKeys(prev => prev.includes("board") ? prev.filter(k => k !== "board") : [...prev, "board"])}
-                >
+                  onClick={() =>
+                    setActiveKeys((prev) =>
+                      prev.includes("board")
+                        ? prev.filter((k) => k !== "board")
+                        : [...prev, "board"]
+                    )
+                  }>
                   <div className="flex items-center">
                     <FileTextOutlined className="text-gray-500 mr-3" />
                     <span className="font-medium">Bảng tin nhóm</span>
                   </div>
-                  <RightOutlined className={`text-gray-400 transition-transform ${activeKeys.includes("board") ? 'transform rotate-90' : ''}`} />
+                  <RightOutlined
+                    className={`text-gray-400 transition-transform ${activeKeys.includes("board") ? "transform rotate-90" : ""}`}
+                  />
                 </div>
-                
+
                 {activeKeys.includes("board") && (
                   <div className="p-4 border-t border-gray-100 space-y-3">
                     <div className="flex items-center justify-between py-2 px-3 bg-gray-50 rounded cursor-pointer">
@@ -898,7 +1007,7 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
                       </div>
                       <RightOutlined className="text-gray-400" />
                     </div>
-                    
+
                     <div className="flex items-center justify-between py-2 px-3 bg-gray-50 rounded cursor-pointer">
                       <div className="flex items-center">
                         <FileTextOutlined className="text-gray-500 mr-2" />
@@ -910,7 +1019,7 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
                 )}
               </div>
             )}
-            
+
             {/* Reminders - Only for Individual Chats */}
             {!isGroup && (
               <div className="px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100">
@@ -925,42 +1034,52 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
 
             {/* Media Section - Update to use downloadUrl */}
             <div className="border-b border-gray-100">
-              <div className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-gray-50"
-                onClick={() => setActiveKeys(prev => prev.includes("media") ? prev.filter(k => k !== "media") : [...prev, "media"])}>
+              <div
+                className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-gray-50"
+                onClick={() =>
+                  setActiveKeys((prev) =>
+                    prev.includes("media")
+                      ? prev.filter((k) => k !== "media")
+                      : [...prev, "media"]
+                  )
+                }>
                 <div className="flex items-center">
                   <FileImageOutlined className="text-gray-500 mr-3" />
                   <span className="font-medium">Ảnh/Video</span>
                 </div>
-                <RightOutlined className={`text-gray-400 transition-transform ${activeKeys.includes("media") ? 'transform rotate-90' : ''}`} />
+                <RightOutlined
+                  className={`text-gray-400 transition-transform ${activeKeys.includes("media") ? "transform rotate-90" : ""}`}
+                />
               </div>
-              
+
               {activeKeys.includes("media") && (
                 <div className="p-4 border-t border-gray-100">
                   {sharedMedia.length > 0 ? (
                     <div className="grid grid-cols-3 gap-2">
                       {sharedMedia.slice(0, 6).map((item, index) => (
-                        <div 
-                          key={`media-${index}`} 
+                        <div
+                          key={`media-${index}`}
                           className="aspect-square bg-gray-100 rounded overflow-hidden relative cursor-pointer border border-gray-200"
                           onClick={() => {
-                            const mediaType = item.type?.startsWith('image') ? 'image' : 'video';
+                            const mediaType = item.type?.startsWith("image")
+                              ? "image"
+                              : "video";
                             handleMediaPreview(item, mediaType, index);
-                          }}
-                        >
-                          {item.type && item.type.startsWith('image') ? (
-                            <img 
+                          }}>
+                          {item.type && item.type.startsWith("image") ? (
+                            <img
                               src={item.url}
                               alt={item.name || `Image ${index}`}
                               className="w-full h-full object-cover"
                             />
-                          ) : item.type && item.type.startsWith('video') ? (
+                          ) : item.type && item.type.startsWith("video") ? (
                             <div className="absolute inset-0 flex items-center justify-center">
                               {/* Nếu có thumbnailUrl thì hiển thị thumbnail */}
                               {item.thumbnailUrl ? (
                                 <>
-                                  <img 
-                                    src={item.thumbnailUrl} 
-                                    alt={item.name || "Video"} 
+                                  <img
+                                    src={item.thumbnailUrl}
+                                    alt={item.name || "Video"}
                                     className="w-full h-full object-cover absolute inset-0"
                                   />
                                   <div className="absolute inset-0 bg-black opacity-30"></div>
@@ -968,12 +1087,12 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
                               ) : (
                                 <div className="absolute inset-0 bg-black opacity-70"></div>
                               )}
-                              
+
                               {/* Icon play video */}
                               <div className="z-10 text-white bg-black bg-opacity-50 rounded-full p-2">
                                 <PlayCircleOutlined className="text-3xl" />
                               </div>
-                              
+
                               {/* Hiển thị nhãn video ở góc dưới */}
                               <div className="absolute bottom-1 right-2 bg-black bg-opacity-70 text-white text-xs px-1 rounded">
                                 Video
@@ -994,12 +1113,11 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
                       Chưa có ảnh/video nào
                     </div>
                   )}
-                  
+
                   {sharedMedia.length > 0 && (
-                    <div 
+                    <div
                       className="flex justify-center items-center mt-3 py-2 bg-gray-100 rounded cursor-pointer hover:bg-gray-200"
-                      onClick={() => handleShowMediaGallery('media')}
-                    >
+                      onClick={() => handleShowMediaGallery("media")}>
                       <span>Xem tất cả</span>
                     </div>
                   )}
@@ -1009,15 +1127,24 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
 
             {/* File Section - Update to use downloadUrl */}
             <div className="border-b border-gray-100">
-              <div className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-gray-50"
-                onClick={() => setActiveKeys(prev => prev.includes("files") ? prev.filter(k => k !== "files") : [...prev, "files"])}>
+              <div
+                className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-gray-50"
+                onClick={() =>
+                  setActiveKeys((prev) =>
+                    prev.includes("files")
+                      ? prev.filter((k) => k !== "files")
+                      : [...prev, "files"]
+                  )
+                }>
                 <div className="flex items-center">
                   <FileOutlined className="text-gray-500 mr-3" />
                   <span className="font-medium">File</span>
                 </div>
-                <RightOutlined className={`text-gray-400 transition-transform ${activeKeys.includes("files") ? 'transform rotate-90' : ''}`} />
+                <RightOutlined
+                  className={`text-gray-400 transition-transform ${activeKeys.includes("files") ? "transform rotate-90" : ""}`}
+                />
               </div>
-              
+
               {activeKeys.includes("files") && (
                 <div className="p-4 border-t border-gray-100">
                   {sharedFiles.length > 0 ? (
@@ -1026,44 +1153,59 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
                         // Determine file type icon and background color
                         let FileIcon = FileOutlined;
                         let bgColor = "bg-blue-500";
-                        
+
                         if (file.name) {
-                          const ext = file.name.split('.').pop()?.toLowerCase();
-                          if (ext === 'json') {
+                          const ext = file.name.split(".").pop()?.toLowerCase();
+                          if (ext === "json") {
                             bgColor = "bg-blue-400";
-                          } else if (ext === 'env') {
+                          } else if (ext === "env") {
                             bgColor = "bg-cyan-400";
-                          } else if (['jpg', 'png', 'gif', 'jpeg'].includes(ext || '')) {
+                          } else if (
+                            ["jpg", "png", "gif", "jpeg"].includes(ext || "")
+                          ) {
                             FileIcon = FileImageOutlined;
                             bgColor = "bg-purple-400";
-                          } else if (['mp4', 'avi', 'mov'].includes(ext || '')) {
+                          } else if (
+                            ["mp4", "avi", "mov"].includes(ext || "")
+                          ) {
                             bgColor = "bg-red-400";
-                          } else if (['zip', 'rar', '7z'].includes(ext || '')) {
+                          } else if (["zip", "rar", "7z"].includes(ext || "")) {
                             bgColor = "bg-yellow-500";
-                          } else if (['docx', 'doc', 'pdf'].includes(ext || '')) {
+                          } else if (
+                            ["docx", "doc", "pdf"].includes(ext || "")
+                          ) {
                             bgColor = "bg-blue-600";
                           }
                         }
-                        
+
                         // Format date - không sử dụng padStart để tránh số 0 phía trước
-                        let formattedDate = '';
+                        let formattedDate = "";
                         if (file.createdAt) {
                           const fileDate = new Date(file.createdAt);
                           const today = new Date();
                           const yesterday = new Date();
                           yesterday.setDate(yesterday.getDate() - 1);
-                          
+
                           // Format thời gian
                           const hours = fileDate.getHours();
-                          const minutes = fileDate.getMinutes() < 10 ? '0' + fileDate.getMinutes() : fileDate.getMinutes();
+                          const minutes =
+                            fileDate.getMinutes() < 10
+                              ? "0" + fileDate.getMinutes()
+                              : fileDate.getMinutes();
                           const timeString = `${hours}:${minutes}`;
-                          
+
                           // Định dạng ngày
-                          if (fileDate.toDateString() === today.toDateString()) {
+                          if (
+                            fileDate.toDateString() === today.toDateString()
+                          ) {
                             formattedDate = `Hôm nay, ${timeString}`;
-                          } else if (fileDate.toDateString() === yesterday.toDateString()) {
+                          } else if (
+                            fileDate.toDateString() === yesterday.toDateString()
+                          ) {
                             formattedDate = `Hôm qua, ${timeString}`;
-                          } else if (fileDate.getFullYear() === today.getFullYear()) {
+                          } else if (
+                            fileDate.getFullYear() === today.getFullYear()
+                          ) {
                             const day = fileDate.getDate();
                             const month = fileDate.getMonth() + 1;
                             formattedDate = `${day}/${month}`;
@@ -1073,27 +1215,41 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
                             formattedDate = `${day}/${month}/${fileDate.getFullYear()}`;
                           }
                         }
-                        
+
                         return (
-                          <div key={`file-${index}`} className="flex items-center justify-between py-2">
+                          <div
+                            key={`file-${index}`}
+                            className="flex items-center justify-between py-2">
                             <div className="flex items-center">
-                              <div className={`w-10 h-10 rounded flex items-center justify-center text-white ${bgColor} mr-3`}>
-                                <span className="text-xs font-bold uppercase">{file.name?.split('.').pop() || 'FILE'}</span>
+                              <div
+                                className={`w-10 h-10 rounded flex items-center justify-center text-white ${bgColor} mr-3`}>
+                                <span className="text-xs font-bold uppercase">
+                                  {file.name?.split(".").pop() || "FILE"}
+                                </span>
                               </div>
                               <div>
                                 <div className="font-medium">{file.name}</div>
                                 <div className="flex items-center text-xs text-gray-500">
-                                  <span>{file.size ? `${Math.round(file.size / 1024)} KB` : ''}</span>
+                                  <span>
+                                    {file.size
+                                      ? `${Math.round(file.size / 1024)} KB`
+                                      : ""}
+                                  </span>
                                   {file.size && <span className="mx-1">•</span>}
                                   <span>{formattedDate}</span>
                                 </div>
                               </div>
                             </div>
-                            <Button 
-                              type="link" 
+                            <Button
+                              type="link"
                               className="text-gray-400 hover:text-blue-500"
-                              onClick={() => handleDownloadFile(file.url, file.downloadUrl, file.name)}
-                            >
+                              onClick={() =>
+                                handleDownloadFile(
+                                  file.url,
+                                  file.downloadUrl,
+                                  file.name
+                                )
+                              }>
                               <DownloadOutlined />
                             </Button>
                           </div>
@@ -1102,15 +1258,16 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
                     </div>
                   ) : (
                     <div className="text-sm text-gray-500 text-center py-2">
-                      {isGroup ? 'Chưa có file nào' : 'Chưa có File được chia sẻ từ sau 10/3/2025'}
+                      {isGroup
+                        ? "Chưa có file nào"
+                        : "Chưa có File được chia sẻ từ sau 10/3/2025"}
                     </div>
                   )}
-                  
+
                   {sharedFiles.length > 0 && (
-                    <div 
+                    <div
                       className="flex justify-center items-center mt-3 py-2 bg-gray-100 rounded cursor-pointer hover:bg-gray-200"
-                      onClick={() => handleShowMediaGallery('files')}
-                    >
+                      onClick={() => handleShowMediaGallery("files")}>
                       <span>Xem tất cả</span>
                     </div>
                   )}
@@ -1119,13 +1276,23 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
             </div>
 
             {/* Link Section */}
-            <div className="cursor-pointer hover:bg-gray-50" onClick={() => setActiveKeys(prev => prev.includes("links") ? prev.filter(k => k !== "links") : [...prev, "links"])}>
+            <div
+              className="cursor-pointer hover:bg-gray-50"
+              onClick={() =>
+                setActiveKeys((prev) =>
+                  prev.includes("links")
+                    ? prev.filter((k) => k !== "links")
+                    : [...prev, "links"]
+                )
+              }>
               <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
                 <div className="flex items-center">
                   <LinkOutlined className="text-gray-500 mr-3" />
                   <span>Link</span>
                 </div>
-                <RightOutlined className={`text-gray-400 transition-transform ${activeKeys.includes("links") ? 'transform rotate-90' : ''}`} />
+                <RightOutlined
+                  className={`text-gray-400 transition-transform ${activeKeys.includes("links") ? "transform rotate-90" : ""}`}
+                />
               </div>
               {activeKeys.includes("links") && (
                 <div className="p-4 border-b border-gray-100 bg-gray-50">
@@ -1137,13 +1304,19 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
                           <LinkOutlined className="text-blue-500 mr-2" />
                           <div>
                             <div className="font-medium truncate w-52">
-                              {isGroup ? 'render.com' : '3e9a-2401-d800-a0e-6d-4873-72e5-6f11-a9e1.ngrok-free.app'}
+                              {isGroup
+                                ? "render.com"
+                                : "3e9a-2401-d800-a0e-6d-4873-72e5-6f11-a9e1.ngrok-free.app"}
                             </div>
                             <div className="text-xs text-gray-500">19/04</div>
                           </div>
                         </div>
                         <div className="flex space-x-1">
-                          <Button type="text" icon={<ShareAltOutlined />} size="small" />
+                          <Button
+                            type="text"
+                            icon={<ShareAltOutlined />}
+                            size="small"
+                          />
                         </div>
                       </div>
                       <div className="flex items-center justify-between p-2 bg-white rounded">
@@ -1151,13 +1324,21 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
                           <LinkOutlined className="text-blue-500 mr-2" />
                           <div>
                             <div className="font-medium truncate w-52">
-                              {isGroup ? 'socket.io\\dist\\typed-events.js' : 'raw.githubusercontent.com/.../cursor_win_id_modifier.ps1'}
+                              {isGroup
+                                ? "socket.io\\dist\\typed-events.js"
+                                : "raw.githubusercontent.com/.../cursor_win_id_modifier.ps1"}
                             </div>
-                            <div className="text-xs text-gray-500">{isGroup ? '16/04' : '18/04'}</div>
+                            <div className="text-xs text-gray-500">
+                              {isGroup ? "16/04" : "18/04"}
+                            </div>
                           </div>
                         </div>
                         <div className="flex space-x-1">
-                          <Button type="text" icon={<ShareAltOutlined />} size="small" />
+                          <Button
+                            type="text"
+                            icon={<ShareAltOutlined />}
+                            size="small"
+                          />
                         </div>
                       </div>
                     </div>
@@ -1171,13 +1352,23 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
             </div>
 
             {/* Thiết lập bảo mật section */}
-            <div className="cursor-pointer hover:bg-gray-50" onClick={() => setActiveKeys(prev => prev.includes("security") ? prev.filter(k => k !== "security") : [...prev, "security"])}>
+            <div
+              className="cursor-pointer hover:bg-gray-50"
+              onClick={() =>
+                setActiveKeys((prev) =>
+                  prev.includes("security")
+                    ? prev.filter((k) => k !== "security")
+                    : [...prev, "security"]
+                )
+              }>
               <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
                 <div className="flex items-center">
                   <EyeInvisibleOutlined className="text-gray-500 mr-3" />
                   <span>Thiết lập bảo mật</span>
                 </div>
-                <RightOutlined className={`text-gray-400 transition-transform ${activeKeys.includes("security") ? 'transform rotate-90' : ''}`} />
+                <RightOutlined
+                  className={`text-gray-400 transition-transform ${activeKeys.includes("security") ? "transform rotate-90" : ""}`}
+                />
               </div>
               {activeKeys.includes("security") && (
                 <div className="p-4 border-b border-gray-100 bg-gray-50">
@@ -1189,13 +1380,19 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
                       </div>
                       <Switch checked={false} size="small" />
                     </div>
-                    
+
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="font-medium">Ẩn trò chuyện</p>
-                        <p className="text-sm text-gray-500">Yêu cầu mật khẩu để xem</p>
+                        <p className="text-sm text-gray-500">
+                          Yêu cầu mật khẩu để xem
+                        </p>
                       </div>
-                      <Switch checked={isHidden} onChange={handleToggleHidden} size="small" />
+                      <Switch
+                        checked={isHidden}
+                        onChange={handleToggleHidden}
+                        size="small"
+                      />
                     </div>
                   </div>
                 </div>
@@ -1208,12 +1405,16 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
                 <WarningOutlined className="mr-3" />
                 <span>Báo xấu</span>
               </div>
-              <div className="flex items-center text-red-500 px-4 py-3 cursor-pointer hover:bg-gray-50" onClick={handleDeleteChat}>
+              <div
+                className="flex items-center text-red-500 px-4 py-3 cursor-pointer hover:bg-gray-50"
+                onClick={handleDeleteChat}>
                 <DeleteOutlined className="mr-3" />
                 <span>Xóa lịch sử trò chuyện</span>
               </div>
               {isGroup && (
-                <div className="flex items-center text-red-500 px-4 py-3 cursor-pointer hover:bg-gray-50" onClick={handleLeaveGroup}>
+                <div
+                  className="flex items-center text-red-500 px-4 py-3 cursor-pointer hover:bg-gray-50"
+                  onClick={handleLeaveGroup}>
                   <LogoutOutlined className="mr-3" />
                   <span>Rời nhóm</span>
                 </div>
@@ -1230,46 +1431,50 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
         footer={null}
         centered
         width="auto"
-        bodyStyle={{ padding: 0, backgroundColor: '#000000' }}
-        style={{ 
-          maxWidth: '100vw',
-          backgroundColor: '#000000'
+        bodyStyle={{ padding: 0, backgroundColor: "#000000" }}
+        style={{
+          maxWidth: "100vw",
+          backgroundColor: "#000000",
         }}
         className="media-preview-modal"
         closeIcon={false}
-        keyboard={true}
-      >
+        keyboard={true}>
         <div className="relative flex flex-col h-[90vh] justify-center items-center bg-black">
           {/* Thanh trên cùng với nút đóng và chỉ số */}
           <div className="absolute top-0 left-0 right-0 bg-black bg-opacity-70 py-3 px-4 flex justify-between items-center z-20">
-            <div className="w-8"></div> {/* Phần trống để cân bằng với nút đóng */}
+            <div className="w-8"></div>{" "}
+            {/* Phần trống để cân bằng với nút đóng */}
             <div className="text-white font-medium text-sm">
               {currentMediaIndex + 1} / {sharedMedia.length}
             </div>
             <Button
               type="text"
-              icon={<CloseOutlined style={{ fontSize: '20px' }} />}
+              icon={<CloseOutlined style={{ fontSize: "20px" }} />}
               onClick={closeMediaModal}
               className="flex items-center justify-center h-8 w-8 bg-transparent hover:bg-opacity-80 text-white"
-              style={{ border: 'none' }}
+              style={{ border: "none" }}
             />
           </div>
 
           {/* Hiển thị ảnh hoặc video */}
           <div className="flex justify-center items-center w-full h-full">
-            {selectedMediaType === 'image' ? (
+            {selectedMediaType === "image" ? (
               <img
-                src={selectedMedia || ''}
+                src={selectedMedia || ""}
                 alt="Preview"
-                style={{ maxWidth: '100%', maxHeight: '80vh', objectFit: 'contain' }}
+                style={{
+                  maxWidth: "100%",
+                  maxHeight: "80vh",
+                  objectFit: "contain",
+                }}
                 className="select-none"
               />
-            ) : selectedMediaType === 'video' ? (
+            ) : selectedMediaType === "video" ? (
               <video
-                src={selectedMedia || ''}
+                src={selectedMedia || ""}
                 controls
                 autoPlay
-                style={{ maxWidth: '100%', maxHeight: '80vh' }}
+                style={{ maxWidth: "100%", maxHeight: "80vh" }}
                 className="select-none"
                 id="media-preview-video"
                 onError={(e) => console.error("Video load error:", e)}
@@ -1281,17 +1486,22 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
           <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white p-4 flex justify-between items-center">
             {/* Thông tin về ảnh/video */}
             <div className="text-sm max-w-[50%] truncate">
-              {sharedMedia[currentMediaIndex]?.name || (selectedMediaType === 'image' ? 'Hình ảnh' : 'Video')}
+              {sharedMedia[currentMediaIndex]?.name ||
+                (selectedMediaType === "image" ? "Hình ảnh" : "Video")}
             </div>
-            
+
             {/* Các nút chức năng */}
             <div className="flex space-x-4">
               <Button
                 type="link"
-                icon={<DownloadOutlined style={{ fontSize: '20px', color: 'white' }} />}
+                icon={
+                  <DownloadOutlined
+                    style={{ fontSize: "20px", color: "white" }}
+                  />
+                }
                 onClick={handleDownloadMedia}
                 className="flex items-center justify-center h-10 w-10 bg-transparent text-white"
-                style={{ border: 'none' }}
+                style={{ border: "none" }}
               />
             </div>
           </div>
@@ -1303,23 +1513,31 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
               {currentMediaIndex > 0 && (
                 <Button
                   type="text"
-                  icon={<LeftOutlined style={{ fontSize: '20px', color: 'white' }} />}
+                  icon={
+                    <LeftOutlined
+                      style={{ fontSize: "20px", color: "white" }}
+                    />
+                  }
                   onClick={handlePrevMedia}
                   className="flex items-center justify-center h-12 w-12 bg-red-600 rounded-none"
-                  style={{ border: 'none' }}
+                  style={{ border: "none" }}
                 />
               )}
             </div>
-            
+
             {/* Nút sau */}
             <div className="pointer-events-auto">
               {currentMediaIndex < sharedMedia.length - 1 && (
                 <Button
                   type="text"
-                  icon={<RightArrowOutlined style={{ fontSize: '20px', color: 'white' }} />}
+                  icon={
+                    <RightArrowOutlined
+                      style={{ fontSize: "20px", color: "white" }}
+                    />
+                  }
                   onClick={handleNextMedia}
                   className="flex items-center justify-center h-12 w-12 bg-black bg-opacity-50 rounded-full"
-                  style={{ border: 'none' }}
+                  style={{ border: "none" }}
                 />
               )}
             </div>
@@ -1334,8 +1552,7 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
         onOk={handleSaveLocalName}
         onCancel={() => setIsEditNameModalVisible(false)}
         okText="Lưu"
-        cancelText="Hủy"
-      >
+        cancelText="Hủy">
         <Input
           value={localName}
           onChange={(e) => setLocalName(e.target.value)}
@@ -1343,8 +1560,21 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
           placeholder="Nhập tên gợi nhớ"
         />
       </Modal>
+
+      {/* GroupModal */}
+      {isGroup && showGroupModal && (
+        <GroupModal
+          visible={showGroupModal}
+          onClose={() => setShowGroupModal(false)}
+          conversation={conversation}
+          userAvatars={userAvatars}
+          members={groupMembers}
+          onLeaveGroup={onLeaveGroup}
+          refreshConversationData={refreshConversationData}
+        />
+      )}
     </div>
   );
 };
 
-export default ChatInfo; 
+export default ChatInfo;
