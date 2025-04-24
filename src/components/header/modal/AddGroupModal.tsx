@@ -6,6 +6,7 @@ import {
   fetchFriends,
   searchUsers,
   createGroupConversation,
+  getUserById,
 } from "../../../api/API";
 import { useConversationContext } from "../../../features/chat/context/ConversationContext";
 
@@ -43,6 +44,23 @@ const AddGroupModal: React.FC<AddGroupModalProps> = ({
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState("all");
   const [error, setError] = useState<string | null>(null);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+
+  useEffect(() => {
+    const loadCurrentUser = async () => {
+      const userId = localStorage.getItem("userId");
+      if (userId) {
+        try {
+          const userData = await getUserById(userId);
+          setCurrentUser(userData);
+        } catch (error) {
+          console.error("Lỗi khi lấy thông tin người dùng hiện tại:", error);
+        }
+      }
+    };
+
+    loadCurrentUser();
+  }, []);
 
   useEffect(() => {
     const loadFriends = async () => {
@@ -98,8 +116,8 @@ const AddGroupModal: React.FC<AddGroupModalProps> = ({
     try {
       setError(null);
 
-      if (!groupName || selectedContacts.length === 0) {
-        setError("Vui lòng nhập tên nhóm và chọn ít nhất một thành viên");
+      if (selectedContacts.length === 0) {
+        setError("Vui lòng chọn ít nhất một thành viên");
         return;
       }
 
@@ -109,9 +127,36 @@ const AddGroupModal: React.FC<AddGroupModalProps> = ({
         allMembers.push(currentUserId);
       }
 
-      // Tạo group conversation không có avatar
+      // Nếu không nhập tên nhóm, tự động tạo tên từ người tạo và các thành viên
+      let finalGroupName = groupName.trim();
+      if (!finalGroupName) {
+        // Tách thành viên thành người tạo và những người khác
+        let currentUserName = currentUser?.fullname || "";
+        const otherMemberNames: string[] = [];
+
+        // Lấy tên của các thành viên khác (không bao gồm người tạo)
+        selectedUsers
+          .filter((user) => user.userId !== currentUserId)
+          .slice(0, 2) // Chỉ lấy 2 người khác (vì đã có người tạo)
+          .forEach((user) => {
+            otherMemberNames.push(user.fullname);
+          });
+
+        // Tạo tên nhóm với người tạo đứng đầu
+        const memberNames = [currentUserName, ...otherMemberNames].filter(
+          Boolean
+        );
+        finalGroupName = memberNames.join(", ");
+
+        // Nếu có nhiều hơn 3 thành viên, thêm "..."
+        if (selectedContacts.length > memberNames.length) {
+          finalGroupName += "...";
+        }
+      }
+
+      // Tạo group conversation với tên đã xác định
       const newConversation = await createGroupConversation(
-        groupName,
+        finalGroupName,
         allMembers
       );
 
@@ -121,7 +166,7 @@ const AddGroupModal: React.FC<AddGroupModalProps> = ({
       const formattedConversation: Conversation = {
         ...newConversation,
         isGroup: true,
-        groupName: groupName,
+        groupName: finalGroupName,
         groupMembers: allMembers,
         groupAvatarUrl: newConversation.groupAvatarUrl,
         createdAt: newConversation.createdAt || new Date().toISOString(),
@@ -364,11 +409,11 @@ const AddGroupModal: React.FC<AddGroupModalProps> = ({
             <button
               onClick={handleCreateGroup}
               className={`px-3 py-1 rounded-md bg-blue-500 text-white text-sm ${
-                !groupName || selectedContacts.length === 0
+                selectedContacts.length === 0
                   ? "opacity-50 cursor-not-allowed"
                   : ""
               }`}
-              disabled={!groupName || selectedContacts.length === 0}>
+              disabled={selectedContacts.length === 0}>
               Tạo nhóm
             </button>
           </div>

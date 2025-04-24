@@ -2355,7 +2355,7 @@ export const createGroupConversation = async (
 export const updateGroupAvatar = async (
   conversationId: string,
   imageFile: File
-): Promise<string> => {
+): Promise<any> => {
   try {
     console.log("UpdateGroupAvatar - Start", { conversationId });
 
@@ -2365,12 +2365,7 @@ export const updateGroupAvatar = async (
     }
 
     const formData = new FormData();
-    // Thử nhiều tên trường khác nhau mà backend có thể chấp nhận
-    formData.append("groupAvatar", imageFile);
-    formData.append("avatar", imageFile);
-    formData.append("file", imageFile);
-    formData.append("image", imageFile);
-    formData.append("conversationId", conversationId);
+    formData.append("groupAvatar", imageFile); // Tên trường phải khớp với 'uploadImage.single('groupAvatar')' trên backend
 
     console.log(
       "UpdateGroupAvatar - FormData prepared with file:",
@@ -2379,144 +2374,25 @@ export const updateGroupAvatar = async (
       imageFile.size
     );
 
-    // Danh sách các endpoint có thể để thử
-    const possibleEndpoints = [
-      `/api/conversations/group/avatar/${conversationId}`,
-      `/api/conversations/${conversationId}/avatar`,
-      `/api/groups/${conversationId}/avatar`,
-      `/api/conversations/group/${conversationId}/avatar`,
-      `/api/group/update/avatar/${conversationId}`,
-      `/api/conversations/${conversationId}/update-avatar`,
-      `/api/conversations/update-avatar/${conversationId}`,
-    ];
-
-    let lastError = null;
-    let response = null;
-
-    // Thử từng endpoint cho đến khi thành công
-    for (const endpoint of possibleEndpoints) {
-      try {
-        console.log("UpdateGroupAvatar - Trying endpoint:", endpoint);
-        response = await apiClient.put(endpoint, formData, {
-          headers: {
-            "Content-Type": "multipart/form-data",
-          },
-          timeout: 15000, // Tăng timeout lên 15 giây
-        });
-
-        console.log("UpdateGroupAvatar - Success with endpoint:", endpoint);
-        console.log("UpdateGroupAvatar - Response:", response.data);
-        break; // Nếu thành công, dừng vòng lặp
-      } catch (endpointError) {
-        console.log(
-          "UpdateGroupAvatar - Failed with endpoint:",
-          endpoint,
-          endpointError
-        );
-        lastError = endpointError;
-        // Tiếp tục thử endpoint khác
+    // Sử dụng đúng đường dẫn API đã đề cập trong backend
+    const response = await apiClient.put(
+      `/api/conversations/group/update/avatar/${conversationId}`,
+      formData,
+      {
+        headers: {
+          "Content-Type": "multipart/form-data",
+          Authorization: `Bearer ${token}`,
+        },
       }
-    }
+    );
 
-    // Nếu không có response thành công, thử phương thức POST thay vì PUT
-    if (!response) {
-      for (const endpoint of possibleEndpoints) {
-        try {
-          console.log("UpdateGroupAvatar - Trying POST to endpoint:", endpoint);
-          response = await apiClient.post(endpoint, formData, {
-            headers: {
-              "Content-Type": "multipart/form-data",
-            },
-            timeout: 15000,
-          });
+    console.log("UpdateGroupAvatar - Response:", response.data);
 
-          console.log(
-            "UpdateGroupAvatar - Success with POST to endpoint:",
-            endpoint
-          );
-          console.log("UpdateGroupAvatar - Response:", response.data);
-          break;
-        } catch (endpointError) {
-          console.log(
-            "UpdateGroupAvatar - Failed POST to endpoint:",
-            endpoint,
-            endpointError
-          );
-          lastError = endpointError;
-        }
-      }
-    }
-
-    if (!response) {
-      throw (
-        lastError ||
-        new Error("Không thể cập nhật ảnh nhóm với bất kỳ endpoint nào")
-      );
-    }
-
-    // Xử lý response để lấy avatar URL, cố gắng tìm trong nhiều định dạng khác nhau
-    if (response.data) {
-      console.log(
-        "UpdateGroupAvatar - Full response data:",
-        JSON.stringify(response.data)
-      );
-
-      // Trích xuất URL từ response với nhiều định dạng có thể
-      const possiblePaths = [
-        response.data.groupAvatarUrl,
-        response.data.avatarUrl,
-        response.data.url,
-        response.data.imageUrl,
-        response.data.conversation?.groupAvatarUrl,
-        response.data.group?.avatarUrl,
-        response.data.data?.groupAvatarUrl,
-        response.data.data?.avatarUrl,
-      ];
-
-      // Lấy URL đầu tiên không phải null/undefined
-      const avatarUrl = possiblePaths.find((path) => path);
-
-      if (avatarUrl) {
-        console.log("UpdateGroupAvatar - Found avatar URL:", avatarUrl);
-        return avatarUrl;
-      }
-    }
-
-    // Nếu không thể trích xuất URL từ response, dùng URL tạm thời
-    const fallbackUrl = URL.createObjectURL(imageFile);
-    console.log("UpdateGroupAvatar - Using fallback local URL:", fallbackUrl);
-    return fallbackUrl;
-  } catch (error: unknown) {
-    console.error("UpdateGroupAvatar - Error details:", error);
-    if (error instanceof Error) {
-      console.error("UpdateGroupAvatar - Error message:", error.message);
-    }
-
-    // Phân tích lỗi axios
-    const axiosError = error as {
-      response?: { status: number; data: unknown; headers: unknown };
-    };
-    if (axiosError.response) {
-      console.error("UpdateGroupAvatar - Error response:", {
-        status: axiosError.response.status,
-        data: axiosError.response.data,
-        headers: axiosError.response.headers,
-      });
-    }
-
-    // Dùng URL tạm thời nếu lỗi
-    try {
-      const fallbackUrl = URL.createObjectURL(imageFile);
-      console.log(
-        "UpdateGroupAvatar - Using fallback local URL after error:",
-        fallbackUrl
-      );
-      return fallbackUrl;
-    } catch (fallbackError) {
-      console.error("UpdateGroupAvatar - Even fallback failed:", fallbackError);
-    }
-
-    throw new Error("Không thể cập nhật ảnh nhóm. Vui lòng thử lại sau.");
+    // Trả về response data từ server
+    return response.data;
+  } catch (error) {
+    console.error("Error updating group avatar:", error);
+    throw error;
   }
 };
 
@@ -2656,32 +2532,54 @@ export const deleteGroup = async (conversationId: string) => {
   }
 };
 
+/**
+ * Leave a group conversation
+ * @param conversationId ID of the group to leave
+ * @returns Response with confirmation message
+ */
 export const leaveGroup = async (conversationId: string) => {
   try {
-    const token = localStorage.getItem("token");
+    const token = getAuthToken();
     if (!token) {
-      throw new Error("User not authenticated");
+      throw new Error("Vui lòng đăng nhập để thực hiện chức năng này");
     }
 
-    // Sửa lại URL để khớp với định nghĩa router ở backend
-    // router.put('/group/:conversationId/leave', auth, conversationController.leaveGroup.bind(conversationController));
     const response = await apiClient.put(
       `/api/conversations/group/${conversationId}/leave`
     );
 
-    if (response.status !== 200) {
-      throw new Error("Failed to leave group");
+    console.log("Rời nhóm thành công:", response.data);
+    return response.data;
+  } catch (error) {
+    console.error("Lỗi khi rời nhóm:", error);
+
+    // Dịch các thông báo lỗi từ tiếng Anh sang tiếng Việt
+    if (error instanceof AxiosError && error.response?.status === 400) {
+      const errorMessage = error.response.data.message;
+
+      // Kiểm tra các loại lỗi cụ thể
+      if (errorMessage.includes("You cant leave because you are the owner")) {
+        throw new Error("Bạn không thể rời nhóm vì bạn là chủ nhóm");
+      } else if (errorMessage.includes("This is not a group conversation")) {
+        throw new Error("Đây không phải là nhóm trò chuyện");
+      } else if (errorMessage.includes("Group rules not defined")) {
+        throw new Error("Quy tắc nhóm chưa được thiết lập");
+      } else {
+        throw new Error(
+          errorMessage || "Không thể rời nhóm. Vui lòng thử lại sau."
+        );
+      }
     }
 
-    return response.data;
-  } catch (error: any) {
-    console.error("Error leaving group:", {
-      message: error.message,
-      status: error.response?.status,
-      data: error.response?.data,
-    });
-    logApiError("leaveGroup", error);
-    throw error;
+    if (error instanceof AxiosError && error.response?.status === 403) {
+      throw new Error("Bạn không phải là thành viên của nhóm này");
+    }
+
+    if (error instanceof AxiosError && error.response?.status === 404) {
+      throw new Error("Không tìm thấy nhóm hoặc người dùng");
+    }
+
+    throw new Error("Không thể rời nhóm. Vui lòng thử lại sau.");
   }
 };
 
@@ -2690,25 +2588,30 @@ export const leaveGroup = async (conversationId: string) => {
  * @param conversationId The ID of the conversation
  * @param userId The ID of the user to remove
  */
-export const removeUserFromGroup = async (conversationId: string, userId: string) => {
+export const removeUserFromGroup = async (
+  conversationId: string,
+  userId: string
+) => {
   try {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem("token");
     if (!token) {
-      throw new Error('User not authenticated');
+      throw new Error("User not authenticated");
     }
-    
-    const response = await apiClient.put(`/api/conversations/group/${conversationId}/remove/${userId}`);
+
+    const response = await apiClient.put(
+      `/api/conversations/group/${conversationId}/remove/${userId}`
+    );
 
     if (response.status !== 200) {
-      throw new Error('Failed to remove user from group');
+      throw new Error("Failed to remove user from group");
     }
 
     return response.data;
   } catch (error: any) {
-    console.error('Error removing user from group:', {
+    console.error("Error removing user from group:", {
       message: error.message,
       status: error.response?.status,
-      data: error.response?.data
+      data: error.response?.data,
     });
     throw error;
   }
@@ -2719,25 +2622,31 @@ export const removeUserFromGroup = async (conversationId: string, userId: string
  * @param conversationId - ID of the group conversation
  * @param userId - ID of the user to block
  */
-export const blockUserFromGroup = async (conversationId: string, userId: string) => {
+export const blockUserFromGroup = async (
+  conversationId: string,
+  userId: string
+) => {
   try {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem("token");
     if (!token) {
-      throw new Error('User not authenticated');
+      throw new Error("User not authenticated");
     }
-    
-    const response = await apiClient.put(`/api/conversations/group/${conversationId}/block/${userId}`, { userId });
+
+    const response = await apiClient.put(
+      `/api/conversations/group/${conversationId}/block/${userId}`,
+      { userId }
+    );
 
     if (response.status !== 200) {
-      throw new Error('Failed to block user from group');
+      throw new Error("Failed to block user from group");
     }
 
     return response.data;
   } catch (error: unknown) {
     if (error instanceof Error) {
-      console.error('Error blocking user from group:', error.message);
+      console.error("Error blocking user from group:", error.message);
     } else {
-      console.error('Unknown error blocking user from group');
+      console.error("Unknown error blocking user from group");
     }
     throw error;
   }
@@ -2749,26 +2658,111 @@ export const blockUserFromGroup = async (conversationId: string, userId: string)
  * @param userId user id to unblock
  * @returns the updated conversation details
  */
-export const unblockUserFromGroup = async (conversationId: string, userId: string) => {
+export const unblockUserFromGroup = async (
+  conversationId: string,
+  userId: string
+) => {
   try {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem("token");
     if (!token) {
-      throw new Error('User not authenticated');
+      throw new Error("User not authenticated");
     }
-    
-    const response = await apiClient.put(`/api/conversations/group/${conversationId}/unblock/${userId}`, { userId });
+
+    const response = await apiClient.put(
+      `/api/conversations/group/${conversationId}/unblock/${userId}`,
+      { userId }
+    );
 
     if (response.status !== 200) {
-      throw new Error('Failed to unblock user from group');
+      throw new Error("Failed to unblock user from group");
     }
 
     return response.data;
   } catch (error: unknown) {
     if (error instanceof Error) {
-      console.error('Error unblocking user from group:', error.message);
+      console.error("Error unblocking user from group:", error.message);
     } else {
-      console.error('Unknown error unblocking user from group');
+      console.error("Unknown error unblocking user from group");
     }
     throw error;
+  }
+};
+
+/**
+ Lấy danh sách nhóm của mình
+ */
+export const fetchUserGroups = async (): Promise<Conversation[]> => {
+  try {
+    const token = getAuthToken();
+    if (!token) {
+      throw new Error("Vui lòng đăng nhập để xem danh sách nhóm");
+    }
+
+    const response = await apiClient.get("/api/conversations/groups");
+
+    console.log("Lấy danh sách nhóm thành công:", response.data);
+    return response.data;
+  } catch (error) {
+    console.error("Lỗi khi lấy danh sách nhóm:", error);
+    if (error instanceof AxiosError && error.response?.status === 401) {
+      throw new Error("Phiên đăng nhập hết hạn, vui lòng đăng nhập lại");
+    }
+    throw new Error("Không thể lấy danh sách nhóm. Vui lòng thử lại.");
+  }
+};
+
+export const updateGroupName = async (
+  conversationId: string,
+  newName: string
+): Promise<{ message: string; conversation: any }> => {
+  try {
+    const response = await apiClient.put(
+      `/api/conversations/group/update/name/${conversationId}`,
+      { newName }
+    );
+    return response.data;
+  } catch (error: any) {
+    console.error("Error updating group name:", error);
+    if (error.response?.status === 400) {
+      throw new Error(error.response.data.message || "Tên nhóm không hợp lệ");
+    }
+    if (error.response?.status === 403) {
+      throw new Error("Bạn không có quyền cập nhật tên nhóm");
+    }
+    if (error.response?.status === 404) {
+      throw new Error("Không tìm thấy nhóm chat");
+    }
+    throw new Error("Không thể cập nhật tên nhóm, vui lòng thử lại sau");
+  }
+};
+
+export const addMemberToGroup = async (
+  conversationId: string,
+  userId: string
+): Promise<Conversation> => {
+  try {
+    const response = await apiClient.put(
+      `/api/conversations/group/${conversationId}/add/${userId}`
+    );
+    return response.data;
+  } catch (error: any) {
+    console.error("Error adding member to group:", error);
+    if (error.response?.status === 403) {
+      throw new Error("Bạn không có quyền thêm thành viên vào nhóm này");
+    }
+    if (error.response?.status === 404) {
+      throw new Error(
+        error.response.data.message ||
+          "Không tìm thấy người dùng hoặc cuộc trò chuyện"
+      );
+    }
+    if (error.response?.status === 400) {
+      throw new Error(
+        error.response.data.message || "Người dùng đã là thành viên của nhóm"
+      );
+    }
+    throw new Error(
+      error.response?.data?.message || "Không thể thêm thành viên vào nhóm"
+    );
   }
 };

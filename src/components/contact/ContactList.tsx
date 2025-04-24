@@ -65,7 +65,8 @@ const ContactList: React.FC<ContactListProps> = ({
             className={`flex items-center px-2 py-3 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer ${
               selectedOption === option.id ? "bg-blue-50 dark:bg-blue-900" : ""
             }`}
-            onClick={() => handleOptionSelect(option.id)}>
+            onClick={() => handleOptionSelect(option.id)}
+          >
             <div className="flex items-center w-full">
               <div className="flex-shrink-0 w-8 flex justify-center">
                 {option.icon}

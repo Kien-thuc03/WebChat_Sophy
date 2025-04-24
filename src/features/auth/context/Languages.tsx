@@ -189,6 +189,9 @@ const translations = {
     update_group_avatar_error: "Cập nhật ảnh đại diện nhóm thất bại!",
     update_group_avatar: "Cập nhật ảnh đại diện nhóm",
     group_call: "Cuộc gọi nhóm",
+    no_group_invites: "Không có lời mời vào nhóm và cộng đồng",
+    when_to_receive_group_invites: "Khi nào tôi nhận được lời mời?",
+    no_avatar: "Chưa có ảnh",
   },
   en: {
     settings: "Settings",
@@ -377,6 +380,9 @@ const translations = {
     update_group_avatar_error: "Failed to update group avatar!",
     update_group_avatar: "Update Group Avatar",
     group_call: "Group Call",
+    no_group_invites: "No group invites yet",
+    when_to_receive_group_invites: "When will I receive group invites?",
+    no_avatar: "No Avatar",
   },
 };
 
