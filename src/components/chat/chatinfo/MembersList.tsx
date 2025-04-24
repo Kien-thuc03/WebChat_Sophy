@@ -78,6 +78,7 @@ const MembersList: React.FC<MembersListProps> = ({
   >([]);
   const { message, modal } = App.useApp();
   const navigate = useNavigate();
+  const [renderKey, setRenderKey] = useState<number>(Date.now());
 
   const groupMembers = conversation.groupMembers || [];
   const currentUserId = localStorage.getItem("userId") || "";
@@ -91,6 +92,7 @@ const MembersList: React.FC<MembersListProps> = ({
     [userCache, localUserCache]
   );
 
+
   // Update this function to only log to console without showing UI notification
   const updateGroupState = useCallback(
     (userId: string, action: string) => {
@@ -101,6 +103,19 @@ const MembersList: React.FC<MembersListProps> = ({
     },
     [conversation.conversationId]
   );
+
+  // Add this function to determine user role from conversation data
+  const determineUserRole = useCallback((conversationData: Conversation): 'owner' | 'co-owner' | 'member' => {
+    const currentUserId = localStorage.getItem('userId') || '';
+    
+    if (conversationData.rules?.ownerId === currentUserId) {
+      return 'owner';
+    } else if (conversationData.rules?.coOwnerIds?.includes(currentUserId)) {
+      return 'co-owner';
+    } else {
+      return 'member';
+    }
+  }, []);
 
   // Register socket event handlers in a dedicated useEffect
   useEffect(() => {
@@ -130,7 +145,7 @@ const MembersList: React.FC<MembersListProps> = ({
         };
       });
 
-      updateGroupState(data.userId, "userLeftGroup");
+      // updateGroupState(data.userId, 'userLeftGroup');
     };
 
     // Handler for when a group is deleted
@@ -149,9 +164,6 @@ const MembersList: React.FC<MembersListProps> = ({
       newCoOwnerIds: string[];
     }) => {
       if (data.conversationId !== conversation.conversationId) return;
-
-      console.log("MembersList: Co-owner added:", data);
-
       // Get existing co-owner IDs
       const existingCoOwnerIds = conversation.rules?.coOwnerIds || [];
 
@@ -164,15 +176,22 @@ const MembersList: React.FC<MembersListProps> = ({
       setConversation((prev) => {
         if (!prev.rules) return prev;
 
-        return {
+        const updatedConversation = {
           ...prev,
           rules: {
             ...prev.rules,
             coOwnerIds: data.newCoOwnerIds,
           },
         };
+        
+        // Determine and update role based on the updated conversation data
+        const newRole = determineUserRole(updatedConversation);
+        if (newRole !== userRole) {
+          setUserRole(newRole);
+        }
+        
+        return updatedConversation;
       });
-
       // If current user is in the new co-owners list, update role
       if (
         data.newCoOwnerIds.includes(currentUserId) &&
@@ -183,7 +202,11 @@ const MembersList: React.FC<MembersListProps> = ({
 
       if (newCoOwners.length > 0) {
         updateGroupState(newCoOwners[0], "groupCoOwnerAdded");
+
       }
+      
+      // Force refresh to ensure we have the latest data
+      refreshConversationData();
     };
 
     // Handler for when a co-owner is removed
@@ -199,7 +222,7 @@ const MembersList: React.FC<MembersListProps> = ({
       setConversation((prev) => {
         if (!prev.rules || !prev.rules.coOwnerIds) return prev;
 
-        return {
+        const updatedConversation = {
           ...prev,
           rules: {
             ...prev.rules,
@@ -208,14 +231,25 @@ const MembersList: React.FC<MembersListProps> = ({
             ),
           },
         };
+        
+        // Determine and update role based on the updated conversation data
+        const newRole = determineUserRole(updatedConversation);
+        if (newRole !== userRole) {
+          setUserRole(newRole);
+        }
+        
+        return updatedConversation;
       });
 
       // If current user was removed as co-owner, update role
       if (data.removedCoOwner === currentUserId) {
         setUserRole("member");
       }
-
-      updateGroupState(data.removedCoOwner, "groupCoOwnerRemoved");
+      
+      // updateGroupState(data.removedCoOwner, 'groupCoOwnerRemoved');
+      
+      // Force refresh to ensure we have the latest data
+      refreshConversationData();
     };
 
     // Handler for when group owner changes
@@ -232,8 +266,8 @@ const MembersList: React.FC<MembersListProps> = ({
       // Update the conversation with the new owner
       setConversation((prev) => {
         if (!prev.rules) return prev;
-
-        return {
+        
+        const updatedConversation = {
           ...prev,
           rules: {
             ...prev.rules,
@@ -244,6 +278,14 @@ const MembersList: React.FC<MembersListProps> = ({
               : [],
           },
         };
+        
+        // Determine and update role based on the updated conversation data
+        const newRole = determineUserRole(updatedConversation);
+        if (newRole !== userRole) {
+          setUserRole(newRole);
+        }
+        
+        return updatedConversation;
       });
 
       // Update the user role based on the change
@@ -255,6 +297,7 @@ const MembersList: React.FC<MembersListProps> = ({
       }
 
       updateGroupState(data.newOwner, "groupOwnerChanged");
+      refreshConversationData();
     };
 
     // Register socket event handlers
@@ -281,20 +324,38 @@ const MembersList: React.FC<MembersListProps> = ({
     onBack,
   ]);
 
-  // Function to refresh conversation data
+  // Update the refreshConversationData function to trigger full re-render
   const refreshConversationData = async () => {
     try {
-      if (!conversation.conversationId) return;
-
-      const updatedConversation = await getConversationDetail(
-        conversation.conversationId
-      );
+      if (!conversation.conversationId) return; 
+      setIsRefreshing(true);
+      const updatedConversation = await getConversationDetail(conversation.conversationId);
       if (updatedConversation) {
+        // Update conversation first
         setConversation(updatedConversation);
-        console.log("Conversation data refreshed:", updatedConversation);
+        
+        // Update user role based on the fresh data
+        const newRole = determineUserRole(updatedConversation);
+        if (newRole !== userRole) {
+          console.log('MembersList: User role updated from', userRole, 'to', newRole);
+          
+          // Force a complete re-render by setting userRole with a slight delay
+          // This ensures all dependent calculations happen after role update
+          setTimeout(() => {
+            setUserRole(newRole);
+            
+            // Force a re-render by updating a timestamp state if needed
+            setRenderKey(Date.now());
+          }, 50);
+        } else {
+          // Even if role is the same, we may need to force a re-render
+          setRenderKey(Date.now());
+        }
       }
     } catch (err) {
-      console.error("Error refreshing conversation data:", err);
+      console.error('Error refreshing conversation data:', err);
+    } finally {
+      setIsRefreshing(false);
     }
   };
 
@@ -532,28 +593,48 @@ const MembersList: React.FC<MembersListProps> = ({
     });
   };
 
-  // Add useEffect to refresh conversation data when it changes
-  useEffect(() => {
-    const refreshData = async () => {
-      if (conversation.conversationId) {
-        try {
-          const updatedConversation = await getConversationDetail(
-            conversation.conversationId
-          );
-          if (updatedConversation) {
-            setConversation(updatedConversation);
-          }
-        } catch (error) {
-          console.error("Error refreshing conversation data:", error);
-        }
-      }
-    };
+  // Update how canShowMenu is calculated in the render function - extract it to a function
+  const calculateCanShowMenu = useCallback((memberId: string, currentUserRole: string): boolean => {
+    const isOwner = conversation.rules?.ownerId === memberId;
+    const isCoOwner = conversation.rules?.coOwnerIds?.includes(memberId) || false;
+    
+    if (currentUserRole === 'owner') {
+      // Owner can see menu for everyone
+      return true;
+    } else if (currentUserRole === 'co-owner') {
+      // Co-owner can see menu for regular members only
+      return !isOwner && !isCoOwner;
+    }
+    
+    return false;
+  }, [conversation.rules]);
 
-    refreshData();
+  // Update the handler for new message to force a re-render
+  const handleNewMessage = (data: any) => {
+    if (data.conversationId === conversation.conversationId) {
+      console.log('MembersList: New message received, refreshing conversation data');
+      // Refresh the conversation data with a small delay to ensure backend sync
+      setTimeout(() => {
+        refreshConversationData();
+      }, 300);
+    }
+  };
+
+  // Add back the useEffect to listen for new messages
+  useEffect(() => {
+    if (!conversation.conversationId) return;
+    
+    // Listen for new message events
+    socketService.on('newMessage', handleNewMessage);
+    
+    // Cleanup function
+    return () => {
+      socketService.off('newMessage', handleNewMessage);
+    };
   }, [conversation.conversationId]);
 
   return (
-    <div className="h-full bg-white">
+    <div className="h-full bg-white" key={`members-list-${renderKey}`}>
       <div className="flex-none p-4 border-b border-gray-200 flex items-center">
         <Button
           type="text"
@@ -591,19 +672,9 @@ const MembersList: React.FC<MembersListProps> = ({
           const isOwner = conversation.rules?.ownerId === memberId;
           const isCoOwner =
             conversation.rules?.coOwnerIds?.includes(memberId) || false;
-          const isMemberFriend = isFriend(memberId);
-
-          // Determine if the current user should see the menu for this member
-          let canShowMenu = false;
-
-          if (userRole === "owner") {
-            // Owner can see menu for everyone
-            canShowMenu = true;
-          } else if (userRole === "co-owner") {
-            // Co-owner can see menu for regular members only
-            canShowMenu = !isOwner && !isCoOwner;
-          }
-
+          const isMemberFriend = isFriend(memberId);      
+          // Use the new function to calculate canShowMenu dynamically on each render
+          const canShowMenu = calculateCanShowMenu(memberId, userRole);
           return (
             <div
               key={memberId}
