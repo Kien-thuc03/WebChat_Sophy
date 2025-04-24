@@ -758,11 +758,79 @@ export function ChatArea({ conversation }: ChatAreaProps) {
         });
       };
       
+      // Callback khi có thành viên bị chặn
+      const handleUserBlocked = (data: { conversationId: string, blockedUserId: string }) => {
+        if (data.conversationId !== conversation.conversationId) return;
+        
+        // Tìm thông tin người dùng bị chặn
+        const blockedUser = userCacheRef.current[data.blockedUserId];
+        const blockedUserName = blockedUser?.fullname || `Thành viên (${data.blockedUserId.substring(0, 6)})`;
+        
+        // Tạo tin nhắn thông báo
+        const notificationMessage: any = {
+          id: `notification-blocked-${Date.now()}`,
+          content: `${blockedUserName} đã bị chặn khỏi nhóm`,
+          type: 'notification',
+          timestamp: new Date().toISOString(),
+          sender: {
+            id: 'system',
+            name: 'Hệ thống',
+            avatar: ''
+          },
+          isRead: true,
+          sendStatus: 'sent',
+          isNotification: true
+        };
+        
+        // Thêm tin nhắn thông báo vào danh sách
+        setMessages(prevMessages => [...prevMessages, notificationMessage]);
+        
+        // Cuộn đến tin nhắn mới nếu ở cuối
+        if (messagesEndRef.current) {
+          messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+        }
+      };
+      
+      // Callback khi có thành viên được bỏ chặn
+      const handleUserUnblocked = (data: { conversationId: string, unblockedUserId: string }) => {
+        if (data.conversationId !== conversation.conversationId) return;
+        
+        // Tìm thông tin người dùng được bỏ chặn
+        const unblockedUser = userCacheRef.current[data.unblockedUserId];
+        const unblockedUserName = unblockedUser?.fullname || `Thành viên (${data.unblockedUserId.substring(0, 6)})`;
+        
+        // Tạo tin nhắn thông báo
+        const notificationMessage: any = {
+          id: `notification-unblocked-${Date.now()}`,
+          content: `${unblockedUserName} đã được bỏ chặn khỏi nhóm`,
+          type: 'notification',
+          timestamp: new Date().toISOString(),
+          sender: {
+            id: 'system',
+            name: 'Hệ thống',
+            avatar: ''
+          },
+          isRead: true,
+          sendStatus: 'sent',
+          isNotification: true
+        };
+        
+        // Thêm tin nhắn thông báo vào danh sách
+        setMessages(prevMessages => [...prevMessages, notificationMessage]);
+        
+        // Cuộn đến tin nhắn mới nếu ở cuối
+        if (messagesEndRef.current) {
+          messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+        }
+      };
+      
       // Đăng ký lắng nghe các sự kiện socket
       socketService.onNewMessage(handleNewMessage);
       socketService.onUserTyping(handleUserTyping);
       socketService.onMessageRead(handleMessageRead);
       socketService.onMessageDelivered(handleMessageDelivered);
+      socketService.onUserBlocked(handleUserBlocked);
+      socketService.onUserUnblocked(handleUserUnblocked);
       
       // Cleanup khi unmount hoặc change conversation
       return () => {
@@ -771,6 +839,8 @@ export function ChatArea({ conversation }: ChatAreaProps) {
         socketService.off("userTyping", handleUserTyping);
         socketService.off("messageRead", handleMessageRead);
         socketService.off("messageDelivered", handleMessageDelivered);
+        socketService.off("userBlocked", handleUserBlocked);
+        socketService.off("userUnblocked", handleUserUnblocked);
         
         // Xóa tất cả timers
         Object.values(typingTimers).forEach(timer => clearTimeout(timer));
@@ -798,7 +868,6 @@ export function ChatArea({ conversation }: ChatAreaProps) {
         .map(msg => msg.id);
       
       if (unreadMessages.length > 0) {
-        console.log("🔍 Marking unread messages as read:", unreadMessages);
         socketService.markMessagesAsRead(conversation.conversationId, unreadMessages);
       }
     }
@@ -1909,8 +1978,7 @@ export function ChatArea({ conversation }: ChatAreaProps) {
       seenMessages.add(contentKey);
       uniqueMessages.push(message);
     }
-    
-    console.log("Deduplicated messages, output count:", uniqueMessages.length);
+
     
     // Sắp xếp lại kết quả theo thời gian để đảm bảo thứ tự đúng
     return uniqueMessages.sort((a, b) => 

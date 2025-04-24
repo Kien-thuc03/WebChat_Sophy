@@ -228,7 +228,6 @@ class SocketService {
     this.userId = userId;
 
     if (this.isAuthenticated) {
-      console.log("User already authenticated, skipping:", userId);
       return;
     }
 
@@ -399,7 +398,7 @@ class SocketService {
   }
 
   cleanup() {
-    console.log("Performing socket cleanup");
+    
   }
 
   joinConversations(conversationIds: string[]) {
@@ -407,13 +406,11 @@ class SocketService {
       this.connect();
       setTimeout(() => {
         if (this.socket?.connected) {
-          console.log("SocketService: Joining conversations:", conversationIds);
           this.socket.emit("joinUserConversations", conversationIds);
         }
       }, 1000);
       return;
     }
-    console.log("SocketService: Joining conversations:", conversationIds);
 
     this.socket.emit("joinUserConversations", conversationIds);
   }
@@ -1065,6 +1062,200 @@ class SocketService {
     } catch (error) {
       console.error("Error setting up initial conversations:", error);
     }
+  }
+
+  // Group management events
+  onUserJoinedGroup(callback: (data: { conversationId: string, userId: string }) => void) {
+    if (!this.socket) {
+      this.connect();
+    }
+
+    if (this.socket) {
+      this.socket.off("userJoinedGroup");
+      this.socket.on("userJoinedGroup", (data) => {
+        console.log("SocketService: User joined group:", data);
+        callback(data);
+      });
+    } else {
+      console.warn("SocketService: Socket not initialized for userJoinedGroup listener");
+    }
+  }
+
+  onUserLeftGroup(callback: (data: { conversationId: string, userId: string }) => void) {
+    if (!this.socket) {
+      this.connect();
+    }
+
+    if (this.socket) {
+      this.socket.off("userLeftGroup");
+      this.socket.on("userLeftGroup", (data) => {
+        console.log("SocketService: User left group:", data);
+        callback(data);
+      });
+    } else {
+      console.warn("SocketService: Socket not initialized for userLeftGroup listener");
+    }
+  }
+
+  onGroupNameChanged(callback: (data: { conversationId: string, newName: string }) => void) {
+    if (!this.socket) {
+      this.connect();
+    }
+
+    if (this.socket) {
+      this.socket.off("groupNameChanged");
+      this.socket.on("groupNameChanged", (data) => {
+        console.log("SocketService: Group name changed:", data);
+        callback(data);
+      });
+    } else {
+      console.warn("SocketService: Socket not initialized for groupNameChanged listener");
+    }
+  }
+
+  onGroupAvatarChanged(callback: (data: { conversationId: string, newAvatar: string }) => void) {
+    if (!this.socket) {
+      this.connect();
+    }
+
+    if (this.socket) {
+      this.socket.off("groupAvatarChanged");
+      this.socket.on("groupAvatarChanged", (data) => {
+        console.log("SocketService: Group avatar changed:", data);
+        callback(data);
+      });
+    } else {
+      console.warn("SocketService: Socket not initialized for groupAvatarChanged listener");
+    }
+  }
+
+  onGroupOwnerChanged(callback: (data: { conversationId: string, newOwner: string }) => void) {
+    if (!this.socket) {
+      this.connect();
+    }
+
+    if (this.socket) {
+      this.socket.off("groupOwnerChanged");
+      this.socket.on("groupOwnerChanged", (data) => {
+        console.log("SocketService: Group owner changed:", data);
+        callback(data);
+      });
+    } else {
+      console.warn("SocketService: Socket not initialized for groupOwnerChanged listener");
+    }
+  }
+
+  onGroupCoOwnerAdded(callback: (data: { conversationId: string, newCoOwnerIds: string[] }) => void) {
+    if (!this.socket) {
+      this.connect();
+    }
+
+    if (this.socket) {
+      this.socket.off("groupCoOwnerAdded");
+      this.socket.on("groupCoOwnerAdded", (data) => {
+        console.log("SocketService: Group co-owner added:", data);
+        callback(data);
+      });
+    } else {
+      console.warn("SocketService: Socket not initialized for groupCoOwnerAdded listener");
+    }
+  }
+
+  onGroupCoOwnerRemoved(callback: (data: { conversationId: string, removedCoOwner: string }) => void) {
+    if (!this.socket) {
+      this.connect();
+    }
+
+    if (this.socket) {
+      this.socket.off("groupCoOwnerRemoved");
+      this.socket.on("groupCoOwnerRemoved", (data) => {
+        console.log("SocketService: Group co-owner removed:", data);
+        callback(data);
+      });
+    } else {
+      console.warn("SocketService: Socket not initialized for groupCoOwnerRemoved listener");
+    }
+  }
+
+  onGroupDeleted(callback: (data: { conversationId: string }) => void) {
+    if (!this.socket) {
+      this.connect();
+    }
+
+    if (this.socket) {
+      this.socket.off("groupDeleted");
+      this.socket.on("groupDeleted", (data) => {
+        console.log("SocketService: Group deleted:", data);
+        callback(data);
+      });
+    } else {
+      console.warn("SocketService: Socket not initialized for groupDeleted listener");
+    }
+  }
+
+  // User blocking events
+  onUserBlocked(callback: (data: { conversationId: string, blockedUserId: string }) => void) {
+    if (!this.socket) {
+      this.connect();
+    }
+
+    if (this.socket) {
+      this.socket.off("userBlocked");
+      this.socket.on("userBlocked", (data) => {
+        console.log("SocketService: User blocked:", data);
+        callback(data);
+      });
+    } else {
+      console.warn("SocketService: Socket not initialized for userBlocked listener");
+    }
+  }
+
+  onUserUnblocked(callback: (data: { conversationId: string, unblockedUserId: string }) => void) {
+    if (!this.socket) {
+      this.connect();
+    }
+
+    if (this.socket) {
+      this.socket.off("userUnblocked");
+      this.socket.on("userUnblocked", (data) => {
+        console.log("SocketService: User unblocked:", data);
+        callback(data);
+      });
+    } else {
+      console.warn("SocketService: Socket not initialized for userUnblocked listener");
+    }
+  }
+
+  // Notification events
+  onNewNotification(callback: (data: { conversationId: string, notification: any }) => void) {
+    if (!this.socket) {
+      this.connect();
+    }
+
+    if (this.socket) {
+      this.socket.off("newNotification");
+      this.socket.on("newNotification", (data) => {
+        console.log("SocketService: New notification:", data);
+        callback(data);
+      });
+    } else {
+      console.warn("SocketService: Socket not initialized for newNotification listener");
+    }
+  }
+
+  // Token refresh
+  refreshZegoToken() {
+    if (!this.socket || !this.socket.connected) {
+      this.connect();
+      setTimeout(() => {
+        if (this.socket?.connected) {
+          this.socket.emit("refreshZegoToken");
+        }
+      }, 1000);
+      return;
+    }
+
+    this.socket.emit("refreshZegoToken");
   }
 }
 
