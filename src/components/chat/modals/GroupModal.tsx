@@ -105,100 +105,83 @@ const GroupModal: React.FC<GroupModalProps> = ({
     updateConversationField,
   ]);
 
-  // Replace both existing useEffects with a single one that controls refreshing
-  useEffect(() => {
-    const fetchMemberDetails = async () => {
-      // Only fetch if modal is visible and is a group conversation
-      if (!visible || !conversation.isGroup) return;
-
-      try {
-        setFetchingMembers(true);
-
-        // Get current members count for comparison
-        const currentMemberCount = conversation.groupMembers?.length || 0;
-
-        // Get latest conversation details from API
-        const conversationDetails = await getConversationDetail(
-          conversation.conversationId
-        );
-        const memberIds = conversationDetails.groupMembers || [];
-        const newMemberCount = memberIds.length;
-
-        // Decide whether to update based on member count comparison
-        const shouldUpdateMembers =
-          // First load (prevMemberCount is null)
-          prevMemberCountRef.current === null ||
-          // Member count has changed
-          newMemberCount !== prevMemberCountRef.current;
-
-        // Save current member count for next comparison
-        prevMemberCountRef.current = newMemberCount;
-
-        // Only update conversation if member count changed
-        if (shouldUpdateMembers && newMemberCount !== currentMemberCount) {
-          // Important: update without causing a loop
-          setConversation((prev) => ({
-            ...prev,
-            groupMembers: memberIds,
-          }));
-        }
-
-        // Fetch details for each member
-        const fetchPromises = memberIds.map(async (userId) => {
-          try {
-            const userDetails = await getUserById(userId);
-            return {
-              userId,
-              fullname:
-                userDetails.fullname || `User-${userId.substring(0, 6)}`,
-              urlavatar: userDetails.urlavatar,
-            };
-          } catch (error) {
-            console.error(`Error fetching user ${userId}:`, error);
-            return {
-              userId,
-              fullname: `User-${userId.substring(0, 6)}`,
-            };
-          }
-        });
-
-        const memberDetailsResult = await Promise.all(fetchPromises);
-        setMemberDetails(memberDetailsResult);
-      } catch (error) {
-        console.error("Error fetching member details:", error);
-      } finally {
-        setFetchingMembers(false);
-      }
-    };
-
-    fetchMemberDetails();
-
-    // Also set up a refresh interval IF the modal is visible
-    let intervalId: NodeJS.Timeout | null = null;
-
-    if (visible) {
-      // Refresh member data every 30 seconds if modal stays open
-      intervalId = setInterval(() => {
-        fetchMemberDetails();
-      }, 30000);
-    }
-
-    return () => {
-      if (intervalId) clearInterval(intervalId);
-    };
-  }, [
-    visible,
-    conversation.conversationId,
-    conversation.isGroup,
-    initialConversation,
-  ]);
-
-  // Reset the prev member count ref when modal closes
+  // Replace existing useEffect for visible change with one that also fetches fresh data
   useEffect(() => {
     if (!visible) {
       prevMemberCountRef.current = null;
+    } else {
+      // Force fetch fresh conversation data when modal opens
+      const fetchFreshData = async () => {
+        try {
+          setFetchingMembers(true);
+          const freshConversationData = await getConversationDetail(
+            conversation.conversationId
+          );
+
+          if (freshConversationData) {
+            // Update conversation data
+            setConversation((prev) => ({
+              ...prev,
+              ...freshConversationData,
+              groupAvatarUrl:
+                freshConversationData.groupAvatarUrl || prev.groupAvatarUrl,
+              groupName: freshConversationData.groupName || prev.groupName,
+              groupMembers:
+                freshConversationData.groupMembers || prev.groupMembers,
+            }));
+
+            // Fetch details for each member
+            const memberIds = freshConversationData.groupMembers || [];
+
+            // Save current member count for next comparison
+            prevMemberCountRef.current = memberIds.length;
+
+            // Fetch details for each member
+            const fetchPromises = memberIds.map(async (userId) => {
+              try {
+                const userDetails = await getUserById(userId);
+                return {
+                  userId,
+                  fullname:
+                    userDetails.fullname || `User-${userId.substring(0, 6)}`,
+                  urlavatar: userDetails.urlavatar,
+                };
+              } catch (error) {
+                console.error(`Error fetching user ${userId}:`, error);
+                return {
+                  userId,
+                  fullname: `User-${userId.substring(0, 6)}`,
+                };
+              }
+            });
+
+            const memberDetailsResult = await Promise.all(fetchPromises);
+            setMemberDetails(memberDetailsResult);
+          }
+        } catch (error) {
+          console.error("Error fetching fresh conversation data:", error);
+        } finally {
+          setFetchingMembers(false);
+        }
+      };
+
+      fetchFreshData();
     }
-  }, [visible]);
+  }, [visible, conversation.conversationId]);
+
+  // Add useEffect to handle immediate avatar updates
+  useEffect(() => {
+    if (conversation.groupAvatarUrl) {
+      // Force a re-render when the avatar URL changes
+      const img = new Image();
+      img.src = conversation.groupAvatarUrl;
+      img.onload = () => {
+        // Using this approach to force a re-render without changing state
+        // This helps ensure the GroupAvatar component receives the new URL
+        setConversation((prev) => ({ ...prev }));
+      };
+    }
+  }, [conversation.groupAvatarUrl]);
 
   // Đảm bảo giá trị của groupAvatarUrl được log ra để kiểm tra
   useEffect(() => {
@@ -274,6 +257,16 @@ const GroupModal: React.FC<GroupModalProps> = ({
       const key = "updating-avatar";
       message.loading({ content: "Đang cập nhật ảnh đại diện...", key });
 
+      // Pre-update the UI with the local image data to show immediate feedback
+      const localImageUrl = data.url;
+      // Add a timestamp to force browser to not use cached image
+      const timestampedUrl = `${localImageUrl}?t=${Date.now()}`;
+
+      setConversation((prev) => ({
+        ...prev,
+        groupAvatarUrl: timestampedUrl,
+      }));
+
       // Gọi API để cập nhật ảnh
       const result = await updateGroupAvatar(
         conversation.conversationId,
@@ -284,10 +277,13 @@ const GroupModal: React.FC<GroupModalProps> = ({
         // Xóa thông báo loading
         message.destroy(key);
 
-        // Cập nhật state conversation
+        // Add timestamp to server URL to prevent caching
+        const serverUrlWithTimestamp = `${result.conversation.groupAvatarUrl}?t=${Date.now()}`;
+
+        // Cập nhật state conversation with actual server URL
         const updatedConversation = {
           ...conversation,
-          groupAvatarUrl: result.conversation.groupAvatarUrl,
+          groupAvatarUrl: serverUrlWithTimestamp,
         };
         setConversation(updatedConversation);
 
@@ -295,19 +291,26 @@ const GroupModal: React.FC<GroupModalProps> = ({
         updateConversationField(
           conversation.conversationId,
           "groupAvatarUrl",
-          result.conversation.groupAvatarUrl
+          serverUrlWithTimestamp
         );
 
         // Gọi callback nếu có
         if (onUpdateGroupAvatar) {
-          onUpdateGroupAvatar(result.conversation.groupAvatarUrl);
+          onUpdateGroupAvatar(serverUrlWithTimestamp);
         }
 
         // Refresh conversation data nếu có
         if (refreshConversationData) {
           refreshConversationData();
         }
+
+        message.success("Cập nhật ảnh đại diện thành công");
       } else {
+        // Revert to previous avatar if update failed
+        setConversation((prev) => ({
+          ...prev,
+          groupAvatarUrl: prev.groupAvatarUrl,
+        }));
         message.error({
           content: "Không thể cập nhật ảnh đại diện",
           key,
@@ -317,6 +320,11 @@ const GroupModal: React.FC<GroupModalProps> = ({
     } catch (error) {
       console.error("Lỗi cập nhật ảnh đại diện:", error);
       message.error("Không thể cập nhật ảnh đại diện. Vui lòng thử lại sau.");
+      // Revert to previous avatar if there was an error
+      setConversation((prev) => ({
+        ...prev,
+        groupAvatarUrl: prev.groupAvatarUrl,
+      }));
     }
   };
 
@@ -407,6 +415,7 @@ const GroupModal: React.FC<GroupModalProps> = ({
           <div className="flex flex-col items-center py-4 border-b">
             <div className="relative mb-4">
               <GroupAvatar
+                key={`group-avatar-${conversation.groupAvatarUrl || "default"}-${Date.now()}`}
                 members={conversation.groupMembers || []}
                 userAvatars={userAvatars}
                 size={80}
