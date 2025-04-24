@@ -759,68 +759,112 @@ export function ChatArea({ conversation }: ChatAreaProps) {
       };
       
       // Callback khi có thành viên bị chặn
-      const handleUserBlocked = (data: { conversationId: string, blockedUserId: string }) => {
-        if (data.conversationId !== conversation.conversationId) return;
+      const handleUserBlocked = (data: { conversationId: string, blockedUserId: string, fromCurrentUser?: boolean }) => {
+        // Nếu không phải cuộc trò chuyện hiện tại, không xử lý
+        if (data.conversationId !== conversation.conversationId) {
+          return;
+        }
         
-        // Tìm thông tin người dùng bị chặn
+        // Tìm thông tin người bị chặn từ cache
         const blockedUser = userCacheRef.current[data.blockedUserId];
-        const blockedUserName = blockedUser?.fullname || `Thành viên (${data.blockedUserId.substring(0, 6)})`;
+        const blockedUserName = blockedUser?.fullname || `User-${data.blockedUserId.substring(0, 6)}`;
         
-        // Tạo tin nhắn thông báo
-        const notificationMessage: any = {
-          id: `notification-blocked-${Date.now()}`,
-          content: `${blockedUserName} đã bị chặn khỏi nhóm`,
-          type: 'notification',
-          timestamp: new Date().toISOString(),
-          sender: {
-            id: 'system',
-            name: 'Hệ thống',
-            avatar: ''
-          },
-          isRead: true,
-          sendStatus: 'sent',
-          isNotification: true
-        };
+        // Chỉ kiểm tra tin nhắn trùng lặp nếu KHÔNG phải người thực hiện hành động
+        // Người thực hiện hành động luôn thấy thông báo
+        let shouldShowNotification = true;
         
-        // Thêm tin nhắn thông báo vào danh sách
-        setMessages(prevMessages => [...prevMessages, notificationMessage]);
-        
-        // Cuộn đến tin nhắn mới nếu ở cuối
-        if (messagesEndRef.current) {
-          messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+        if (!data.fromCurrentUser) {
+          // Kiểm tra xem đã có tin nhắn chặn gần đây chưa để tránh trùng lặp
+          const lastMessage = messages[messages.length - 1];
+          const isDuplicateNotification = lastMessage && 
+                                         lastMessage.type === "notification" && 
+                                         lastMessage.content.includes(blockedUserName) &&
+                                         lastMessage.content.includes("bị chặn");
+          
+          if (isDuplicateNotification) {
+            shouldShowNotification = false;
+          }
+        }
+
+        if (shouldShowNotification) {
+          const newNotification = {
+            id: `notification-block-${Date.now()}`,
+            content: `${blockedUserName} đã bị chặn khỏi nhóm`,
+            type: "notification" as "notification",
+            timestamp: new Date().toISOString(),
+            sender: {
+              id: "system",
+              name: "Hệ thống",
+              avatar: ""
+            },
+            isNotification: true,
+            isRead: true,
+            sendStatus: "sent"
+          } as DisplayMessage;
+          
+          setMessages(prev => [...prev, newNotification]);
+          
+          // Cuộn xuống dưới để hiển thị thông báo mới
+          setTimeout(() => {
+            if (messagesEndRef.current) {
+              messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+            }
+          }, 100);
         }
       };
       
       // Callback khi có thành viên được bỏ chặn
-      const handleUserUnblocked = (data: { conversationId: string, unblockedUserId: string }) => {
-        if (data.conversationId !== conversation.conversationId) return;
+      const handleUserUnblocked = (data: { conversationId: string, unblockedUserId: string, fromCurrentUser?: boolean }) => {
+        // Nếu không phải cuộc trò chuyện hiện tại, không xử lý
+        if (data.conversationId !== conversation.conversationId) {
+          return;
+        }
         
-        // Tìm thông tin người dùng được bỏ chặn
+        // Tìm thông tin người được bỏ chặn từ cache
         const unblockedUser = userCacheRef.current[data.unblockedUserId];
-        const unblockedUserName = unblockedUser?.fullname || `Thành viên (${data.unblockedUserId.substring(0, 6)})`;
+        const unblockedUserName = unblockedUser?.fullname || `User-${data.unblockedUserId.substring(0, 6)}`;
         
-        // Tạo tin nhắn thông báo
-        const notificationMessage: any = {
-          id: `notification-unblocked-${Date.now()}`,
-          content: `${unblockedUserName} đã được bỏ chặn khỏi nhóm`,
-          type: 'notification',
-          timestamp: new Date().toISOString(),
-          sender: {
-            id: 'system',
-            name: 'Hệ thống',
-            avatar: ''
-          },
-          isRead: true,
-          sendStatus: 'sent',
-          isNotification: true
-        };
+        // Chỉ kiểm tra tin nhắn trùng lặp nếu KHÔNG phải người thực hiện hành động
+        // Người thực hiện hành động luôn thấy thông báo
+        let shouldShowNotification = true;
         
-        // Thêm tin nhắn thông báo vào danh sách
-        setMessages(prevMessages => [...prevMessages, notificationMessage]);
+        if (!data.fromCurrentUser) {
+          // Kiểm tra tin nhắn trùng lặp
+          const lastMessage = messages[messages.length - 1];
+          const isDuplicateNotification = lastMessage && 
+                                         lastMessage.type === "notification" && 
+                                         lastMessage.content.includes(unblockedUserName) &&
+                                         lastMessage.content.includes("được bỏ chặn");
+          
+          if (isDuplicateNotification) {
+            shouldShowNotification = false;
+          }
+        }
         
-        // Cuộn đến tin nhắn mới nếu ở cuối
-        if (messagesEndRef.current) {
-          messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+        if (shouldShowNotification) {
+          const newNotification = {
+            id: `notification-unblock-${Date.now()}`,
+            content: `${unblockedUserName} đã được bỏ chặn khỏi nhóm`,
+            type: "notification" as "notification",
+            timestamp: new Date().toISOString(),
+            sender: {
+              id: "system",
+              name: "Hệ thống",
+              avatar: ""
+            },
+            isNotification: true,
+            isRead: true,
+            sendStatus: "sent"
+          } as DisplayMessage;
+          
+          setMessages(prev => [...prev, newNotification]);
+          
+          // Cuộn xuống dưới để hiển thị thông báo mới
+          setTimeout(() => {
+            if (messagesEndRef.current) {
+              messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+            }
+          }, 100);
         }
       };
       
@@ -829,8 +873,17 @@ export function ChatArea({ conversation }: ChatAreaProps) {
       socketService.onUserTyping(handleUserTyping);
       socketService.onMessageRead(handleMessageRead);
       socketService.onMessageDelivered(handleMessageDelivered);
-      socketService.onUserBlocked(handleUserBlocked);
-      socketService.onUserUnblocked(handleUserUnblocked);
+      
+      // Đăng ký trực tiếp với đối tượng socket để đảm bảo hoạt động đúng
+      if (socketService.socketInstance) {
+        console.log("[ChatArea] Directly registering socket listeners for", conversation.conversationId);
+        socketService.socketInstance.on('userBlocked', handleUserBlocked);
+        socketService.socketInstance.on('userUnblocked', handleUserUnblocked);
+      } else {
+        console.warn("[ChatArea] Socket instance not available, using wrapper methods");
+        socketService.onUserBlocked(handleUserBlocked);
+        socketService.onUserUnblocked(handleUserUnblocked);
+      }
       
       // Cleanup khi unmount hoặc change conversation
       return () => {
@@ -839,8 +892,16 @@ export function ChatArea({ conversation }: ChatAreaProps) {
         socketService.off("userTyping", handleUserTyping);
         socketService.off("messageRead", handleMessageRead);
         socketService.off("messageDelivered", handleMessageDelivered);
-        socketService.off("userBlocked", handleUserBlocked);
-        socketService.off("userUnblocked", handleUserUnblocked);
+        
+        // Hủy đăng ký trực tiếp
+        if (socketService.socketInstance) {
+          socketService.socketInstance.off('userBlocked', handleUserBlocked);
+          socketService.socketInstance.off('userUnblocked', handleUserUnblocked);
+          console.log("[ChatArea] Directly removed socket listeners for", conversation.conversationId);
+        } else {
+          socketService.off("userBlocked", handleUserBlocked);
+          socketService.off("userUnblocked", handleUserUnblocked);
+        }
         
         // Xóa tất cả timers
         Object.values(typingTimers).forEach(timer => clearTimeout(timer));

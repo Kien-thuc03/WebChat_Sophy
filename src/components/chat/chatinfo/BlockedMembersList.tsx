@@ -192,10 +192,10 @@ const BlockedMembersList: React.FC<BlockedMembersListProps> = ({
         try {
           socketService.emit("userBlocked", {
             conversationId: result.conversationId,
-            blockedUserId: userId
+            blockedUserId: userId,
+            fromCurrentUser: true
           });
         } catch (socketErr) {
-          console.error('Lỗi socket:', socketErr);
           // Fallback sang refresh thông thường nếu socket fails
           refreshConversations();
         }
@@ -242,10 +242,10 @@ const BlockedMembersList: React.FC<BlockedMembersListProps> = ({
             try {
               socketService.emit("userUnblocked", {
                 conversationId: result.conversationId,
-                unblockedUserId: userId
+                unblockedUserId: userId,
+                fromCurrentUser: true
               });
             } catch (socketErr) {
-              console.error('Lỗi socket:', socketErr);
               // Fallback sang refresh thông thường nếu socket fails
               refreshConversations();
             }
@@ -274,34 +274,41 @@ const BlockedMembersList: React.FC<BlockedMembersListProps> = ({
   useEffect(() => {
     if (!conversation.conversationId) return;
 
-    // Xử lý khi có người dùng bị chặn (từ client khác)
-    const handleUserBlocked = (data: { conversationId: string, blockedUserId: string }) => {
-      // Chỉ xử lý nếu sự kiện thuộc về cuộc trò chuyện hiện tại
+    // Đăng ký một lần duy nhất cho mỗi loại sự kiện
+    const handleUserBlocked = (data: { conversationId: string, blockedUserId: string, fromCurrentUser?: boolean }) => {
       if (data.conversationId !== conversation.conversationId) return;
       
-      console.log('Received userBlocked event:', data);
-      // Cập nhật trạng thái cuộc trò chuyện từ server để có dữ liệu mới nhất
-      refreshConversationData();
+      // Nếu đây không phải là event từ chính người dùng này thì mới refresh
+      if (!data.fromCurrentUser) {
+        refreshConversationData();
+      }
     };
-
-    // Xử lý khi có người dùng được bỏ chặn (từ client khác)
-    const handleUserUnblocked = (data: { conversationId: string, unblockedUserId: string }) => {
-      // Chỉ xử lý nếu sự kiện thuộc về cuộc trò chuyện hiện tại
+    
+    const handleUserUnblocked = (data: { conversationId: string, unblockedUserId: string, fromCurrentUser?: boolean }) => {
       if (data.conversationId !== conversation.conversationId) return;
       
-      console.log('Received userUnblocked event:', data);
-      // Cập nhật trạng thái cuộc trò chuyện từ server để có dữ liệu mới nhất
-      refreshConversationData();
+      // Nếu đây không phải là event từ chính người dùng này thì mới refresh
+      if (!data.fromCurrentUser) {
+        refreshConversationData();
+      }
     };
 
-    // Đăng ký lắng nghe các sự kiện
-    socketService.onUserBlocked(handleUserBlocked);
-    socketService.onUserUnblocked(handleUserUnblocked);
+    // Đăng ký một lần duy nhất
+    const socket = socketService.socketInstance;
+    if (socket) {
+      socket.on('userBlocked', handleUserBlocked);
+      socket.on('userUnblocked', handleUserUnblocked);
+    }
 
-    // Cleanup khi component unmount hoặc conversation thay đổi
+    // Giảm tần suất polling xuống 30 giây thay vì 10 giây
+    const pollInterval = setInterval(refreshConversationData, 30000);
+
     return () => {
-      socketService.off('userBlocked', handleUserBlocked);
-      socketService.off('userUnblocked', handleUserUnblocked);
+      if (socket) {
+        socket.off('userBlocked', handleUserBlocked);
+        socket.off('userUnblocked', handleUserUnblocked);
+      }
+      clearInterval(pollInterval);
     };
   }, [conversation.conversationId]);
 
@@ -321,12 +328,18 @@ const BlockedMembersList: React.FC<BlockedMembersListProps> = ({
         }
       }
     } catch (error) {
-      console.error('Failed to refresh conversation data:', error);
       message.error('Không thể cập nhật danh sách thành viên bị chặn');
     } finally {
       setIsRefreshing(false);
     }
   };
+
+  // Thêm useEffect để catch khi props thay đổi do cập nhật từ component cha
+  useEffect(() => {
+    if (JSON.stringify(initialConversation.blocked) !== JSON.stringify(conversation.blocked)) {
+      setConversation(initialConversation);
+    }
+  }, [initialConversation.blocked]);
 
   // Load user data for blocked members not in cache
   useEffect(() => {
