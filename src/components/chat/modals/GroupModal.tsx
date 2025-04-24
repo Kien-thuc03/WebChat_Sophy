@@ -16,6 +16,7 @@ import {
   getUserById,
   getConversationDetail,
   updateGroupName,
+  updateGroupAvatar,
 } from "../../../api/API";
 import UpdateAvatarGroupModal from "../../header/modal/UpdateAvatarGroupModal";
 import { useConversationContext } from "../../../features/chat/context/ConversationContext";
@@ -154,6 +155,12 @@ const GroupModal: React.FC<GroupModalProps> = ({
     }
   }, [visible, conversation.conversationId, conversation.isGroup]);
 
+  // Đảm bảo giá trị của groupAvatarUrl được log ra để kiểm tra
+  useEffect(() => {
+    console.log("Conversation in GroupModal:", conversation);
+    console.log("Group avatar URL:", conversation.groupAvatarUrl);
+  }, [conversation]);
+
   // Tạo link tham gia nhóm
   const groupLink = `https://zalo.me/g/${conversation.conversationId.replace("conv", "")}`;
 
@@ -211,9 +218,63 @@ const GroupModal: React.FC<GroupModalProps> = ({
   };
 
   // Xử lý cập nhật ảnh đại diện nhóm
-  const handleUpdateAvatar = (data: { url: string; file: File | null }) => {
-    if (onUpdateGroupAvatar && data.url) {
-      onUpdateGroupAvatar(data.url);
+  const handleUpdateAvatar = async (data: {
+    url: string;
+    file: File | null;
+  }) => {
+    if (!data.file) return;
+
+    try {
+      // Hiển thị thông báo đang xử lý
+      const key = "updating-avatar";
+      message.loading({ content: "Đang cập nhật ảnh đại diện...", key });
+
+      // Gọi API để cập nhật ảnh
+      const result = await updateGroupAvatar(
+        conversation.conversationId,
+        data.file
+      );
+
+      if (result && result.conversation) {
+        message.success({
+          content: "Cập nhật ảnh đại diện thành công",
+          key,
+          duration: 2,
+        });
+
+        // Cập nhật state conversation
+        const updatedConversation = {
+          ...conversation,
+          groupAvatarUrl: result.conversation.groupAvatarUrl,
+        };
+        setConversation(updatedConversation);
+
+        // Cập nhật vào context
+        updateConversationField(
+          conversation.conversationId,
+          "groupAvatarUrl",
+          result.conversation.groupAvatarUrl
+        );
+
+        // Gọi callback nếu có
+        if (onUpdateGroupAvatar) {
+          onUpdateGroupAvatar(result.conversation.groupAvatarUrl);
+        }
+
+        // Refresh conversation data nếu có
+        if (refreshConversationData) {
+          refreshConversationData();
+        }
+      } else {
+        message.error({
+          content: "Không thể cập nhật ảnh đại diện",
+          key,
+          duration: 2,
+        });
+      }
+    } catch (error) {
+      console.error("Lỗi cập nhật ảnh đại diện:", error);
+      message.error("Không thể cập nhật ảnh đại diện. Vui lòng thử lại sau.");
     }
   };
 
@@ -307,7 +368,7 @@ const GroupModal: React.FC<GroupModalProps> = ({
                 members={conversation.groupMembers || []}
                 userAvatars={userAvatars}
                 size={80}
-                groupAvatarUrl={conversation.groupAvatarUrl || undefined}
+                groupAvatarUrl={conversation.groupAvatarUrl || ""}
               />
               <div
                 className="absolute bottom-0 right-0 w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center cursor-pointer hover:bg-gray-300"

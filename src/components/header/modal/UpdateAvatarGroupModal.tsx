@@ -1,6 +1,6 @@
 // UpdateAvatarGroupModal.tsx
 import React, { useState, useRef, useEffect } from "react";
-import { Modal, Button, message, Spin } from "antd";
+import { Modal, Button, Spin, App } from "antd";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faCamera } from "@fortawesome/free-solid-svg-icons";
 import { useLanguage } from "../../../features/auth/context/LanguageContext";
@@ -17,6 +17,7 @@ const UpdateAvatarGroupModal: React.FC<UpdateAvatarGroupModalProps> = ({
   isOpen,
   onClose,
   currentAvatar,
+  conversationId,
   onUpdate,
 }) => {
   const [previewImage, setPreviewImage] = useState<string | null>(null);
@@ -25,6 +26,7 @@ const UpdateAvatarGroupModal: React.FC<UpdateAvatarGroupModalProps> = ({
   const [placeholderImage, setPlaceholderImage] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { t } = useLanguage();
+  const { message } = App.useApp();
 
   useEffect(() => {
     const randomImageId = Math.floor(Math.random() * 1000);
