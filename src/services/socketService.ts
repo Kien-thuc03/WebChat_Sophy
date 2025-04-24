@@ -5,7 +5,7 @@ import cloudinaryService from "./cloudinaryService";
 // const IP_ADDRESS = "172.28.43.19";
 
 // const SOCKET_SERVER_URL = `http://${IP_ADDRESS}:3000` || "http://localhost:3000";
-const SOCKET_SERVER_URL = "http://localhost:3000";
+const SOCKET_SERVER_URL = import.meta.env.VITE_API_BASE_URL;
 interface FriendRequestData {
   friendRequestId: string;
   message: string;

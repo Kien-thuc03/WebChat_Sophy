@@ -16,8 +16,9 @@ import { Conversation } from "../../../features/chat/types/conversationTypes";
 import { User } from "../../../features/auth/types/authTypes";
 import { useChatInfo } from "../../../features/chat/hooks/useChatInfo";
 import { useConversations } from "../../../features/chat/hooks/useConversations";
-import { getUserById } from "../../../api/API";
+import { getUserById, getConversationDetail } from "../../../api/API";
 import { Avatar } from "../../common/Avatar";
+import BlockedMembersList from "./BlockedMembersList";
 
 interface GroupManagementProps {
   conversation: Conversation;
@@ -52,9 +53,12 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
   const [selectedMember, setSelectedMember] = useState<string | null>(null);
   const [localUserCache, setLocalUserCache] = useState<Record<string, User>>({});
   
+  // Add state for showing blocked members
+  const [showBlockedMembers, setShowBlockedMembers] = useState(false);
+  
   // Use the chat info hook
-  const { loading, error, addCoOwner, removeCoOwnerDirectly, transferOwnership, deleteGroupConversation } = useChatInfo();
-  const { userCache } = useConversations();
+  const { loading, error, addCoOwner, removeCoOwnerDirectly, transferOwnership, deleteGroupConversation, blockGroupMember, unblockGroupMember } = useChatInfo();
+  const { userCache, userAvatars } = useConversations();
 
   // State for the permission settings
   const [permissions, setPermissions] = useState({
@@ -423,6 +427,38 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
     }
   };
 
+  // Add handler function for showing blocked members list
+  const handleShowBlockedMembers = () => {
+    setShowBlockedMembers(true);
+  };
+
+  const handleBackFromBlockedMembers = () => {
+    setShowBlockedMembers(false);
+    // Refresh conversation data when returning from blocked members list
+    refreshConversationData();
+  };
+
+  // Add function to refresh conversation data
+  const refreshConversationData = async () => {
+    if (!conversation.conversationId) return;
+    
+    try {
+      const updatedConversation = await getConversationDetail(conversation.conversationId);
+      if (updatedConversation) {
+        setConversation(updatedConversation);
+      }
+    } catch (error) {
+      console.error('Failed to refresh conversation data:', error);
+    }
+  };
+
+  // Add handler for when a member is blocked/unblocked
+  const handleMemberBlockStatusChange = (updatedConversation: Conversation) => {
+    if (updatedConversation) {
+      setConversation(updatedConversation);
+    }
+  };
+
   const renderOwnerCoOwnerView = () => {
     const ownerData = getUserDetails(owner);
 
@@ -721,6 +757,22 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
       </Modal>
     );
   };
+
+  // If showing blocked members view
+  if (showBlockedMembers) {
+    return (
+      <BlockedMembersList
+        conversation={conversation}
+        userCache={userCache}
+        userAvatars={userAvatars}
+        userRole={userRole}
+        onBack={handleBackFromBlockedMembers}
+        blockMember={blockGroupMember}
+        unblockMember={unblockGroupMember}
+        onConversationUpdate={handleMemberBlockStatusChange}
+      />
+    );
+  }
 
   // If in owner/co-owner management view
   if (showOwnerManagement) {
@@ -1124,7 +1176,10 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
 
         {/* Admin Actions */}
         <div className="space-y-3">
-          <div className="flex items-center py-2 cursor-pointer">
+          <div 
+            className="flex items-center py-2 cursor-pointer"
+            onClick={handleShowBlockedMembers}
+          >
             <UserDeleteOutlined className="mr-2 text-gray-600" />
             <span>Chặn khỏi nhóm</span>
           </div>
