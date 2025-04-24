@@ -11,6 +11,7 @@ import {
   Dropdown,
   Menu,
   Select,
+  notification,
 } from "antd";
 import {
   SendOutlined,
@@ -36,6 +37,9 @@ import {
   StarOutlined,
   UnorderedListOutlined,
   InfoCircleOutlined,
+  CloseCircleOutlined,
+  EllipsisOutlined,
+  UserAddOutlined,
 } from "@ant-design/icons";
 import {Conversation} from "../../../features/chat/types/conversationTypes";
 import { User } from "../../../features/auth/types/authTypes";
@@ -875,7 +879,7 @@ export function ChatArea({ conversation }: ChatAreaProps) {
       socketService.onMessageDelivered(handleMessageDelivered);
       
       // Thêm xử lý cho các sự kiện quản lý nhóm
-      const handleUserLeftGroup = (data: { conversationId: string, userId: string }) => {
+      const handleUserLeftGroup = (data: { conversationId: string, userId: string }): void => {
         // Kiểm tra xem sự kiện có thuộc cuộc trò chuyện hiện tại không
         if (conversation?.conversationId !== data.conversationId) return;
         
@@ -909,7 +913,7 @@ export function ChatArea({ conversation }: ChatAreaProps) {
         }, 100);
       };
       
-      const handleGroupDeleted = (data: { conversationId: string }) => {
+      const handleGroupDeleted = (data: { conversationId: string }): void => {
         // Kiểm tra xem sự kiện có thuộc cuộc trò chuyện hiện tại không
         if (conversation?.conversationId !== data.conversationId) return;
         
@@ -939,7 +943,7 @@ export function ChatArea({ conversation }: ChatAreaProps) {
         }, 100);
       };
       
-      const handleGroupCoOwnerRemoved = (data: { conversationId: string, removedCoOwner: string }) => {
+      const handleGroupCoOwnerRemoved = (data: { conversationId: string, removedCoOwner: string }): void => {
         // Kiểm tra xem sự kiện có thuộc cuộc trò chuyện hiện tại không
         if (conversation?.conversationId !== data.conversationId) return;
         
@@ -973,7 +977,7 @@ export function ChatArea({ conversation }: ChatAreaProps) {
         }, 100);
       };
       
-      const handleGroupCoOwnerAdded = (data: { conversationId: string, newCoOwnerIds: string[] }) => {
+      const handleGroupCoOwnerAdded = (data: { conversationId: string, newCoOwnerIds: string[] }): void => {
         // Kiểm tra xem sự kiện có thuộc cuộc trò chuyện hiện tại không
         if (conversation?.conversationId !== data.conversationId) return;
         
@@ -1010,7 +1014,7 @@ export function ChatArea({ conversation }: ChatAreaProps) {
         }, 100);
       };
       
-      const handleGroupOwnerChanged = (data: { conversationId: string, newOwner: string }) => {
+      const handleGroupOwnerChanged = (data: { conversationId: string, newOwner: string }): void => {
         // Kiểm tra xem sự kiện có thuộc cuộc trò chuyện hiện tại không
         if (conversation?.conversationId !== data.conversationId) return;
         
@@ -3817,6 +3821,171 @@ export function ChatArea({ conversation }: ChatAreaProps) {
       return null;
     }
   };
+
+  const [activityNotifications, setActivityNotifications] = useState<Array<{title: string, description: string, timestamp: number}>>([]);
+
+  // Function to show activity notification for group events
+  const showActivityNotification = useCallback((title: string, description: string) => {
+    // Add to activity notifications
+    setActivityNotifications(prev => {
+      const newNotifications = [{
+        title,
+        description,
+        timestamp: Date.now()
+      }, ...prev].slice(0, 5); // Keep only the 5 most recent notifications
+      
+      return newNotifications;
+    });
+    
+    // Show antd notification
+    notification.info({
+      message: title,
+      description,
+      placement: 'bottomRight',
+      duration: 3,
+      icon: <InfoCircleOutlined style={{ color: '#1890ff' }} />,
+      style: {
+        borderRadius: '8px',
+        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)'
+      }
+    });
+  }, []);
+
+  // Get user name from cache or default value
+  const getUserName = useCallback((userId: string): string => {
+    const user = userCache[userId];
+    return user ? user.fullname : 'Một thành viên';
+  }, [userCache]);
+
+  // Register socket event handlers for group management notifications
+  useEffect(() => {
+    if (!conversation?.conversationId) return;
+    
+    const currentUserId = localStorage.getItem("userId") || "";
+    
+    // Handler for when a user leaves the group
+    const handleUserLeftGroup = (data: { conversationId: string, userId: string }): void => {
+      if (data.conversationId !== conversation.conversationId) return;
+      
+      console.log('ChatArea: User left group:', data);
+      
+      // Show notification
+      const leftUserName = getUserName(data.userId);
+      showActivityNotification(
+        'Thành viên rời nhóm',
+        `${leftUserName} đã rời khỏi nhóm`
+      );
+    };
+    
+    // Handler for when a group is deleted
+    const handleGroupDeleted = (data: { conversationId: string }): void => {
+      if (data.conversationId !== conversation.conversationId) return;
+      
+      console.log('ChatArea: Group deleted:', data);
+      
+      showActivityNotification(
+        'Nhóm đã bị xóa',
+        'Nhóm này không còn tồn tại'
+      );
+    };
+    
+    // Handler for when co-owners are added
+    const handleGroupCoOwnerAdded = (data: { conversationId: string, newCoOwnerIds: string[] }): void => {
+      if (data.conversationId !== conversation.conversationId) return;
+      
+      console.log('ChatArea: Co-owner added:', data);
+      
+      // Get existing co-owner IDs
+      const existingCoOwnerIds = conversation.rules?.coOwnerIds || [];
+      
+      // Find the new co-owners (those in newCoOwnerIds but not in existingCoOwnerIds)
+      const newCoOwners = data.newCoOwnerIds.filter(id => !existingCoOwnerIds.includes(id));
+      
+      // If current user is in the new co-owners list, update notification
+      if (newCoOwners.includes(currentUserId)) {
+        showActivityNotification(
+          'Bạn đã trở thành phó nhóm',
+          'Bạn vừa được bổ nhiệm làm phó nhóm'
+        );
+      } else if (newCoOwners.length > 0) {
+        // Show notification about new co-owner
+        const newCoOwnerName = getUserName(newCoOwners[0]);
+        showActivityNotification(
+          'Phó nhóm mới',
+          `${newCoOwnerName} đã được bổ nhiệm làm phó nhóm`
+        );
+      }
+    };
+    
+    // Handler for when a co-owner is removed
+    const handleGroupCoOwnerRemoved = (data: { conversationId: string, removedCoOwner: string }): void => {
+      if (data.conversationId !== conversation.conversationId) return;
+      
+      console.log('ChatArea: Co-owner removed:', data);
+      
+      // If current user was removed as co-owner
+      if (data.removedCoOwner === currentUserId) {
+        showActivityNotification(
+          'Đã gỡ quyền phó nhóm',
+          'Bạn không còn là phó nhóm nữa'
+        );
+      } else {
+        // Show notification about removed co-owner
+        const removedCoOwnerName = getUserName(data.removedCoOwner);
+        showActivityNotification(
+          'Gỡ quyền phó nhóm',
+          `${removedCoOwnerName} đã bị gỡ quyền phó nhóm`
+        );
+      }
+    };
+    
+    // Handler for when group owner changes
+    const handleGroupOwnerChanged = (data: { conversationId: string, newOwner: string }): void => {
+      if (data.conversationId !== conversation.conversationId) return;
+      
+      console.log('ChatArea: Owner changed:', data);
+      
+      const previousOwner = conversation.rules?.ownerId || '';
+      
+      // Update notification based on the change
+      if (data.newOwner === currentUserId) {
+        showActivityNotification(
+          'Bạn là trưởng nhóm mới',
+          'Bạn đã trở thành trưởng nhóm mới'
+        );
+      } else if (previousOwner === currentUserId) {
+        // If current user was the previous owner
+        const newOwnerName = getUserName(data.newOwner);
+        showActivityNotification(
+          'Chuyển quyền trưởng nhóm',
+          `Bạn đã chuyển quyền trưởng nhóm cho ${newOwnerName}`
+        );
+      } else {
+        // If current user is neither the new nor old owner
+        const newOwnerName = getUserName(data.newOwner);
+        showActivityNotification(
+          'Trưởng nhóm mới',
+          `${newOwnerName} đã trở thành trưởng nhóm mới`
+        );
+      }
+    };
+    
+    // Register socket event handlers
+    socketService.on('userLeftGroup', handleUserLeftGroup);
+    socketService.on('groupDeleted', handleGroupDeleted);
+    socketService.on('groupCoOwnerAdded', handleGroupCoOwnerAdded);
+    socketService.on('groupCoOwnerRemoved', handleGroupCoOwnerRemoved);
+    socketService.on('groupOwnerChanged', handleGroupOwnerChanged);
+    
+    // Cleanup function
+    return () => {
+      socketService.off('userLeftGroup', handleUserLeftGroup);
+      socketService.off('groupDeleted', handleGroupDeleted);
+      socketService.off('groupCoOwnerAdded', handleGroupCoOwnerAdded);
+      socketService.off('groupCoOwnerRemoved', handleGroupCoOwnerRemoved);
+      socketService.off('groupOwnerChanged', handleGroupOwnerChanged);
+    };
+  }, [conversation?.conversationId, conversation?.rules?.ownerId, conversation?.rules?.coOwnerIds, showActivityNotification, getUserName]);
 
   return (
     <div className="w-full h-full flex flex-col">
