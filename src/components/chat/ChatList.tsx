@@ -392,6 +392,7 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
             // Filter out conversations where current user is in formerMembers
             const currentUserId = localStorage.getItem("userId") || "";
             if (conv.formerMembers && conv.formerMembers.includes(currentUserId)) {
+
               return false;
             }
             

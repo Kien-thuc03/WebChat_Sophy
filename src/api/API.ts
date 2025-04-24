@@ -536,7 +536,6 @@ export const fetchConversations = async (): Promise<Conversation[]> => {
 
     // Transform and validate conversations
     const validConversations = response.data;
-
     return validConversations;
   } catch (error) {
     console.error("Lỗi khi lấy danh sách hội thoại:", error);
@@ -2526,27 +2525,33 @@ export const updateGroupAvatar = async (
  * @param conversationId The ID of the conversation
  * @param coOwnerIds Array of user IDs to set as co-owners
  */
-export const setCoOwner = async (conversationId: string, coOwnerIds: string[]) => {
+export const setCoOwner = async (
+  conversationId: string,
+  coOwnerIds: string[]
+) => {
   try {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem("token");
     if (!token) {
-      throw new Error('User not authenticated');
+      throw new Error("User not authenticated");
     }
-    const response = await apiClient.put(`/api/conversations/group/set-co-owner`, {
-      conversationId, 
-      coOwnerIds
-    });
+    const response = await apiClient.put(
+      `/api/conversations/group/set-co-owner`,
+      {
+        conversationId,
+        coOwnerIds,
+      }
+    );
 
     if (response.status !== 200) {
-      throw new Error('Failed to set co-owners');
+      throw new Error("Failed to set co-owners");
     }
 
     return response.data;
   } catch (error: any) {
-    console.error('Error setting co-owners:', {
+    console.error("Error setting co-owners:", {
       message: error.message,
       status: error.response?.status,
-      data: error.response?.data
+      data: error.response?.data,
     });
     throw error;
   }
@@ -2559,26 +2564,29 @@ export const setCoOwner = async (conversationId: string, coOwnerIds: string[]) =
  */
 export const setOwner = async (conversationId: string, userId: string) => {
   try {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem("token");
     if (!token) {
-      throw new Error('User not authenticated');
+      throw new Error("User not authenticated");
     }
-    
-    const response = await apiClient.put(`/api/conversations/group/set-owner/${userId}`, {
-      conversationId,
-      userId
-    });
+
+    const response = await apiClient.put(
+      `/api/conversations/group/set-owner/${userId}`,
+      {
+        conversationId,
+        userId,
+      }
+    );
 
     if (response.status !== 200) {
-      throw new Error('Failed to set new owner');
+      throw new Error("Failed to set new owner");
     }
 
     return response.data;
   } catch (error: any) {
-    console.error('Error setting new owner:', {
+    console.error("Error setting new owner:", {
       message: error.message,
       status: error.response?.status,
-      data: error.response?.data
+      data: error.response?.data,
     });
     throw error;
   }
@@ -2589,25 +2597,30 @@ export const setOwner = async (conversationId: string, userId: string) => {
  * @param conversationId The ID of the conversation
  * @param userId The ID of the co-owner to remove
  */
-export const removeCoOwnerById = async (conversationId: string, userId: string) => {
+export const removeCoOwnerById = async (
+  conversationId: string,
+  userId: string
+) => {
   try {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem("token");
     if (!token) {
-      throw new Error('User not authenticated');
+      throw new Error("User not authenticated");
     }
-    
-    const response = await apiClient.put(`/api/conversations/group/${conversationId}/remove-co-owner/${userId}`);
+
+    const response = await apiClient.put(
+      `/api/conversations/group/${conversationId}/remove-co-owner/${userId}`
+    );
 
     if (response.status !== 200) {
-      throw new Error('Failed to remove co-owner');
+      throw new Error("Failed to remove co-owner");
     }
 
     return response.data;
   } catch (error: any) {
-    console.error('Error removing co-owner:', {
+    console.error("Error removing co-owner:", {
       message: error.message,
       status: error.response?.status,
-      data: error.response?.data
+      data: error.response?.data,
     });
     throw error;
   }
@@ -2619,23 +2632,25 @@ export const removeCoOwnerById = async (conversationId: string, userId: string) 
  */
 export const deleteGroup = async (conversationId: string) => {
   try {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem("token");
     if (!token) {
-      throw new Error('User not authenticated');
+      throw new Error("User not authenticated");
     }
-    
-    const response = await apiClient.put(`/api/conversations/group/delete/${conversationId}`);
+
+    const response = await apiClient.put(
+      `/api/conversations/group/delete/${conversationId}`
+    );
 
     if (response.status !== 200) {
-      throw new Error('Failed to delete group');
+      throw new Error("Failed to delete group");
     }
 
     return response.data;
   } catch (error: any) {
-    console.error('Error deleting group:', {
+    console.error("Error deleting group:", {
       message: error.message,
       status: error.response?.status,
-      data: error.response?.data
+      data: error.response?.data,
     });
     throw error;
   }
@@ -2643,30 +2658,33 @@ export const deleteGroup = async (conversationId: string) => {
 
 export const leaveGroup = async (conversationId: string) => {
   try {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem("token");
     if (!token) {
-      throw new Error('User not authenticated');
+      throw new Error("User not authenticated");
     }
 
     // Sửa lại URL để khớp với định nghĩa router ở backend
     // router.put('/group/:conversationId/leave', auth, conversationController.leaveGroup.bind(conversationController));
-    const response = await apiClient.put(`/api/conversations/group/${conversationId}/leave`);
+    const response = await apiClient.put(
+      `/api/conversations/group/${conversationId}/leave`
+    );
 
     if (response.status !== 200) {
-      throw new Error('Failed to leave group');
+      throw new Error("Failed to leave group");
     }
 
     return response.data;
   } catch (error: any) {
-    console.error('Error leaving group:', {
+    console.error("Error leaving group:", {
       message: error.message,
       status: error.response?.status,
-      data: error.response?.data
+      data: error.response?.data,
     });
-    logApiError('leaveGroup', error);
+    logApiError("leaveGroup", error);
     throw error;
   }
 };
+
 /**
  * Removes a user from a group conversation
  * @param conversationId The ID of the conversation

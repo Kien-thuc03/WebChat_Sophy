@@ -1,4 +1,3 @@
-// SocketProvider.tsx
 import React, { useEffect, useRef, ReactNode } from "react";
 import socketService from "../../../services/socketService";
 import { useConversationContext } from "../../chat/context/ConversationContext";
@@ -9,6 +8,7 @@ interface SocketProviderProps {
 
 export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
   const initialized = useRef(false);
+  const authenticated = useRef(false);
   const { addNewConversation } = useConversationContext();
 
   useEffect(() => {
@@ -20,7 +20,8 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
 
       // Check if user is already logged in
       const userId = localStorage.getItem("userId");
-      if (userId) {
+      if (userId && !authenticated.current) {
+        authenticated.current = true;
         socketService.authenticate(userId);
 
         // Đăng ký lắng nghe trạng thái active của người dùng
@@ -31,7 +32,7 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
 
         // Register listener for new conversations
         socketService.onNewConversation((data) => {
-          // Make sure this conversation is for the current user
+
           const { creatorId, receiverId } = data.conversation;
 
           console.log("Current userId:", userId);
@@ -48,7 +49,6 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
             );
             addNewConversation(data);
 
-            // If we have the conversation ID, join it for real-time updates
             if (data.conversation.conversationId) {
               console.log(
                 "Joining new conversation room:",
@@ -63,6 +63,41 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
               "This conversation is not for the current user, ignoring"
             );
           }
+        });
+
+        // Register listener for ZEGOCLOUD token
+        socketService.onZegoToken((data) => {
+          console.log("SocketProvider: Received ZEGOCLOUD token:", {
+            token: data.token.slice(0, 20) + "...",
+            appID: data.appID,
+            userId: data.userId,
+            effectiveTimeInSeconds: data.effectiveTimeInSeconds,
+          });
+        });
+
+        // Register listener for call events (for debugging purposes)
+        socketService.onStartCall((data) => {
+          console.log(
+            "SocketProvider: Received startCall event at provider level:",
+            data
+          );
+          // Logic xử lý ở đây nếu cần, nhưng hiện tại ChatHeader.tsx đã xử lý
+        });
+
+        socketService.onEndCall((data) => {
+          console.log(
+            "SocketProvider: Received endCall event at provider level:",
+            data
+          );
+          // Logic xử lý ở đây nếu cần, nhưng hiện tại ChatHeader.tsx đã xử lý
+        });
+
+        socketService.onCallError((data) => {
+          console.log(
+            "SocketProvider: Received callError event at provider level:",
+            data
+          );
+          // Logic xử lý ở đây nếu cần, nhưng hiện tại ChatHeader.tsx đã xử lý
         });
 
         // Get any conversation IDs from localStorage and join their rooms
@@ -90,8 +125,44 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
       // Handle reconnection
       socketService.onReconnect(() => {
         const userId = localStorage.getItem("userId");
-        if (userId) {
+        if (userId && !authenticated.current) {
+          authenticated.current = true;
           socketService.authenticate(userId);
+
+          // Re-register ZEGOCLOUD token listener
+          socketService.onZegoToken((data) => {
+            console.log(
+              "SocketProvider: Re-registered ZEGOCLOUD token listener:",
+              {
+                token: data.token.slice(0, 20) + "...",
+                appID: data.appID,
+                userId: data.userId,
+                effectiveTimeInSeconds: data.effectiveTimeInSeconds,
+              }
+            );
+          });
+
+          // Re-register call event listeners
+          socketService.onStartCall((data) => {
+            console.log(
+              "SocketProvider: Re-registered startCall event listener:",
+              data
+            );
+          });
+
+          socketService.onEndCall((data) => {
+            console.log(
+              "SocketProvider: Re-registered endCall event listener:",
+              data
+            );
+          });
+
+          socketService.onCallError((data) => {
+            console.log(
+              "SocketProvider: Re-registered callError event listener:",
+              data
+            );
+          });
         }
       });
     }
@@ -99,6 +170,7 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
     // Cleanup on unmount
     return () => {
       if (initialized.current) {
+        authenticated.current = false;
         socketService.cleanup();
         initialized.current = false;
       }
@@ -113,22 +185,18 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
       const setupMessageListeners = () => {
         socketService.onMessageRecall((data) => {
           console.log("Message recalled:", data);
-          // No need to handle here, handled in ChatArea component
         });
 
         socketService.onMessageDeleted((data) => {
           console.log("Message deleted for user:", data);
-          // No need to handle here, handled in ChatArea component
         });
 
         socketService.onMessagePinned((data) => {
           console.log("Message pinned:", data);
-          // No need to handle here, handled in ChatArea component
         });
 
         socketService.onMessageUnpinned((data) => {
           console.log("Message unpinned:", data);
-          // No need to handle here, handled in ChatArea component
         });
       };
 
