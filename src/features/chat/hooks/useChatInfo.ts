@@ -1,6 +1,16 @@
 import { useState } from 'react';
 import { Conversation } from '../types/conversationTypes';
-import { setCoOwner, setOwner, removeCoOwnerById, deleteGroup, leaveGroup, getConversationDetail, removeUserFromGroup } from '../../../api/API';
+import { 
+  setCoOwner, 
+  setOwner, 
+  removeCoOwnerById, 
+  deleteGroup, 
+  leaveGroup, 
+  getConversationDetail, 
+  removeUserFromGroup, 
+  blockUserFromGroup, 
+  unblockUserFromGroup 
+} from '../../../api/API';
 
 // Define interface for media item
 interface MediaItem {
@@ -611,6 +621,82 @@ export const useChatInfo = () => {
     }
   };
 
+  /**
+   * Block a user from a group conversation
+   * @param conversationId - The ID of the conversation
+   * @param userId - The ID of the user to block
+   */
+  const blockGroupMember = async (conversationId: string, userId: string): Promise<Conversation | null> => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      console.log('Blocking user from group:', { conversationId, userId });
+      const response = await blockUserFromGroup(conversationId, userId);
+      setLoading(false);
+      
+      if (response && response.conversation) {
+        console.log('Response after blocking member:', response);
+        return response.conversation;
+      } else {
+        setError('Invalid response format');
+        return null;
+      }
+    } catch (err: any) {
+      setLoading(false);
+      
+      // Handle different error formats
+      let errorMessage = 'Failed to block user from group';
+      if (err.message) {
+        errorMessage = err.message;
+      } else if (err.response?.data?.message) {
+        errorMessage = err.response.data.message;
+      }
+      
+      setError(errorMessage);
+      console.error('Error blocking user from group:', errorMessage);
+      return null;
+    }
+  };
+
+  /**
+   * Unblock a user from a group conversation
+   * @param conversationId - The ID of the conversation
+   * @param userId - The ID of the user to unblock
+   */
+  const unblockGroupMember = async (conversationId: string, userId: string): Promise<Conversation | null> => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      console.log('Unblocking user from group:', { conversationId, userId });
+      const response = await unblockUserFromGroup(conversationId, userId);
+      setLoading(false);
+      
+      if (response && response.conversation) {
+        console.log('Response after unblocking member:', response);
+        return response.conversation;
+      } else {
+        setError('Invalid response format');
+        return null;
+      }
+    } catch (err: any) {
+      setLoading(false);
+      
+      // Handle different error formats
+      let errorMessage = 'Failed to unblock user from group';
+      if (err.message) {
+        errorMessage = err.message;
+      } else if (err.response?.data?.message) {
+        errorMessage = err.response.data.message;
+      }
+      
+      setError(errorMessage);
+      console.error('Error unblocking user from group:', errorMessage);
+      return null;
+    }
+  };
+
   return {
     loading,
     error,
@@ -626,6 +712,8 @@ export const useChatInfo = () => {
     fetchSharedMedia,
     fetchSharedFiles,
     downloadFile,
-    removeGroupMember
+    removeGroupMember,
+    blockGroupMember,
+    unblockGroupMember
   };
 };

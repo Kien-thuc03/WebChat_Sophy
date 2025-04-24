@@ -6,7 +6,7 @@ import {
 // import bcrypt from "bcryptjs";
 
 // Khai báo URL API chính
-const API_BASE_URL = "http://localhost:3000";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 // Tạo instance Axios
 const apiClient = axios.create({
@@ -2692,6 +2692,65 @@ export const removeUserFromGroup = async (conversationId: string, userId: string
       status: error.response?.status,
       data: error.response?.data
     });
+    throw error;
+  }
+};
+
+/**
+ * Block a user from a group conversation
+ * @param conversationId - ID of the group conversation
+ * @param userId - ID of the user to block
+ */
+export const blockUserFromGroup = async (conversationId: string, userId: string) => {
+  try {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      throw new Error('User not authenticated');
+    }
+    
+    const response = await apiClient.put(`/api/conversations/group/${conversationId}/block/${userId}`, { userId });
+
+    if (response.status !== 200) {
+      throw new Error('Failed to block user from group');
+    }
+
+    return response.data;
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      console.error('Error blocking user from group:', error.message);
+    } else {
+      console.error('Unknown error blocking user from group');
+    }
+    throw error;
+  }
+};
+
+/**
+ * Unblock a user from a group conversation
+ * @param conversationId conversation id
+ * @param userId user id to unblock
+ * @returns the updated conversation details
+ */
+export const unblockUserFromGroup = async (conversationId: string, userId: string) => {
+  try {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      throw new Error('User not authenticated');
+    }
+    
+    const response = await apiClient.put(`/api/conversations/group/${conversationId}/unblock/${userId}`, { userId });
+
+    if (response.status !== 200) {
+      throw new Error('Failed to unblock user from group');
+    }
+
+    return response.data;
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      console.error('Error unblocking user from group:', error.message);
+    } else {
+      console.error('Unknown error unblocking user from group');
+    }
     throw error;
   }
 };
