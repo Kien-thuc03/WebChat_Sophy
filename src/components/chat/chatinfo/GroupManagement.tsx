@@ -83,35 +83,11 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
   const [isTransferOwnerModalVisible, setIsTransferOwnerModalVisible] = useState(false);
   const [selectedNewOwner, setSelectedNewOwner] = useState<string | null>(null);
 
-  // Add state for activity log
-  const [activityLog, setActivityLog] = useState<Array<{title: string, description: string, timestamp: number}>>([]);
-  
-  // Show activity notification for group events
-  const showActivityNotification = useCallback((title: string, description: string) => {
-    // Add to activity log
-    setActivityLog(prev => {
-      const newLog = [{
-        title,
-        description,
-        timestamp: Date.now()
-      }, ...prev].slice(0, 5); // Keep only the 5 most recent activities
-      
-      return newLog;
-    });
-    
-    // Show notification
-    notification.info({
-      message: title,
-      description,
-      placement: 'bottomRight',
-      duration: 3,
-      icon: <InfoCircleOutlined style={{ color: '#1890ff' }} />,
-      style: {
-        borderRadius: '8px',
-        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)'
-      }
-    });
-  }, []);
+  // Modify function to only update state without showing notifications
+  const updateGroupState = useCallback((userId: string, actionType: string) => {
+    // Only log to console, no UI notification
+    console.log(`Group event: ${actionType}`, { userId, conversationId: conversation.conversationId });
+  }, [conversation.conversationId]);
 
   // Function to get user name from cache or default value
   const getUserName = useCallback((userId: string): string => {
@@ -133,10 +109,6 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
       
       // If current user left, go back
       if (data.userId === currentUserId) {
-        showActivityNotification(
-          'Bạn đã rời nhóm',
-          'Bạn không còn là thành viên của nhóm này'
-        );
         onBack();
         return;
       }
@@ -149,12 +121,7 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
         };
       });
       
-      // Show notification
-      const leftUserName = getUserName(data.userId);
-      showActivityNotification(
-        'Thành viên rời nhóm',
-        `${leftUserName} đã rời khỏi nhóm`
-      );
+      updateGroupState(data.userId, 'userLeftGroup');
     };
     
     // Handler for when a group is deleted
@@ -162,11 +129,6 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
       if (data.conversationId !== conversation.conversationId) return;
       
       console.log('GroupManagement: Group deleted:', data);
-      
-      showActivityNotification(
-        'Nhóm đã bị xóa',
-        'Nhóm này không còn tồn tại'
-      );
       
       // Go back
       onBack();
@@ -200,17 +162,10 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
       // If current user is in the new co-owners list, update role
       if (data.newCoOwnerIds.includes(currentUserId) && !existingCoOwnerIds.includes(currentUserId)) {
         setUserRole(UserRole.CO_OWNER);
-        showActivityNotification(
-          'Bạn đã trở thành phó nhóm',
-          'Bạn vừa được bổ nhiệm làm phó nhóm'
-        );
-      } else if (newCoOwners.length > 0) {
-        // Show notification about new co-owner
-        const newCoOwnerName = getUserName(newCoOwners[0]);
-        showActivityNotification(
-          'Phó nhóm mới',
-          `${newCoOwnerName} đã được bổ nhiệm làm phó nhóm`
-        );
+      }
+      
+      if (newCoOwners.length > 0) {
+        updateGroupState(newCoOwners[0], 'groupCoOwnerAdded');
       }
     };
     
@@ -236,18 +191,9 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
       // If current user was removed as co-owner, update role
       if (data.removedCoOwner === currentUserId) {
         setUserRole(UserRole.MEMBER);
-        showActivityNotification(
-          'Đã gỡ quyền phó nhóm',
-          'Bạn không còn là phó nhóm nữa'
-        );
-      } else {
-        // Show notification about removed co-owner
-        const removedCoOwnerName = getUserName(data.removedCoOwner);
-        showActivityNotification(
-          'Gỡ quyền phó nhóm',
-          `${removedCoOwnerName} đã bị gỡ quyền phó nhóm`
-        );
       }
+      
+      updateGroupState(data.removedCoOwner, 'groupCoOwnerRemoved');
     };
     
     // Handler for when group owner changes
@@ -278,26 +224,12 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
       // Update the user role based on the change
       if (data.newOwner === currentUserId) {
         setUserRole(UserRole.OWNER);
-        showActivityNotification(
-          'Bạn là trưởng nhóm mới',
-          'Bạn đã trở thành trưởng nhóm mới'
-        );
       } else if (previousOwner === currentUserId) {
         // If current user was the previous owner, downgrade to member
         setUserRole(UserRole.MEMBER);
-        const newOwnerName = getUserName(data.newOwner);
-        showActivityNotification(
-          'Chuyển quyền trưởng nhóm',
-          `Bạn đã chuyển quyền trưởng nhóm cho ${newOwnerName}`
-        );
-      } else {
-        // If current user is neither the new nor old owner
-        const newOwnerName = getUserName(data.newOwner);
-        showActivityNotification(
-          'Trưởng nhóm mới',
-          `${newOwnerName} đã trở thành trưởng nhóm mới`
-        );
       }
+      
+      updateGroupState(data.newOwner, 'groupOwnerChanged');
     };
     
     // Register socket event handlers
@@ -315,7 +247,7 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
       socketService.off('groupCoOwnerRemoved', handleGroupCoOwnerRemoved);
       socketService.off('groupOwnerChanged', handleGroupOwnerChanged);
     };
-  }, [conversation.conversationId, conversation.rules?.ownerId, conversation.rules?.coOwnerIds, showActivityNotification, getUserName, onBack]);
+  }, [conversation.conversationId, conversation.rules?.ownerId, conversation.rules?.coOwnerIds, updateGroupState, getUserName, onBack]);
 
   // Determine user role when component mounts
   useEffect(() => {
@@ -1021,7 +953,7 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
     );
   }
 
-  // For regular members, show simplified view with activity log
+  // For regular members, show simplified view without activity log
   if (userRole === UserRole.MEMBER) {
     return (
       <div className="group-management flex flex-col h-full bg-white">
@@ -1045,31 +977,6 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
             Tính năng chỉ dành cho quản trị viên
           </span>
         </div>
-
-        {/* Activity Log Section - Add this */}
-        {activityLog.length > 0 && (
-          <div className="px-4 my-4">
-            <div className="bg-gray-50 rounded-lg p-3">
-              <h3 className="text-sm font-medium text-gray-700 mb-2">Hoạt động gần đây</h3>
-              <div className="space-y-2">
-                {activityLog.map((activity, index) => (
-                  <div key={index} className="text-sm">
-                    <div className="flex items-center">
-                      <InfoCircleOutlined className="text-blue-500 mr-2" />
-                      <span className="font-medium">{activity.title}</span>
-                    </div>
-                    <div className="ml-6 text-gray-600 text-xs">
-                      {activity.description}
-                    </div>
-                    <div className="ml-6 text-gray-400 text-xs">
-                      {new Date(activity.timestamp).toLocaleTimeString()}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Scrollable content */}
         <div className="flex-1 overflow-y-auto p-4">
@@ -1237,31 +1144,6 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
 
       {/* Scrollable content */}
       <div className="flex-1 overflow-y-auto p-4">
-        {/* Activity Log Section - Add this */}
-        {activityLog.length > 0 && (
-          <div className="mb-4">
-            <div className="bg-gray-50 rounded-lg p-3">
-              <h3 className="text-sm font-medium text-gray-700 mb-2">Hoạt động gần đây</h3>
-              <div className="space-y-2">
-                {activityLog.map((activity, index) => (
-                  <div key={index} className="text-sm">
-                    <div className="flex items-center">
-                      <InfoCircleOutlined className="text-blue-500 mr-2" />
-                      <span className="font-medium">{activity.title}</span>
-                    </div>
-                    <div className="ml-6 text-gray-600 text-xs">
-                      {activity.description}
-                    </div>
-                    <div className="ml-6 text-gray-400 text-xs">
-                      {new Date(activity.timestamp).toLocaleTimeString()}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Member Permissions Section */}
         <div className="mb-4">
           <div className="font-medium mb-3">
