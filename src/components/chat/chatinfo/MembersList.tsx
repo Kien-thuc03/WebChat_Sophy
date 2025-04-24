@@ -77,6 +77,19 @@ const MembersList: React.FC<MembersListProps> = ({
     console.log(`Group event: ${action}`, { userId, conversationId: conversation.conversationId });
   }, [conversation.conversationId]);
 
+  // Add this function to determine user role from conversation data
+  const determineUserRole = useCallback((conversationData: Conversation): 'owner' | 'co-owner' | 'member' => {
+    const currentUserId = localStorage.getItem('userId') || '';
+    
+    if (conversationData.rules?.ownerId === currentUserId) {
+      return 'owner';
+    } else if (conversationData.rules?.coOwnerIds?.includes(currentUserId)) {
+      return 'co-owner';
+    } else {
+      return 'member';
+    }
+  }, []);
+
   // Register socket event handlers in a dedicated useEffect
   useEffect(() => {
     if (!conversation.conversationId) return;
@@ -130,23 +143,29 @@ const MembersList: React.FC<MembersListProps> = ({
       setConversation(prev => {
         if (!prev.rules) return prev;
         
-        return {
+        const updatedConversation = {
           ...prev,
           rules: {
             ...prev.rules,
             coOwnerIds: data.newCoOwnerIds
           }
         };
+        
+        // Determine and update role based on the updated conversation data
+        const newRole = determineUserRole(updatedConversation);
+        if (newRole !== userRole) {
+          setUserRole(newRole);
+        }
+        
+        return updatedConversation;
       });
-      
-      // If current user is in the new co-owners list, update role
-      if (data.newCoOwnerIds.includes(currentUserId) && !existingCoOwnerIds.includes(currentUserId)) {
-        setUserRole('co-owner');
-      } 
       
       if (newCoOwners.length > 0) {
         updateGroupState(newCoOwners[0], 'groupCoOwnerAdded');
       }
+      
+      // Force refresh to ensure we have the latest data
+      refreshConversationData();
     };
     
     // Handler for when a co-owner is removed
@@ -159,21 +178,27 @@ const MembersList: React.FC<MembersListProps> = ({
       setConversation(prev => {
         if (!prev.rules || !prev.rules.coOwnerIds) return prev;
         
-        return {
+        const updatedConversation = {
           ...prev,
           rules: {
             ...prev.rules,
             coOwnerIds: prev.rules.coOwnerIds.filter(id => id !== data.removedCoOwner)
           }
         };
+        
+        // Determine and update role based on the updated conversation data
+        const newRole = determineUserRole(updatedConversation);
+        if (newRole !== userRole) {
+          setUserRole(newRole);
+        }
+        
+        return updatedConversation;
       });
       
-      // If current user was removed as co-owner, update role
-      if (data.removedCoOwner === currentUserId) {
-        setUserRole('member');
-      }
-      
       updateGroupState(data.removedCoOwner, 'groupCoOwnerRemoved');
+      
+      // Force refresh to ensure we have the latest data
+      refreshConversationData();
     };
     
     // Handler for when group owner changes
@@ -188,7 +213,7 @@ const MembersList: React.FC<MembersListProps> = ({
       setConversation(prev => {
         if (!prev.rules) return prev;
         
-        return {
+        const updatedConversation = {
           ...prev,
           rules: {
             ...prev.rules,
@@ -199,17 +224,20 @@ const MembersList: React.FC<MembersListProps> = ({
               []
           }
         };
+        
+        // Determine and update role based on the updated conversation data
+        const newRole = determineUserRole(updatedConversation);
+        if (newRole !== userRole) {
+          setUserRole(newRole);
+        }
+        
+        return updatedConversation;
       });
       
-      // Update the user role based on the change
-      if (data.newOwner === currentUserId) {
-        setUserRole('owner');
-      } else if (previousOwner === currentUserId) {
-        // If current user was the previous owner, downgrade to member
-        setUserRole('member');
-      }
-      
       updateGroupState(data.newOwner, 'groupOwnerChanged');
+      
+      // Force refresh to ensure we have the latest data
+      refreshConversationData();
     };
     
     // Register socket event handlers
@@ -229,18 +257,26 @@ const MembersList: React.FC<MembersListProps> = ({
     };
   }, [conversation.conversationId, conversation.rules?.ownerId, conversation.rules?.coOwnerIds, updateGroupState, currentUserId, onBack]);
 
-  // Function to refresh conversation data
+  // Update the refreshConversationData function
   const refreshConversationData = async () => {
     try {
       if (!conversation.conversationId) return;
       
+      setIsRefreshing(true);
       const updatedConversation = await getConversationDetail(conversation.conversationId);
       if (updatedConversation) {
         setConversation(updatedConversation);
-        console.log('Conversation data refreshed:', updatedConversation);
+        
+        // Update user role based on the fresh data
+        const newRole = determineUserRole(updatedConversation);
+        if (newRole !== userRole) {
+          setUserRole(newRole);
+        }
       }
     } catch (err) {
       console.error('Error refreshing conversation data:', err);
+    } finally {
+      setIsRefreshing(false);
     }
   };
 

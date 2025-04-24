@@ -150,23 +150,30 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
       setConversation(prev => {
         if (!prev.rules) return prev;
         
-        return {
+        const updatedConversation = {
           ...prev,
           rules: {
             ...prev.rules,
             coOwnerIds: data.newCoOwnerIds
           }
         };
+        
+        // Determine and update role based on the updated conversation data
+        const newRole = determineUserRole(updatedConversation);
+        if (newRole !== userRole) {
+          console.log('GroupManagement: User role updated from', userRole, 'to', newRole);
+          setUserRole(newRole);
+        }
+        
+        return updatedConversation;
       });
-      
-      // If current user is in the new co-owners list, update role
-      if (data.newCoOwnerIds.includes(currentUserId) && !existingCoOwnerIds.includes(currentUserId)) {
-        setUserRole(UserRole.CO_OWNER);
-      }
       
       if (newCoOwners.length > 0) {
         updateGroupState(newCoOwners[0], 'groupCoOwnerAdded');
       }
+      
+      // Force refresh to ensure we have the latest data
+      refreshConversationData();
     };
     
     // Handler for when a co-owner is removed
@@ -179,21 +186,28 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
       setConversation(prev => {
         if (!prev.rules || !prev.rules.coOwnerIds) return prev;
         
-        return {
+        const updatedConversation = {
           ...prev,
           rules: {
             ...prev.rules,
             coOwnerIds: prev.rules.coOwnerIds.filter(id => id !== data.removedCoOwner)
           }
         };
+        
+        // Determine and update role based on the updated conversation data
+        const newRole = determineUserRole(updatedConversation);
+        if (newRole !== userRole) {
+          console.log('GroupManagement: User role updated from', userRole, 'to', newRole);
+          setUserRole(newRole);
+        }
+        
+        return updatedConversation;
       });
       
-      // If current user was removed as co-owner, update role
-      if (data.removedCoOwner === currentUserId) {
-        setUserRole(UserRole.MEMBER);
-      }
-      
       updateGroupState(data.removedCoOwner, 'groupCoOwnerRemoved');
+      
+      // Force refresh to ensure we have the latest data
+      refreshConversationData();
     };
     
     // Handler for when group owner changes
@@ -208,7 +222,7 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
       setConversation(prev => {
         if (!prev.rules) return prev;
         
-        return {
+        const updatedConversation = {
           ...prev,
           rules: {
             ...prev.rules,
@@ -219,17 +233,21 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
               []
           }
         };
+        
+        // Determine and update role based on the updated conversation data
+        const newRole = determineUserRole(updatedConversation);
+        if (newRole !== userRole) {
+          console.log('GroupManagement: User role updated from', userRole, 'to', newRole);
+          setUserRole(newRole);
+        }
+        
+        return updatedConversation;
       });
       
-      // Update the user role based on the change
-      if (data.newOwner === currentUserId) {
-        setUserRole(UserRole.OWNER);
-      } else if (previousOwner === currentUserId) {
-        // If current user was the previous owner, downgrade to member
-        setUserRole(UserRole.MEMBER);
-      }
-      
       updateGroupState(data.newOwner, 'groupOwnerChanged');
+      
+      // Force refresh to ensure we have the latest data
+      refreshConversationData();
     };
     
     // Register socket event handlers
@@ -266,6 +284,12 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
       } else {
         setUserRole(UserRole.MEMBER);
       }
+      
+      // Log role change for debugging
+      console.log('GroupManagement: User role updated to:', 
+        conversation.rules.ownerId === currentUserId ? 'owner' : 
+        (conversation.rules.coOwnerIds && conversation.rules.coOwnerIds.includes(currentUserId)) ? 'co-owner' : 
+        'member');
     }
   }, [conversation]);
 
@@ -303,6 +327,11 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
   useEffect(() => {
     setConversation(initialConversation);
   }, [initialConversation]);
+
+  // Fetch the most up-to-date conversation data when component mounts
+  useEffect(() => {
+    refreshConversationData();
+  }, []);
 
   const handlePermissionChange = (permissionKey: keyof typeof permissions) => {
     // Only owner and co-owners can change permissions
@@ -606,17 +635,41 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
     refreshConversationData();
   };
 
-  // Add function to refresh conversation data
-  const refreshConversationData = async () => {
-    if (!conversation.conversationId) return;
+  // Add a function to determine user role from conversation data
+  const determineUserRole = useCallback((conversationData: Conversation): UserRole => {
+    const currentUserId = localStorage.getItem("userId") || "";
     
+    if (conversationData.rules?.ownerId === currentUserId) {
+      return UserRole.OWNER;
+    } else if (
+      conversationData.rules?.coOwnerIds &&
+      conversationData.rules?.coOwnerIds.includes(currentUserId)
+    ) {
+      return UserRole.CO_OWNER;
+    } else {
+      return UserRole.MEMBER;
+    }
+  }, []);
+
+  // Update the refreshConversationData function
+  const refreshConversationData = async () => {
     try {
+      if (!conversation.conversationId) return;
+      
+      // Get updated conversation data from the API
       const updatedConversation = await getConversationDetail(conversation.conversationId);
       if (updatedConversation) {
         setConversation(updatedConversation);
+        
+        // Update user role based on the fresh data
+        const newRole = determineUserRole(updatedConversation);
+        if (newRole !== userRole) {
+          console.log('GroupManagement: User role updated from', userRole, 'to', newRole);
+          setUserRole(newRole);
+        }
       }
-    } catch (error) {
-      console.error('Failed to refresh conversation data:', error);
+    } catch (err) {
+      console.error('Error refreshing conversation data:', err);
     }
   };
 
