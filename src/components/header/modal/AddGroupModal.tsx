@@ -27,16 +27,19 @@ interface AddGroupModalProps {
   visible: boolean;
   onClose: () => void;
   onSelectConversation?: (conversation: Conversation) => void;
+  preSelectedMembers?: string[];
 }
 
 const AddGroupModal: React.FC<AddGroupModalProps> = ({
   visible,
   onClose,
   onSelectConversation,
+  preSelectedMembers = [],
 }) => {
   const { addNewConversation } = useConversationContext();
   const [groupName, setGroupName] = useState("");
-  const [selectedContacts, setSelectedContacts] = useState<string[]>([]);
+  const [selectedContacts, setSelectedContacts] =
+    useState<string[]>(preSelectedMembers);
   const [friends, setFriends] = useState<Friend[]>([]);
   const [searchResults, setSearchResults] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -70,6 +73,32 @@ const AddGroupModal: React.FC<AddGroupModalProps> = ({
       try {
         const friendsList = await fetchFriends();
         setFriends(friendsList);
+
+        // If there are pre-selected members, ensure they are in the friends list
+        if (preSelectedMembers.length > 0) {
+          const missingMembers = preSelectedMembers.filter(
+            (memberId) =>
+              !friendsList.some((friend) => friend.userId === memberId)
+          );
+
+          if (missingMembers.length > 0) {
+            // Fetch missing members' info
+            const memberPromises = missingMembers.map((memberId) =>
+              getUserById(memberId)
+            );
+            const memberResults = await Promise.all(memberPromises);
+
+            // Add missing members to friends list
+            setFriends((prevFriends) => [
+              ...prevFriends,
+              ...memberResults.map((user) => ({
+                userId: user.userId,
+                fullname: user.fullname,
+                urlavatar: user.urlavatar,
+              })),
+            ]);
+          }
+        }
       } catch (error) {
         console.error("Lỗi khi lấy danh sách bạn bè:", error);
       } finally {
@@ -78,7 +107,7 @@ const AddGroupModal: React.FC<AddGroupModalProps> = ({
     };
 
     loadFriends();
-  }, [visible]);
+  }, [visible, preSelectedMembers]);
 
   const debouncedSearch = useCallback(
     (() => {
@@ -135,11 +164,11 @@ const AddGroupModal: React.FC<AddGroupModalProps> = ({
         const otherMemberNames: string[] = [];
 
         // Lấy tên của các thành viên khác (không bao gồm người tạo)
-        selectedUsers
-          .filter((user) => user.userId !== currentUserId)
+        selectedContacts
+          .filter((user) => user !== currentUserId)
           .slice(0, 2) // Chỉ lấy 2 người khác (vì đã có người tạo)
           .forEach((user) => {
-            otherMemberNames.push(user.fullname);
+            otherMemberNames.push(user);
           });
 
         // Tạo tên nhóm với người tạo đứng đầu
@@ -241,6 +270,7 @@ const AddGroupModal: React.FC<AddGroupModalProps> = ({
     selectedContacts.includes(friend.userId)
   );
 
+  // Early return if not visible
   if (!visible) return null;
 
   return (

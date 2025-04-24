@@ -41,10 +41,12 @@ import { useNavigate } from "react-router-dom";
 import GroupModal from "../modals/GroupModal";
 import { useConversationContext } from "../../../features/chat/context/ConversationContext";
 import AddMemberModal from "../modals/AddMemberModal";
+import AddGroupModal from "../../header/modal/AddGroupModal";
 
 interface ChatInfoProps {
   conversation: Conversation;
-  onLeaveGroup?: () => void; // Callback khi rời nhóm thành công
+  onClose: () => void;
+  onSelectConversation: (conversation: Conversation) => void;
 }
 
 // DetailedConversation extends the base Conversation type
@@ -71,7 +73,11 @@ interface MemberInfo {
   birthday?: string;
 }
 
-const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
+const ChatInfo: React.FC<ChatInfoProps> = ({
+  conversation,
+  onClose,
+  onSelectConversation,
+}) => {
   const [activeKeys, setActiveKeys] = useState<string[]>([]);
   const [isEditNameModalVisible, setIsEditNameModalVisible] = useState(false);
   const [localName, setLocalName] = useState("");
@@ -124,8 +130,10 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
   const [isUserInfoModalVisible, setIsUserInfoModalVisible] = useState(false);
   const [friendList, setFriendList] = useState<string[]>([]);
   const [showGroupModal, setShowGroupModal] = useState(false);
+  const [showAddGroupModal, setShowAddGroupModal] = useState(false);
   const { conversations } = useConversationContext();
   const [isAddMemberModalVisible, setIsAddMemberModalVisible] = useState(false);
+  const [groupMembers, setGroupMembers] = useState<string[]>([]);
 
   // Find the most up-to-date conversation data from context
   const updatedConversation =
@@ -144,7 +152,11 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
   const isGroup = currentConversation.isGroup;
   const groupName = currentConversation.groupName;
   const groupAvatarUrl = currentConversation.groupAvatarUrl;
-  const groupMembers = currentConversation.groupMembers || [];
+  useEffect(() => {
+    if (currentConversation.groupMembers) {
+      setGroupMembers(currentConversation.groupMembers);
+    }
+  }, [currentConversation.groupMembers]);
 
   // Group link for sharing (would come from the API in a real implementation)
   const groupLink = currentConversation?.groupLink || "zalo.me/g/hotcjo791";
@@ -389,8 +401,8 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
                 setDetailedConversation(null);
 
                 // Gọi callback để cập nhật giao diện ngay lập tức
-                if (onLeaveGroup) {
-                  onLeaveGroup();
+                if (onClose) {
+                  onClose();
                 } else {
                   // Fallback: Reload trang nếu không có callback
                   setTimeout(() => window.location.reload(), 1000);
@@ -618,6 +630,16 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
     setShowMembersList(false);
   };
 
+  const handleCreateGroup = () => {
+    console.log("Opening AddGroupModal with members:", groupMembers);
+    setShowAddGroupModal(true);
+  };
+
+  const handleCloseAddGroupModal = () => {
+    console.log("Closing AddGroupModal");
+    setShowAddGroupModal(false);
+  };
+
   // If showing members list view
   if (showMembersList && isGroup) {
     return (
@@ -741,7 +763,7 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
         conversation={currentConversation}
         groupLink={groupLink}
         onBack={handleBackFromGroupManagement}
-        onDisband={onLeaveGroup}
+        onDisband={handleLeaveGroup}
       />
     );
   }
@@ -784,655 +806,665 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
   }
 
   return (
-    <div className="chat-info flex flex-col h-full bg-white">
-      {/* Header - Fixed */}
-      <div className="flex-none p-4 border-b border-gray-200">
-        <h2 className="text-lg font-semibold text-center">
-          {isGroup ? "Thông tin nhóm" : "Thông tin hội thoại"}
-        </h2>
-      </div>
+    <>
+      <div className="chat-info flex flex-col h-full bg-white">
+        {/* Header - Fixed */}
+        <div className="flex-none p-4 border-b border-gray-200">
+          <h2 className="text-lg font-semibold text-center">
+            {isGroup ? "Thông tin nhóm" : "Thông tin hội thoại"}
+          </h2>
+        </div>
 
-      {/* Main content - Scrollable */}
-      <div className="flex-1 overflow-y-auto">
-        {loading ? (
-          <div className="flex justify-center items-center h-full">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-2"></div>
-              <p className="text-gray-500">{t.loading || "Đang tải..."}</p>
+        {/* Main content - Scrollable */}
+        <div className="flex-1 overflow-y-auto">
+          {loading ? (
+            <div className="flex justify-center items-center h-full">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-2"></div>
+                <p className="text-gray-500">{t.loading || "Đang tải..."}</p>
+              </div>
             </div>
-          </div>
-        ) : (
-          <>
-            {/* User/Group Info Section */}
-            <div className="py-6 text-center border-b border-gray-100">
-              <div className="flex flex-col items-center">
-                {isGroup ? (
-                  <div
-                    className="cursor-pointer"
-                    onClick={() => setShowGroupModal(true)}>
-                    <GroupAvatar
-                      members={groupMembers}
-                      userAvatars={userAvatars}
-                      size={80}
-                      className="mb-3 border-2 border-white"
-                      groupAvatarUrl={groupAvatarUrl || undefined}
-                    />
-                  </div>
-                ) : (
-                  <Avatar
-                    name={otherUserInfo?.fullname || "User"}
-                    avatarUrl={otherUserInfo?.urlavatar}
-                    size={80}
-                    className="rounded-full mb-3"
-                  />
-                )}
-                <div className="flex items-center justify-center gap-2 mb-1">
-                  <h3 className="text-lg font-semibold">{displayName}</h3>
-                  <EditOutlined
-                    onClick={handleEditName}
-                    className="text-gray-500 hover:text-blue-500 cursor-pointer"
-                  />
-                </div>
-                <p className="text-sm text-gray-500 mb-4">{onlineStatus}</p>
-
-                {/* Quick Actions - Different for group vs individual */}
-                <div className="flex justify-center gap-8 w-full mt-2">
-                  <div className="flex flex-col items-center">
-                    <Button
-                      type="text"
-                      shape="circle"
-                      icon={
-                        <BellOutlined
-                          className={
-                            isMuted ? "text-blue-500" : "text-gray-500"
-                          }
-                        />
-                      }
-                      onClick={handleToggleMute}
-                      className="flex items-center justify-center h-10 w-10 bg-gray-100"
-                    />
-                    <span className="text-xs mt-1">Tắt thông báo</span>
-                  </div>
-
-                  <div className="flex flex-col items-center">
-                    <Button
-                      type="text"
-                      shape="circle"
-                      icon={
-                        <PushpinOutlined
-                          className={
-                            isPinned ? "text-blue-500" : "text-gray-500"
-                          }
-                        />
-                      }
-                      onClick={handleTogglePin}
-                      className="flex items-center justify-center h-10 w-10 bg-gray-100"
-                    />
-                    <span className="text-xs mt-1">Ghim hội thoại</span>
-                  </div>
-
+          ) : (
+            <>
+              {/* User/Group Info Section */}
+              <div className="py-6 text-center border-b border-gray-100">
+                <div className="flex flex-col items-center">
                   {isGroup ? (
-                    <>
-                      <div className="flex flex-col items-center">
-                        <Button
-                          type="text"
-                          shape="circle"
-                          icon={<UserAddOutlined className="text-gray-500" />}
-                          className="flex items-center justify-center h-10 w-10 bg-gray-100"
-                          onClick={() => setIsAddMemberModalVisible(true)}
-                        />
-                        <span className="text-xs mt-1">Thêm thành viên</span>
-                      </div>
-
-                      <div className="flex flex-col items-center">
-                        <Button
-                          type="text"
-                          shape="circle"
-                          icon={<SettingOutlined className="text-gray-500" />}
-                          onClick={handleShowGroupManagement}
-                          className="flex items-center justify-center h-10 w-10 bg-gray-100"
-                        />
-                        <span className="text-xs mt-1">Quản lý nhóm</span>
-                      </div>
-                    </>
+                    <div
+                      className="cursor-pointer"
+                      onClick={() => setShowGroupModal(true)}>
+                      <GroupAvatar
+                        members={groupMembers}
+                        userAvatars={userAvatars}
+                        size={80}
+                        className="mb-3 border-2 border-white"
+                        groupAvatarUrl={groupAvatarUrl || undefined}
+                      />
+                    </div>
                   ) : (
+                    <Avatar
+                      name={otherUserInfo?.fullname || "User"}
+                      avatarUrl={otherUserInfo?.urlavatar}
+                      size={80}
+                      className="rounded-full mb-3"
+                    />
+                  )}
+                  <div className="flex items-center justify-center gap-2 mb-1">
+                    <h3 className="text-lg font-semibold">{displayName}</h3>
+                    <EditOutlined
+                      onClick={handleEditName}
+                      className="text-gray-500 hover:text-blue-500 cursor-pointer"
+                    />
+                  </div>
+                  <p className="text-sm text-gray-500 mb-4">{onlineStatus}</p>
+
+                  {/* Quick Actions - Different for group vs individual */}
+                  <div className="flex justify-center gap-8 w-full mt-2">
                     <div className="flex flex-col items-center">
                       <Button
                         type="text"
                         shape="circle"
                         icon={
-                          <UsergroupAddOutlined className="text-gray-500" />
+                          <BellOutlined
+                            className={
+                              isMuted ? "text-blue-500" : "text-gray-500"
+                            }
+                          />
                         }
+                        onClick={handleToggleMute}
                         className="flex items-center justify-center h-10 w-10 bg-gray-100"
                       />
-                      <span className="text-xs mt-1">Tạo nhóm</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Group Members or Mutual Groups Section */}
-            {isGroup ? (
-              // Group Members Section for Groups
-              <div className="border-b border-gray-100">
-                <div
-                  className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-gray-50"
-                  onClick={() =>
-                    setActiveKeys((prev) =>
-                      prev.includes("members")
-                        ? prev.filter((k) => k !== "members")
-                        : [...prev, "members"]
-                    )
-                  }>
-                  <div className="flex items-center">
-                    <TeamOutlined className="text-gray-500 mr-3" />
-                    <span className="font-medium">Thành viên nhóm</span>
-                  </div>
-                  <RightOutlined
-                    className={`text-gray-400 transition-transform ${activeKeys.includes("members") ? "transform rotate-90" : ""}`}
-                  />
-                </div>
-
-                {activeKeys.includes("members") && (
-                  <div className="p-4 border-t border-gray-100">
-                    <div className="flex items-center mb-4">
-                      <TeamOutlined className="text-gray-500 mr-2" />
-                      <span
-                        className="cursor-pointer hover:text-blue-500"
-                        onClick={handleShowMembers}>
-                        <i className="far fa-user mr-1" />
-                        <span>
-                          {currentConversation.groupMembers?.length || 0}{" "}
-                          {t.members || "thành viên"}
-                        </span>
-                      </span>
+                      <span className="text-xs mt-1">Tắt thông báo</span>
                     </div>
 
-                    <div className="mb-4">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium">
-                          Link tham gia nhóm
-                        </span>
-                      </div>
-                      <div className="flex items-center mt-2 p-2 bg-gray-50 rounded">
-                        <span className="text-blue-500 flex-1 truncate">
-                          {groupLink}
-                        </span>
-                        <Button
-                          type="text"
-                          icon={<CopyOutlined />}
-                          onClick={handleCopyGroupLink}
-                          className="text-gray-500 hover:text-blue-500"
-                        />
-                        <Button
-                          type="text"
-                          icon={<ShareAltOutlined />}
-                          onClick={handleShareGroupLink}
-                          className="text-gray-500 hover:text-blue-500"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            ) : (
-              // Mutual Groups Section for Individual Chats
-              <div className="px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center">
-                    <TeamOutlined className="text-gray-500 mr-3" />
-                    <span>{mutualGroups} nhóm chung</span>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Group Board Section - Only for Groups */}
-            {isGroup && (
-              <div className="border-b border-gray-100">
-                <div
-                  className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-gray-50"
-                  onClick={() =>
-                    setActiveKeys((prev) =>
-                      prev.includes("board")
-                        ? prev.filter((k) => k !== "board")
-                        : [...prev, "board"]
-                    )
-                  }>
-                  <div className="flex items-center">
-                    <FileTextOutlined className="text-gray-500 mr-3" />
-                    <span className="font-medium">Bảng tin nhóm</span>
-                  </div>
-                  <RightOutlined
-                    className={`text-gray-400 transition-transform ${activeKeys.includes("board") ? "transform rotate-90" : ""}`}
-                  />
-                </div>
-
-                {activeKeys.includes("board") && (
-                  <div className="p-4 border-t border-gray-100 space-y-3">
-                    <div className="flex items-center justify-between py-2 px-3 bg-gray-50 rounded cursor-pointer">
-                      <div className="flex items-center">
-                        <ClockCircleOutlined className="text-gray-500 mr-2" />
-                        <span>Danh sách nhắc hẹn</span>
-                      </div>
-                      <RightOutlined className="text-gray-400" />
+                    <div className="flex flex-col items-center">
+                      <Button
+                        type="text"
+                        shape="circle"
+                        icon={
+                          <PushpinOutlined
+                            className={
+                              isPinned ? "text-blue-500" : "text-gray-500"
+                            }
+                          />
+                        }
+                        onClick={handleTogglePin}
+                        className="flex items-center justify-center h-10 w-10 bg-gray-100"
+                      />
+                      <span className="text-xs mt-1">Ghim hội thoại</span>
                     </div>
 
-                    <div className="flex items-center justify-between py-2 px-3 bg-gray-50 rounded cursor-pointer">
-                      <div className="flex items-center">
-                        <FileTextOutlined className="text-gray-500 mr-2" />
-                        <span>Ghi chú, ghim, bình chọn</span>
-                      </div>
-                      <RightOutlined className="text-gray-400" />
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Reminders - Only for Individual Chats */}
-            {!isGroup && (
-              <div className="px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center">
-                    <ClockCircleOutlined className="text-gray-500 mr-3" />
-                    <span>Danh sách nhắc hẹn</span>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Media Section - Update to use downloadUrl */}
-            <div className="border-b border-gray-100">
-              <div
-                className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-gray-50"
-                onClick={() =>
-                  setActiveKeys((prev) =>
-                    prev.includes("media")
-                      ? prev.filter((k) => k !== "media")
-                      : [...prev, "media"]
-                  )
-                }>
-                <div className="flex items-center">
-                  <FileImageOutlined className="text-gray-500 mr-3" />
-                  <span className="font-medium">Ảnh/Video</span>
-                </div>
-                <RightOutlined
-                  className={`text-gray-400 transition-transform ${activeKeys.includes("media") ? "transform rotate-90" : ""}`}
-                />
-              </div>
-
-              {activeKeys.includes("media") && (
-                <div className="p-4 border-t border-gray-100">
-                  {sharedMedia.length > 0 ? (
-                    <div className="grid grid-cols-3 gap-2">
-                      {sharedMedia.slice(0, 6).map((item, index) => (
-                        <div
-                          key={`media-${index}`}
-                          className="aspect-square bg-gray-100 rounded overflow-hidden relative cursor-pointer border border-gray-200"
-                          onClick={() => {
-                            const mediaType = item.type?.startsWith("image")
-                              ? "image"
-                              : "video";
-                            handleMediaPreview(item, mediaType, index);
-                          }}>
-                          {item.type && item.type.startsWith("image") ? (
-                            <img
-                              src={item.url}
-                              alt={item.name || `Image ${index}`}
-                              className="w-full h-full object-cover"
-                            />
-                          ) : item.type && item.type.startsWith("video") ? (
-                            <div className="absolute inset-0 flex items-center justify-center">
-                              {/* Nếu có thumbnailUrl thì hiển thị thumbnail */}
-                              {item.thumbnailUrl ? (
-                                <>
-                                  <img
-                                    src={item.thumbnailUrl}
-                                    alt={item.name || "Video"}
-                                    className="w-full h-full object-cover absolute inset-0"
-                                  />
-                                  <div className="absolute inset-0 bg-black opacity-30"></div>
-                                </>
-                              ) : (
-                                <div className="absolute inset-0 bg-black opacity-70"></div>
-                              )}
-
-                              {/* Icon play video */}
-                              <div className="z-10 text-white bg-black bg-opacity-50 rounded-full p-2">
-                                <PlayCircleOutlined className="text-3xl" />
-                              </div>
-
-                              {/* Hiển thị nhãn video ở góc dưới */}
-                              <div className="absolute bottom-1 right-2 bg-black bg-opacity-70 text-white text-xs px-1 rounded">
-                                Video
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="aspect-square bg-gray-200 rounded overflow-hidden relative">
-                              <div className="absolute inset-0 flex items-center justify-center">
-                                <FileImageOutlined className="text-gray-500 text-xl" />
-                              </div>
-                            </div>
-                          )}
+                    {isGroup ? (
+                      <>
+                        <div className="flex flex-col items-center">
+                          <Button
+                            type="text"
+                            shape="circle"
+                            icon={<UserAddOutlined className="text-gray-500" />}
+                            className="flex items-center justify-center h-10 w-10 bg-gray-100"
+                            onClick={() => setIsAddMemberModalVisible(true)}
+                          />
+                          <span className="text-xs mt-1">Thêm thành viên</span>
                         </div>
-                      ))}
+
+                        <div className="flex flex-col items-center">
+                          <Button
+                            type="text"
+                            shape="circle"
+                            icon={<SettingOutlined className="text-gray-500" />}
+                            onClick={handleShowGroupManagement}
+                            className="flex items-center justify-center h-10 w-10 bg-gray-100"
+                          />
+                          <span className="text-xs mt-1">Quản lý nhóm</span>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="flex flex-col items-center">
+                        <Button
+                          type="text"
+                          shape="circle"
+                          icon={
+                            <UsergroupAddOutlined className="text-gray-500" />
+                          }
+                          className="flex items-center justify-center h-10 w-10 bg-gray-100"
+                          onClick={handleCreateGroup}
+                        />
+                        <span className="text-xs mt-1">Tạo nhóm</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Group Members or Mutual Groups Section */}
+              {isGroup ? (
+                // Group Members Section for Groups
+                <div className="border-b border-gray-100">
+                  <div
+                    className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-gray-50"
+                    onClick={() =>
+                      setActiveKeys((prev) =>
+                        prev.includes("members")
+                          ? prev.filter((k) => k !== "members")
+                          : [...prev, "members"]
+                      )
+                    }>
+                    <div className="flex items-center">
+                      <TeamOutlined className="text-gray-500 mr-3" />
+                      <span className="font-medium">Thành viên nhóm</span>
                     </div>
-                  ) : (
-                    <div className="text-sm text-gray-500 text-center py-2">
-                      Chưa có ảnh/video nào
+                    <RightOutlined
+                      className={`text-gray-400 transition-transform ${activeKeys.includes("members") ? "transform rotate-90" : ""}`}
+                    />
+                  </div>
+
+                  {activeKeys.includes("members") && (
+                    <div className="p-4 border-t border-gray-100">
+                      <div className="flex items-center mb-4">
+                        <TeamOutlined className="text-gray-500 mr-2" />
+                        <span
+                          className="cursor-pointer hover:text-blue-500"
+                          onClick={handleShowMembers}>
+                          <i className="far fa-user mr-1" />
+                          <span>
+                            {groupMembers.length} {t.members || "thành viên"}
+                          </span>
+                        </span>
+                      </div>
+
+                      <div className="mb-4">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium">
+                            Link tham gia nhóm
+                          </span>
+                        </div>
+                        <div className="flex items-center mt-2 p-2 bg-gray-50 rounded">
+                          <span className="text-blue-500 flex-1 truncate">
+                            {groupLink}
+                          </span>
+                          <Button
+                            type="text"
+                            icon={<CopyOutlined />}
+                            onClick={handleCopyGroupLink}
+                            className="text-gray-500 hover:text-blue-500"
+                          />
+                          <Button
+                            type="text"
+                            icon={<ShareAltOutlined />}
+                            onClick={handleShareGroupLink}
+                            className="text-gray-500 hover:text-blue-500"
+                          />
+                        </div>
+                      </div>
                     </div>
                   )}
+                </div>
+              ) : (
+                // Mutual Groups Section for Individual Chats
+                <div className="px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <TeamOutlined className="text-gray-500 mr-3" />
+                      <span>{mutualGroups} nhóm chung</span>
+                    </div>
+                  </div>
+                </div>
+              )}
 
-                  {sharedMedia.length > 0 && (
-                    <div
-                      className="flex justify-center items-center mt-3 py-2 bg-gray-100 rounded cursor-pointer hover:bg-gray-200"
-                      onClick={() => handleShowMediaGallery("media")}>
-                      <span>Xem tất cả</span>
+              {/* Group Board Section - Only for Groups */}
+              {isGroup && (
+                <div className="border-b border-gray-100">
+                  <div
+                    className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-gray-50"
+                    onClick={() =>
+                      setActiveKeys((prev) =>
+                        prev.includes("board")
+                          ? prev.filter((k) => k !== "board")
+                          : [...prev, "board"]
+                      )
+                    }>
+                    <div className="flex items-center">
+                      <FileTextOutlined className="text-gray-500 mr-3" />
+                      <span className="font-medium">Bảng tin nhóm</span>
+                    </div>
+                    <RightOutlined
+                      className={`text-gray-400 transition-transform ${activeKeys.includes("board") ? "transform rotate-90" : ""}`}
+                    />
+                  </div>
+
+                  {activeKeys.includes("board") && (
+                    <div className="p-4 border-t border-gray-100 space-y-3">
+                      <div className="flex items-center justify-between py-2 px-3 bg-gray-50 rounded cursor-pointer">
+                        <div className="flex items-center">
+                          <ClockCircleOutlined className="text-gray-500 mr-2" />
+                          <span>Danh sách nhắc hẹn</span>
+                        </div>
+                        <RightOutlined className="text-gray-400" />
+                      </div>
+
+                      <div className="flex items-center justify-between py-2 px-3 bg-gray-50 rounded cursor-pointer">
+                        <div className="flex items-center">
+                          <FileTextOutlined className="text-gray-500 mr-2" />
+                          <span>Ghi chú, ghim, bình chọn</span>
+                        </div>
+                        <RightOutlined className="text-gray-400" />
+                      </div>
                     </div>
                   )}
                 </div>
               )}
-            </div>
 
-            {/* File Section - Update to use downloadUrl */}
-            <div className="border-b border-gray-100">
-              <div
-                className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-gray-50"
-                onClick={() =>
-                  setActiveKeys((prev) =>
-                    prev.includes("files")
-                      ? prev.filter((k) => k !== "files")
-                      : [...prev, "files"]
-                  )
-                }>
-                <div className="flex items-center">
-                  <FileOutlined className="text-gray-500 mr-3" />
-                  <span className="font-medium">File</span>
+              {/* Reminders - Only for Individual Chats */}
+              {!isGroup && (
+                <div className="px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <ClockCircleOutlined className="text-gray-500 mr-3" />
+                      <span>Danh sách nhắc hẹn</span>
+                    </div>
+                  </div>
                 </div>
-                <RightOutlined
-                  className={`text-gray-400 transition-transform ${activeKeys.includes("files") ? "transform rotate-90" : ""}`}
-                />
-              </div>
+              )}
 
-              {activeKeys.includes("files") && (
-                <div className="p-4 border-t border-gray-100">
-                  {sharedFiles.length > 0 ? (
-                    <div className="space-y-3">
-                      {sharedFiles.map((file, index) => {
-                        // Determine file type icon and background color
-                        let FileIcon = FileOutlined;
-                        let bgColor = "bg-blue-500";
+              {/* Media Section - Update to use downloadUrl */}
+              <div className="border-b border-gray-100">
+                <div
+                  className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-gray-50"
+                  onClick={() =>
+                    setActiveKeys((prev) =>
+                      prev.includes("media")
+                        ? prev.filter((k) => k !== "media")
+                        : [...prev, "media"]
+                    )
+                  }>
+                  <div className="flex items-center">
+                    <FileImageOutlined className="text-gray-500 mr-3" />
+                    <span className="font-medium">Ảnh/Video</span>
+                  </div>
+                  <RightOutlined
+                    className={`text-gray-400 transition-transform ${activeKeys.includes("media") ? "transform rotate-90" : ""}`}
+                  />
+                </div>
 
-                        if (file.name) {
-                          const ext = file.name.split(".").pop()?.toLowerCase();
-                          if (ext === "json") {
-                            bgColor = "bg-blue-400";
-                          } else if (ext === "env") {
-                            bgColor = "bg-cyan-400";
-                          } else if (
-                            ["jpg", "png", "gif", "jpeg"].includes(ext || "")
-                          ) {
-                            FileIcon = FileImageOutlined;
-                            bgColor = "bg-purple-400";
-                          } else if (
-                            ["mp4", "avi", "mov"].includes(ext || "")
-                          ) {
-                            bgColor = "bg-red-400";
-                          } else if (["zip", "rar", "7z"].includes(ext || "")) {
-                            bgColor = "bg-yellow-500";
-                          } else if (
-                            ["docx", "doc", "pdf"].includes(ext || "")
-                          ) {
-                            bgColor = "bg-blue-600";
-                          }
-                        }
-
-                        // Format date - không sử dụng padStart để tránh số 0 phía trước
-                        let formattedDate = "";
-                        if (file.createdAt) {
-                          const fileDate = new Date(file.createdAt);
-                          const today = new Date();
-                          const yesterday = new Date();
-                          yesterday.setDate(yesterday.getDate() - 1);
-
-                          // Format thời gian
-                          const hours = fileDate.getHours();
-                          const minutes =
-                            fileDate.getMinutes() < 10
-                              ? "0" + fileDate.getMinutes()
-                              : fileDate.getMinutes();
-                          const timeString = `${hours}:${minutes}`;
-
-                          // Định dạng ngày
-                          if (
-                            fileDate.toDateString() === today.toDateString()
-                          ) {
-                            formattedDate = `Hôm nay, ${timeString}`;
-                          } else if (
-                            fileDate.toDateString() === yesterday.toDateString()
-                          ) {
-                            formattedDate = `Hôm qua, ${timeString}`;
-                          } else if (
-                            fileDate.getFullYear() === today.getFullYear()
-                          ) {
-                            const day = fileDate.getDate();
-                            const month = fileDate.getMonth() + 1;
-                            formattedDate = `${day}/${month}`;
-                          } else {
-                            const day = fileDate.getDate();
-                            const month = fileDate.getMonth() + 1;
-                            formattedDate = `${day}/${month}/${fileDate.getFullYear()}`;
-                          }
-                        }
-
-                        return (
+                {activeKeys.includes("media") && (
+                  <div className="p-4 border-t border-gray-100">
+                    {sharedMedia.length > 0 ? (
+                      <div className="grid grid-cols-3 gap-2">
+                        {sharedMedia.slice(0, 6).map((item, index) => (
                           <div
-                            key={`file-${index}`}
-                            className="flex items-center justify-between py-2">
-                            <div className="flex items-center">
-                              <div
-                                className={`w-10 h-10 rounded flex items-center justify-center text-white ${bgColor} mr-3`}>
-                                <span className="text-xs font-bold uppercase">
-                                  {file.name?.split(".").pop() || "FILE"}
-                                </span>
-                              </div>
-                              <div>
-                                <div className="font-medium">{file.name}</div>
-                                <div className="flex items-center text-xs text-gray-500">
-                                  <span>
-                                    {file.size
-                                      ? `${Math.round(file.size / 1024)} KB`
-                                      : ""}
-                                  </span>
-                                  {file.size && <span className="mx-1">•</span>}
-                                  <span>{formattedDate}</span>
+                            key={`media-${index}`}
+                            className="aspect-square bg-gray-100 rounded overflow-hidden relative cursor-pointer border border-gray-200"
+                            onClick={() => {
+                              const mediaType = item.type?.startsWith("image")
+                                ? "image"
+                                : "video";
+                              handleMediaPreview(item, mediaType, index);
+                            }}>
+                            {item.type && item.type.startsWith("image") ? (
+                              <img
+                                src={item.url}
+                                alt={item.name || `Image ${index}`}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : item.type && item.type.startsWith("video") ? (
+                              <div className="absolute inset-0 flex items-center justify-center">
+                                {/* Nếu có thumbnailUrl thì hiển thị thumbnail */}
+                                {item.thumbnailUrl ? (
+                                  <>
+                                    <img
+                                      src={item.thumbnailUrl}
+                                      alt={item.name || "Video"}
+                                      className="w-full h-full object-cover absolute inset-0"
+                                    />
+                                    <div className="absolute inset-0 bg-black opacity-30"></div>
+                                  </>
+                                ) : (
+                                  <div className="absolute inset-0 bg-black opacity-70"></div>
+                                )}
+
+                                {/* Icon play video */}
+                                <div className="z-10 text-white bg-black bg-opacity-50 rounded-full p-2">
+                                  <PlayCircleOutlined className="text-3xl" />
+                                </div>
+
+                                {/* Hiển thị nhãn video ở góc dưới */}
+                                <div className="absolute bottom-1 right-2 bg-black bg-opacity-70 text-white text-xs px-1 rounded">
+                                  Video
                                 </div>
                               </div>
+                            ) : (
+                              <div className="aspect-square bg-gray-200 rounded overflow-hidden relative">
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                  <FileImageOutlined className="text-gray-500 text-xl" />
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-sm text-gray-500 text-center py-2">
+                        Chưa có ảnh/video nào
+                      </div>
+                    )}
+
+                    {sharedMedia.length > 0 && (
+                      <div
+                        className="flex justify-center items-center mt-3 py-2 bg-gray-100 rounded cursor-pointer hover:bg-gray-200"
+                        onClick={() => handleShowMediaGallery("media")}>
+                        <span>Xem tất cả</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* File Section - Update to use downloadUrl */}
+              <div className="border-b border-gray-100">
+                <div
+                  className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-gray-50"
+                  onClick={() =>
+                    setActiveKeys((prev) =>
+                      prev.includes("files")
+                        ? prev.filter((k) => k !== "files")
+                        : [...prev, "files"]
+                    )
+                  }>
+                  <div className="flex items-center">
+                    <FileOutlined className="text-gray-500 mr-3" />
+                    <span className="font-medium">File</span>
+                  </div>
+                  <RightOutlined
+                    className={`text-gray-400 transition-transform ${activeKeys.includes("files") ? "transform rotate-90" : ""}`}
+                  />
+                </div>
+
+                {activeKeys.includes("files") && (
+                  <div className="p-4 border-t border-gray-100">
+                    {sharedFiles.length > 0 ? (
+                      <div className="space-y-3">
+                        {sharedFiles.map((file, index) => {
+                          // Determine file type icon and background color
+                          let FileIcon = FileOutlined;
+                          let bgColor = "bg-blue-500";
+
+                          if (file.name) {
+                            const ext = file.name
+                              .split(".")
+                              .pop()
+                              ?.toLowerCase();
+                            if (ext === "json") {
+                              bgColor = "bg-blue-400";
+                            } else if (ext === "env") {
+                              bgColor = "bg-cyan-400";
+                            } else if (
+                              ["jpg", "png", "gif", "jpeg"].includes(ext || "")
+                            ) {
+                              FileIcon = FileImageOutlined;
+                              bgColor = "bg-purple-400";
+                            } else if (
+                              ["mp4", "avi", "mov"].includes(ext || "")
+                            ) {
+                              bgColor = "bg-red-400";
+                            } else if (
+                              ["zip", "rar", "7z"].includes(ext || "")
+                            ) {
+                              bgColor = "bg-yellow-500";
+                            } else if (
+                              ["docx", "doc", "pdf"].includes(ext || "")
+                            ) {
+                              bgColor = "bg-blue-600";
+                            }
+                          }
+
+                          // Format date - không sử dụng padStart để tránh số 0 phía trước
+                          let formattedDate = "";
+                          if (file.createdAt) {
+                            const fileDate = new Date(file.createdAt);
+                            const today = new Date();
+                            const yesterday = new Date();
+                            yesterday.setDate(yesterday.getDate() - 1);
+
+                            // Format thời gian
+                            const hours = fileDate.getHours();
+                            const minutes =
+                              fileDate.getMinutes() < 10
+                                ? "0" + fileDate.getMinutes()
+                                : fileDate.getMinutes();
+                            const timeString = `${hours}:${minutes}`;
+
+                            // Định dạng ngày
+                            if (
+                              fileDate.toDateString() === today.toDateString()
+                            ) {
+                              formattedDate = `Hôm nay, ${timeString}`;
+                            } else if (
+                              fileDate.toDateString() ===
+                              yesterday.toDateString()
+                            ) {
+                              formattedDate = `Hôm qua, ${timeString}`;
+                            } else if (
+                              fileDate.getFullYear() === today.getFullYear()
+                            ) {
+                              const day = fileDate.getDate();
+                              const month = fileDate.getMonth() + 1;
+                              formattedDate = `${day}/${month}`;
+                            } else {
+                              const day = fileDate.getDate();
+                              const month = fileDate.getMonth() + 1;
+                              formattedDate = `${day}/${month}/${fileDate.getFullYear()}`;
+                            }
+                          }
+
+                          return (
+                            <div
+                              key={`file-${index}`}
+                              className="flex items-center justify-between py-2">
+                              <div className="flex items-center">
+                                <div
+                                  className={`w-10 h-10 rounded flex items-center justify-center text-white ${bgColor} mr-3`}>
+                                  <span className="text-xs font-bold uppercase">
+                                    {file.name?.split(".").pop() || "FILE"}
+                                  </span>
+                                </div>
+                                <div>
+                                  <div className="font-medium">{file.name}</div>
+                                  <div className="flex items-center text-xs text-gray-500">
+                                    <span>
+                                      {file.size
+                                        ? `${Math.round(file.size / 1024)} KB`
+                                        : ""}
+                                    </span>
+                                    {file.size && (
+                                      <span className="mx-1">•</span>
+                                    )}
+                                    <span>{formattedDate}</span>
+                                  </div>
+                                </div>
+                              </div>
+                              <Button
+                                type="link"
+                                className="text-gray-400 hover:text-blue-500"
+                                onClick={() =>
+                                  handleDownloadFile(
+                                    file.url,
+                                    file.downloadUrl,
+                                    file.name
+                                  )
+                                }>
+                                <DownloadOutlined />
+                              </Button>
                             </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="text-sm text-gray-500 text-center py-2">
+                        {isGroup
+                          ? "Chưa có file nào"
+                          : "Chưa có File được chia sẻ từ sau 10/3/2025"}
+                      </div>
+                    )}
+
+                    {sharedFiles.length > 0 && (
+                      <div
+                        className="flex justify-center items-center mt-3 py-2 bg-gray-100 rounded cursor-pointer hover:bg-gray-200"
+                        onClick={() => handleShowMediaGallery("files")}>
+                        <span>Xem tất cả</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Link Section */}
+              <div
+                className="cursor-pointer hover:bg-gray-50"
+                onClick={() =>
+                  setActiveKeys((prev) =>
+                    prev.includes("links")
+                      ? prev.filter((k) => k !== "links")
+                      : [...prev, "links"]
+                  )
+                }>
+                <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+                  <div className="flex items-center">
+                    <LinkOutlined className="text-gray-500 mr-3" />
+                    <span>Link</span>
+                  </div>
+                  <RightOutlined
+                    className={`text-gray-400 transition-transform ${activeKeys.includes("links") ? "transform rotate-90" : ""}`}
+                  />
+                </div>
+                {activeKeys.includes("links") && (
+                  <div className="p-4 border-b border-gray-100 bg-gray-50">
+                    {sharedLinks.length > 0 ? (
+                      <div className="space-y-3">
+                        {/* Mock links - in real implementation, these would come from the API */}
+                        <div className="flex items-center justify-between p-2 bg-white rounded">
+                          <div className="flex items-center">
+                            <LinkOutlined className="text-blue-500 mr-2" />
+                            <div>
+                              <div className="font-medium truncate w-52">
+                                {isGroup
+                                  ? "render.com"
+                                  : "3e9a-2401-d800-a0e-6d-4873-72e5-6f11-a9e1.ngrok-free.app"}
+                              </div>
+                              <div className="text-xs text-gray-500">19/04</div>
+                            </div>
+                          </div>
+                          <div className="flex space-x-1">
                             <Button
-                              type="link"
-                              className="text-gray-400 hover:text-blue-500"
-                              onClick={() =>
-                                handleDownloadFile(
-                                  file.url,
-                                  file.downloadUrl,
-                                  file.name
-                                )
-                              }>
-                              <DownloadOutlined />
-                            </Button>
+                              type="text"
+                              icon={<ShareAltOutlined />}
+                              size="small"
+                            />
                           </div>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <div className="text-sm text-gray-500 text-center py-2">
-                      {isGroup
-                        ? "Chưa có file nào"
-                        : "Chưa có File được chia sẻ từ sau 10/3/2025"}
-                    </div>
-                  )}
-
-                  {sharedFiles.length > 0 && (
-                    <div
-                      className="flex justify-center items-center mt-3 py-2 bg-gray-100 rounded cursor-pointer hover:bg-gray-200"
-                      onClick={() => handleShowMediaGallery("files")}>
-                      <span>Xem tất cả</span>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Link Section */}
-            <div
-              className="cursor-pointer hover:bg-gray-50"
-              onClick={() =>
-                setActiveKeys((prev) =>
-                  prev.includes("links")
-                    ? prev.filter((k) => k !== "links")
-                    : [...prev, "links"]
-                )
-              }>
-              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-                <div className="flex items-center">
-                  <LinkOutlined className="text-gray-500 mr-3" />
-                  <span>Link</span>
-                </div>
-                <RightOutlined
-                  className={`text-gray-400 transition-transform ${activeKeys.includes("links") ? "transform rotate-90" : ""}`}
-                />
+                        </div>
+                        <div className="flex items-center justify-between p-2 bg-white rounded">
+                          <div className="flex items-center">
+                            <LinkOutlined className="text-blue-500 mr-2" />
+                            <div>
+                              <div className="font-medium truncate w-52">
+                                {isGroup
+                                  ? "socket.io\\dist\\typed-events.js"
+                                  : "raw.githubusercontent.com/.../cursor_win_id_modifier.ps1"}
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                {isGroup ? "16/04" : "18/04"}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex space-x-1">
+                            <Button
+                              type="text"
+                              icon={<ShareAltOutlined />}
+                              size="small"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-sm text-gray-500 text-center py-2">
+                        Chưa có link nào
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
-              {activeKeys.includes("links") && (
-                <div className="p-4 border-b border-gray-100 bg-gray-50">
-                  {sharedLinks.length > 0 ? (
-                    <div className="space-y-3">
-                      {/* Mock links - in real implementation, these would come from the API */}
-                      <div className="flex items-center justify-between p-2 bg-white rounded">
-                        <div className="flex items-center">
-                          <LinkOutlined className="text-blue-500 mr-2" />
-                          <div>
-                            <div className="font-medium truncate w-52">
-                              {isGroup
-                                ? "render.com"
-                                : "3e9a-2401-d800-a0e-6d-4873-72e5-6f11-a9e1.ngrok-free.app"}
-                            </div>
-                            <div className="text-xs text-gray-500">19/04</div>
-                          </div>
-                        </div>
-                        <div className="flex space-x-1">
-                          <Button
-                            type="text"
-                            icon={<ShareAltOutlined />}
-                            size="small"
-                          />
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between p-2 bg-white rounded">
-                        <div className="flex items-center">
-                          <LinkOutlined className="text-blue-500 mr-2" />
-                          <div>
-                            <div className="font-medium truncate w-52">
-                              {isGroup
-                                ? "socket.io\\dist\\typed-events.js"
-                                : "raw.githubusercontent.com/.../cursor_win_id_modifier.ps1"}
-                            </div>
-                            <div className="text-xs text-gray-500">
-                              {isGroup ? "16/04" : "18/04"}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex space-x-1">
-                          <Button
-                            type="text"
-                            icon={<ShareAltOutlined />}
-                            size="small"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="text-sm text-gray-500 text-center py-2">
-                      Chưa có link nào
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
 
-            {/* Thiết lập bảo mật section */}
-            <div
-              className="cursor-pointer hover:bg-gray-50"
-              onClick={() =>
-                setActiveKeys((prev) =>
-                  prev.includes("security")
-                    ? prev.filter((k) => k !== "security")
-                    : [...prev, "security"]
-                )
-              }>
-              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-                <div className="flex items-center">
-                  <EyeInvisibleOutlined className="text-gray-500 mr-3" />
-                  <span>Thiết lập bảo mật</span>
+              {/* Thiết lập bảo mật section */}
+              <div
+                className="cursor-pointer hover:bg-gray-50"
+                onClick={() =>
+                  setActiveKeys((prev) =>
+                    prev.includes("security")
+                      ? prev.filter((k) => k !== "security")
+                      : [...prev, "security"]
+                  )
+                }>
+                <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+                  <div className="flex items-center">
+                    <EyeInvisibleOutlined className="text-gray-500 mr-3" />
+                    <span>Thiết lập bảo mật</span>
+                  </div>
+                  <RightOutlined
+                    className={`text-gray-400 transition-transform ${activeKeys.includes("security") ? "transform rotate-90" : ""}`}
+                  />
                 </div>
-                <RightOutlined
-                  className={`text-gray-400 transition-transform ${activeKeys.includes("security") ? "transform rotate-90" : ""}`}
-                />
-              </div>
-              {activeKeys.includes("security") && (
-                <div className="p-4 border-b border-gray-100 bg-gray-50">
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="font-medium">Tin nhắn tự xóa</p>
-                        <p className="text-sm text-gray-500">Không bao giờ</p>
+                {activeKeys.includes("security") && (
+                  <div className="p-4 border-b border-gray-100 bg-gray-50">
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-medium">Tin nhắn tự xóa</p>
+                          <p className="text-sm text-gray-500">Không bao giờ</p>
+                        </div>
+                        <Switch checked={false} size="small" />
                       </div>
-                      <Switch checked={false} size="small" />
-                    </div>
 
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="font-medium">Ẩn trò chuyện</p>
-                        <p className="text-sm text-gray-500">
-                          Yêu cầu mật khẩu để xem
-                        </p>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-medium">Ẩn trò chuyện</p>
+                          <p className="text-sm text-gray-500">
+                            Yêu cầu mật khẩu để xem
+                          </p>
+                        </div>
+                        <Switch
+                          checked={isHidden}
+                          onChange={handleToggleHidden}
+                          size="small"
+                        />
                       </div>
-                      <Switch
-                        checked={isHidden}
-                        onChange={handleToggleHidden}
-                        size="small"
-                      />
                     </div>
                   </div>
-                </div>
-              )}
-            </div>
+                )}
+              </div>
 
-            {/* Report and Delete Section */}
-            <div className="mt-2">
-              <div className="flex items-center text-red-500 px-4 py-3 cursor-pointer hover:bg-gray-50">
-                <WarningOutlined className="mr-3" />
-                <span>Báo xấu</span>
-              </div>
-              <div
-                className="flex items-center text-red-500 px-4 py-3 cursor-pointer hover:bg-gray-50"
-                onClick={handleDeleteChat}>
-                <DeleteOutlined className="mr-3" />
-                <span>Xóa lịch sử trò chuyện</span>
-              </div>
-              {isGroup && (
+              {/* Report and Delete Section */}
+              <div className="mt-2">
+                <div className="flex items-center text-red-500 px-4 py-3 cursor-pointer hover:bg-gray-50">
+                  <WarningOutlined className="mr-3" />
+                  <span>Báo xấu</span>
+                </div>
                 <div
                   className="flex items-center text-red-500 px-4 py-3 cursor-pointer hover:bg-gray-50"
-                  onClick={handleLeaveGroup}>
-                  <LogoutOutlined className="mr-3" />
-                  <span>Rời nhóm</span>
+                  onClick={handleDeleteChat}>
+                  <DeleteOutlined className="mr-3" />
+                  <span>Xóa lịch sử trò chuyện</span>
                 </div>
-              )}
-            </div>
-          </>
-        )}
+                {isGroup && (
+                  <div
+                    className="flex items-center text-red-500 px-4 py-3 cursor-pointer hover:bg-gray-50"
+                    onClick={handleLeaveGroup}>
+                    <LogoutOutlined className="mr-3" />
+                    <span>Rời nhóm</span>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Modal xem trước ảnh/video */}
@@ -1580,7 +1612,7 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
           conversation={conversation}
           userAvatars={userAvatars}
           members={groupMembers}
-          onLeaveGroup={onLeaveGroup}
+          onLeaveGroup={handleLeaveGroup}
           refreshConversationData={refreshConversationData}
         />
       )}
@@ -1595,7 +1627,17 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ conversation, onLeaveGroup }) => {
           refreshConversationData={refreshConversationData}
         />
       )}
-    </div>
+
+      {/* AddGroupModal */}
+      {showAddGroupModal && (
+        <AddGroupModal
+          visible={showAddGroupModal}
+          onClose={handleCloseAddGroupModal}
+          onSelectConversation={onSelectConversation}
+          preSelectedMembers={isGroup ? groupMembers : [otherUserId]}
+        />
+      )}
+    </>
   );
 };
 
