@@ -191,6 +191,7 @@ const translations = {
     group_call: "Cuộc gọi nhóm",
     no_group_invites: "Không có lời mời vào nhóm và cộng đồng",
     when_to_receive_group_invites: "Khi nào tôi nhận được lời mời?",
+    no_avatar: "Chưa có ảnh",
   },
   en: {
     settings: "Settings",
@@ -381,6 +382,7 @@ const translations = {
     group_call: "Group Call",
     no_group_invites: "No group invites yet",
     when_to_receive_group_invites: "When will I receive group invites?",
+    no_avatar: "No Avatar",
   },
 };
 

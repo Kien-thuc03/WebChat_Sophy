@@ -281,11 +281,8 @@ const GroupModal: React.FC<GroupModalProps> = ({
       );
 
       if (result && result.conversation) {
-        message.success({
-          content: "Cập nhật ảnh đại diện thành công",
-          key,
-          duration: 2,
-        });
+        // Xóa thông báo loading
+        message.destroy(key);
 
         // Cập nhật state conversation
         const updatedConversation = {
