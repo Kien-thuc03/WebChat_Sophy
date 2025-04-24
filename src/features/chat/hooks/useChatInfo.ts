@@ -74,13 +74,11 @@ export const useChatInfo = () => {
     setError(null);
     
     try {
-      console.log('Setting co-owners:', { conversationId, coOwnerIds });
       const response = await setCoOwner(conversationId, coOwnerIds);
       setLoading(false);
       
       // Ensure we have a valid conversation object
       if (response && response.conversation) {
-        console.log('Response data:', response.conversation);
         return response.conversation;
       } else {
         setError('Invalid response format');
@@ -127,7 +125,6 @@ export const useChatInfo = () => {
     // Add the new co-owner if not already in the list
     if (!currentCoOwnerIds.includes(newCoOwnerId)) {
       const updatedCoOwnerIds = [...currentCoOwnerIds, newCoOwnerId];
-      console.log('Adding co-owner:', newCoOwnerId, 'Updated list:', updatedCoOwnerIds);
       return await setCoOwners(conversationId, updatedCoOwnerIds);
     }
     return null;
@@ -143,13 +140,11 @@ export const useChatInfo = () => {
     setError(null);
     
     try {
-      console.log('Transferring ownership:', { conversationId, newOwnerId });
       const response = await setOwner(conversationId, newOwnerId);
       setLoading(false);
       
       // Ensure we have a valid conversation object
       if (response && response.conversation) {
-        console.log('Response data after transfer:', response.conversation);
         return response.conversation;
       } else {
         setError('Invalid response format');
@@ -182,13 +177,11 @@ export const useChatInfo = () => {
     setError(null);
     
     try {
-      console.log('Removing co-owner directly:', { conversationId, coOwnerId });
       const response = await removeCoOwnerById(conversationId, coOwnerId);
       setLoading(false);
       
       // Ensure we have a valid conversation object
       if (response && response.conversation) {
-        console.log('Response after removing co-owner:', response.conversation);
         return response.conversation;
       } else {
         setError('Invalid response format');
@@ -220,13 +213,11 @@ export const useChatInfo = () => {
     setError(null);
     
     try {
-      console.log('Deleting group conversation:', { conversationId });
       const response = await deleteGroup(conversationId);
       setLoading(false);
       
       // Ensure we have a valid conversation object
       if (response && response.conversation) {
-        console.log('Response after deleting group:', response.conversation);
         return response.conversation;
       } else {
         setError('Invalid response format');
@@ -258,13 +249,11 @@ export const useChatInfo = () => {
     setError(null);
     
     try {
-      console.log('Leaving group conversation:', { conversationId });
       const response = await leaveGroup(conversationId);
       setLoading(false);
       
       // Ensure we have a valid conversation object
       if (response && response.conversation) {
-        console.log('Response after leaving group:', response.conversation);
         
         // Dọn dẹp mọi cache hoặc state cục bộ để đảm bảo không còn hiển thị
         // Ví dụ: Nếu có state cache lưu conversation ở đây, hãy xóa nó
@@ -302,14 +291,12 @@ export const useChatInfo = () => {
     try {
       // Get conversation details which should include shared media
       const conversationData = await getConversationDetail(conversationId) as DetailedConversation;
-      console.log('Conversation data for media:', conversationData);
       
       // Process shared media from the response
       let media: MediaItem[] = [];
       
       // Check if the conversation has media in listImage
       if (conversationData?.listImage && Array.isArray(conversationData.listImage)) {
-        console.log('Processing listImage:', conversationData.listImage);
         
         // Map each item to the correct MediaItem format
         media = conversationData.listImage.map((item: any) => {
@@ -326,9 +313,6 @@ export const useChatInfo = () => {
               size: 0,
             };
           }
-          
-          // Log the item for debugging
-          console.log('Processing media item:', item);
           
           // Extract the urls
           const itemUrl = item.url || '';
@@ -365,7 +349,6 @@ export const useChatInfo = () => {
       
       // Now check if there are any video files in listFile that should be shown in media
       if (conversationData?.listFile && Array.isArray(conversationData.listFile)) {
-        console.log('Checking listFile for videos:', conversationData.listFile);
         
         // Define the interface for items in listFile
         interface FileListItem {
@@ -427,7 +410,6 @@ export const useChatInfo = () => {
         
         // Add video files to media if they're not already included
         if (videoFiles.length > 0) {
-          console.log('Found video files in listFile:', videoFiles);
           
           // Combine with existing media, avoiding duplicates by url
           const mediaUrls = new Set(media.map(m => m.url));
@@ -438,8 +420,7 @@ export const useChatInfo = () => {
       }
       
       // No mock data generation - we only want real data from the API
-      
-      console.log('Final processed media items:', media);
+
       setMediaItems(media);
       setLoading(false);
       return media;
@@ -470,14 +451,12 @@ export const useChatInfo = () => {
     try {
       // Get conversation details which should include shared files
       const conversationData = await getConversationDetail(conversationId) as DetailedConversation;
-      console.log('Conversation data for files:', conversationData);
       
       // Process shared files from the response
       let files: FileItem[] = [];
       
       // Check if the conversation has files in listFile
       if (conversationData?.listFile && Array.isArray(conversationData.listFile)) {
-        console.log('Processing listFile:', conversationData.listFile);
         
         // Map each item to the correct FileItem format
         files = conversationData.listFile.map((item: any) => {
@@ -527,7 +506,6 @@ export const useChatInfo = () => {
       
       // No mock data generation - we only want real data from the API
       
-      console.log('Processed file items:', files);
       setFileItems(files);
       setLoading(false);
       return files;
@@ -593,12 +571,10 @@ export const useChatInfo = () => {
     setError(null);
     
     try {
-      console.log('Removing user from group:', { conversationId, userId });
       const response = await removeUserFromGroup(conversationId, userId);
       setLoading(false);
       
       if (response && response.message) {
-        console.log('Response after removing member:', response);
         return true;
       } else {
         setError('Invalid response format');
@@ -631,12 +607,10 @@ export const useChatInfo = () => {
     setError(null);
     
     try {
-      console.log('Blocking user from group:', { conversationId, userId });
       const response = await blockUserFromGroup(conversationId, userId);
       setLoading(false);
       
       if (response && response.conversation) {
-        console.log('Response after blocking member:', response);
         return response.conversation;
       } else {
         setError('Invalid response format');
@@ -669,12 +643,10 @@ export const useChatInfo = () => {
     setError(null);
     
     try {
-      console.log('Unblocking user from group:', { conversationId, userId });
       const response = await unblockUserFromGroup(conversationId, userId);
       setLoading(false);
       
       if (response && response.conversation) {
-        console.log('Response after unblocking member:', response);
         return response.conversation;
       } else {
         setError('Invalid response format');

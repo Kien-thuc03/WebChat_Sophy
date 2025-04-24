@@ -1,17 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Button, Empty, Input, Modal, App } from 'antd';
 import { 
   LeftOutlined,
-  UserAddOutlined,
   SearchOutlined,
-  CloseCircleOutlined
 } from '@ant-design/icons';
 import { Avatar } from '../../common/Avatar';
 import { User } from "../../../features/auth/types/authTypes";
 import { Conversation } from '../../../features/chat/types/conversationTypes';
 import { getUserById, getConversationDetail } from "../../../api/API";
-import UserInfoHeaderModal from '../../header/modal/UserInfoHeaderModal';
 import { useNavigate } from 'react-router-dom';
+import { useConversationContext } from '../../../features/chat/context/ConversationContext';
+import socketService from "../../../services/socketService";
 
 interface BlockedMembersListProps {
   conversation: Conversation;
@@ -33,6 +32,9 @@ interface BlockMemberModalProps {
   localUserCache: Record<string, User>;
   userAvatars: Record<string, string>;
   blockedMembers: string[];
+  userRole: 'owner' | 'co-owner' | 'member';
+  ownerId?: string;
+  coOwnerIds?: string[];
 }
 
 // Modal component for blocking members
@@ -44,12 +46,36 @@ const BlockMemberModal: React.FC<BlockMemberModalProps> = ({
   userCache,
   localUserCache,
   userAvatars,
-  blockedMembers
+  blockedMembers,
+  userRole,
+  ownerId,
+  coOwnerIds = []
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   
-  // Filter members who are not already blocked
-  const filteredMembers = members.filter(
+  // Filter members based on user role
+  const eligibleMembers = useMemo(() => {
+    // If owner, can block anyone except self
+    if (userRole === 'owner') {
+      const userId = localStorage.getItem("userId") || '';
+      return members.filter(memberId => memberId !== userId);
+    }
+    
+    // If co-owner, can only block regular members (not owner or other co-owners)
+    if (userRole === 'co-owner') {
+      return members.filter(
+        memberId => 
+          memberId !== ownerId && 
+          !coOwnerIds.includes(memberId)
+      );
+    }
+    
+    // Regular members can't block anyone
+    return [];
+  }, [members, userRole, ownerId, coOwnerIds]);
+  
+  // Filter members who are not already blocked and match search term
+  const filteredMembers = eligibleMembers.filter(
     memberId => !blockedMembers.includes(memberId) && 
     (userCache[memberId]?.fullname?.toLowerCase().includes(searchTerm.toLowerCase()) ||
      localUserCache[memberId]?.fullname?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -127,62 +153,21 @@ const BlockedMembersList: React.FC<BlockedMembersListProps> = ({
   const [isBlockModalVisible, setIsBlockModalVisible] = useState(false);
   const { message, modal } = App.useApp();
   const navigate = useNavigate();
+  
+  // Access the ConversationContext to update conversation data
+  const { refreshConversations } = useConversationContext();
 
   // Get blocked members list
   const blockedMembers = conversation.blocked || [];
   const groupMembers = conversation.groupMembers || [];
   const formerMembers = conversation.formerMembers || [];
+  
+  // Get owner and co-owner IDs from conversation rules
+  const ownerId = conversation.rules?.ownerId;
+  const coOwnerIds = conversation.rules?.coOwnerIds || [];
 
   // Determine if user has permission to manage blocks
   const canManageBlocks = userRole === 'owner' || userRole === 'co-owner';
-
-  // Function to refresh conversation data from API
-  const refreshConversationData = async () => {
-    if (!conversation.conversationId) return;
-
-    try {
-      setIsRefreshing(true);
-      const updatedConversation = await getConversationDetail(conversation.conversationId);
-      
-      if (updatedConversation) {
-        setConversation(updatedConversation);
-      }
-    } catch (err) {
-      console.error('Error refreshing conversation data:', err);
-    } finally {
-      setIsRefreshing(false);
-    }
-  };
-
-  // Update conversation when the prop changes
-  useEffect(() => {
-    setConversation(initialConversation);
-  }, [initialConversation]);
-
-  // Load user data for blocked members not in cache
-  useEffect(() => {
-    const loadMissingUsers = async () => {
-      const allUserIds = [...blockedMembers, ...formerMembers];
-      
-      for (const userId of allUserIds) {
-        if (!userCache[userId] && !localUserCache[userId]) {
-          try {
-            const userData = await getUserById(userId);
-            if (userData) {
-              setLocalUserCache(prev => ({
-                ...prev,
-                [userId]: userData
-              }));
-            }
-          } catch (error) {
-            console.error(`Failed to load data for user ${userId}:`, error);
-          }
-        }
-      }
-    };
-    
-    loadMissingUsers();
-  }, [blockedMembers, formerMembers, userCache, localUserCache]);
 
   // Handle blocking a member
   const handleBlockMember = async (userId: string) => {
@@ -190,6 +175,7 @@ const BlockedMembersList: React.FC<BlockedMembersListProps> = ({
     
     try {
       message.loading({ content: 'Đang thêm vào danh sách chặn...', key: 'block-member' });
+      
       const result = await blockMember(conversation.conversationId, userId);
       
       if (result) {
@@ -200,6 +186,18 @@ const BlockedMembersList: React.FC<BlockedMembersListProps> = ({
         // Call the callback to update parent component
         if (onConversationUpdate) {
           onConversationUpdate(result);
+        }
+        
+        // Emit socket event với sự kiện userBlocked cụ thể thay vì force_refresh
+        try {
+          socketService.emit("userBlocked", {
+            conversationId: result.conversationId,
+            blockedUserId: userId,
+            fromCurrentUser: true
+          });
+        } catch (socketErr) {
+          // Fallback sang refresh thông thường nếu socket fails
+          refreshConversations();
         }
       } else {
         message.error({ content: 'Không thể chặn thành viên', key: 'block-member', duration: 2 });
@@ -239,6 +237,18 @@ const BlockedMembersList: React.FC<BlockedMembersListProps> = ({
             if (onConversationUpdate) {
               onConversationUpdate(result);
             }
+            
+            // Emit socket event với sự kiện userUnblocked cụ thể thay vì force_refresh
+            try {
+              socketService.emit("userUnblocked", {
+                conversationId: result.conversationId,
+                unblockedUserId: userId,
+                fromCurrentUser: true
+              });
+            } catch (socketErr) {
+              // Fallback sang refresh thông thường nếu socket fails
+              refreshConversations();
+            }
           } else {
             message.error({ content: 'Không thể bỏ chặn thành viên', key, duration: 2 });
           }
@@ -254,6 +264,107 @@ const BlockedMembersList: React.FC<BlockedMembersListProps> = ({
       }
     });
   };
+
+  // Update conversation when the prop changes
+  useEffect(() => {
+    setConversation(initialConversation);
+  }, [initialConversation]);
+
+  // Thêm socket listeners cho events userBlocked và userUnblocked
+  useEffect(() => {
+    if (!conversation.conversationId) return;
+
+    // Đăng ký một lần duy nhất cho mỗi loại sự kiện
+    const handleUserBlocked = (data: { conversationId: string, blockedUserId: string, fromCurrentUser?: boolean }) => {
+      if (data.conversationId !== conversation.conversationId) return;
+      
+      // Nếu đây không phải là event từ chính người dùng này thì mới refresh
+      if (!data.fromCurrentUser) {
+        refreshConversationData();
+      }
+    };
+    
+    const handleUserUnblocked = (data: { conversationId: string, unblockedUserId: string, fromCurrentUser?: boolean }) => {
+      if (data.conversationId !== conversation.conversationId) return;
+      
+      // Nếu đây không phải là event từ chính người dùng này thì mới refresh
+      if (!data.fromCurrentUser) {
+        refreshConversationData();
+      }
+    };
+
+    // Đăng ký một lần duy nhất
+    const socket = socketService.socketInstance;
+    if (socket) {
+      socket.on('userBlocked', handleUserBlocked);
+      socket.on('userUnblocked', handleUserUnblocked);
+    }
+
+    // Giảm tần suất polling xuống 30 giây thay vì 10 giây
+    const pollInterval = setInterval(refreshConversationData, 30000);
+
+    return () => {
+      if (socket) {
+        socket.off('userBlocked', handleUserBlocked);
+        socket.off('userUnblocked', handleUserUnblocked);
+      }
+      clearInterval(pollInterval);
+    };
+  }, [conversation.conversationId]);
+
+  // Hàm để refresh dữ liệu cuộc trò chuyện từ server
+  const refreshConversationData = async () => {
+    try {
+      setIsRefreshing(true);
+      if (!conversation.conversationId) return;
+      
+      const updatedConversation = await getConversationDetail(conversation.conversationId);
+      if (updatedConversation) {
+        setConversation(updatedConversation);
+        
+        // Cập nhật parent component nếu cần
+        if (onConversationUpdate) {
+          onConversationUpdate(updatedConversation);
+        }
+      }
+    } catch (error) {
+      message.error('Không thể cập nhật danh sách thành viên bị chặn');
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  // Thêm useEffect để catch khi props thay đổi do cập nhật từ component cha
+  useEffect(() => {
+    if (JSON.stringify(initialConversation.blocked) !== JSON.stringify(conversation.blocked)) {
+      setConversation(initialConversation);
+    }
+  }, [initialConversation.blocked]);
+
+  // Load user data for blocked members not in cache
+  useEffect(() => {
+    const loadMissingUsers = async () => {
+      const allUserIds = [...blockedMembers, ...formerMembers];
+      
+      for (const userId of allUserIds) {
+        if (!userCache[userId] && !localUserCache[userId]) {
+          try {
+            const userData = await getUserById(userId);
+            if (userData) {
+              setLocalUserCache(prev => ({
+                ...prev,
+                [userId]: userData
+              }));
+            }
+          } catch (error) {
+            console.error(`Failed to load data for user ${userId}:`, error);
+          }
+        }
+      }
+    };
+    
+    loadMissingUsers();
+  }, [blockedMembers, formerMembers, userCache, localUserCache]);
 
   return (
     <div className="h-full bg-white">
@@ -346,6 +457,9 @@ const BlockedMembersList: React.FC<BlockedMembersListProps> = ({
         localUserCache={localUserCache}
         userAvatars={userAvatars}
         blockedMembers={blockedMembers}
+        userRole={userRole}
+        ownerId={ownerId}
+        coOwnerIds={coOwnerIds}
       />
     </div>
   );
