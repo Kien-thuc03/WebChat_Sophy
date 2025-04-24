@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Button, Switch, Tooltip, Modal, Input, List , notification } from "antd";
 import {
   ArrowLeftOutlined,
@@ -11,6 +11,7 @@ import {
   DeleteOutlined,
   LockOutlined,
   SearchOutlined,
+  InfoCircleOutlined,
 } from "@ant-design/icons";
 import { Conversation } from "../../../features/chat/types/conversationTypes";
 import { User } from "../../../features/auth/types/authTypes";
@@ -19,6 +20,7 @@ import { useConversations } from "../../../features/chat/hooks/useConversations"
 import { getUserById, getConversationDetail } from "../../../api/API";
 import { Avatar } from "../../common/Avatar";
 import BlockedMembersList from "./BlockedMembersList";
+import socketService from '../../../services/socketService';
 
 interface GroupManagementProps {
   conversation: Conversation;
@@ -80,6 +82,172 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
   // Thêm state cho modal chuyển quyền
   const [isTransferOwnerModalVisible, setIsTransferOwnerModalVisible] = useState(false);
   const [selectedNewOwner, setSelectedNewOwner] = useState<string | null>(null);
+
+  // Modify function to only update state without showing notifications
+  const updateGroupState = useCallback((userId: string, actionType: string) => {
+    // Only log to console, no UI notification
+    console.log(`Group event: ${actionType}`, { userId, conversationId: conversation.conversationId });
+  }, [conversation.conversationId]);
+
+  // Function to get user name from cache or default value
+  const getUserName = useCallback((userId: string): string => {
+    const user = userCache[userId] || localUserCache[userId];
+    return user ? user.fullname : 'Một thành viên';
+  }, [userCache, localUserCache]);
+  
+  // Register socket event handlers
+  useEffect(() => {
+    if (!conversation.conversationId) return;
+    
+    const currentUserId = localStorage.getItem("userId") || "";
+    
+    // Handler for when a user leaves the group
+    const handleUserLeftGroup = (data: { conversationId: string, userId: string }) => {
+      if (data.conversationId !== conversation.conversationId) return;
+      
+      console.log('GroupManagement: User left group:', data);
+      
+      // If current user left, go back
+      if (data.userId === currentUserId) {
+        onBack();
+        return;
+      }
+      
+      // Update the conversation by removing the member
+      setConversation(prev => {
+        return {
+          ...prev,
+          groupMembers: prev.groupMembers?.filter(id => id !== data.userId) || []
+        };
+      });
+      
+      updateGroupState(data.userId, 'userLeftGroup');
+    };
+    
+    // Handler for when a group is deleted
+    const handleGroupDeleted = (data: { conversationId: string }) => {
+      if (data.conversationId !== conversation.conversationId) return;
+      
+      console.log('GroupManagement: Group deleted:', data);
+      
+      // Go back
+      onBack();
+    };
+    
+    // Handler for when co-owners are added
+    const handleGroupCoOwnerAdded = (data: { conversationId: string, newCoOwnerIds: string[] }) => {
+      if (data.conversationId !== conversation.conversationId) return;
+      
+      console.log('GroupManagement: Co-owner added:', data);
+      
+      // Get existing co-owner IDs
+      const existingCoOwnerIds = conversation.rules?.coOwnerIds || [];
+      
+      // Find the new co-owners (those in newCoOwnerIds but not in existingCoOwnerIds)
+      const newCoOwners = data.newCoOwnerIds.filter(id => !existingCoOwnerIds.includes(id));
+      
+      // Update the conversation with the new co-owners
+      setConversation(prev => {
+        if (!prev.rules) return prev;
+        
+        return {
+          ...prev,
+          rules: {
+            ...prev.rules,
+            coOwnerIds: data.newCoOwnerIds
+          }
+        };
+      });
+      
+      // If current user is in the new co-owners list, update role
+      if (data.newCoOwnerIds.includes(currentUserId) && !existingCoOwnerIds.includes(currentUserId)) {
+        setUserRole(UserRole.CO_OWNER);
+      }
+      
+      if (newCoOwners.length > 0) {
+        updateGroupState(newCoOwners[0], 'groupCoOwnerAdded');
+      }
+    };
+    
+    // Handler for when a co-owner is removed
+    const handleGroupCoOwnerRemoved = (data: { conversationId: string, removedCoOwner: string }) => {
+      if (data.conversationId !== conversation.conversationId) return;
+      
+      console.log('GroupManagement: Co-owner removed:', data);
+      
+      // Update the conversation by removing the co-owner
+      setConversation(prev => {
+        if (!prev.rules || !prev.rules.coOwnerIds) return prev;
+        
+        return {
+          ...prev,
+          rules: {
+            ...prev.rules,
+            coOwnerIds: prev.rules.coOwnerIds.filter(id => id !== data.removedCoOwner)
+          }
+        };
+      });
+      
+      // If current user was removed as co-owner, update role
+      if (data.removedCoOwner === currentUserId) {
+        setUserRole(UserRole.MEMBER);
+      }
+      
+      updateGroupState(data.removedCoOwner, 'groupCoOwnerRemoved');
+    };
+    
+    // Handler for when group owner changes
+    const handleGroupOwnerChanged = (data: { conversationId: string, newOwner: string }) => {
+      if (data.conversationId !== conversation.conversationId) return;
+      
+      console.log('GroupManagement: Owner changed:', data);
+      
+      const previousOwner = conversation.rules?.ownerId || '';
+      
+      // Update the conversation with the new owner
+      setConversation(prev => {
+        if (!prev.rules) return prev;
+        
+        return {
+          ...prev,
+          rules: {
+            ...prev.rules,
+            ownerId: data.newOwner,
+            // If the new owner was a co-owner, remove them from co-owners list
+            coOwnerIds: prev.rules.coOwnerIds ? 
+              prev.rules.coOwnerIds.filter(id => id !== data.newOwner) : 
+              []
+          }
+        };
+      });
+      
+      // Update the user role based on the change
+      if (data.newOwner === currentUserId) {
+        setUserRole(UserRole.OWNER);
+      } else if (previousOwner === currentUserId) {
+        // If current user was the previous owner, downgrade to member
+        setUserRole(UserRole.MEMBER);
+      }
+      
+      updateGroupState(data.newOwner, 'groupOwnerChanged');
+    };
+    
+    // Register socket event handlers
+    socketService.on('userLeftGroup', handleUserLeftGroup);
+    socketService.on('groupDeleted', handleGroupDeleted);
+    socketService.on('groupCoOwnerAdded', handleGroupCoOwnerAdded);
+    socketService.on('groupCoOwnerRemoved', handleGroupCoOwnerRemoved);
+    socketService.on('groupOwnerChanged', handleGroupOwnerChanged);
+    
+    // Cleanup function
+    return () => {
+      socketService.off('userLeftGroup', handleUserLeftGroup);
+      socketService.off('groupDeleted', handleGroupDeleted);
+      socketService.off('groupCoOwnerAdded', handleGroupCoOwnerAdded);
+      socketService.off('groupCoOwnerRemoved', handleGroupCoOwnerRemoved);
+      socketService.off('groupOwnerChanged', handleGroupOwnerChanged);
+    };
+  }, [conversation.conversationId, conversation.rules?.ownerId, conversation.rules?.coOwnerIds, updateGroupState, getUserName, onBack]);
 
   // Determine user role when component mounts
   useEffect(() => {
@@ -785,7 +953,7 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
     );
   }
 
-  // For regular members, show simplified view
+  // For regular members, show simplified view without activity log
   if (userRole === UserRole.MEMBER) {
     return (
       <div className="group-management flex flex-col h-full bg-white">

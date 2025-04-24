@@ -1,12 +1,13 @@
-import React, { useState, useEffect } from 'react';
-import { Button, Dropdown, Menu, App } from 'antd';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Button, Dropdown, Menu, App, notification } from 'antd';
 import { 
   UserAddOutlined,
   MoreOutlined,
   LeftOutlined,
   LockOutlined,
   LogoutOutlined,
-  UserDeleteOutlined
+  UserDeleteOutlined,
+  InfoCircleOutlined
 } from '@ant-design/icons';
 import { Avatar } from '../../common/Avatar';
 import { User } from "../../../features/auth/types/authTypes";
@@ -14,6 +15,7 @@ import { Conversation } from '../../../features/chat/types/conversationTypes';
 import { getUserById, fetchFriends, getConversationDetail } from "../../../api/API";
 import UserInfoHeaderModal from '../../header/modal/UserInfoHeaderModal';
 import { useNavigate } from 'react-router-dom';
+import socketService from '../../../services/socketService';
 
 // Define interface for simplified member info
 interface MemberInfo {
@@ -57,37 +59,188 @@ const MembersList: React.FC<MembersListProps> = ({
   const [friendList, setFriendList] = useState<string[]>([]);
   const [localUserCache, setLocalUserCache] = useState<Record<string, User>>({});
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [activityLog, setActivityLog] = useState<Array<{title: string, description: string, timestamp: number}>>([]);
   const { message } = App.useApp();
   const navigate = useNavigate();
 
   const groupMembers = conversation.groupMembers || [];
+  const currentUserId = localStorage.getItem('userId') || '';
 
-  // Function to refresh conversation data from API
-  const refreshConversationData = async () => {
+  // Function to get user name from cache or default value
+  const getUserName = useCallback((userId: string): string => {
+    const user = userCache[userId] || localUserCache[userId];
+    return user ? user.fullname : 'Một thành viên';
+  }, [userCache, localUserCache]);
+
+  // Update this function to only log to console without showing UI notification
+  const updateGroupState = useCallback((userId: string, action: string) => {
+    console.log(`Group event: ${action}`, { userId, conversationId: conversation.conversationId });
+  }, [conversation.conversationId]);
+
+  // Register socket event handlers in a dedicated useEffect
+  useEffect(() => {
     if (!conversation.conversationId) return;
-
-    try {
-      setIsRefreshing(true);
-      const updatedConversation = await getConversationDetail(conversation.conversationId);
+    
+    // Handler for when a user leaves the group
+    const handleUserLeftGroup = (data: { conversationId: string, userId: string }) => {
+      if (data.conversationId !== conversation.conversationId) return;
       
+      console.log('MembersList: User left group:', data);
+      
+      // If current user left, go back
+      if (data.userId === currentUserId) {
+        onBack();
+        return;
+      }
+      
+      // Update the conversation by removing the member
+      setConversation(prev => {
+        return {
+          ...prev,
+          groupMembers: prev.groupMembers?.filter(id => id !== data.userId) || []
+        };
+      });
+      
+      updateGroupState(data.userId, 'userLeftGroup');
+    };
+    
+    // Handler for when a group is deleted
+    const handleGroupDeleted = (data: { conversationId: string }) => {
+      if (data.conversationId !== conversation.conversationId) return;
+      
+      console.log('MembersList: Group deleted:', data);
+      
+      // Go back to conversation list
+      onBack();
+    };
+    
+    // Handler for when co-owners are added
+    const handleGroupCoOwnerAdded = (data: { conversationId: string, newCoOwnerIds: string[] }) => {
+      if (data.conversationId !== conversation.conversationId) return;
+      
+      console.log('MembersList: Co-owner added:', data);
+      
+      // Get existing co-owner IDs
+      const existingCoOwnerIds = conversation.rules?.coOwnerIds || [];
+      
+      // Find the new co-owners (those in newCoOwnerIds but not in existingCoOwnerIds)
+      const newCoOwners = data.newCoOwnerIds.filter(id => !existingCoOwnerIds.includes(id));
+      
+      // Update the conversation with the new co-owners
+      setConversation(prev => {
+        if (!prev.rules) return prev;
+        
+        return {
+          ...prev,
+          rules: {
+            ...prev.rules,
+            coOwnerIds: data.newCoOwnerIds
+          }
+        };
+      });
+      
+      // If current user is in the new co-owners list, update role
+      if (data.newCoOwnerIds.includes(currentUserId) && !existingCoOwnerIds.includes(currentUserId)) {
+        setUserRole('co-owner');
+      } 
+      
+      if (newCoOwners.length > 0) {
+        updateGroupState(newCoOwners[0], 'groupCoOwnerAdded');
+      }
+    };
+    
+    // Handler for when a co-owner is removed
+    const handleGroupCoOwnerRemoved = (data: { conversationId: string, removedCoOwner: string }) => {
+      if (data.conversationId !== conversation.conversationId) return;
+      
+      console.log('MembersList: Co-owner removed:', data);
+      
+      // Update the conversation by removing the co-owner
+      setConversation(prev => {
+        if (!prev.rules || !prev.rules.coOwnerIds) return prev;
+        
+        return {
+          ...prev,
+          rules: {
+            ...prev.rules,
+            coOwnerIds: prev.rules.coOwnerIds.filter(id => id !== data.removedCoOwner)
+          }
+        };
+      });
+      
+      // If current user was removed as co-owner, update role
+      if (data.removedCoOwner === currentUserId) {
+        setUserRole('member');
+      }
+      
+      updateGroupState(data.removedCoOwner, 'groupCoOwnerRemoved');
+    };
+    
+    // Handler for when group owner changes
+    const handleGroupOwnerChanged = (data: { conversationId: string, newOwner: string }) => {
+      if (data.conversationId !== conversation.conversationId) return;
+      
+      console.log('MembersList: Owner changed:', data);
+      
+      const previousOwner = conversation.rules?.ownerId || '';
+      
+      // Update the conversation with the new owner
+      setConversation(prev => {
+        if (!prev.rules) return prev;
+        
+        return {
+          ...prev,
+          rules: {
+            ...prev.rules,
+            ownerId: data.newOwner,
+            // If the new owner was a co-owner, remove them from co-owners list
+            coOwnerIds: prev.rules.coOwnerIds ? 
+              prev.rules.coOwnerIds.filter(id => id !== data.newOwner) : 
+              []
+          }
+        };
+      });
+      
+      // Update the user role based on the change
+      if (data.newOwner === currentUserId) {
+        setUserRole('owner');
+      } else if (previousOwner === currentUserId) {
+        // If current user was the previous owner, downgrade to member
+        setUserRole('member');
+      }
+      
+      updateGroupState(data.newOwner, 'groupOwnerChanged');
+    };
+    
+    // Register socket event handlers
+    socketService.on('userLeftGroup', handleUserLeftGroup);
+    socketService.on('groupDeleted', handleGroupDeleted);
+    socketService.on('groupCoOwnerAdded', handleGroupCoOwnerAdded);
+    socketService.on('groupCoOwnerRemoved', handleGroupCoOwnerRemoved);
+    socketService.on('groupOwnerChanged', handleGroupOwnerChanged);
+    
+    // Cleanup function
+    return () => {
+      socketService.off('userLeftGroup', handleUserLeftGroup);
+      socketService.off('groupDeleted', handleGroupDeleted);
+      socketService.off('groupCoOwnerAdded', handleGroupCoOwnerAdded);
+      socketService.off('groupCoOwnerRemoved', handleGroupCoOwnerRemoved);
+      socketService.off('groupOwnerChanged', handleGroupOwnerChanged);
+    };
+  }, [conversation.conversationId, conversation.rules?.ownerId, conversation.rules?.coOwnerIds, updateGroupState, currentUserId, onBack]);
+
+  // Function to refresh conversation data
+  const refreshConversationData = async () => {
+    try {
+      if (!conversation.conversationId) return;
+      
+      const updatedConversation = await getConversationDetail(conversation.conversationId);
       if (updatedConversation) {
         setConversation(updatedConversation);
-        
-        // Update user role based on refreshed data
-        const currentUserId = localStorage.getItem('userId') || '';
-        
-        if (updatedConversation.rules?.ownerId === currentUserId) {
-          setUserRole('owner');
-        } else if (updatedConversation.rules?.coOwnerIds?.includes(currentUserId)) {
-          setUserRole('co-owner');
-        } else {
-          setUserRole('member');
-        }
+        console.log('Conversation data refreshed:', updatedConversation);
       }
     } catch (err) {
       console.error('Error refreshing conversation data:', err);
-    } finally {
-      setIsRefreshing(false);
     }
   };
 

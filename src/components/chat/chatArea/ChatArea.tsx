@@ -11,6 +11,7 @@ import {
   Dropdown,
   Menu,
   Select,
+  notification,
 } from "antd";
 import {
   SendOutlined,
@@ -35,6 +36,9 @@ import {
   PushpinOutlined,
   StarOutlined,
   UnorderedListOutlined,
+  CloseCircleOutlined,
+  EllipsisOutlined,
+  UserAddOutlined,
   InfoCircleOutlined,
 } from "@ant-design/icons";
 import {Conversation} from "../../../features/chat/types/conversationTypes";
@@ -758,11 +762,312 @@ export function ChatArea({ conversation }: ChatAreaProps) {
         });
       };
       
+      // Callback khi có thành viên bị chặn
+      const handleUserBlocked = (data: { conversationId: string, blockedUserId: string, fromCurrentUser?: boolean }) => {
+        // Nếu không phải cuộc trò chuyện hiện tại, không xử lý
+        if (data.conversationId !== conversation.conversationId) {
+          return;
+        }
+        
+        // Tìm thông tin người bị chặn từ cache
+        const blockedUser = userCacheRef.current[data.blockedUserId];
+        const blockedUserName = blockedUser?.fullname || `User-${data.blockedUserId.substring(0, 6)}`;
+        
+        // Chỉ kiểm tra tin nhắn trùng lặp nếu KHÔNG phải người thực hiện hành động
+        // Người thực hiện hành động luôn thấy thông báo
+        let shouldShowNotification = true;
+        
+        if (!data.fromCurrentUser) {
+          // Kiểm tra xem đã có tin nhắn chặn gần đây chưa để tránh trùng lặp
+          const lastMessage = messages[messages.length - 1];
+          const isDuplicateNotification = lastMessage && 
+                                         lastMessage.type === "notification" && 
+                                         lastMessage.content.includes(blockedUserName) &&
+                                         lastMessage.content.includes("bị chặn");
+          
+          if (isDuplicateNotification) {
+            shouldShowNotification = false;
+          }
+        }
+
+        if (shouldShowNotification) {
+          const newNotification = {
+            id: `notification-block-${Date.now()}`,
+            content: `${blockedUserName} đã bị chặn khỏi nhóm`,
+            type: "notification" as "notification",
+            timestamp: new Date().toISOString(),
+            sender: {
+              id: "system",
+              name: "Hệ thống",
+              avatar: ""
+            },
+            isNotification: true,
+            isRead: true,
+            sendStatus: "sent"
+          } as DisplayMessage;
+          
+          setMessages(prev => [...prev, newNotification]);
+          
+          // Cuộn xuống dưới để hiển thị thông báo mới
+          setTimeout(() => {
+            if (messagesEndRef.current) {
+              messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+            }
+          }, 100);
+        }
+      };
+      
+      // Callback khi có thành viên được bỏ chặn
+      const handleUserUnblocked = (data: { conversationId: string, unblockedUserId: string, fromCurrentUser?: boolean }) => {
+        // Nếu không phải cuộc trò chuyện hiện tại, không xử lý
+        if (data.conversationId !== conversation.conversationId) {
+          return;
+        }
+        
+        // Tìm thông tin người được bỏ chặn từ cache
+        const unblockedUser = userCacheRef.current[data.unblockedUserId];
+        const unblockedUserName = unblockedUser?.fullname || `User-${data.unblockedUserId.substring(0, 6)}`;
+        
+        // Chỉ kiểm tra tin nhắn trùng lặp nếu KHÔNG phải người thực hiện hành động
+        // Người thực hiện hành động luôn thấy thông báo
+        let shouldShowNotification = true;
+        
+        if (!data.fromCurrentUser) {
+          // Kiểm tra tin nhắn trùng lặp
+          const lastMessage = messages[messages.length - 1];
+          const isDuplicateNotification = lastMessage && 
+                                         lastMessage.type === "notification" && 
+                                         lastMessage.content.includes(unblockedUserName) &&
+                                         lastMessage.content.includes("được bỏ chặn");
+          
+          if (isDuplicateNotification) {
+            shouldShowNotification = false;
+          }
+        }
+        
+        if (shouldShowNotification) {
+          const newNotification = {
+            id: `notification-unblock-${Date.now()}`,
+            content: `${unblockedUserName} đã được bỏ chặn khỏi nhóm`,
+            type: "notification" as "notification",
+            timestamp: new Date().toISOString(),
+            sender: {
+              id: "system",
+              name: "Hệ thống",
+              avatar: ""
+            },
+            isNotification: true,
+            isRead: true,
+            sendStatus: "sent"
+          } as DisplayMessage;
+          
+          setMessages(prev => [...prev, newNotification]);
+          
+          // Cuộn xuống dưới để hiển thị thông báo mới
+          setTimeout(() => {
+            if (messagesEndRef.current) {
+              messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+            }
+          }, 100);
+        }
+      };
+      
       // Đăng ký lắng nghe các sự kiện socket
       socketService.onNewMessage(handleNewMessage);
       socketService.onUserTyping(handleUserTyping);
       socketService.onMessageRead(handleMessageRead);
       socketService.onMessageDelivered(handleMessageDelivered);
+      
+      // Thêm xử lý cho các sự kiện quản lý nhóm
+      const handleUserLeftGroup = (data: { conversationId: string, userId: string }): void => {
+        // Kiểm tra xem sự kiện có thuộc cuộc trò chuyện hiện tại không
+        if (conversation?.conversationId !== data.conversationId) return;
+        
+        // Lấy thông tin về người dùng đã rời nhóm
+        const leftUser = userCache[data.userId];
+        const leftUserName = leftUser ? leftUser.fullname : "Một thành viên";
+        
+        // Tạo thông báo hệ thống
+        const newNotification = {
+          id: `notification-leave-${Date.now()}`,
+          content: `${leftUserName} đã rời khỏi nhóm`,
+          type: "notification" as "notification",
+          timestamp: new Date().toISOString(),
+          sender: {
+            id: "system",
+            name: "Hệ thống",
+            avatar: ""
+          },
+          isNotification: true,
+          isRead: true,
+          sendStatus: "sent"
+        } as DisplayMessage;
+        
+        setMessages(prev => [...prev, newNotification]);
+        
+        // Cuộn xuống dưới để hiển thị thông báo mới
+        setTimeout(() => {
+          if (messagesEndRef.current) {
+            messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+          }
+        }, 100);
+      };
+      
+      const handleGroupDeleted = (data: { conversationId: string }): void => {
+        // Kiểm tra xem sự kiện có thuộc cuộc trò chuyện hiện tại không
+        if (conversation?.conversationId !== data.conversationId) return;
+        
+        // Tạo thông báo hệ thống
+        const newNotification = {
+          id: `notification-delete-${Date.now()}`,
+          content: `Nhóm đã bị giải tán bởi trưởng nhóm`,
+          type: "notification" as "notification",
+          timestamp: new Date().toISOString(),
+          sender: {
+            id: "system",
+            name: "Hệ thống",
+            avatar: ""
+          },
+          isNotification: true,
+          isRead: true,
+          sendStatus: "sent"
+        } as DisplayMessage;
+        
+        setMessages(prev => [...prev, newNotification]);
+        
+        // Cuộn xuống dưới để hiển thị thông báo mới
+        setTimeout(() => {
+          if (messagesEndRef.current) {
+            messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+          }
+        }, 100);
+      };
+      
+      const handleGroupCoOwnerRemoved = (data: { conversationId: string, removedCoOwner: string }): void => {
+        // Kiểm tra xem sự kiện có thuộc cuộc trò chuyện hiện tại không
+        if (conversation?.conversationId !== data.conversationId) return;
+        
+        // Lấy thông tin về người dùng bị gỡ quyền phó nhóm
+        const removedUser = userCache[data.removedCoOwner];
+        const removedUserName = removedUser ? removedUser.fullname : "Một thành viên";
+        
+        // Tạo thông báo hệ thống
+        const newNotification = {
+          id: `notification-coowner-removed-${Date.now()}`,
+          content: `${removedUserName} đã bị gỡ quyền phó nhóm`,
+          type: "notification" as "notification",
+          timestamp: new Date().toISOString(),
+          sender: {
+            id: "system",
+            name: "Hệ thống",
+            avatar: ""
+          },
+          isNotification: true,
+          isRead: true,
+          sendStatus: "sent"
+        } as DisplayMessage;
+        
+        setMessages(prev => [...prev, newNotification]);
+        
+        // Cuộn xuống dưới để hiển thị thông báo mới
+        setTimeout(() => {
+          if (messagesEndRef.current) {
+            messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+          }
+        }, 100);
+      };
+      
+      const handleGroupCoOwnerAdded = (data: { conversationId: string, newCoOwnerIds: string[] }): void => {
+        // Kiểm tra xem sự kiện có thuộc cuộc trò chuyện hiện tại không
+        if (conversation?.conversationId !== data.conversationId) return;
+        
+        // Chỉ hiển thị thông báo cho người dùng mới nhất được thêm vào
+        const latestCoOwnerId = data.newCoOwnerIds[data.newCoOwnerIds.length - 1];
+        
+        // Lấy thông tin về người dùng được thêm quyền phó nhóm
+        const addedUser = userCache[latestCoOwnerId];
+        const addedUserName = addedUser ? addedUser.fullname : "Một thành viên";
+        
+        // Tạo thông báo hệ thống
+        const newNotification = {
+          id: `notification-coowner-added-${Date.now()}`,
+          content: `${addedUserName} đã được thêm quyền phó nhóm`,
+          type: "notification" as "notification",
+          timestamp: new Date().toISOString(),
+          sender: {
+            id: "system",
+            name: "Hệ thống",
+            avatar: ""
+          },
+          isNotification: true,
+          isRead: true,
+          sendStatus: "sent"
+        } as DisplayMessage;
+        
+        setMessages(prev => [...prev, newNotification]);
+        
+        // Cuộn xuống dưới để hiển thị thông báo mới
+        setTimeout(() => {
+          if (messagesEndRef.current) {
+            messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+          }
+        }, 100);
+      };
+      
+      const handleGroupOwnerChanged = (data: { conversationId: string, newOwner: string }): void => {
+        // Kiểm tra xem sự kiện có thuộc cuộc trò chuyện hiện tại không
+        if (conversation?.conversationId !== data.conversationId) return;
+        
+        // Lấy thông tin về người dùng được chuyển quyền trưởng nhóm
+        const newOwnerUser = userCache[data.newOwner];
+        const newOwnerName = newOwnerUser ? newOwnerUser.fullname : "Một thành viên";
+        
+        // Tạo thông báo hệ thống
+        const newNotification = {
+          id: `notification-owner-changed-${Date.now()}`,
+          content: `${newOwnerName} đã trở thành trưởng nhóm mới`,
+          type: "notification" as "notification",
+          timestamp: new Date().toISOString(),
+          sender: {
+            id: "system",
+            name: "Hệ thống",
+            avatar: ""
+          },
+          isNotification: true,
+          isRead: true,
+          sendStatus: "sent"
+        } as DisplayMessage;
+        
+        setMessages(prev => [...prev, newNotification]);
+        
+        // Cuộn xuống dưới để hiển thị thông báo mới
+        setTimeout(() => {
+          if (messagesEndRef.current) {
+            messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+          }
+        }, 100);
+      };
+      
+      // Đăng ký trực tiếp với đối tượng socket để đảm bảo hoạt động đúng
+      if (socketService.socketInstance) {
+        console.log("[ChatArea] Directly registering socket listeners for", conversation.conversationId);
+        socketService.socketInstance.on('userBlocked', handleUserBlocked);
+        socketService.socketInstance.on('userUnblocked', handleUserUnblocked);
+        socketService.socketInstance.on('userLeftGroup', handleUserLeftGroup);
+        socketService.socketInstance.on('groupDeleted', handleGroupDeleted);
+        socketService.socketInstance.on('groupCoOwnerRemoved', handleGroupCoOwnerRemoved);
+        socketService.socketInstance.on('groupCoOwnerAdded', handleGroupCoOwnerAdded);
+        socketService.socketInstance.on('groupOwnerChanged', handleGroupOwnerChanged);
+      } else {
+        console.warn("[ChatArea] Socket instance not available, using wrapper methods");
+        socketService.onUserBlocked(handleUserBlocked);
+        socketService.onUserUnblocked(handleUserUnblocked);
+        socketService.onUserLeftGroup(handleUserLeftGroup);
+        socketService.onGroupDeleted(handleGroupDeleted);
+        socketService.onGroupCoOwnerRemoved(handleGroupCoOwnerRemoved);
+        socketService.onGroupCoOwnerAdded(handleGroupCoOwnerAdded);
+        socketService.onGroupOwnerChanged(handleGroupOwnerChanged);
+      }
       
       // Cleanup khi unmount hoặc change conversation
       return () => {
@@ -771,6 +1076,26 @@ export function ChatArea({ conversation }: ChatAreaProps) {
         socketService.off("userTyping", handleUserTyping);
         socketService.off("messageRead", handleMessageRead);
         socketService.off("messageDelivered", handleMessageDelivered);
+        
+        // Hủy đăng ký trực tiếp
+        if (socketService.socketInstance) {
+          socketService.socketInstance.off('userBlocked', handleUserBlocked);
+          socketService.socketInstance.off('userUnblocked', handleUserUnblocked);
+          socketService.socketInstance.off('userLeftGroup', handleUserLeftGroup);
+          socketService.socketInstance.off('groupDeleted', handleGroupDeleted);
+          socketService.socketInstance.off('groupCoOwnerRemoved', handleGroupCoOwnerRemoved);
+          socketService.socketInstance.off('groupCoOwnerAdded', handleGroupCoOwnerAdded);
+          socketService.socketInstance.off('groupOwnerChanged', handleGroupOwnerChanged);
+          console.log("[ChatArea] Directly removed socket listeners for", conversation.conversationId);
+        } else {
+          socketService.off("userBlocked", handleUserBlocked);
+          socketService.off("userUnblocked", handleUserUnblocked);
+          socketService.off("userLeftGroup", handleUserLeftGroup);
+          socketService.off("groupDeleted", handleGroupDeleted);
+          socketService.off("groupCoOwnerRemoved", handleGroupCoOwnerRemoved);
+          socketService.off("groupCoOwnerAdded", handleGroupCoOwnerAdded);
+          socketService.off("groupOwnerChanged", handleGroupOwnerChanged);
+        }
         
         // Xóa tất cả timers
         Object.values(typingTimers).forEach(timer => clearTimeout(timer));
@@ -798,7 +1123,6 @@ export function ChatArea({ conversation }: ChatAreaProps) {
         .map(msg => msg.id);
       
       if (unreadMessages.length > 0) {
-        console.log("🔍 Marking unread messages as read:", unreadMessages);
         socketService.markMessagesAsRead(conversation.conversationId, unreadMessages);
       }
     }
@@ -1909,8 +2233,7 @@ export function ChatArea({ conversation }: ChatAreaProps) {
       seenMessages.add(contentKey);
       uniqueMessages.push(message);
     }
-    
-    console.log("Deduplicated messages, output count:", uniqueMessages.length);
+
     
     // Sắp xếp lại kết quả theo thời gian để đảm bảo thứ tự đúng
     return uniqueMessages.sort((a, b) => 
@@ -3498,6 +3821,93 @@ export function ChatArea({ conversation }: ChatAreaProps) {
       return null;
     }
   };
+
+  // Replace notification function with simple logging
+  const logGroupStateChange = useCallback((actionType: string, userId: string) => {
+    // Only log to console, no UI notification
+    console.log(`ChatArea: ${actionType}`, { 
+      userId, 
+      conversationId: conversation?.conversationId 
+    });
+  }, [conversation?.conversationId]);
+
+  // Keep getUserName function
+  const getUserName = useCallback((userId: string): string => {
+    const user = userCache[userId];
+    return user ? user.fullname : 'Một thành viên';
+  }, [userCache]);
+
+  // Modify socket event handlers to remove notifications
+  useEffect(() => {
+    if (!conversation?.conversationId) return;
+    
+    const currentUserId = localStorage.getItem("userId") || "";
+    
+    // Handler for when a user leaves the group
+    const handleUserLeftGroup = (data: { conversationId: string, userId: string }): void => {
+      if (data.conversationId !== conversation.conversationId) return;
+      
+      console.log('ChatArea: User left group:', data);
+      logGroupStateChange('userLeftGroup', data.userId);
+    };
+    
+    // Handler for when a group is deleted
+    const handleGroupDeleted = (data: { conversationId: string }): void => {
+      if (data.conversationId !== conversation.conversationId) return;
+      
+      console.log('ChatArea: Group deleted:', data);
+      logGroupStateChange('groupDeleted', '');
+    };
+    
+    // Handler for when co-owners are added
+    const handleGroupCoOwnerAdded = (data: { conversationId: string, newCoOwnerIds: string[] }): void => {
+      if (data.conversationId !== conversation.conversationId) return;
+      
+      console.log('ChatArea: Co-owner added:', data);
+      
+      // Get existing co-owner IDs
+      const existingCoOwnerIds = conversation.rules?.coOwnerIds || [];
+      
+      // Find the new co-owners (those in newCoOwnerIds but not in existingCoOwnerIds)
+      const newCoOwners = data.newCoOwnerIds.filter(id => !existingCoOwnerIds.includes(id));
+      
+      if (newCoOwners.length > 0) {
+        logGroupStateChange('groupCoOwnerAdded', newCoOwners[0]);
+      }
+    };
+    
+    // Handler for when a co-owner is removed
+    const handleGroupCoOwnerRemoved = (data: { conversationId: string, removedCoOwner: string }): void => {
+      if (data.conversationId !== conversation.conversationId) return;
+      
+      console.log('ChatArea: Co-owner removed:', data);
+      logGroupStateChange('groupCoOwnerRemoved', data.removedCoOwner);
+    };
+    
+    // Handler for when group owner changes
+    const handleGroupOwnerChanged = (data: { conversationId: string, newOwner: string }): void => {
+      if (data.conversationId !== conversation.conversationId) return;
+      
+      console.log('ChatArea: Owner changed:', data);
+      logGroupStateChange('groupOwnerChanged', data.newOwner);
+    };
+    
+    // Register socket event handlers
+    socketService.on('userLeftGroup', handleUserLeftGroup);
+    socketService.on('groupDeleted', handleGroupDeleted);
+    socketService.on('groupCoOwnerAdded', handleGroupCoOwnerAdded);
+    socketService.on('groupCoOwnerRemoved', handleGroupCoOwnerRemoved);
+    socketService.on('groupOwnerChanged', handleGroupOwnerChanged);
+    
+    // Cleanup function
+    return () => {
+      socketService.off('userLeftGroup', handleUserLeftGroup);
+      socketService.off('groupDeleted', handleGroupDeleted);
+      socketService.off('groupCoOwnerAdded', handleGroupCoOwnerAdded);
+      socketService.off('groupCoOwnerRemoved', handleGroupCoOwnerRemoved);
+      socketService.off('groupOwnerChanged', handleGroupOwnerChanged);
+    };
+  }, [conversation?.conversationId, conversation?.rules?.ownerId, conversation?.rules?.coOwnerIds, logGroupStateChange]);
 
   return (
     <div className="w-full h-full flex flex-col">

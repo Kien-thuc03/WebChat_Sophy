@@ -7,8 +7,8 @@ import React, {
   useCallback,
   ReactNode,
 } from "react";
-import { fetchConversations, getUserById } from "../../../api/API";
-import { Conversation, UnreadCount } from "../types/conversationTypes";
+import { fetchConversations, getUserById, getConversationDetail } from "../../../api/API";
+import { Conversation ,UnreadCount} from "../types/conversationTypes";
 import { User } from "../../auth/types/authTypes";
 import socketService from "../../../services/socketService";
 
@@ -640,67 +640,45 @@ export const ConversationProvider: React.FC<{ children: ReactNode }> = ({
     };
   }, [addNewConversation]);
 
-  // Polling để kiểm tra hội thoại mới
+  // Lắng nghe sự kiện làm mới danh sách hội thoại (cho socket events)
   useEffect(() => {
-    const currentUserId = localStorage.getItem("userId");
-    if (!currentUserId || isLoading) return;
+    const handleRefreshConversations = () => {
+      console.log("Refreshing all conversations from socket event");
+      fetchConversations(); // Gọi hàm để tải lại toàn bộ danh sách
+    };
 
-    const pollInterval = setInterval(async () => {
-      try {
-        const latestConversations = await fetchConversations();
-        if (latestConversations && latestConversations.length > 0) {
-          const currentIds = new Set(
-            conversations.map((c) => c.conversationId)
-          );
-          const newConversations = latestConversations.filter(
-            (conv) => !currentIds.has(conv.conversationId)
-          );
-
-          if (newConversations.length > 0) {
-            console.log(
-              "Polling detected new conversations:",
-              newConversations.length,
-              newConversations
-            );
-
-            setConversations((prev) => {
-              const updated = [...newConversations, ...prev];
-              return updated.sort((a, b) => {
-                const timeA = a.lastMessage?.createdAt
-                  ? new Date(a.lastMessage.createdAt).getTime()
-                  : 0;
-                const timeB = b.lastMessage?.createdAt
-                  ? new Date(b.lastMessage.createdAt).getTime()
-                  : 0;
-                return timeB - timeA;
-              });
-            });
-
-            const newIds = newConversations.map((c) => c.conversationId);
-            console.log("Joining new conversation rooms from polling:", newIds);
-            socketService.joinConversations(newIds);
-
-            try {
-              if (
-                "Notification" in window &&
-                Notification.permission === "granted"
-              ) {
-                new Notification("New conversation", {
-                  body: `You have ${newConversations.length} new conversation${newConversations.length > 1 ? "s" : ""}`,
-                });
-              }
-            } catch (notificationError) {
-              console.error("Error showing notification:", notificationError);
+    const handleRefreshConversationDetail = (event: CustomEvent) => {
+      const { conversationId } = event.detail || {};
+      if (conversationId) {
+        console.log(`Refreshing conversation detail for ID: ${conversationId}`);
+        
+        // Tìm và cập nhật thông tin hội thoại cụ thể
+        (async () => {
+          try {
+            const response = await getConversationDetail(conversationId);
+            if (response) {
+              // Cập nhật conversation cụ thể trong state
+              setConversations(prevConversations => 
+                prevConversations.map(conv => 
+                  conv.conversationId === conversationId ? {...conv, ...response} : conv
+                )
+              );
             }
+          } catch (err) {
+            console.error(`Failed to refresh conversation detail: ${conversationId}`, err);
           }
-        }
-      } catch (error) {
-        console.error("Error polling for conversations:", error);
+        })();
       }
-    }, 5000);
+    };
 
-    return () => clearInterval(pollInterval);
-  }, [conversations, isLoading]);
+    window.addEventListener("refreshConversations", handleRefreshConversations as EventListener);
+    window.addEventListener("refreshConversationDetail", handleRefreshConversationDetail as EventListener);
+
+    return () => {
+      window.removeEventListener("refreshConversations", handleRefreshConversations as EventListener);
+      window.removeEventListener("refreshConversationDetail", handleRefreshConversationDetail as EventListener);
+    };
+  }, [fetchConversations]);
 
   // Function to update a specific field in a conversation
   const updateConversationField = useCallback(
