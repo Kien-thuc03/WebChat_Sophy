@@ -49,7 +49,7 @@ const GroupAvatar: React.FC<GroupAvatarProps> = ({
     typeof groupAvatarUrl === "string" &&
     groupAvatarUrl.trim() !== ""
   ) {
-    console.log("Using group avatar URL:", groupAvatarUrl);
+    // console.log("Using group avatar URL:", groupAvatarUrl);
     return (
       <div
         className={`rounded-full overflow-hidden ${className}`}
