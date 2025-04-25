@@ -9,6 +9,7 @@ import {
 } from "../../../api/API";
 import { Avatar } from "../../common/Avatar";
 import { useConversationContext } from "../../../features/chat/context/ConversationContext";
+import socketService from "../../../services/socketService";
 
 // Use a type that contains only the properties we need
 interface UserDisplay {
@@ -43,7 +44,7 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
   const [activeFilter, setActiveFilter] = useState("tất cả");
   const { updateConversationField } = useConversationContext();
 
-  // Load friends when modal is visible
+  // Load friends chỉ khi modal mở/đóng
   useEffect(() => {
     const loadFriends = async () => {
       if (!visible) return;
@@ -51,7 +52,6 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
       setIsLoading(true);
       try {
         const friendsList = await fetchFriends();
-        // Filter out users who are already members
         const filteredFriends = friendsList
           .filter((friend) => !groupMembers.includes(friend.userId))
           .map((friend) => ({
@@ -69,7 +69,31 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
     };
 
     loadFriends();
-  }, [visible, groupMembers]);
+  }, [visible]); // Chỉ phụ thuộc vào visible
+
+  // Socket listener riêng
+  useEffect(() => {
+    const handleUserAddedToGroup = (data: {
+      conversationId: string;
+      addedUser: { userId: string; fullname: string };
+      addedByUser: { userId: string; fullname: string };
+    }) => {
+      if (data.conversationId === conversationId) {
+        message.success(
+          `${data.addedByUser.fullname} đã thêm ${data.addedUser.fullname} vào nhóm`
+        );
+        if (refreshConversationData) {
+          refreshConversationData();
+        }
+      }
+    };
+
+    socketService.onUserAddedToGroup(handleUserAddedToGroup);
+
+    return () => {
+      socketService.off("userAddedToGroup");
+    };
+  }, [conversationId, refreshConversationData]);
 
   // Refresh conversation data after successful member addition
   const refreshConversation = async () => {
