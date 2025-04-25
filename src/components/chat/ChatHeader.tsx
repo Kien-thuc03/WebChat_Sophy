@@ -39,7 +39,7 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
   onInfoClick,
   showInfo,
 }) => {
-  const { userCache, userAvatars } = useConversations();
+  const { userCache, userAvatars, updateGroupName } = useConversationContext();
   const {
     conversations,
     updateConversationWithNewMessage,
@@ -167,7 +167,6 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
     }
 
     if (conversation.conversationId) {
-      
       socketService.joinConversations([conversation.conversationId]);
     }
 
@@ -245,7 +244,7 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
           zegoService.initialize(callContainerRef.current, config, () => {
             setIsCallModalVisible(false);
           });
-          
+
           socketService.emit("startCall", {
             conversationId: conversation.conversationId,
             roomID,
@@ -284,7 +283,6 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
         return;
       }
       socketService.emit("refreshZegoToken", (response: ZegoTokenResponse) => {
-        
         try {
           if (response?.error || !response.token || !response.appID) {
             message.error("Không thể tham gia cuộc gọi do lỗi token.");
@@ -346,7 +344,6 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
       receiverId?: string;
       isVideo: boolean;
     }) => {
-
       const isCaller = data.callerId === currentUserId;
       const isReceiver = data.receiverId === currentUserId;
 
@@ -362,7 +359,6 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
           isVideo: data.isVideo,
         });
       } else {
-        
         setIsCallModalVisible(true);
         setTimeout(() => {
           if (!callContainerRef.current) {
@@ -373,7 +369,6 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
           socketService.emit(
             "refreshZegoToken",
             (response: ZegoTokenResponse) => {
-              
               try {
                 if (response?.error || !response.token || !response.appID) {
                   message.error("Không thể tham gia cuộc gọi do lỗi token.");
@@ -417,7 +412,6 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
       }
     };
 
-    
     socketService.onStartCall(handleStartCall);
     socketService.onEndCall((data: { conversationId: string }) => {
       message.info("Cuộc gọi đã kết thúc.");
@@ -486,6 +480,30 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
     updateConversationWithNewMessage,
     updateConversationMembers,
   ]);
+
+  // Lắng nghe sự kiện thay đổi tên nhóm
+  useEffect(() => {
+    const handleGroupNameChanged = (data: {
+      conversationId: string;
+      newName: string;
+    }) => {
+      if (data.conversationId === conversation.conversationId) {
+        setConversation((prev) => ({
+          ...prev,
+          groupName: data.newName,
+          lastChange: new Date().toISOString(),
+        }));
+        // Cập nhật tên nhóm trong context
+        updateGroupName(data.conversationId, data.newName);
+      }
+    };
+
+    socketService.onGroupNameChanged(handleGroupNameChanged);
+
+    return () => {
+      socketService.off("groupNameChanged", handleGroupNameChanged);
+    };
+  }, [conversation.conversationId, updateGroupName]);
 
   // Show add member modal
   const showAddMemberModal = () => {

@@ -676,7 +676,7 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
         setGroupMembers((prevMembers) =>
           prevMembers.filter((id) => id !== data.userId)
         );
-        
+
         // Update the conversation detail
         setDetailedConversation((prev) => {
           if (!prev) return prev;
@@ -709,7 +709,7 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
         setGroupMembers((prevMembers) =>
           prevMembers.filter((id) => id !== data.userId)
         );
-        
+
         // Update the conversation detail
         setDetailedConversation((prev) => {
           if (!prev) return prev;
@@ -741,6 +741,30 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
       socketService.off("userLeftGroup", handleUserLeftGroup);
     };
   }, [currentConversation.conversationId, onClose, navigate]);
+
+  // Lắng nghe sự kiện thay đổi tên nhóm
+  useEffect(() => {
+    const handleGroupNameChanged = (data: {
+      conversationId: string;
+      newName: string;
+    }) => {
+      if (data.conversationId === currentConversation.conversationId) {
+        setDetailedConversation((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            groupName: data.newName,
+          };
+        });
+      }
+    };
+
+    socketService.onGroupNameChanged(handleGroupNameChanged);
+
+    return () => {
+      socketService.off("groupNameChanged", handleGroupNameChanged);
+    };
+  }, [currentConversation.conversationId]);
 
   // If showing members list view
   if (showMembersList && isGroup) {

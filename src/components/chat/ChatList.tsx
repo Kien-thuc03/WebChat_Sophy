@@ -32,6 +32,7 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
     updateConversationWithNewMessage,
     setConversations,
     updateConversationMembers,
+    updateGroupName,
   } = useConversationContext();
   const { t } = useLanguage();
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
@@ -482,6 +483,23 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
       socketService.off("userAddedToGroup", handleUserAddedToGroup);
     };
   }, [setConversations]);
+
+  // Lắng nghe sự kiện thay đổi tên nhóm
+  useEffect(() => {
+    const handleGroupNameChanged = (data: {
+      conversationId: string;
+      newName: string;
+    }) => {
+      // Cập nhật tên nhóm trong context
+      updateGroupName(data.conversationId, data.newName);
+    };
+
+    socketService.onGroupNameChanged(handleGroupNameChanged);
+
+    return () => {
+      socketService.off("groupNameChanged", handleGroupNameChanged);
+    };
+  }, [updateGroupName]);
 
   return (
     <div className="chat-list w-80 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 h-full flex flex-col overflow-hidden">

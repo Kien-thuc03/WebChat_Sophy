@@ -54,6 +54,7 @@ export interface ConversationContextType {
     value: any
   ) => void;
   updateConversationMembers: (conversationId: string, userId: string) => void;
+  updateGroupName: (conversationId: string, newName: string) => void;
 }
 
 export const ConversationContext = createContext<ConversationContextType>({
@@ -72,7 +73,7 @@ export const ConversationContext = createContext<ConversationContextType>({
   markConversationAsRead: () => {},
   updateUnreadStatus: () => {},
   addNewConversation: () => {},
-  refreshConversations: async () => {},
+  updateGroupName: () => {},
 });
 
 // Helper functions for localStorage avatars
@@ -754,6 +755,91 @@ export const ConversationProvider: React.FC<{ children: ReactNode }> = ({
     []
   );
 
+  // Lắng nghe sự kiện thay đổi tên nhóm
+  useEffect(() => {
+    const handleGroupNameChanged = (data: {
+      conversationId: string;
+      newName: string;
+    }) => {
+      console.log(
+        "ConversationContext: Received group name change event:",
+        data
+      );
+
+      // Cập nhật conversations ngay lập tức
+      setConversations((prevConversations) => {
+        return prevConversations.map((conv) => {
+          if (conv.conversationId === data.conversationId) {
+            console.log(
+              "ConversationContext: Updating conversation name:",
+              conv.conversationId,
+              "to:",
+              data.newName
+            );
+
+            // Tạo một bản sao của conversation để cập nhật
+            const updatedConv = {
+              ...conv,
+              groupName: data.newName,
+              lastChange: new Date().toISOString(),
+            };
+
+            // Cập nhật selectedConversation nếu đang được chọn
+            if (selectedConversation?.conversationId === data.conversationId) {
+              setSelectedConversation(updatedConv);
+            }
+
+            return updatedConv;
+          }
+          return conv;
+        });
+      });
+
+      // Thêm tin nhắn hệ thống và đảm bảo nó được hiển thị ngay lập tức
+      const systemMessage = {
+        type: "system",
+        content: `Tên nhóm đã được đổi thành "${data.newName}"`,
+        senderId: userId || "",
+        createdAt: new Date().toISOString(),
+      };
+
+      updateConversationWithNewMessage(data.conversationId, systemMessage);
+
+      // Kích hoạt sự kiện refresh để đảm bảo UI được cập nhật
+      window.dispatchEvent(
+        new CustomEvent("refreshConversationDetail", {
+          detail: { conversationId: data.conversationId },
+        })
+      );
+    };
+
+    // Đảm bảo socket đã kết nối và lắng nghe sự kiện
+    if (!socketService.isConnected) {
+      socketService.connect();
+    }
+
+    // Đăng ký lắng nghe sự kiện
+    socketService.onGroupNameChanged(handleGroupNameChanged);
+
+    return () => {
+      socketService.off("groupNameChanged", handleGroupNameChanged);
+    };
+  }, [userId, updateConversationWithNewMessage, selectedConversation]);
+
+  const updateGroupName = (conversationId: string, newName: string) => {
+    setConversations((prevConversations) =>
+      prevConversations.map((conv) =>
+        conv.conversationId === conversationId
+          ? {
+              ...conv,
+              groupName: newName,
+              lastChange: new Date().toISOString(),
+            }
+          : conv
+      )
+    );
+  };
+
   const value = {
     conversations,
     setConversations,
@@ -770,6 +856,7 @@ export const ConversationProvider: React.FC<{ children: ReactNode }> = ({
     addNewConversation,
     updateConversationField,
     updateConversationMembers,
+    updateGroupName,
   };
 
   return (

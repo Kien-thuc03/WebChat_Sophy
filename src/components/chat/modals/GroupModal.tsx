@@ -20,6 +20,7 @@ import {
 } from "../../../api/API";
 import UpdateAvatarGroupModal from "../../header/modal/UpdateAvatarGroupModal";
 import { useConversationContext } from "../../../features/chat/context/ConversationContext";
+import socketService from "../../../services/socketService";
 
 interface MemberInfo {
   userId: string;
@@ -398,6 +399,28 @@ const GroupModal: React.FC<GroupModalProps> = ({
       setIsEditingName(false);
     }
   };
+
+  // Lắng nghe sự kiện thay đổi tên nhóm
+  useEffect(() => {
+    const handleGroupNameChanged = (data: {
+      conversationId: string;
+      newName: string;
+    }) => {
+      if (data.conversationId === conversation.conversationId) {
+        setConversation((prev) => ({
+          ...prev,
+          groupName: data.newName,
+        }));
+        setGroupName(data.newName);
+      }
+    };
+
+    socketService.onGroupNameChanged(handleGroupNameChanged);
+
+    return () => {
+      socketService.off("groupNameChanged", handleGroupNameChanged);
+    };
+  }, [conversation.conversationId]);
 
   return (
     <>

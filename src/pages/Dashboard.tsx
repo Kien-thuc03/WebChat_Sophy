@@ -17,10 +17,11 @@ import { useLanguage } from "../features/auth/context/LanguageContext";
 import ChatInfo from "../components/chat/chatinfo/ChatInfo";
 import { Spin, Button } from "antd";
 import { useConversationContext } from "../features/chat/context/ConversationContext";
+import socketService from "../services/socketService";
 
 const Dashboard: React.FC = () => {
   const { t } = useLanguage();
-  const { isLoading, refreshConversations, conversations } =
+  const { isLoading, refreshConversations, conversations, updateGroupName } =
     useConversationContext();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
@@ -268,6 +269,32 @@ const Dashboard: React.FC = () => {
       }
     }, 300);
   };
+
+  // Lắng nghe sự kiện thay đổi tên nhóm
+  useEffect(() => {
+    const handleGroupNameChanged = (data: {
+      conversationId: string;
+      newName: string;
+    }) => {
+      // Cập nhật tên nhóm trong context
+      updateGroupName(data.conversationId, data.newName);
+
+      // Nếu đang hiển thị conversation này, cập nhật selectedConversation
+      if (selectedConversation?.conversationId === data.conversationId) {
+        setSelectedConversation((prev) => ({
+          ...prev!,
+          groupName: data.newName,
+          lastChange: new Date().toISOString(),
+        }));
+      }
+    };
+
+    socketService.onGroupNameChanged(handleGroupNameChanged);
+
+    return () => {
+      socketService.off("groupNameChanged", handleGroupNameChanged);
+    };
+  }, [selectedConversation, updateGroupName]);
 
   return (
     <div className="flex h-screen overflow-hidden">
