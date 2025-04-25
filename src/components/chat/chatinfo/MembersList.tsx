@@ -734,6 +734,13 @@ const MembersList: React.FC<MembersListProps> = ({
                               Xóa khỏi nhóm
                             </Menu.Item>
                           </>
+                        ) : userRole === "co-owner" && !isOwner && !isCoOwner ? (
+                          <Menu.Item
+                            key="remove-member"
+                            onClick={() => handleRemoveMember(memberId)}
+                            icon={<UserDeleteOutlined />}>
+                            Xóa khỏi nhóm
+                          </Menu.Item>
                         ) : null}
                       </Menu>
                     }
