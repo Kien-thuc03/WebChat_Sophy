@@ -11,7 +11,6 @@ import {
   Dropdown,
   Menu,
   Select,
-  notification,
 } from "antd";
 import {
   SendOutlined,
@@ -36,9 +35,6 @@ import {
   PushpinOutlined,
   StarOutlined,
   UnorderedListOutlined,
-  CloseCircleOutlined,
-  EllipsisOutlined,
-  UserAddOutlined,
   InfoCircleOutlined,
 } from "@ant-design/icons";
 import {Conversation} from "../../../features/chat/types/conversationTypes";
@@ -99,7 +95,7 @@ interface ChatAreaProps {
 
 export function ChatArea({ conversation }: ChatAreaProps) {
   const [messages, setMessages] = useState<DisplayMessage[]>([]);
-  const [notifications, setNotifications] = useState<any[]>([]);
+  const [, setNotifications] = useState<any[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -126,7 +122,7 @@ export function ChatArea({ conversation }: ChatAreaProps) {
     conversations
   } = useConversationContext();
   const currentUserId = localStorage.getItem("userId") || "";
-  const [imageInputVisible, setImageInputVisible] = useState(false);
+  // const [imageInputVisible, setImageInputVisible] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
   const audioInputRef = useRef<HTMLInputElement>(null);
@@ -172,7 +168,7 @@ export function ChatArea({ conversation }: ChatAreaProps) {
   const [selectedConversationForForward, setSelectedConversationForForward] = useState<string | null>(null);
 
   // Add this state variable
-  const [isSending, setIsSending] = useState(false);
+  const [, setIsSending] = useState(false);
   
   // Ref para guardar una copia de userCache para operaciones asíncronas
   const userCacheRef = useRef<Record<string, User>>({});
@@ -1143,10 +1139,6 @@ export function ChatArea({ conversation }: ChatAreaProps) {
     }
   }, [messages]);
 
-  // Xử lý chọn tập tin đính kèm
-  const handleAttachmentClick = () => {
-    fileInputRef.current?.click();
-  };
 
   // Xử lý khi tập tin được chọn
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1641,8 +1633,6 @@ export function ChatArea({ conversation }: ChatAreaProps) {
           
           return result;
         } else if (realMessageExists) {
-          // Tin nhắn thực đã tồn tại nhưng không còn tin nhắn tạm - giữ nguyên danh sách
-          console.log(`Real message ${realMessage.id} already exists, no temp message to remove`);
           
           // Loại bỏ các tin nhắn trùng lặp nếu có
           if (similarMessages.length > 0) {
@@ -1757,7 +1747,7 @@ export function ChatArea({ conversation }: ChatAreaProps) {
   const isOwnMessage = (senderId: string) => senderId === currentUserId;
 
   // Kiểm tra xem có nên hiển thị avatar cho tin nhắn này không
-  const shouldShowAvatar = (index: number, senderId: string) => {
+  const shouldShowAvatar = () => {
     // Luôn hiển thị avatar cho người gửi không phải là mình
     return true;
   };
@@ -1890,13 +1880,6 @@ export function ChatArea({ conversation }: ChatAreaProps) {
 
   // Add the determineMessageStatus function before it's used
   const determineMessageStatus = (msg: any, currentUserId: string): string => {
-    // Log để debug
-    console.log("Determining status for message:", { 
-      id: msg.messageDetailId || msg.id,
-      readBy: msg.readBy,
-      deliveredTo: msg.deliveredTo,
-      sendStatus: msg.sendStatus
-    });
     
     if (msg.senderId === currentUserId) {
       // 1. Nếu có trạng thái gửi cụ thể
@@ -2180,17 +2163,12 @@ export function ChatArea({ conversation }: ChatAreaProps) {
           
           // Mở rộng khoảng thời gian kiểm tra trùng lặp lên 10 giây
           if (timeDiff < 10000) {
-            // Log thông tin tin nhắn trùng lặp để debug
-            console.log(`Potential duplicate found: ${existingMessage.id} and ${message.id}, time diff: ${timeDiff}ms`);
-            
             // Luôn ưu tiên tin nhắn có ID thực sự từ server
             if (message.id.startsWith('temp-') && !existingMessage.id.startsWith('temp-')) {
               // Giữ nguyên tin nhắn hiện tại (không phải temp)
-              console.log(`Keeping real message ${existingMessage.id}, discarding temp ${message.id}`);
               continue;
             } else if (!message.id.startsWith('temp-') && existingMessage.id.startsWith('temp-')) {
               // Thay thế tin nhắn tạm bằng tin nhắn thực
-              console.log(`Replacing temp message ${existingMessage.id} with real ${message.id}`);
               uniqueMessages[existingIndex] = message;
               continue;
             } 
@@ -2212,14 +2190,12 @@ export function ChatArea({ conversation }: ChatAreaProps) {
               
               if (statusPriority[newStatus as keyof typeof statusPriority] > 
                   statusPriority[existingStatus as keyof typeof statusPriority]) {
-                console.log(`Replacing message with better status: ${existingStatus} -> ${newStatus}`);
                 uniqueMessages[existingIndex] = message;
               }
               // Nếu trạng thái bằng nhau, giữ tin nhắn mới hơn
               else if (statusPriority[newStatus as keyof typeof statusPriority] === 
                       statusPriority[existingStatus as keyof typeof statusPriority] &&
                       new Date(message.timestamp) > new Date(existingMessage.timestamp)) {
-                console.log(`Replacing with newer message of same status`);
                 uniqueMessages[existingIndex] = message;
               }
               
@@ -2291,14 +2267,6 @@ export function ChatArea({ conversation }: ChatAreaProps) {
         20,
         direction
       );
-      console.log("Kết quả API getMessages:", result);
-
-      // Log phân trang để debug
-      console.log("Thông tin phân trang từ API:", {
-        hasMore: result.hasMore,
-        nextCursor: result.nextCursor,
-        direction: result.direction,
-      });
       
       const messagesData = result.messages;
       const resultDirection = result.direction || direction;
@@ -2307,18 +2275,14 @@ export function ChatArea({ conversation }: ChatAreaProps) {
       // Sử dụng nullish coalescing để đảm bảo giá trị boolean chính xác
       if (resultDirection === "before") {
         const hasMoreValue = result.hasMore ?? false;
-        console.log(`Cập nhật hasMore = ${hasMoreValue} cho hướng 'before'`);
         setHasMore(hasMoreValue);
         if (result.nextCursor) {
-          console.log(`Cập nhật oldestCursor = ${result.nextCursor}`);
           setOldestCursor(result.nextCursor);
         }
       } else {
         const hasMoreValue = result.hasMore ?? false;
-        console.log(`Cập nhật hasNewer = ${hasMoreValue} cho hướng 'after'`);
         setHasNewer(hasMoreValue);
         if (result.nextCursor) {
-          console.log(`Cập nhật newestCursor = ${result.nextCursor}`);
           setNewestCursor(result.nextCursor);
         }
       }
@@ -2330,10 +2294,7 @@ export function ChatArea({ conversation }: ChatAreaProps) {
         return;
       }
       
-      console.log(`Nhận được ${messagesData.length} tin nhắn từ API`);
-      
       if (messagesData.length === 0 && !cursor) {
-        console.log("Không có tin nhắn nào trong cuộc trò chuyện");
         setMessages([]);
         return;
       }
@@ -2440,13 +2401,7 @@ export function ChatArea({ conversation }: ChatAreaProps) {
                 }
               }, 0);
             }
-            
-            // Log để debug tin nhắn reply
-            console.log("Found reply message:", {
-              id: messageId,
-              replyTo: msg.messageReplyId,
-              replyData: msg.replyData
-            });
+
           }
           
           // Gán cả hai trường attachment và attachments cho tin nhắn hiển thị
@@ -2487,23 +2442,14 @@ export function ChatArea({ conversation }: ChatAreaProps) {
         })
         .filter(Boolean) as DisplayMessage[]; // Lọc bỏ các tin nhắn null
 
-      console.log(
-        `Đã chuyển đổi thành ${displayMessages.length} tin nhắn hiển thị`
-      );
-
       // Filter out messages that should be hidden from current user
       const filteredMessages = displayMessages.filter(msg => {
         // Filter out messages that are hidden from current user
         if (Array.isArray(msg.hiddenFrom) && msg.hiddenFrom.includes(currentUserId)) {
-          console.log(`Filtering out message ${msg.id} hidden from current user`);
           return false;
         }
         return true;
       });
-
-      console.log(
-        `Sau khi lọc: ${filteredMessages.length} tin nhắn hiển thị`
-      );
 
       // Sắp xếp tin nhắn theo thời gian tăng dần (cũ nhất lên đầu, mới nhất xuống cuối)
       const sortedMessages = [...filteredMessages].sort(
@@ -2522,7 +2468,6 @@ export function ChatArea({ conversation }: ChatAreaProps) {
             // Áp dụng deduplication
             const dedupedMessages = deduplicateMessages(combinedMessages);
             
-            console.log(`Deduplicated: ${combinedMessages.length} -> ${dedupedMessages.length} messages`);
             
             // Khôi phục vị trí cuộn sau khi thêm tin nhắn cũ để tránh nhảy vị trí
             setTimeout(() => {
@@ -2544,7 +2489,6 @@ export function ChatArea({ conversation }: ChatAreaProps) {
             // Áp dụng deduplication
             const dedupedMessages = deduplicateMessages(combinedMessages);
             
-            console.log(`Deduplicated: ${combinedMessages.length} -> ${dedupedMessages.length} messages`);
             
             // Cuộn xuống dưới sau khi thêm tin nhắn mới
             scrollToBottomSmooth();
@@ -2557,7 +2501,6 @@ export function ChatArea({ conversation }: ChatAreaProps) {
         // Áp dụng deduplication
         const dedupedMessages = deduplicateMessages(sortedMessages);
         
-        console.log(`Initial load deduplicated: ${sortedMessages.length} -> ${dedupedMessages.length} messages`);
         
         setMessages(dedupedMessages);
 
@@ -2565,7 +2508,6 @@ export function ChatArea({ conversation }: ChatAreaProps) {
         setTimeout(scrollToBottom, 10);
       }
       
-      console.log(`Đã tải ${displayMessages.length} tin nhắn`);
     } catch (error: any) {
       console.error("Lỗi khi tải tin nhắn:", error);
       
@@ -2619,7 +2561,6 @@ export function ChatArea({ conversation }: ChatAreaProps) {
       await fetchMessages(oldestCursor, "before");
     } catch (error) {
       setError("Lỗi khi tải thêm tin nhắn cũ hơn!");
-      console.error("Error loading more messages:", error);
     } finally {
       setLoadingMore(false);
     }
@@ -2628,7 +2569,6 @@ export function ChatArea({ conversation }: ChatAreaProps) {
   // Hàm tải thêm tin nhắn mới hơn
   const loadNewerMessages = () => {
     if (hasNewer && newestCursor) {
-      console.log(`Tải thêm tin nhắn mới hơn với cursor: ${newestCursor}`);
       fetchMessages(newestCursor, "after");
     } else {
       console.log("Không thể tải thêm tin nhắn mới hơn:", {
@@ -2648,7 +2588,6 @@ export function ChatArea({ conversation }: ChatAreaProps) {
 
       // Khi cuộn gần lên đầu, tải thêm tin nhắn cũ
       if (scrollTop < 100 && hasMore && !loadingMore && oldestCursor) {
-        console.log("Đang cuộn gần đầu, tải thêm tin nhắn cũ");
         loadMoreMessages();
       }
 
@@ -2659,7 +2598,6 @@ export function ChatArea({ conversation }: ChatAreaProps) {
         !loadingNewer &&
         newestCursor
       ) {
-        console.log("Đang cuộn gần cuối, tải thêm tin nhắn mới");
         loadNewerMessages();
       }
     };
@@ -3090,11 +3028,11 @@ export function ChatArea({ conversation }: ChatAreaProps) {
   );
 
   // Render recalled message
-  const renderRecalledMessage = (isOwn: boolean) => (
-    <div className={`text-xs italic ${isOwn ? 'text-blue-200' : 'text-gray-500'}`}>
-      Tin nhắn đã bị thu hồi
-    </div>
-  );
+  // const renderRecalledMessage = (isOwn: boolean) => (
+  //   <div className={`text-xs italic ${isOwn ? 'text-blue-200' : 'text-gray-500'}`}>
+  //     Tin nhắn đã bị thu hồi
+  //   </div>
+  // );
 
   // Add a click event handler to the document to close active menu when clicking outside
   useEffect(() => {
@@ -3754,38 +3692,20 @@ export function ChatArea({ conversation }: ChatAreaProps) {
     return user?.fullname || 'User';
   };
 
-  // Chuyển đổi từ message từ API sang định dạng hiển thị trong UI
-  const convertApiMessageToDisplayMessage = (apiMessage: any): DisplayMessage => {
-    // Debug tin nhắn reply
-    if (apiMessage.isReply) {
-      console.log('Converting API Reply Message:', {
-        id: apiMessage.messageDetailId,
-        isReply: apiMessage.isReply,
-        messageReplyId: apiMessage.messageReplyId,
-        replyData: apiMessage.replyData,
-        content: apiMessage.content
-      });
-    }
-    return apiMessage;
-  };
-
   // Thêm hàm để lấy thông tin tin nhắn gốc cho các tin nhắn reply
   const fetchOriginalMessageForReply = async (messageReplyId: string): Promise<ReplyData | null> => {
     try {
       if (!messageReplyId || !conversation) return null;
-      
-      console.log(`Fetching original message for reply: ${messageReplyId}`);
+       
       const originalMessage = await getSpecificMessage(messageReplyId, conversation.conversationId);
-      
-      if (originalMessage) {
-        console.log("Found original message:", originalMessage);
         
+      if (originalMessage) {
         // Lấy thông tin người gửi từ cache
         const sender = userCache[originalMessage.senderId] || {
           fullname: "Người dùng",
           urlavatar: "",
         };
-        
+         
         // Xây dựng dữ liệu reply phù hợp
         const replyData: ReplyData = {
           content: originalMessage.content || "",
@@ -3793,7 +3713,7 @@ export function ChatArea({ conversation }: ChatAreaProps) {
           senderId: originalMessage.senderId,
           type: originalMessage.type || "text",
         };
-        
+          
         // Nếu tin nhắn gốc có attachment, thêm vào replyData
         if (originalMessage.attachment) {
           replyData.attachment = originalMessage.attachment;
@@ -3822,76 +3742,45 @@ export function ChatArea({ conversation }: ChatAreaProps) {
     }
   };
 
-  // Replace notification function with simple logging
-  const logGroupStateChange = useCallback((actionType: string, userId: string) => {
-    // Only log to console, no UI notification
-    console.log(`ChatArea: ${actionType}`, { 
-      userId, 
-      conversationId: conversation?.conversationId 
-    });
-  }, [conversation?.conversationId]);
-
-  // Keep getUserName function
-  const getUserName = useCallback((userId: string): string => {
-    const user = userCache[userId];
-    return user ? user.fullname : 'Một thành viên';
-  }, [userCache]);
-
   // Modify socket event handlers to remove notifications
   useEffect(() => {
     if (!conversation?.conversationId) return;
     
-    const currentUserId = localStorage.getItem("userId") || "";
-    
     // Handler for when a user leaves the group
     const handleUserLeftGroup = (data: { conversationId: string, userId: string }): void => {
       if (data.conversationId !== conversation.conversationId) return;
-      
-      console.log('ChatArea: User left group:', data);
-      logGroupStateChange('userLeftGroup', data.userId);
+
+      console.log('User left group:', data.userId);
     };
-    
+
     // Handler for when a group is deleted
     const handleGroupDeleted = (data: { conversationId: string }): void => {
       if (data.conversationId !== conversation.conversationId) return;
       
-      console.log('ChatArea: Group deleted:', data);
-      logGroupStateChange('groupDeleted', '');
+      console.log('Group deleted:', data.conversationId);
     };
-    
+
     // Handler for when co-owners are added
     const handleGroupCoOwnerAdded = (data: { conversationId: string, newCoOwnerIds: string[] }): void => {
       if (data.conversationId !== conversation.conversationId) return;
       
-      console.log('ChatArea: Co-owner added:', data);
-      
-      // Get existing co-owner IDs
-      const existingCoOwnerIds = conversation.rules?.coOwnerIds || [];
-      
-      // Find the new co-owners (those in newCoOwnerIds but not in existingCoOwnerIds)
-      const newCoOwners = data.newCoOwnerIds.filter(id => !existingCoOwnerIds.includes(id));
-      
-      if (newCoOwners.length > 0) {
-        logGroupStateChange('groupCoOwnerAdded', newCoOwners[0]);
-      }
+      console.log('Co-owner added:', data.newCoOwnerIds);
     };
-    
+
     // Handler for when a co-owner is removed
     const handleGroupCoOwnerRemoved = (data: { conversationId: string, removedCoOwner: string }): void => {
       if (data.conversationId !== conversation.conversationId) return;
       
-      console.log('ChatArea: Co-owner removed:', data);
-      logGroupStateChange('groupCoOwnerRemoved', data.removedCoOwner);
+      console.log('Co-owner removed:', data.removedCoOwner);
     };
-    
+
     // Handler for when group owner changes
     const handleGroupOwnerChanged = (data: { conversationId: string, newOwner: string }): void => {
       if (data.conversationId !== conversation.conversationId) return;
       
-      console.log('ChatArea: Owner changed:', data);
-      logGroupStateChange('groupOwnerChanged', data.newOwner);
+      console.log('Group owner changed:', data.newOwner);
     };
-    
+
     // Register socket event handlers
     socketService.on('userLeftGroup', handleUserLeftGroup);
     socketService.on('groupDeleted', handleGroupDeleted);
@@ -3907,7 +3796,7 @@ export function ChatArea({ conversation }: ChatAreaProps) {
       socketService.off('groupCoOwnerRemoved', handleGroupCoOwnerRemoved);
       socketService.off('groupOwnerChanged', handleGroupOwnerChanged);
     };
-  }, [conversation?.conversationId, conversation?.rules?.ownerId, conversation?.rules?.coOwnerIds, logGroupStateChange]);
+  }, [conversation?.conversationId, conversation?.rules?.ownerId, conversation?.rules?.coOwnerIds]);
 
   return (
     <div className="w-full h-full flex flex-col">
@@ -4013,7 +3902,7 @@ export function ChatArea({ conversation }: ChatAreaProps) {
               
               const isOwn = isOwnMessage(message.sender.id);
               const showAvatar =
-                !isOwn && shouldShowAvatar(index, message.sender.id);
+                !isOwn && shouldShowAvatar();
               // Chỉ hiển thị tên người gửi trong nhóm, không hiển thị trong chat 1-1
               const showSender = showAvatar && conversation.isGroup;
 
@@ -4228,7 +4117,6 @@ export function ChatArea({ conversation }: ChatAreaProps) {
                               onClick={() => handleDownloadFile(message.fileUrl || message.content, "image")}
                               className="inline-flex items-center text-xs shadow-sm"
                             >
-                              Tải xuống
                             </Button>
                           </div>
                         </div>
@@ -4269,7 +4157,6 @@ export function ChatArea({ conversation }: ChatAreaProps) {
                                 )}
                                 className="inline-flex items-center text-xs shadow-sm"
                               >
-                                Tải xuống
                               </Button>
                             </div>
                           </div>
@@ -4309,7 +4196,6 @@ export function ChatArea({ conversation }: ChatAreaProps) {
                             )}
                             className="inline-flex items-center text-xs shadow-sm ml-2"
                           >
-                            Tải xuống
                           </Button>
                         </div>
                       ) : message.type === "video" ? (
@@ -4346,7 +4232,6 @@ export function ChatArea({ conversation }: ChatAreaProps) {
                               )}
                               className="inline-flex items-center text-xs shadow-sm"
                             >
-                              Tải xuống
                             </Button>
                           </div>
                         </div>

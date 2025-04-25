@@ -85,9 +85,7 @@ export const updateUserAvatar = async (imageFile: File): Promise<void> => {
 
     // Cập nhật thông tin người dùng vào localStorage
     localStorage.setItem("user", JSON.stringify(updatedUser));
-    console.log("Avatar updated successfully:", updatedUser);
   } catch (error: unknown) {
-    console.error("Error updating avatar:", error);
     throw new Error(
       error instanceof Error ? error.message : "Lỗi không xác định"
     );
@@ -128,7 +126,6 @@ export const verifyQRToken = async (qrToken: string) => {
 
 export const checkQRStatus = async (qrToken: string) => {
   try {
-    console.log("qrToken:", qrToken);
     const response = await apiClient.post(
       `/api/auth/check-qr-status/${qrToken}`
     );
@@ -152,7 +149,6 @@ export const checkQRStatus = async (qrToken: string) => {
 
 export const login = async (phone: string, password: string) => {
   try {
-    console.log("login with phone:", phone);
 
     // Đảm bảo số điện thoại đúng định dạng
     let formattedPhone = phone;
@@ -184,11 +180,6 @@ export const login = async (phone: string, password: string) => {
     };
   } catch (error: any) {
     // Log chi tiết về lỗi cho debugging
-    console.log("=== Chi tiết lỗi đăng nhập ===");
-    console.log("Status:", error.response?.status);
-    console.log("Response data:", error.response?.data);
-    console.log("Error message:", error.message);
-
     // Xử lý các trường hợp lỗi cụ thể mà không gây reload trang
     if (error.response?.status === 401) {
       // Check if the error message from the server indicates wrong password
@@ -256,7 +247,6 @@ export const fetchUserData = async (userId: string) => {
 
     return response.data;
   } catch (error) {
-    console.error("Error fetching user data:", error);
     throw new Error("Không tìm thấy người dùng!");
   }
 };
@@ -266,23 +256,17 @@ export const checkLogin = async (phone: string, password: string) => {
   try {
     const response = await apiClient.get("/api/users");
     const users = response.data;
-    console.log("Users:", users);
 
     const user = users.find((user: any) => user.phone_number === phone);
 
     if (user && password === user.hash_password) {
       // Simulate generating an access token (replace with actual token logic if available)
       const accessToken = `access-token-for-${user._id}`;
-      console.log("User found:", user);
       return { userId: user._id, accessToken };
     }
 
     throw new Error("Sai số điện thoại hoặc mật khẩu");
   } catch (error: any) {
-    console.error(
-      "Error in checkLogin:",
-      error.response?.data || error.message
-    );
     throw new Error(
       error.response?.data?.message || "Đăng nhập thất bại, vui lòng thử lại"
     );
@@ -400,7 +384,6 @@ export const getUserByPhone = async (phone: string) => {
     }
 
     const response = await apiClient.get(`/api/users/get-user/${phone}`);
-    console.log("Get user by phone response:", response.data);
     return response.data;
   } catch (error: any) {
     if (error.response?.status === 401) {
@@ -409,7 +392,6 @@ export const getUserByPhone = async (phone: string) => {
     if (error.response?.status === 404) {
       throw new Error("Không tìm thấy người dùng");
     }
-    console.error("Error fetching user by phone:", error);
     throw new Error("Lỗi khi lấy thông tin người dùng");
   }
 };
@@ -422,10 +404,8 @@ export const logout = async () => {
     localStorage.removeItem("userId");
 
     apiClient.defaults.headers.common["Authorization"] = "";
-    console.log("Đăng xuất thành công:", response.data);
     return response.data;
   } catch (error: any) {
-    console.error("Lỗi khi đăng xuất:", error.response?.data || error.message);
     throw new Error(
       error.response?.data?.message || "Đăng xuất thất bại, vui lòng thử lại"
     );
@@ -448,7 +428,6 @@ export const changePassword = async (
       newPassword,
     });
 
-    console.log("Response from changePassword API:", response.data);
 
     const { token, user } = response.data;
 
@@ -514,7 +493,6 @@ export const getUserById = async (userId: string): Promise<any> => {
     if (error.response?.status === 404) {
       throw new Error("Không tìm thấy người dùng");
     }
-    console.error("Error fetching user by ID:", error);
     throw new Error("Lỗi khi lấy thông tin người dùng");
   }
 };
@@ -530,7 +508,6 @@ export const fetchConversations = async (): Promise<Conversation[]> => {
     const response = await apiClient.get("/api/conversations");
 
     if (!Array.isArray(response.data)) {
-      console.error("Invalid conversations data format:", response.data);
       return [];
     }
 
@@ -538,14 +515,12 @@ export const fetchConversations = async (): Promise<Conversation[]> => {
     const validConversations = response.data;
     return validConversations;
   } catch (error) {
-    console.error("Lỗi khi lấy danh sách hội thoại:", error);
     return []; // Return empty array instead of throwing
   }
 };
 // Tạo 1 hội thoại
 export const createConversation = async (receiverId: string) => {
   try {
-    console.log("Creating conversation with receiverId:", receiverId);
     const response = await apiClient.post(
       "/api/conversations/create",
       { receiverId },
@@ -554,7 +529,6 @@ export const createConversation = async (receiverId: string) => {
 
     // After successful creation, emit a custom event that our app can listen for
     const newConversation = response.data;
-    console.log("Conversation created:", newConversation);
 
     // Emit a custom event that our components can listen for
     try {
@@ -565,14 +539,12 @@ export const createConversation = async (receiverId: string) => {
         },
       });
       window.dispatchEvent(customEvent);
-      console.log("Emitted newConversationCreated event");
     } catch (eventError) {
       console.error("Error emitting newConversationCreated event:", eventError);
     }
 
     return response.data;
   } catch (error) {
-    logApiError("createConversation", error);
     throw error;
   }
 };
@@ -600,7 +572,6 @@ export const removeFriend = async (friendId: string) => {
     if (error.response?.status === 404) {
       throw new Error("Không tìm thấy người dùng");
     }
-    console.error("Error removing friend:", error);
     throw new Error(error.response?.data?.message || "Không thể xóa bạn");
   }
 };
@@ -621,7 +592,6 @@ export const blockUser = async (userId: string) => {
     if (error.response?.status === 404) {
       throw new Error("Không tìm thấy người dùng");
     }
-    console.error("Error blocking user:", error);
     throw new Error(
       error.response?.data?.message || "Không thể chặn người dùng này"
     );
@@ -648,7 +618,6 @@ export const unblockUser = async (userId: string) => {
     if (error.response?.status === 400) {
       throw new Error("Người dùng không nằm trong danh sách chặn");
     }
-    console.error("Error unblocking user:", error);
     throw new Error(
       error.response?.data?.message || "Không thể bỏ chặn người dùng này"
     );
@@ -669,25 +638,13 @@ export const getBlockedUsers = async () => {
     if (error.response?.status === 401) {
       throw new Error("Phiên đăng nhập hết hạn, vui lòng đăng nhập lại");
     }
-    console.error("Error fetching blocked users:", error);
     throw new Error(
       error.response?.data?.message ||
         "Không thể lấy danh sách người dùng bị chặn"
     );
   }
 };
-// Utility function to log errors with more detail
-const logApiError = (endpoint: string, error: any) => {
-  console.error(`API Error in ${endpoint}:`, {
-    message: error.message,
-    status: error.response?.status,
-    statusText: error.response?.statusText,
-    data: error.response?.data,
-    requestURL: error.config?.url,
-    method: error.config?.method,
-    params: error.config?.params,
-  });
-};
+
 
 // Get messages
 export const getMessages = async (
@@ -697,14 +654,8 @@ export const getMessages = async (
   direction: "before" | "after" = "before"
 ) => {
   try {
-    console.log(
-      `getMessages: Đang lấy tin nhắn cho cuộc trò chuyện ${conversationId}`
-    );
-    console.log(`API URL: /api/messages/${conversationId}`);
-    console.log("Parameters:", { lastMessageTime, limit, direction });
 
     if (!conversationId || conversationId === "undefined") {
-      console.log("getMessages: conversationId không hợp lệ");
       return { messages: [], hasMore: false, nextCursor: null, direction };
     }
 
@@ -720,25 +671,11 @@ export const getMessages = async (
       timeout: 10000, // Timeout 10 giây
     });
 
-    console.log(
-      `getMessages: Nhận được phản hồi với status ${response.status}`
-    );
-
-    // Log the entire response for debugging
-    console.log("getMessages: Raw response data:", response.data);
-
     // Kiểm tra và xử lý dữ liệu trả về
     if (!response.data) {
-      console.error("getMessages: Không có dữ liệu từ server");
       return { messages: [], hasMore: false, nextCursor: null, direction };
     }
 
-    console.log("getMessages: Cấu trúc dữ liệu nhận được:", {
-      isArray: Array.isArray(response.data),
-      hasMessages: !!response.data.messages,
-      hasConversationId: !!response.data.conversationId,
-      keys: Object.keys(response.data),
-    });
 
     // Xử lý nhiều trường hợp định dạng dữ liệu khác nhau
     let messages = [];
@@ -748,7 +685,6 @@ export const getMessages = async (
 
     if (Array.isArray(response.data)) {
       // Trường hợp 1: Dữ liệu trả về là mảng tin nhắn trực tiếp
-      console.log("getMessages: Dữ liệu trả về là mảng tin nhắn");
       messages = response.data;
     } else if (
       response.data &&
@@ -756,7 +692,6 @@ export const getMessages = async (
       Array.isArray(response.data.messages)
     ) {
       // Trường hợp 2: Dữ liệu nằm trong property messages
-      console.log("getMessages: Dữ liệu trả về chứa mảng messages");
       messages = response.data.messages;
 
       // Sử dụng nullish coalescing để đảm bảo giá trị boolean chính xác
@@ -764,15 +699,8 @@ export const getMessages = async (
       nextCursor = response.data.nextCursor ?? null;
       responseDirection = response.data.direction || direction;
 
-      // Log pagination info
-      console.log("getMessages: Thông tin phân trang:", {
-        hasMore,
-        nextCursor,
-        direction: responseDirection,
-      });
     } else if (response.data && Array.isArray(response.data.data)) {
       // Trường hợp 3: Dữ liệu nằm trong property data
-      console.log("getMessages: Dữ liệu trả về chứa mảng data");
       messages = response.data.data;
       hasMore = response.data.hasMore ?? false;
       nextCursor = response.data.nextCursor ?? null;
@@ -783,14 +711,12 @@ export const getMessages = async (
       Array.isArray(response.data.messageList)
     ) {
       // Trường hợp 4: Dữ liệu nằm trong property messageList
-      console.log("getMessages: Dữ liệu trả về chứa mảng messageList");
       messages = response.data.messageList;
       hasMore = response.data.hasMore ?? false;
       nextCursor = response.data.nextCursor ?? null;
       responseDirection = response.data.direction || direction;
     } else if (response.data && response.data.conversationId) {
       // Trường hợp 5: Nhận được đối tượng conversation
-      console.log("getMessages: Nhận được đối tượng conversation");
       // Kiểm tra xem đối tượng conversation có chứa tin nhắn không
       if (response.data.messages && Array.isArray(response.data.messages)) {
         messages = response.data.messages;
@@ -799,17 +725,8 @@ export const getMessages = async (
         responseDirection = response.data.direction || direction;
       } else {
         // Nếu không có tin nhắn trong đối tượng conversation, trả về mảng rỗng
-        console.log(
-          "getMessages: Không tìm thấy tin nhắn trong đối tượng conversation"
-        );
         messages = [];
       }
-    } else {
-      // Trường hợp không xác định: Log và trả về mảng rỗng
-      console.error(
-        "getMessages: Định dạng dữ liệu không hợp lệ:",
-        response.data
-      );
     }
 
     // Chuẩn hóa các trường trong tin nhắn để phù hợp với frontend
@@ -821,13 +738,6 @@ export const getMessages = async (
       return msg;
     });
 
-    console.log("getMessages: Kết quả trả về:", {
-      messages: normalizedMessages.length,
-      hasMore,
-      nextCursor,
-      direction: responseDirection,
-    });
-
     return {
       messages: normalizedMessages,
       hasMore,
@@ -835,7 +745,6 @@ export const getMessages = async (
       direction: responseDirection,
     };
   } catch (error: any) {
-    logApiError("getMessages", error);
     return { messages: [], hasMore: false, nextCursor: null, direction };
   }
 };
@@ -935,11 +844,8 @@ export const sendMessage = async (
       }
     }
 
-    console.log("Normalized message for sending:", result);
     return result;
   } catch (error: any) {
-    console.error("Lỗi khi gửi tin nhắn:", error);
-
     // Xử lý các loại lỗi cụ thể
     if (error.response) {
       if (error.response.status === 401) {
@@ -983,7 +889,6 @@ export const getConversationDetail = async (
     );
     return response.data;
   } catch (error: any) {
-    console.error("Lỗi khi lấy chi tiết cuộc trò chuyện:", error);
     throw new Error(
       error.response?.data?.message || "Không thể lấy chi tiết cuộc trò chuyện"
     );
@@ -995,8 +900,6 @@ export const checkUsedPhone = async (
   phone: string
 ): Promise<{ otpId: string; otp: string }> => {
   try {
-    console.log("checkUsedPhone with phone:", phone);
-
     if (!phone) {
       throw new Error("Thiếu số điện thoại. Vui lòng kiểm tra lại.");
     }
@@ -1011,8 +914,6 @@ export const checkUsedPhone = async (
       `/api/auth/check-used-phone/${formattedPhone}`
     );
 
-    console.log("checkUsedPhone response:", response.data);
-
     if (!response.data.otpId) {
       throw new Error("Không nhận được mã OTP từ server");
     }
@@ -1022,7 +923,6 @@ export const checkUsedPhone = async (
       otp: response.data.otp,
     };
   } catch (error: any) {
-    console.error("checkUsedPhone error:", error);
     if (error.response) {
       console.error("Error response:", error.response.data);
     }
@@ -1057,8 +957,6 @@ export const sendOTPForgotPassword = async (
   phone: string
 ): Promise<{ otpId: string }> => {
   try {
-    console.log("sendOTPForgotPassword with phone:", phone);
-
     if (!phone) {
       throw new Error("Thiếu số điện thoại. Vui lòng kiểm tra lại.");
     }
@@ -1076,8 +974,6 @@ export const sendOTPForgotPassword = async (
       }
     );
 
-    console.log("sendOTPForgotPassword response:", response.data);
-
     if (!response.data.otpId) {
       throw new Error("Không nhận được mã OTP từ server");
     }
@@ -1086,7 +982,6 @@ export const sendOTPForgotPassword = async (
       otpId: response.data.otpId,
     };
   } catch (error: unknown) {
-    console.error("sendOTPForgotPassword error:", error);
     if (error instanceof AxiosError && error.response) {
       console.error("Error response:", error.response.data);
     }
@@ -1133,8 +1028,6 @@ export const verifyOTPForgotPassword = async (
   otpId: string
 ): Promise<void> => {
   try {
-    console.log("verifyOTPForgotPassword input params:", { phone, otp, otpId });
-
     if (!phone || !otp || !otpId) {
       throw new Error("Thiếu thông tin cần thiết. Vui lòng kiểm tra lại.");
     }
@@ -1158,11 +1051,6 @@ export const verifyOTPForgotPassword = async (
       throw new Error("Xác thực OTP thất bại");
     }
   } catch (error: unknown) {
-    console.error("verifyOTPForgotPassword error:", error);
-    if (error instanceof AxiosError && error.response) {
-      console.error("Error response:", error.response.data);
-    }
-
     const apiError = error as AxiosError<{ message?: string }>;
     if (apiError.response) {
       const { status, data } = apiError.response;
@@ -1218,8 +1106,6 @@ export const forgotPassword = async (
   newPassword: string
 ): Promise<void> => {
   try {
-    console.log("forgotPassword with phone:", phone);
-
     if (!phone || !newPassword) {
       throw new Error("Thiếu thông tin cần thiết. Vui lòng kiểm tra lại.");
     }
@@ -1239,7 +1125,6 @@ export const forgotPassword = async (
       throw new Error("Không thể đặt lại mật khẩu");
     }
   } catch (error: unknown) {
-    console.error("forgotPassword error:", error);
     if (error instanceof AxiosError && error.response) {
       console.error("Error response:", error.response.data);
     }
@@ -1293,8 +1178,6 @@ export const verifyPhoneOTP = async (
   otpId: string
 ): Promise<void> => {
   try {
-    console.log("verifyPhoneOTP input params:", { phone, otp, otpId });
-
     if (!phone || !otp || !otpId) {
       throw new Error("Thiếu thông tin cần thiết. Vui lòng kiểm tra lại.");
     }
@@ -1311,9 +1194,6 @@ export const verifyPhoneOTP = async (
       otpId,
     });
 
-    console.log("Verify phone OTP response:", response.data);
-
-    // Kiểm tra phản hồi từ server bằng tiếng Anh và chuyển sang tiếng Việt
     if (response.data.message !== "Phone verified successfully") {
       switch (response.data.message) {
         case "Invalid verification attempt":
@@ -1341,11 +1221,6 @@ export const verifyPhoneOTP = async (
       }
     }
   } catch (error: any) {
-    console.error("verifyPhoneOTP error:", error);
-    if (error.response) {
-      console.error("Error response:", error.response.data);
-    }
-
     // Nếu lỗi đã được xử lý trong khối try, chỉ cần ném lại
     if (error.message && !error.response) {
       throw error;
@@ -1424,12 +1299,10 @@ export const uploadAvatar = async (imageFile: File): Promise<string> => {
     }
 
     const data = await response.json();
-    console.log("Avatar uploaded successfully:", data);
 
     // Trả về URL của avatar mới
     return data.user.urlavatar;
   } catch (error) {
-    console.error("Error uploading avatar:", error);
     throw new Error(
       error instanceof Error ? error.message : "Lỗi không xác định khi tải ảnh"
     );
@@ -1479,7 +1352,6 @@ export const sendImageMessage = async (
     }
 
     const message = await response.json();
-    console.log("Image message sent successfully:", message);
 
     // Chuẩn hóa dữ liệu để phù hợp với frontend
     // Chuyển đổi từ cấu trúc backend sang frontend
@@ -1500,11 +1372,8 @@ export const sendImageMessage = async (
         : [message.attachment];
     }
 
-    console.log("Normalized message:", result);
     return result;
   } catch (error: any) {
-    console.error("Lỗi khi gửi ảnh:", error);
-
     if (error.response) {
       if (error.response.status === 401) {
         throw new Error("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.");
@@ -1579,7 +1448,6 @@ export const sendMessageWithImage = async (
     }
 
     const message = await response.json();
-    console.log("Message with image sent successfully:", message);
 
     // Chuẩn hóa dữ liệu để phù hợp với frontend
     let result = {
@@ -1599,11 +1467,8 @@ export const sendMessageWithImage = async (
         : [message.attachment];
     }
 
-    console.log("Normalized message with image:", result);
     return result;
   } catch (error: any) {
-    console.error("Lỗi khi gửi tin nhắn kèm ảnh:", error);
-
     if (error.response) {
       if (error.response.status === 401) {
         throw new Error("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.");
@@ -1644,57 +1509,32 @@ export const sendFriendRequest = async (
       throw new Error("ID người nhận không hợp lệ");
     }
 
-    console.log(`Sending friend request to receiverId: ${receiverId}`); // Debug
-
     const response = await apiClient.post(
       `/api/users/friend-requests/send-request/${receiverId}`,
-      { message }
+      {
+        message: message || "",
+      }
     );
 
-    console.log("Send friend request response:", response.data); // Debug
-
-    // Ghi đè thông báo thành công bằng tiếng Việt
     return {
       success: response.data.success ?? true,
       message: "Gửi yêu cầu kết bạn thành công", // Thông báo cố định bằng tiếng Việt
     };
   } catch (error: unknown) {
-    console.error("Error sending friend request:", {
-      error,
-      status: (error as AxiosError)?.response?.status,
-      errorMessage:
-        ((error as AxiosError)?.response?.data as any)?.message ||
-        "Unknown error",
-    });
-
-    // Xử lý các lỗi như hiện tại
     if (error instanceof AxiosError && error.response) {
       const { status, data } = error.response;
-      console.error("Error details:", { status, data });
 
       if (status === 400) {
         switch (data.message) {
-          case "Receiver ID is required":
-            throw new Error("Vui lòng cung cấp ID người nhận.");
-          case "You cannot send a friend request to yourself":
-            throw new Error(
-              "Bạn không thể gửi yêu cầu kết bạn cho chính mình."
-            );
-          case "A pending friend request already exists between you and this user":
-            throw new Error(
-              "Đã có yêu cầu kết bạn đang chờ xử lý với người này."
-            );
-          case "Friend request already sent":
-            throw new Error("Yêu cầu kết bạn đã được gửi trước đó.");
-          case "You are already friends with this user":
-            throw new Error("Bạn đã là bạn bè với người này.");
-          case "You cannot send a friend request to this user":
-            throw new Error(
-              "Không thể gửi yêu cầu kết bạn vì người này đã chặn bạn hoặc bạn đã chặn họ."
-            );
+          case "Cannot send friend request to yourself":
+            throw new Error("Không thể gửi yêu cầu kết bạn cho chính mình");
+          case "Friend request already exists":
+            throw new Error("Đã gửi yêu cầu kết bạn cho người dùng này");
+          case "Users are already friends":
+            throw new Error("Người dùng này đã là bạn của bạn");
           default:
             throw new Error(
-              data.message || "Yêu cầu kết bạn không hợp lệ, vui lòng thử lại."
+              data.message || "Không thể gửi yêu cầu kết bạn. Dữ liệu không hợp lệ."
             );
         }
       } else if (status === 404) {
@@ -1735,7 +1575,6 @@ export const getFriendRequestsReceived = async () => {
     }
 
     const response = await apiClient.get("/api/users/friend-requests-received");
-    console.log("Friend requests received response:", response.data);
 
     // Transform the data to match our frontend interface
     const transformedData = response.data.map((request: any) => ({
@@ -1765,9 +1604,8 @@ export const getFriendRequestsReceived = async () => {
 
     return transformedData;
   } catch (error: unknown) {
-    console.error("Lỗi khi lấy danh sách yêu cầu kết bạn đã nhận:", error);
     if (error instanceof AxiosError && error.response) {
-      console.error("Server error details:", error.response.data);
+      // Handle error without logging
     }
     return [];
   }
@@ -1782,7 +1620,6 @@ export const getFriendRequestsSent = async () => {
     }
 
     const response = await apiClient.get("/api/users/friend-requests-sent");
-    console.log("Friend requests sent response:", response.data);
 
     // Transform the data to match our frontend interface
     const transformedData = response.data.map((request: any) => ({
@@ -1796,10 +1633,10 @@ export const getFriendRequestsSent = async () => {
         userId: request.receiverId.userId,
         fullname: request.receiverId.fullname,
         urlavatar: request.receiverId.urlavatar,
-        _id: request.receiverId._id,
         isMale: request.receiverId.isMale,
         phone: request.receiverId.phone,
         birthday: request.receiverId.birthday,
+        _id: request.receiverId._id,
       },
       status: request.status,
       message: request.message || "",
@@ -1812,9 +1649,8 @@ export const getFriendRequestsSent = async () => {
 
     return transformedData;
   } catch (error: unknown) {
-    console.error("Lỗi khi lấy danh sách yêu cầu kết bạn đã gửi:", error);
     if (error instanceof AxiosError && error.response) {
-      console.error("Server error details:", error.response.data);
+      // Handle error without logging
     }
     return [];
   }
@@ -1831,10 +1667,8 @@ export const acceptFriendRequest = async (requestId: string) => {
     const response = await apiClient.put(
       `/api/users/friend-requests/accept-request/${requestId}`
     );
-    console.log("Accept friend request response:", response.data);
     return response.data;
   } catch (error: unknown) {
-    console.error("Lỗi khi chấp nhận yêu cầu kết bạn:", error);
     if (error instanceof AxiosError && error.response) {
       if (error.response.status === 401) {
         throw new Error("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.");
@@ -1858,10 +1692,8 @@ export const rejectFriendRequest = async (requestId: string) => {
     const response = await apiClient.put(
       `/api/users/friend-requests/reject-request/${requestId}`
     );
-    console.log("Reject friend request response:", response.data);
     return response.data;
   } catch (error: unknown) {
-    console.error("Lỗi khi từ chối yêu cầu kết bạn:", error);
     if (error instanceof AxiosError && error.response) {
       if (error.response.status === 401) {
         throw new Error("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.");
@@ -1883,12 +1715,10 @@ export const cancelFriendRequest = async (requestId: string) => {
     }
 
     const response = await apiClient.delete(
-      `/api/users/friend-requests/retrieve-request/${requestId}` // Updated endpoint path
+      `/api/users/friend-requests/retrieve-request/${requestId}`
     );
-    console.log("Cancel friend request response:", response.data);
     return response.data;
   } catch (error: unknown) {
-    console.error("Lỗi khi thu hồi yêu cầu kết bạn:", error);
     if (error instanceof AxiosError && error.response) {
       if (error.response.status === 401) {
         throw new Error("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.");
@@ -1915,21 +1745,13 @@ export const fetchFriends = async () => {
     }
 
     const response = await apiClient.get("/api/users/friends");
-    console.log("Friends response:", response.data);
 
     if (!Array.isArray(response.data)) {
-      console.error("Invalid friends data format:", response.data);
       return [];
     }
 
-    console.log("Fetched friends:", response.data);
     return response.data;
   } catch (error) {
-    console.error("Lỗi khi lấy danh sách bạn bè:", {
-      error,
-      status: (error as AxiosError).response?.status,
-      message: (error as AxiosError).response?.data?.message,
-    });
     const apiError = error as AxiosError<{ message?: string }>;
     if (apiError.response?.status === 401) {
       throw new Error("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.");
@@ -2080,7 +1902,6 @@ export const recallMessage = async (messageId: string): Promise<void> => {
 
     return response.data;
   } catch (error) {
-    logApiError("recallMessage", error);
     throw error;
   }
 };
@@ -2110,7 +1931,6 @@ export const deleteMessage = async (messageId: string): Promise<void> => {
 
     return response.data;
   } catch (error) {
-    logApiError("deleteMessage", error);
     throw error;
   }
 };
@@ -2129,7 +1949,6 @@ export const pinMessage = async (messageId: string): Promise<void> => {
       throw new Error(`Failed to pin message. Status: ${response.status}`);
     }
   } catch (error) {
-    console.error("Error while pinning message:", error);
     throw error;
   }
 };
@@ -2148,7 +1967,6 @@ export const unpinMessage = async (messageId: string): Promise<void> => {
       throw new Error(`Failed to unpin message. Status: ${response.status}`);
     }
   } catch (error) {
-    console.error("Error while unpinning message:", error);
     throw error;
   }
 };
@@ -2166,7 +1984,6 @@ export const getPinnedMessages = async (
     const response = await apiClient.get(
       `/api/conversations/${conversationId}`
     );
-    console.log("Pinned messages response:", response.data.pinnedMessages);
 
     if (response.status !== 200) {
       throw new Error(
@@ -2176,7 +1993,6 @@ export const getPinnedMessages = async (
 
     return response.data.pinnedMessages;
   } catch (error: any) {
-    console.error("Error while getting pinned messages:", error);
     throw error;
   }
 };
@@ -2204,7 +2020,6 @@ export const getSpecificMessage = async (
 
     return response.data;
   } catch (error) {
-    console.error("Error fetching specific message:", error);
     // Return null instead of throwing to handle gracefully in UI
     return null;
   }
@@ -2238,7 +2053,6 @@ export const replyMessage = async (
 
     return result;
   } catch (error) {
-    console.error("Error while replying to message:", error);
     throw error;
   }
 };
@@ -2283,12 +2097,9 @@ export const forwardImageMessage = async (
 
     return result;
   } catch (error) {
-    console.error("Error while forwarding image message:", error);
     throw error;
   }
 };
-
-// Add this function after fetchFriends
 
 // Tìm kiếm người dùng theo tên hoặc số điện thoại
 export const searchUsers = async (searchParam: string) => {
@@ -2306,16 +2117,12 @@ export const searchUsers = async (searchParam: string) => {
       `/api/users/search/${encodeURIComponent(searchParam)}`
     );
 
-    console.log("Search users response:", response.data);
-
     if (!Array.isArray(response.data)) {
-      console.error("Invalid search result format:", response.data);
       return [];
     }
 
     return response.data;
   } catch (error) {
-    console.error("Lỗi khi tìm kiếm người dùng:", error);
     const apiError = error as AxiosError<{ message?: string }>;
     if (apiError.response?.status === 401) {
       throw new Error("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.");
@@ -2340,10 +2147,8 @@ export const createGroupConversation = async (
       groupMembers,
     });
 
-    console.log("Tạo nhóm thành công:", response.data);
     return response.data;
   } catch (error: unknown) {
-    console.error("Lỗi khi tạo nhóm chat:", error);
     const apiError = error as AxiosError<{ message?: string }>;
     if (apiError.response?.status === 401) {
       throw new Error("Phiên đăng nhập hết hạn, vui lòng đăng nhập lại");
@@ -2357,8 +2162,6 @@ export const updateGroupAvatar = async (
   imageFile: File
 ): Promise<any> => {
   try {
-    console.log("UpdateGroupAvatar - Start", { conversationId });
-
     const token = getAuthToken();
     if (!token) {
       throw new Error("Vui lòng đăng nhập để thực hiện chức năng này");
@@ -2367,14 +2170,6 @@ export const updateGroupAvatar = async (
     const formData = new FormData();
     formData.append("groupAvatar", imageFile); // Tên trường phải khớp với 'uploadImage.single('groupAvatar')' trên backend
 
-    console.log(
-      "UpdateGroupAvatar - FormData prepared with file:",
-      imageFile.name,
-      imageFile.type,
-      imageFile.size
-    );
-
-    // Sử dụng đúng đường dẫn API đã đề cập trong backend
     const response = await apiClient.put(
       `/api/conversations/group/update/avatar/${conversationId}`,
       formData,
@@ -2386,12 +2181,8 @@ export const updateGroupAvatar = async (
       }
     );
 
-    console.log("UpdateGroupAvatar - Response:", response.data);
-
-    // Trả về response data từ server
     return response.data;
   } catch (error) {
-    console.error("Error updating group avatar:", error);
     throw error;
   }
 };
@@ -2424,11 +2215,6 @@ export const setCoOwner = async (
 
     return response.data;
   } catch (error: any) {
-    console.error("Error setting co-owners:", {
-      message: error.message,
-      status: error.response?.status,
-      data: error.response?.data,
-    });
     throw error;
   }
 };
@@ -2459,11 +2245,6 @@ export const setOwner = async (conversationId: string, userId: string) => {
 
     return response.data;
   } catch (error: any) {
-    console.error("Error setting new owner:", {
-      message: error.message,
-      status: error.response?.status,
-      data: error.response?.data,
-    });
     throw error;
   }
 };
@@ -2493,11 +2274,6 @@ export const removeCoOwnerById = async (
 
     return response.data;
   } catch (error: any) {
-    console.error("Error removing co-owner:", {
-      message: error.message,
-      status: error.response?.status,
-      data: error.response?.data,
-    });
     throw error;
   }
 };
@@ -2523,11 +2299,6 @@ export const deleteGroup = async (conversationId: string) => {
 
     return response.data;
   } catch (error: any) {
-    console.error("Error deleting group:", {
-      message: error.message,
-      status: error.response?.status,
-      data: error.response?.data,
-    });
     throw error;
   }
 };
@@ -2548,11 +2319,8 @@ export const leaveGroup = async (conversationId: string) => {
       `/api/conversations/group/${conversationId}/leave`
     );
 
-    console.log("Rời nhóm thành công:", response.data);
     return response.data;
   } catch (error) {
-    console.error("Lỗi khi rời nhóm:", error);
-
     // Dịch các thông báo lỗi từ tiếng Anh sang tiếng Việt
     if (error instanceof AxiosError && error.response?.status === 400) {
       const errorMessage = error.response.data.message;
@@ -2666,10 +2434,8 @@ export const fetchUserGroups = async (): Promise<Conversation[]> => {
 
     const response = await apiClient.get("/api/conversations/groups");
 
-    console.log("Lấy danh sách nhóm thành công:", response.data);
     return response.data;
   } catch (error) {
-    console.error("Lỗi khi lấy danh sách nhóm:", error);
     if (error instanceof AxiosError && error.response?.status === 401) {
       throw new Error("Phiên đăng nhập hết hạn, vui lòng đăng nhập lại");
     }
@@ -2683,12 +2449,11 @@ export const updateGroupName = async (
 ): Promise<{ message: string; conversation: any }> => {
   try {
     const response = await apiClient.put(
-      `/api/conversations/group/update/name/${conversationId}`,
-      { newName }
+      `/api/conversations/group/${conversationId}/name`,
+      { name: newName }
     );
     return response.data;
   } catch (error: any) {
-    console.error("Error updating group name:", error);
     if (error.response?.status === 400) {
       throw new Error(error.response.data.message || "Tên nhóm không hợp lệ");
     }
@@ -2712,7 +2477,6 @@ export const addMemberToGroup = async (
     );
     return response.data;
   } catch (error: any) {
-    console.error("Error adding member to group:", error);
     if (error.response?.status === 403) {
       throw new Error("Bạn không có quyền thêm thành viên vào nhóm này");
     }
@@ -2722,14 +2486,7 @@ export const addMemberToGroup = async (
           "Không tìm thấy người dùng hoặc cuộc trò chuyện"
       );
     }
-    if (error.response?.status === 400) {
-      throw new Error(
-        error.response.data.message || "Người dùng đã là thành viên của nhóm"
-      );
-    }
-    throw new Error(
-      error.response?.data?.message || "Không thể thêm thành viên vào nhóm"
-    );
+    throw new Error("Không thể thêm thành viên vào nhóm");
   }
 };
 
@@ -2743,7 +2500,6 @@ export const removeUserFromGroup = async (
     );
     return response.data;
   } catch (error: any) {
-    console.error("Error removing member from group:", error);
     if (error.response?.status === 403) {
       throw new Error("Bạn không có quyền xóa thành viên khỏi nhóm này");
     }

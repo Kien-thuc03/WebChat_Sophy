@@ -92,18 +92,6 @@ const MembersList: React.FC<MembersListProps> = ({
     [userCache, localUserCache]
   );
 
-
-  // Update this function to only log to console without showing UI notification
-  const updateGroupState = useCallback(
-    (userId: string, action: string) => {
-      console.log(`Group event: ${action}`, {
-        userId,
-        conversationId: conversation.conversationId,
-      });
-    },
-    [conversation.conversationId]
-  );
-
   // Add this function to determine user role from conversation data
   const determineUserRole = useCallback((conversationData: Conversation): 'owner' | 'co-owner' | 'member' => {
     const currentUserId = localStorage.getItem('userId') || '';
@@ -128,8 +116,6 @@ const MembersList: React.FC<MembersListProps> = ({
     }) => {
       if (data.conversationId !== conversation.conversationId) return;
 
-      console.log("MembersList: User left group:", data);
-
       // If current user left, go back
       if (data.userId === currentUserId) {
         onBack();
@@ -144,15 +130,11 @@ const MembersList: React.FC<MembersListProps> = ({
             prev.groupMembers?.filter((id) => id !== data.userId) || [],
         };
       });
-
-      // updateGroupState(data.userId, 'userLeftGroup');
     };
 
     // Handler for when a group is deleted
     const handleGroupDeleted = (data: { conversationId: string }) => {
       if (data.conversationId !== conversation.conversationId) return;
-
-      console.log("MembersList: Group deleted:", data);
 
       // Go back to conversation list
       onBack();
@@ -199,11 +181,6 @@ const MembersList: React.FC<MembersListProps> = ({
       ) {
         setUserRole("co-owner");
       }
-
-      if (newCoOwners.length > 0) {
-        updateGroupState(newCoOwners[0], "groupCoOwnerAdded");
-
-      }
       
       // Force refresh to ensure we have the latest data
       refreshConversationData();
@@ -215,8 +192,6 @@ const MembersList: React.FC<MembersListProps> = ({
       removedCoOwner: string;
     }) => {
       if (data.conversationId !== conversation.conversationId) return;
-
-      console.log("MembersList: Co-owner removed:", data);
 
       // Update the conversation by removing the co-owner
       setConversation((prev) => {
@@ -246,8 +221,6 @@ const MembersList: React.FC<MembersListProps> = ({
         setUserRole("member");
       }
       
-      // updateGroupState(data.removedCoOwner, 'groupCoOwnerRemoved');
-      
       // Force refresh to ensure we have the latest data
       refreshConversationData();
     };
@@ -258,8 +231,6 @@ const MembersList: React.FC<MembersListProps> = ({
       newOwner: string;
     }) => {
       if (data.conversationId !== conversation.conversationId) return;
-
-      console.log("MembersList: Owner changed:", data);
 
       const previousOwner = conversation.rules?.ownerId || "";
 
@@ -296,7 +267,6 @@ const MembersList: React.FC<MembersListProps> = ({
         setUserRole("member");
       }
 
-      updateGroupState(data.newOwner, "groupOwnerChanged");
       refreshConversationData();
     };
 
@@ -319,9 +289,10 @@ const MembersList: React.FC<MembersListProps> = ({
     conversation.conversationId,
     conversation.rules?.ownerId,
     conversation.rules?.coOwnerIds,
-    updateGroupState,
     currentUserId,
     onBack,
+    userRole,
+    determineUserRole
   ]);
 
   // Update the refreshConversationData function to trigger full re-render
@@ -337,7 +308,6 @@ const MembersList: React.FC<MembersListProps> = ({
         // Update user role based on the fresh data
         const newRole = determineUserRole(updatedConversation);
         if (newRole !== userRole) {
-          console.log('MembersList: User role updated from', userRole, 'to', newRole);
           
           // Force a complete re-render by setting userRole with a slight delay
           // This ensures all dependent calculations happen after role update
@@ -369,7 +339,6 @@ const MembersList: React.FC<MembersListProps> = ({
           .map((friend) => friend.userId || friend._id || friend.id || "")
           .filter((id) => id);
         setFriendList(friendIds);
-        console.log("Friend list refreshed:", friendIds);
       }
     } catch (err) {
       console.error("Error refreshing friend list:", err);
@@ -612,7 +581,6 @@ const MembersList: React.FC<MembersListProps> = ({
   // Update the handler for new message to force a re-render
   const handleNewMessage = (data: any) => {
     if (data.conversationId === conversation.conversationId) {
-      console.log('MembersList: New message received, refreshing conversation data');
       // Refresh the conversation data with a small delay to ensure backend sync
       setTimeout(() => {
         refreshConversationData();

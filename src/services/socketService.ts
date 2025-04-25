@@ -133,8 +133,6 @@ class SocketService {
         reconnectionDelay: this.reconnectDelay,
         timeout: 20000,
         autoConnect: true,
-        pingInterval: 25000,
-        pingTimeout: 20000,
       });
 
       this.socket.on("connect", () => {
@@ -257,7 +255,6 @@ class SocketService {
 
   emit(event: string, data?: any, callback?: (response: any) => void) {
     if (this.socket && this.socket.connected) {
-      console.log(`SocketService: Emitting event ${event}:`, data);
       if (callback) {
         this.socket.emit(event, data, callback);
       } else {
@@ -268,9 +265,6 @@ class SocketService {
       this.connect();
       setTimeout(() => {
         if (this.socket?.connected) {
-          console.log(
-            `SocketService: Retrying emit event ${event} after reconnect`
-          );
           if (callback) {
             this.socket.emit(event, data, callback);
           } else {
@@ -296,7 +290,6 @@ class SocketService {
     if (this.socket) {
       this.socket.off(eventName, callback);
       this.socket.on(eventName, (data) => {
-        console.log(`SocketService: Received ${eventName} event:`, data);
         callback(data);
       });
     } else {
@@ -321,12 +314,6 @@ class SocketService {
     if (this.socket) {
       this.socket.off("zegoToken");
       this.socket.on("zegoToken", (data) => {
-        console.log("SocketService: Received ZEGOCLOUD token:", {
-          token: data.token.slice(0, 20) + "...",
-          appID: data.appID,
-          userId: data.userId,
-          effectiveTimeInSeconds: data.effectiveTimeInSeconds,
-        });
         callback(data);
       });
     } else {
@@ -344,7 +331,6 @@ class SocketService {
     if (this.socket) {
       this.socket.off("startCall");
       this.socket.on("startCall", (data) => {
-        console.log("SocketService: Received startCall event:", data);
         callback(data);
       });
     } else {
@@ -362,7 +348,6 @@ class SocketService {
     if (this.socket) {
       this.socket.off("endCall");
       this.socket.on("endCall", (data) => {
-        console.log("SocketService: Received endCall event:", data);
         callback(data);
       });
     } else {
@@ -380,7 +365,6 @@ class SocketService {
     if (this.socket) {
       this.socket.off("callError");
       this.socket.on("callError", (data) => {
-        console.log("SocketService: Received callError event:", data);
         callback(data);
       });
     } else {
@@ -479,9 +463,6 @@ class SocketService {
       const processedMessageIds = new Map<string, number>();
 
       this.socket.on("newMessage", (data: any) => {
-
-        console.log("SocketService: Received new message:", data);
-
         let messageData = data.message;
         const messageId =
           messageData.messageDetailId ||
@@ -500,12 +481,7 @@ class SocketService {
           const lastProcessedTime = processedMessageIds.get(messageId);
 
           if (lastProcessedTime && now - lastProcessedTime < 10000) {
-
-            console.log(
-              `SocketService: Duplicate message detected and skipped (ID: ${messageId})`
-            );
             return;
-
           }
 
           processedMessageIds.set(messageId, now);
@@ -554,12 +530,6 @@ class SocketService {
       this.socket.off("newConversation");
 
       this.socket.on("newConversation", (rawData: any) => {
-        console.log(
-          "SocketService: Received raw newConversation event:",
-          rawData
-        );
-
-
         let normalizedData: ConversationData;
 
         if (rawData.conversation) {
@@ -586,13 +556,6 @@ class SocketService {
         }
 
         const userId = localStorage.getItem("userId");
-
-        const { creatorId, receiverId } = normalizedData.conversation;
-
-        console.log(
-          `SocketService: New conversation - creator: ${creatorId}, receiver: ${receiverId}, current user: ${userId}`
-        );
-
 
         callback(normalizedData);
 
@@ -719,17 +682,6 @@ class SocketService {
 
     if (this.socket) {
       this.socket.on("newFriendRequest", (data: FriendRequestData) => {
-        console.log("SocketService: Received newFriendRequest event:", data);
-        if (this.isFriendRequestSender(data)) {
-          console.log(
-            "SocketService: Current user is the sender, showing notification"
-          );
-        } else {
-          console.log(
-            "SocketService: Current user is the receiver, skipping notification"
-          );
-        }
-
         callback(data);
       });
     } else {
@@ -897,17 +849,11 @@ class SocketService {
         });
       }
 
-      console.log("Bắt đầu tải lên file và gửi tin nhắn...");
-
       // Sử dụng hàm sendFileMessage từ cloudinaryService thay vì chỉ uploadToCloudinary
-      // Đây là bước quan trọng vì hàm này đã được cập nhật để gửi dữ liệu đến API
-
       const result = await cloudinaryService.sendFileMessage(
         file,
         conversationId
       );
-
-      console.log("Hoàn tất quá trình tải lên và lưu vào database:", result);
 
       return result;
     } catch (error) {
@@ -1062,7 +1008,6 @@ class SocketService {
     if (this.socket) {
       this.socket.off("userJoinedGroup");
       this.socket.on("userJoinedGroup", (data) => {
-        console.log("SocketService: User joined group:", data);
         callback(data);
       });
     } else {
@@ -1078,7 +1023,6 @@ class SocketService {
     if (this.socket) {
       this.socket.off("userLeftGroup");
       this.socket.on("userLeftGroup", (data) => {
-        console.log("SocketService: User left group:", data);
         callback(data);
       });
     } else {
@@ -1094,7 +1038,6 @@ class SocketService {
     if (this.socket) {
       this.socket.off("groupNameChanged");
       this.socket.on("groupNameChanged", (data) => {
-        console.log("SocketService: Group name changed:", data);
         callback(data);
       });
     } else {
@@ -1110,7 +1053,6 @@ class SocketService {
     if (this.socket) {
       this.socket.off("groupAvatarChanged");
       this.socket.on("groupAvatarChanged", (data) => {
-        console.log("SocketService: Group avatar changed:", data);
         callback(data);
       });
     } else {
@@ -1126,7 +1068,6 @@ class SocketService {
     if (this.socket) {
       this.socket.off("groupOwnerChanged");
       this.socket.on("groupOwnerChanged", (data) => {
-        console.log("SocketService: Group owner changed:", data);
         callback(data);
       });
     } else {
@@ -1142,7 +1083,6 @@ class SocketService {
     if (this.socket) {
       this.socket.off("groupCoOwnerAdded");
       this.socket.on("groupCoOwnerAdded", (data) => {
-        console.log("SocketService: Group co-owner added:", data);
         callback(data);
       });
     } else {
@@ -1158,7 +1098,6 @@ class SocketService {
     if (this.socket) {
       this.socket.off("groupCoOwnerRemoved");
       this.socket.on("groupCoOwnerRemoved", (data) => {
-        console.log("SocketService: Group co-owner removed:", data);
         callback(data);
       });
     } else {
@@ -1174,7 +1113,6 @@ class SocketService {
     if (this.socket) {
       this.socket.off("groupDeleted");
       this.socket.on("groupDeleted", (data) => {
-        console.log("SocketService: Group deleted:", data);
         callback(data);
       });
     } else {
@@ -1191,7 +1129,6 @@ class SocketService {
     if (this.socket) {
       this.socket.off("userBlocked");
       this.socket.on("userBlocked", (data) => {
-        console.log("SocketService: User blocked:", data);
         callback(data);
       });
     } else {
@@ -1207,7 +1144,6 @@ class SocketService {
     if (this.socket) {
       this.socket.off("userUnblocked");
       this.socket.on("userUnblocked", (data) => {
-        console.log("SocketService: User unblocked:", data);
         callback(data);
       });
     } else {
@@ -1224,7 +1160,6 @@ class SocketService {
     if (this.socket) {
       this.socket.off("newNotification");
       this.socket.on("newNotification", (data) => {
-        console.log("SocketService: New notification:", data);
         callback(data);
       });
     } else {
