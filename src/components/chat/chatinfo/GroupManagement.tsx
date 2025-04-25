@@ -83,11 +83,8 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
   const [isTransferOwnerModalVisible, setIsTransferOwnerModalVisible] = useState(false);
   const [selectedNewOwner, setSelectedNewOwner] = useState<string | null>(null);
 
-  // Modify function to only update state without showing notifications
-  const updateGroupState = useCallback((userId: string, actionType: string) => {
-    // Only log to console, no UI notification
-    console.log(`Group event: ${actionType}`, { userId, conversationId: conversation.conversationId });
-  }, [conversation.conversationId]);
+  // Add a renderKey state to force re-renders
+  const [renderKey, setRenderKey] = useState<number>(Date.now());
 
   // Function to get user name from cache or default value
   const getUserName = useCallback((userId: string): string => {
@@ -105,8 +102,6 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
     const handleUserLeftGroup = (data: { conversationId: string, userId: string }) => {
       if (data.conversationId !== conversation.conversationId) return;
       
-      console.log('GroupManagement: User left group:', data);
-      
       // If current user left, go back
       if (data.userId === currentUserId) {
         onBack();
@@ -121,15 +116,12 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
         };
       });
       
-      updateGroupState(data.userId, 'userLeftGroup');
+      // updateGroupState(data.userId, 'userLeftGroup');
     };
     
     // Handler for when a group is deleted
     const handleGroupDeleted = (data: { conversationId: string }) => {
       if (data.conversationId !== conversation.conversationId) return;
-      
-      console.log('GroupManagement: Group deleted:', data);
-      
       // Go back
       onBack();
     };
@@ -137,9 +129,6 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
     // Handler for when co-owners are added
     const handleGroupCoOwnerAdded = (data: { conversationId: string, newCoOwnerIds: string[] }) => {
       if (data.conversationId !== conversation.conversationId) return;
-      
-      console.log('GroupManagement: Co-owner added:', data);
-      
       // Get existing co-owner IDs
       const existingCoOwnerIds = conversation.rules?.coOwnerIds || [];
       
@@ -150,23 +139,30 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
       setConversation(prev => {
         if (!prev.rules) return prev;
         
-        return {
+        const updatedConversation = {
           ...prev,
           rules: {
             ...prev.rules,
             coOwnerIds: data.newCoOwnerIds
           }
         };
+        
+        // Determine and update role based on the updated conversation data
+        const newRole = determineUserRole(updatedConversation);
+        if (newRole !== userRole) {
+          console.log('GroupManagement: User role updated from', userRole, 'to', newRole);
+          setUserRole(newRole);
+        }
+        
+        return updatedConversation;
       });
       
-      // If current user is in the new co-owners list, update role
-      if (data.newCoOwnerIds.includes(currentUserId) && !existingCoOwnerIds.includes(currentUserId)) {
-        setUserRole(UserRole.CO_OWNER);
+      if (newCoOwners.length > 0) {
+        // updateGroupState(newCoOwners[0], 'groupCoOwnerAdded');
       }
       
-      if (newCoOwners.length > 0) {
-        updateGroupState(newCoOwners[0], 'groupCoOwnerAdded');
-      }
+      // Force refresh to ensure we have the latest data
+      refreshConversationData();
     };
     
     // Handler for when a co-owner is removed
@@ -179,21 +175,28 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
       setConversation(prev => {
         if (!prev.rules || !prev.rules.coOwnerIds) return prev;
         
-        return {
+        const updatedConversation = {
           ...prev,
           rules: {
             ...prev.rules,
             coOwnerIds: prev.rules.coOwnerIds.filter(id => id !== data.removedCoOwner)
           }
         };
+        
+        // Determine and update role based on the updated conversation data
+        const newRole = determineUserRole(updatedConversation);
+        if (newRole !== userRole) {
+          console.log('GroupManagement: User role updated from', userRole, 'to', newRole);
+          setUserRole(newRole);
+        }
+        
+        return updatedConversation;
       });
       
-      // If current user was removed as co-owner, update role
-      if (data.removedCoOwner === currentUserId) {
-        setUserRole(UserRole.MEMBER);
-      }
+      // updateGroupState(data.removedCoOwner, 'groupCoOwnerRemoved');
       
-      updateGroupState(data.removedCoOwner, 'groupCoOwnerRemoved');
+      // Force refresh to ensure we have the latest data
+      refreshConversationData();
     };
     
     // Handler for when group owner changes
@@ -208,7 +211,7 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
       setConversation(prev => {
         if (!prev.rules) return prev;
         
-        return {
+        const updatedConversation = {
           ...prev,
           rules: {
             ...prev.rules,
@@ -219,17 +222,21 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
               []
           }
         };
+        
+        // Determine and update role based on the updated conversation data
+        const newRole = determineUserRole(updatedConversation);
+        if (newRole !== userRole) {
+          console.log('GroupManagement: User role updated from', userRole, 'to', newRole);
+          setUserRole(newRole);
+        }
+        
+        return updatedConversation;
       });
       
-      // Update the user role based on the change
-      if (data.newOwner === currentUserId) {
-        setUserRole(UserRole.OWNER);
-      } else if (previousOwner === currentUserId) {
-        // If current user was the previous owner, downgrade to member
-        setUserRole(UserRole.MEMBER);
-      }
+      // updateGroupState(data.newOwner, 'groupOwnerChanged');
       
-      updateGroupState(data.newOwner, 'groupOwnerChanged');
+      // Force refresh to ensure we have the latest data
+      refreshConversationData();
     };
     
     // Register socket event handlers
@@ -247,8 +254,8 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
       socketService.off('groupCoOwnerRemoved', handleGroupCoOwnerRemoved);
       socketService.off('groupOwnerChanged', handleGroupOwnerChanged);
     };
-  }, [conversation.conversationId, conversation.rules?.ownerId, conversation.rules?.coOwnerIds, updateGroupState, getUserName, onBack]);
-
+  // }, [conversation.conversationId, conversation.rules?.ownerId, conversation.rules?.coOwnerIds, updateGroupState, getUserName, onBack]);
+}, [conversation.conversationId, conversation.rules?.ownerId, conversation.rules?.coOwnerIds, getUserName, onBack]);
   // Determine user role when component mounts
   useEffect(() => {
     // Get the current user ID from localStorage
@@ -266,6 +273,12 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
       } else {
         setUserRole(UserRole.MEMBER);
       }
+      
+      // Log role change for debugging
+      console.log('GroupManagement: User role updated to:', 
+        conversation.rules.ownerId === currentUserId ? 'owner' : 
+        (conversation.rules.coOwnerIds && conversation.rules.coOwnerIds.includes(currentUserId)) ? 'co-owner' : 
+        'member');
     }
   }, [conversation]);
 
@@ -303,6 +316,35 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
   useEffect(() => {
     setConversation(initialConversation);
   }, [initialConversation]);
+
+  // Fetch the most up-to-date conversation data when component mounts
+  useEffect(() => {
+    refreshConversationData();
+  }, []);
+
+  // Update handler for new messages
+  const handleNewMessage = (data: any) => {
+    if (data.conversationId === conversation.conversationId) {
+      console.log('GroupManagement: New message received, refreshing conversation data');
+      // Refresh the conversation data with a small delay to ensure backend sync
+      setTimeout(() => {
+        refreshConversationData();
+      }, 300);
+    }
+  };
+
+  // Add event listener for new messages to keep conversation data fresh
+  useEffect(() => {
+    if (!conversation.conversationId) return;
+    
+    // Listen for new message events
+    socketService.on('newMessage', handleNewMessage);
+    
+    // Cleanup function
+    return () => {
+      socketService.off('newMessage', handleNewMessage);
+    };
+  }, [conversation.conversationId]);
 
   const handlePermissionChange = (permissionKey: keyof typeof permissions) => {
     // Only owner and co-owners can change permissions
@@ -606,17 +648,53 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
     refreshConversationData();
   };
 
-  // Add function to refresh conversation data
-  const refreshConversationData = async () => {
-    if (!conversation.conversationId) return;
+  // Add a function to determine user role from conversation data
+  const determineUserRole = useCallback((conversationData: Conversation): UserRole => {
+    const currentUserId = localStorage.getItem("userId") || "";
     
+    if (conversationData.rules?.ownerId === currentUserId) {
+      return UserRole.OWNER;
+    } else if (
+      conversationData.rules?.coOwnerIds &&
+      conversationData.rules?.coOwnerIds.includes(currentUserId)
+    ) {
+      return UserRole.CO_OWNER;
+    } else {
+      return UserRole.MEMBER;
+    }
+  }, []);
+
+  // Update the refreshConversationData function
+  const refreshConversationData = async () => {
     try {
+      if (!conversation.conversationId) return;
+      
+      // Get updated conversation data from the API
       const updatedConversation = await getConversationDetail(conversation.conversationId);
       if (updatedConversation) {
+        // Update conversation first
         setConversation(updatedConversation);
+        
+        // Update user role based on the fresh data
+        const newRole = determineUserRole(updatedConversation);
+        if (newRole !== userRole) {
+          console.log('GroupManagement: User role updated from', userRole, 'to', newRole);
+          
+          // Force a complete re-render by setting userRole with a slight delay
+          // This ensures all dependent calculations happen after role update
+          setTimeout(() => {
+            setUserRole(newRole);
+            
+            // Force a re-render by updating a timestamp state
+            setRenderKey(Date.now());
+          }, 50);
+        } else {
+          // Even if role is the same, we may need to force a re-render
+          setRenderKey(Date.now());
+        }
       }
-    } catch (error) {
-      console.error('Failed to refresh conversation data:', error);
+    } catch (err) {
+      console.error('Error refreshing conversation data:', err);
     }
   };
 
@@ -631,7 +709,7 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
     const ownerData = getUserDetails(owner);
 
     return (
-      <div className="group-management flex flex-col h-full bg-white">
+      <div className="group-management flex flex-col h-full bg-white" key={`group-management-${renderKey}`}>
         {/* Header */}
         <div className="flex items-center p-4 border-b border-gray-200 relative">
           <Button
@@ -956,7 +1034,7 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
   // For regular members, show simplified view without activity log
   if (userRole === UserRole.MEMBER) {
     return (
-      <div className="group-management flex flex-col h-full bg-white">
+      <div className="group-management flex flex-col h-full bg-white" key={`group-management-${renderKey}`}>
         {/* Header */}
         <div className="flex items-center p-4 border-b border-gray-200 relative">
           <Button
@@ -1128,7 +1206,7 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
 
   // For owner and co-owner, show normal view with appropriate restrictions
   return (
-    <div className="group-management flex flex-col h-full bg-white">
+    <div className="group-management flex flex-col h-full bg-white" key={`group-management-${renderKey}`}>
       {/* Header */}
       <div className="flex items-center p-4 border-b border-gray-200 relative">
         <Button

@@ -638,11 +638,6 @@ class SocketService {
     }
 
     if (userId) {
-      console.log("SocketService: Marking messages as read:", {
-        conversationId,
-        messageIds,
-        userId,
-      });
 
       this.socket.emit("markMessagesRead", {
         conversationId,
@@ -673,12 +668,6 @@ class SocketService {
     }
 
     if (userId) {
-      console.log("SocketService: Marking messages as delivered:", {
-        conversationId,
-        messageIds,
-        userId,
-      });
-
       // Đảm bảo chúng ta gửi đầy đủ thông tin để cập nhật mảng deliveredTo trên server
       this.socket.emit("messageDelivered", {
         conversationId,
