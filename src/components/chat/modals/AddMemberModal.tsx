@@ -9,6 +9,7 @@ import {
 } from "../../../api/API";
 import { Avatar } from "../../common/Avatar";
 import { useConversationContext } from "../../../features/chat/context/ConversationContext";
+import socketService from "../../../services/socketService";
 
 // Use a type that contains only the properties we need
 interface UserDisplay {
@@ -43,7 +44,7 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
   const [activeFilter, setActiveFilter] = useState("tất cả");
   const { updateConversationField } = useConversationContext();
 
-  // Load friends when modal is visible
+  // Load friends chỉ khi modal mở/đóng
   useEffect(() => {
     const loadFriends = async () => {
       if (!visible) return;
@@ -51,7 +52,6 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
       setIsLoading(true);
       try {
         const friendsList = await fetchFriends();
-        // Filter out users who are already members
         const filteredFriends = friendsList
           .filter((friend) => !groupMembers.includes(friend.userId))
           .map((friend) => ({
@@ -69,7 +69,33 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
     };
 
     loadFriends();
-  }, [visible, groupMembers]);
+  }, [visible]); // Chỉ phụ thuộc vào visible
+
+  // Socket listener riêng
+  useEffect(() => {
+    const handleUserAddedToGroup = (data: {
+      conversationId: string;
+      addedUser: { userId: string; fullname: string };
+      addedByUser: { userId: string; fullname: string };
+    }) => {
+      if (data.conversationId === conversationId) {
+        message.success(
+          `${data.addedByUser.fullname} đã thêm ${data.addedUser.fullname} vào nhóm`
+        );
+        // Join conversation for the new member
+        socketService.joinConversation(conversationId);
+        if (refreshConversationData) {
+          refreshConversationData();
+        }
+      }
+    };
+
+    socketService.onUserAddedToGroup(handleUserAddedToGroup);
+
+    return () => {
+      socketService.off("userAddedToGroup", handleUserAddedToGroup);
+    };
+  }, [conversationId, refreshConversationData]);
 
   // Refresh conversation data after successful member addition
   const refreshConversation = async () => {
@@ -160,6 +186,12 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
       try {
         await addMemberToGroup(conversationId, userId);
         successes.push(userId);
+
+        // Join conversation for the new member
+        socketService.joinConversation(conversationId);
+
+        // Refresh conversation data immediately
+        await refreshConversation();
       } catch (error) {
         console.error(`Error adding member ${userId}:`, error);
         if (error instanceof Error) {
@@ -186,8 +218,6 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
 
     if (successes.length > 0) {
       message.success(`Đã thêm ${successes.length} thành viên vào nhóm`);
-      // Refresh the conversation data to get updated member list
-      await refreshConversation();
     }
 
     if (errors.length > 0) {

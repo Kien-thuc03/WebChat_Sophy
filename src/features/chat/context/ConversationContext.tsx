@@ -29,8 +29,9 @@ interface Message {
   deliveredTo?: string[];
 }
 
-interface ConversationContextType {
+export interface ConversationContextType {
   conversations: Conversation[];
+  setConversations: React.Dispatch<React.SetStateAction<Conversation[]>>;
   userCache: Record<string, User>;
   userAvatars: Record<string, string>;
   displayNames: Record<string, string>;
@@ -55,9 +56,24 @@ interface ConversationContextType {
   updateConversationMembers: (conversationId: string, userId: string) => void;
 }
 
-const ConversationContext = createContext<ConversationContextType | undefined>(
-  undefined
-);
+export const ConversationContext = createContext<ConversationContextType>({
+  conversations: [],
+  setConversations: () => {},
+  userCache: {},
+  displayNames: {},
+  userAvatars: {},
+  isLoading: false,
+  updateConversationWithNewMessage: () => {},
+  updateConversationField: () => {},
+  updateConversationMembers: () => {},
+  refreshConversations: async () => {},
+  selectedConversation: null,
+  setSelectedConversation: () => {},
+  markConversationAsRead: () => {},
+  updateUnreadStatus: () => {},
+  addNewConversation: () => {},
+  refreshConversations: async () => {},
+});
 
 // Helper functions for localStorage avatars
 const saveGroupAvatarToLocalStorage = (
@@ -740,6 +756,7 @@ export const ConversationProvider: React.FC<{ children: ReactNode }> = ({
 
   const value = {
     conversations,
+    setConversations,
     userCache,
     userAvatars,
     displayNames,

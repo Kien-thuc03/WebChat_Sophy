@@ -48,6 +48,9 @@ interface ConversationData {
     groupName?: string;
     groupMembers?: string[];
     lastChange?: string;
+    lastMessage?: string | null;
+    unreadCount: number;
+    hasUnread: boolean;
   };
   timestamp: string;
 }
@@ -393,6 +396,20 @@ class SocketService {
     this.socket.emit("joinUserConversations", conversationIds);
   }
 
+  joinConversation(conversationId: string) {
+    if (!this.socket || !this.socket.connected) {
+      this.connect();
+      setTimeout(() => {
+        if (this.socket?.connected) {
+          this.socket.emit("joinUserConversations", [conversationId]);
+        }
+      }, 1000);
+      return;
+    }
+
+    this.socket.emit("joinUserConversations", [conversationId]);
+  }
+
   leaveConversation(conversationId: string) {
     if (!this.socket || !this.socket.connected) {
       console.warn(
@@ -527,10 +544,23 @@ class SocketService {
         let normalizedData: ConversationData;
 
         if (rawData.conversation) {
-          normalizedData = rawData as ConversationData;
+          normalizedData = {
+            conversation: {
+              ...rawData.conversation,
+              lastMessage: rawData.conversation.lastMessage || null,
+              unreadCount: rawData.conversation.unreadCount || 0,
+              hasUnread: rawData.conversation.hasUnread || false,
+            },
+            timestamp: rawData.timestamp || new Date().toISOString(),
+          };
         } else if (rawData.conversationId) {
           normalizedData = {
-            conversation: rawData,
+            conversation: {
+              ...rawData,
+              lastMessage: rawData.lastMessage || null,
+              unreadCount: rawData.unreadCount || 0,
+              hasUnread: rawData.hasUnread || false,
+            },
             timestamp: new Date().toISOString(),
           };
         } else {
@@ -549,13 +579,12 @@ class SocketService {
           return;
         }
 
-        const userId = localStorage.getItem("userId");
+        // Join conversation immediately
+        if (normalizedData.conversation.conversationId) {
+          this.joinConversation(normalizedData.conversation.conversationId);
+        }
 
         callback(normalizedData);
-
-        if (normalizedData.conversation.conversationId) {
-          this.joinConversations([normalizedData.conversation.conversationId]);
-        }
       });
     } else {
       console.warn(
@@ -606,7 +635,6 @@ class SocketService {
     }
 
     if (userId) {
-
       this.socket.emit("markMessagesRead", {
         conversationId,
         messageIds,
@@ -1020,8 +1048,11 @@ class SocketService {
     }
 
     if (this.socket) {
+      // Remove any existing listener first
       this.socket.off("userLeftGroup");
+      // Add new listener
       this.socket.on("userLeftGroup", (data) => {
+        console.log("User left group event received:", data);
         callback(data);
       });
     } else {
@@ -1125,6 +1156,29 @@ class SocketService {
     } else {
       console.warn(
         "SocketService: Socket not initialized for groupCoOwnerRemoved listener"
+      );
+    }
+  }
+
+  onUserAddedToGroup(
+    callback: (data: {
+      conversationId: string;
+      addedUser: { userId: string; fullname: string };
+      addedByUser: { userId: string; fullname: string };
+    }) => void
+  ) {
+    if (!this.socket) {
+      this.connect();
+    }
+
+    if (this.socket) {
+      this.socket.off("userAddedToGroup");
+      this.socket.on("userAddedToGroup", (data) => {
+        callback(data);
+      });
+    } else {
+      console.warn(
+        "SocketService: Socket not initialized for userAddedToGroup listener"
       );
     }
   }

@@ -402,6 +402,90 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
     updateConversationMembers,
   ]);
 
+  useEffect(() => {
+    // Lắng nghe sự kiện cuộc trò chuyện mới
+    const handleNewConversation = (data: ConversationData) => {
+      console.log("ChatList: Nhận cuộc trò chuyện mới:", data);
+      if (data.conversation) {
+        // Thêm cuộc trò chuyện mới vào danh sách
+        setConversations((prev: Conversation[]) => {
+          // Kiểm tra xem cuộc trò chuyện đã tồn tại chưa
+          const exists = prev.some(
+            (conv) => conv.conversationId === data.conversation.conversationId
+          );
+          if (!exists) {
+            // Thêm vào đầu danh sách
+            return [data.conversation, ...prev];
+          }
+          return prev;
+        });
+
+        // Tham gia vào phòng cuộc trò chuyện mới
+        socketService.joinConversation(data.conversation.conversationId);
+
+        // Highlight cuộc trò chuyện mới
+        setNewConversationHighlight((prev) => ({
+          ...prev,
+          [data.conversation.conversationId]: true,
+        }));
+
+        // Xóa highlight sau 5 giây
+        setTimeout(() => {
+          setNewConversationHighlight((prev) => ({
+            ...prev,
+            [data.conversation.conversationId]: false,
+          }));
+        }, 5000);
+      }
+    };
+
+    // Lắng nghe sự kiện thêm thành viên vào nhóm
+    const handleUserAddedToGroup = (data: {
+      conversationId: string;
+      addedUser: { userId: string; fullname: string };
+      addedByUser: { userId: string; fullname: string };
+    }) => {
+      console.log("ChatList: Nhận sự kiện thêm thành viên:", data);
+
+      // Kiểm tra xem người được thêm có phải là người dùng hiện tại không
+      const currentUserId = localStorage.getItem("userId");
+      if (data.addedUser.userId === currentUserId) {
+        // Nếu là người dùng hiện tại, cập nhật danh sách cuộc trò chuyện
+        const fetchNewConversation = async () => {
+          try {
+            const newConversation = await getConversationDetail(
+              data.conversationId
+            );
+            if (newConversation) {
+              setConversations((prev: Conversation[]) => {
+                // Kiểm tra xem cuộc trò chuyện đã tồn tại chưa
+                const exists = prev.some(
+                  (conv) => conv.conversationId === data.conversationId
+                );
+                if (!exists) {
+                  // Thêm vào đầu danh sách
+                  return [newConversation, ...prev];
+                }
+                return prev;
+              });
+            }
+          } catch (error) {
+            console.error("Error fetching new conversation:", error);
+          }
+        };
+        fetchNewConversation();
+      }
+    };
+
+    socketService.onNewConversation(handleNewConversation);
+    socketService.onUserAddedToGroup(handleUserAddedToGroup);
+
+    return () => {
+      socketService.off("newConversation", handleNewConversation);
+      socketService.off("userAddedToGroup", handleUserAddedToGroup);
+    };
+  }, [setConversations]);
+
   return (
     <div className="chat-list w-80 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 h-full flex flex-col overflow-hidden">
       <Header onSelectConversation={onSelectConversation} />
