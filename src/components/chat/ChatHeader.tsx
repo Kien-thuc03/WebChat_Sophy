@@ -517,6 +517,8 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
           });
           // Cập nhật lại conversation trong context
           updateConversationMembers(data.conversationId, data.userId);
+          // Cập nhật số lượng thành viên
+          setMemberCount((prev) => prev - 1);
           // Thêm tin nhắn hệ thống
           updateConversationWithNewMessage(data.conversationId, {
             type: "system",
@@ -529,9 +531,11 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
     };
 
     socketService.on("userRemovedFromGroup", handleMemberRemoved);
+    socketService.onUserLeftGroup(handleMemberRemoved);
 
     return () => {
       socketService.off("userRemovedFromGroup", handleMemberRemoved);
+      socketService.off("userLeftGroup", handleMemberRemoved);
     };
   }, [
     conversation.conversationId,

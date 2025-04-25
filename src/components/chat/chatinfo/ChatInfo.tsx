@@ -42,6 +42,7 @@ import GroupModal from "../modals/GroupModal";
 import { useConversationContext } from "../../../features/chat/context/ConversationContext";
 import AddMemberModal from "../modals/AddMemberModal";
 import AddGroupModal from "../../header/modal/AddGroupModal";
+import socketService from "../../../services/socketService";
 
 interface ChatInfoProps {
   conversation: Conversation;
@@ -459,7 +460,7 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
 
         // Cập nhật lại conversation sau khi chuyển quyền
         setDetailedConversation(result as DetailedConversation);
-        
+
         // Explicitly update the user role to member
         setUserRole("member");
 
@@ -497,8 +498,9 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
     // Get the current userId and check if it's still the owner or co-owner
     const currentUserId = localStorage.getItem("userId") || "";
     const isOwner = currentConversation.rules?.ownerId === currentUserId;
-    const isCoOwner = currentConversation.rules?.coOwnerIds?.includes(currentUserId);
-    
+    const isCoOwner =
+      currentConversation.rules?.coOwnerIds?.includes(currentUserId);
+
     // Force refresh the user role based on the latest data
     if (isOwner) {
       setUserRole("owner");
@@ -507,7 +509,7 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
     } else {
       setUserRole("member");
     }
-    
+
     // Refresh conversation data first to ensure we have latest data
     refreshConversationData().then(() => {
       // Now show the group management screen
@@ -663,6 +665,38 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
     console.log("Closing AddGroupModal");
     setShowAddGroupModal(false);
   };
+
+  // Lắng nghe sự kiện thay đổi thành viên nhóm
+  useEffect(() => {
+    const handleMemberRemoved = (data: {
+      conversationId: string;
+      userId: string;
+    }) => {
+      if (data.conversationId === currentConversation.conversationId) {
+        // Cập nhật lại danh sách thành viên
+        setGroupMembers((prevMembers) =>
+          prevMembers.filter((id) => id !== data.userId)
+        );
+        // Cập nhật lại conversation detail
+        setDetailedConversation((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            groupMembers:
+              prev.groupMembers?.filter((id) => id !== data.userId) || [],
+          };
+        });
+      }
+    };
+
+    socketService.on("userRemovedFromGroup", handleMemberRemoved);
+    socketService.onUserLeftGroup(handleMemberRemoved);
+
+    return () => {
+      socketService.off("userRemovedFromGroup", handleMemberRemoved);
+      socketService.off("userLeftGroup", handleMemberRemoved);
+    };
+  }, [currentConversation.conversationId]);
 
   // If showing members list view
   if (showMembersList && isGroup) {

@@ -606,7 +606,6 @@ class SocketService {
     }
 
     if (userId) {
-
       this.socket.emit("markMessagesRead", {
         conversationId,
         messageIds,
@@ -1125,6 +1124,29 @@ class SocketService {
     } else {
       console.warn(
         "SocketService: Socket not initialized for groupCoOwnerRemoved listener"
+      );
+    }
+  }
+
+  onUserAddedToGroup(
+    callback: (data: {
+      conversationId: string;
+      addedUser: { userId: string; fullname: string };
+      addedByUser: { userId: string; fullname: string };
+    }) => void
+  ) {
+    if (!this.socket) {
+      this.connect();
+    }
+
+    if (this.socket) {
+      this.socket.off("userAddedToGroup");
+      this.socket.on("userAddedToGroup", (data) => {
+        callback(data);
+      });
+    } else {
+      console.warn(
+        "SocketService: Socket not initialized for userAddedToGroup listener"
       );
     }
   }
