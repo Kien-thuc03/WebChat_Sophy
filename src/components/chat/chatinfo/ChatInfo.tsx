@@ -732,43 +732,43 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
     };
 
     // Handler for when a group is deleted
-    const handleGroupDeleted = (data: { conversationId: string }) => {
-      try {
-        if (data.conversationId === currentConversation.conversationId) {
-          // Unregister event to prevent duplicate handling
-          socketService.off("groupDeleted", handleGroupDeleted);
+    // const handleGroupDeleted = (data: { conversationId: string }) => {
+    //   try {
+    //     if (data.conversationId === currentConversation.conversationId) {
+    //       // Unregister event to prevent duplicate handling
+    //       socketService.off("groupDeleted", handleGroupDeleted);
           
-          // Show notification to user
-          message.info("Nhóm đã bị giải tán");
+    //       // Show notification to user
+    //       message.info("Nhóm đã bị giải tán");
           
-          // Close the chat info panel first
-          if (typeof onClose === 'function') {
-            onClose();
-          }
+    //       // Close the chat info panel first
+    //       if (typeof onClose === 'function') {
+    //         onClose();
+    //       }
           
-          // Use direct window location change instead of React Router navigate
-          // This forces a complete refresh which avoids state issues
-          setTimeout(() => {
-            window.location.href = "/main";
-          }, 500);
-        }
-      } catch (error) {
-        console.error("Error handling group deletion:", error);
-        // Force redirect even if there was an error
-        window.location.href = "/main";
-      }
-    };
+    //       // Use direct window location change instead of React Router navigate
+    //       // This forces a complete refresh which avoids state issues
+    //       setTimeout(() => {
+    //         window.location.href = "/main";
+    //       }, 500);
+    //     }
+    //   } catch (error) {
+    //     console.error("Error handling group deletion:", error);
+    //     // Force redirect even if there was an error
+    //     window.location.href = "/main";
+    //   }
+    // };
 
     // Register the event handlers with socketService
     socketService.on("userRemovedFromGroup", handleMemberRemoved);
     socketService.on("userLeftGroup", handleUserLeftGroup);
-    socketService.onGroupDeleted(handleGroupDeleted);
+    // socketService.onGroupDeleted(handleGroupDeleted);
 
     return () => {
       // Clean up the event handlers when component unmounts
       socketService.off("userRemovedFromGroup", handleMemberRemoved);
       socketService.off("userLeftGroup", handleUserLeftGroup);
-      socketService.off("groupDeleted", handleGroupDeleted);
+      // socketService.off("groupDeleted", handleGroupDeleted);
     };
   }, [currentConversation.conversationId, onClose, navigate]);
 
