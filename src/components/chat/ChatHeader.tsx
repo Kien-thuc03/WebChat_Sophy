@@ -44,6 +44,7 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
     conversations,
     updateConversationWithNewMessage,
     updateConversationMembers,
+    setConversations,
   } = useConversationContext();
   const { t } = useLanguage();
   const [conversation, setConversation] =
@@ -486,15 +487,17 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
     const handleGroupNameChanged = (data: {
       conversationId: string;
       newName: string;
+      fromUserId: string;
     }) => {
-      if (data.conversationId === conversation.conversationId) {
-        setConversation((prev) => ({
-          ...prev,
-          groupName: data.newName,
-          lastChange: new Date().toISOString(),
-        }));
-        // Cập nhật tên nhóm trong context
-        updateGroupName(data.conversationId, data.newName);
+      if (conversation?.conversationId === data.conversationId) {
+        setConversation((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            groupName: data.newName,
+            lastChange: new Date().toISOString(),
+          };
+        });
       }
     };
 
@@ -503,7 +506,7 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
     return () => {
       socketService.off("groupNameChanged", handleGroupNameChanged);
     };
-  }, [conversation.conversationId, updateGroupName]);
+  }, [conversation?.conversationId]);
 
   // Show add member modal
   const showAddMemberModal = () => {
@@ -520,6 +523,63 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
     // using the conversation context which will update
     // automatically when the groupMembers field is updated
   };
+
+  // Add socket listener for group avatar changes
+  useEffect(() => {
+    const handleGroupAvatarChanged = (data: {
+      conversationId: string;
+      newAvatar: string;
+      fromUserId: string;
+    }) => {
+      if (conversation?.conversationId === data.conversationId) {
+        setConversation((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            groupAvatarUrl: data.newAvatar,
+            lastChange: new Date().toISOString(),
+          };
+        });
+
+        // Cập nhật trong context
+        setConversations((prevConversations) =>
+          prevConversations.map((conv) => {
+            if (conv.conversationId === data.conversationId) {
+              return {
+                ...conv,
+                groupAvatarUrl: data.newAvatar,
+                lastChange: new Date().toISOString(),
+              };
+            }
+            return conv;
+          })
+        );
+
+        // Thêm tin nhắn hệ thống
+        const isCurrentUser = data.fromUserId === currentUserId;
+
+        updateConversationWithNewMessage(data.conversationId, {
+          type: "system",
+          content: isCurrentUser
+            ? "Bạn đã thay đổi ảnh nhóm"
+            : `${userCache[data.fromUserId]?.fullname || "Người dùng"} đã thay đổi ảnh nhóm`,
+          senderId: data.fromUserId,
+          createdAt: new Date().toISOString(),
+        });
+      }
+    };
+
+    socketService.onGroupAvatarChanged(handleGroupAvatarChanged);
+
+    return () => {
+      socketService.off("groupAvatarChanged", handleGroupAvatarChanged);
+    };
+  }, [
+    conversation?.conversationId,
+    updateConversationWithNewMessage,
+    userCache,
+    setConversations,
+  ]);
 
   return (
     <header className="flex items-center justify-between px-4 py-2 bg-white border-b border-gray-200">

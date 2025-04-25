@@ -21,8 +21,13 @@ import socketService from "../services/socketService";
 
 const Dashboard: React.FC = () => {
   const { t } = useLanguage();
-  const { isLoading, refreshConversations, conversations, updateGroupName } =
-    useConversationContext();
+  const {
+    isLoading,
+    refreshConversations,
+    conversations,
+    updateGroupName,
+    updateGroupAvatar,
+  } = useConversationContext();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -296,6 +301,33 @@ const Dashboard: React.FC = () => {
       socketService.off("groupNameChanged", handleGroupNameChanged);
     };
   }, [selectedConversation, updateGroupName]);
+
+  // Add socket listener for group avatar changes
+  useEffect(() => {
+    const handleGroupAvatarChanged = (data: {
+      conversationId: string;
+      newAvatar: string;
+      fromUserId: string;
+    }) => {
+      // Cập nhật avatar trong context với userId
+      updateGroupAvatar(data.conversationId, data.newAvatar, data.fromUserId);
+
+      // Nếu đang hiển thị conversation này, cập nhật selectedConversation
+      if (selectedConversation?.conversationId === data.conversationId) {
+        setSelectedConversation((prev) => ({
+          ...prev!,
+          groupAvatarUrl: data.newAvatar,
+          lastChange: new Date().toISOString(),
+        }));
+      }
+    };
+
+    socketService.onGroupAvatarChanged(handleGroupAvatarChanged);
+
+    return () => {
+      socketService.off("groupAvatarChanged", handleGroupAvatarChanged);
+    };
+  }, [selectedConversation, updateGroupAvatar]);
 
   return (
     <div className="flex h-screen overflow-hidden">

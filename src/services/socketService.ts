@@ -1083,7 +1083,11 @@ class SocketService {
   }
 
   onGroupAvatarChanged(
-    callback: (data: { conversationId: string; newAvatar: string }) => void
+    callback: (data: {
+      conversationId: string;
+      newAvatar: string;
+      fromUserId: string;
+    }) => void
   ) {
     if (!this.socket) {
       this.connect();

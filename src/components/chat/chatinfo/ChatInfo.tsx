@@ -27,7 +27,10 @@ import {
   LeftOutlined,
   RightOutlined as RightArrowOutlined,
 } from "@ant-design/icons";
-import { Conversation } from "../../../features/chat/types/conversationTypes";
+import {
+  Conversation,
+  Message,
+} from "../../../features/chat/types/conversationTypes";
 import { useConversations } from "../../../features/chat/hooks/useConversations";
 import { getUserById, getConversationDetail } from "../../../api/API";
 import { User } from "../../../features/auth/types/authTypes";
@@ -75,10 +78,12 @@ interface MemberInfo {
 }
 
 const ChatInfo: React.FC<ChatInfoProps> = ({
-  conversation,
+  conversation: initialConversation,
   onClose,
   onSelectConversation,
 }) => {
+  const [conversation, setConversation] =
+    useState<Conversation>(initialConversation);
   const [activeKeys, setActiveKeys] = useState<string[]>([]);
   const [isEditNameModalVisible, setIsEditNameModalVisible] = useState(false);
   const [localName, setLocalName] = useState("");
@@ -750,9 +755,8 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
       newName: string;
       fromUserId: string;
     }) => {
-      if (data.conversationId === currentConversation.conversationId) {
-        // Cập nhật tên nhóm trong state local
-        setDetailedConversation((prev) => {
+      if (data.conversationId === conversation?.conversationId) {
+        setConversation((prev) => {
           if (!prev) return prev;
           return {
             ...prev,
@@ -760,22 +764,33 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
           };
         });
 
-        // Cập nhật tên nhóm trong context
-        updateGroupName(data.conversationId, data.newName, data.fromUserId);
-
-        // Thêm tin nhắn hệ thống vào cuộc trò chuyện
-        const currentUserId = localStorage.getItem("userId");
-        const isCurrentUser = data.fromUserId === currentUserId;
-        const userName = isCurrentUser
-          ? "Bạn"
-          : userCache[data.fromUserId]?.fullname || "Một thành viên";
-
-        updateConversationWithNewMessage(data.conversationId, {
+        // Create system message
+        const systemMessage: Message = {
           type: "system",
-          content: `${userName} đã đổi tên nhóm thành "${data.newName}"`,
+          content: `${data.fromUserId === localStorage.getItem("userId") ? "Bạn" : "Người dùng"} đã đổi tên nhóm thành ${data.newName}`,
           senderId: data.fromUserId,
           createdAt: new Date().toISOString(),
-        });
+          messageDetailId: `system_${Date.now()}`,
+          conversationId: data.conversationId,
+          sendStatus: "sent",
+          hiddenFrom: [],
+          isRecall: false,
+          isReply: false,
+          messageReplyId: null,
+          replyData: null,
+          isPinned: false,
+          pinnedAt: null,
+          reactions: [],
+          attachments: null,
+          poll: null,
+          linkPreview: null,
+          deliveredTo: [],
+          readBy: [],
+          deletedFor: [],
+        };
+
+        // Update conversation with new message
+        updateConversationWithNewMessage(data.conversationId, systemMessage);
       }
     };
 
@@ -790,6 +805,30 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
     updateConversationWithNewMessage,
     userCache,
   ]);
+
+  // Add socket listener for group avatar changes
+  useEffect(() => {
+    const handleGroupAvatarChanged = (data: {
+      conversationId: string;
+      newAvatar: string;
+    }) => {
+      if (conversation?.conversationId === data.conversationId) {
+        setConversation((prev: Conversation) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            groupAvatarUrl: data.newAvatar,
+          };
+        });
+      }
+    };
+
+    socketService.onGroupAvatarChanged(handleGroupAvatarChanged);
+
+    return () => {
+      socketService.off("groupAvatarChanged", handleGroupAvatarChanged);
+    };
+  }, [conversation?.conversationId]);
 
   // If showing members list view
   if (showMembersList && isGroup) {
