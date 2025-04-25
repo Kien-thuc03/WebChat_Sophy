@@ -1183,6 +1183,29 @@ class SocketService {
     }
   }
 
+  onUserRemovedFromGroup(
+    callback: (data: {
+      conversationId: string;
+      kickedUser: { userId: string; fullname: string };
+      kickedByUser: { userId: string; fullname: string };
+    }) => void
+  ) {
+    if (!this.socket) {
+      this.connect();
+    }
+
+    if (this.socket) {
+      this.socket.off("userRemovedFromGroup");
+      this.socket.on("userRemovedFromGroup", (data) => {
+        callback(data);
+      });
+    } else {
+      console.warn(
+        "SocketService: Socket not initialized for userRemovedFromGroup listener"
+      );
+    }
+  }
+
   onGroupDeleted(callback: (data: { conversationId: string }) => void) {
     if (!this.socket) {
       this.connect();

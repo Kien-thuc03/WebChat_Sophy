@@ -121,42 +121,45 @@ const MembersList: React.FC<MembersListProps> = ({
 
     const handleUserRemovedFromGroup = (data: {
       conversationId: string;
-      userId: string;
+      kickedUser: { userId: string; fullname: string };
+      kickedByUser: { userId: string; fullname: string };
     }) => {
-      if (data.conversationId === conversation.conversationId) {
-        // Cập nhật lại conversation trong component
-        setConversation((prev) => {
-          const updatedMembers = prev.groupMembers.filter(
-            (id) => id !== data.userId
-          );
-          return {
-            ...prev,
-            groupMembers: updatedMembers,
-          };
-        });
-
-        // Cập nhật số lượng thành viên
-        setMemberCount((prev) => {
-          const newCount = prev - 1;
-          return newCount;
-        });
-
-        // Cập nhật lại conversation trong context
-        updateConversationMembers(data.conversationId, data.userId);
-
-        // Thêm tin nhắn hệ thống
-        updateConversationWithNewMessage(data.conversationId, {
-          type: "system",
-          content: `Thành viên đã bị xóa khỏi nhóm`,
-          senderId: data.userId,
-          createdAt: new Date().toISOString(),
-        });
-
-        // Nếu người bị xóa là người dùng hiện tại, quay về màn hình danh sách chat
-        if (data.userId === localStorage.getItem("userId")) {
-          onBack();
-        }
+      if (data.conversationId !== conversation.conversationId) {
+        return;
       }
+      
+      const userId = data.kickedUser.userId;
+      const removedById = data.kickedByUser.userId;
+      
+      // If current user is removed, go back
+      if (userId === currentUserId) {
+        onBack();
+        return;
+      }
+
+      // Update the conversation by removing the member
+      setConversation((prev) => {
+        const updatedMembers =
+          prev.groupMembers?.filter((id) => id !== userId) || [];
+        return {
+          ...prev,
+          groupMembers: updatedMembers,
+        };
+      });
+      
+      // Update member count
+      setMemberCount((prev) => Math.max(0, prev - 1));
+      
+      // Update the conversation in context
+      updateConversationMembers(conversation.conversationId, userId);
+      
+      // Add system message
+      updateConversationWithNewMessage(conversation.conversationId, {
+        type: "system",
+        content: `${getUserName(removedById)} đã xóa ${getUserName(userId)} khỏi nhóm`,
+        senderId: removedById,
+        createdAt: new Date().toISOString(),
+      });
     };
 
     // Đăng ký lắng nghe sự kiện
@@ -204,6 +207,7 @@ const MembersList: React.FC<MembersListProps> = ({
       if (data.conversationId !== conversation.conversationId) {
         return;
       }
+      
       // If current user left, go back
       if (data.userId === currentUserId) {
         onBack();
@@ -218,6 +222,20 @@ const MembersList: React.FC<MembersListProps> = ({
           ...prev,
           groupMembers: updatedMembers,
         };
+      });
+      
+      // Update member count
+      setMemberCount((prev) => Math.max(0, prev - 1));
+      
+      // Update the conversation in context
+      updateConversationMembers(conversation.conversationId, data.userId);
+      
+      // Add system message
+      updateConversationWithNewMessage(conversation.conversationId, {
+        type: "system",
+        content: `${getUserName(data.userId)} đã rời nhóm`,
+        senderId: data.userId,
+        createdAt: new Date().toISOString(),
       });
     };
 
@@ -390,7 +408,7 @@ const MembersList: React.FC<MembersListProps> = ({
     };
 
     // Register socket event handlers
-    socketService.onUserLeftGroup(handleUserLeftGroup);
+    socketService.on("userLeftGroup", handleUserLeftGroup);
     socketService.on("groupDeleted", handleGroupDeleted);
     socketService.on("groupCoOwnerAdded", handleGroupCoOwnerAdded);
     socketService.on("groupCoOwnerRemoved", handleGroupCoOwnerRemoved);
@@ -417,7 +435,8 @@ const MembersList: React.FC<MembersListProps> = ({
     updateConversationMembers,
     updateConversationWithNewMessage,
     userRole,
-    determineUserRole
+    determineUserRole,
+    getUserName
   ]);
 
   // Update the refreshConversationData function to trigger full re-render
