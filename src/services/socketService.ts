@@ -1063,26 +1063,31 @@ class SocketService {
   }
 
   onGroupNameChanged(
-    callback: (data: { conversationId: string; newName: string }) => void
+    callback: (data: {
+      conversationId: string;
+      newName: string;
+      fromUserId: string;
+    }) => void
   ) {
-    if (!this.socket) {
-      this.connect();
-    }
-
-    if (this.socket) {
-      this.socket.off("groupNameChanged");
-      this.socket.on("groupNameChanged", (data) => {
+    this.socket?.on(
+      "groupNameChanged",
+      (data: {
+        conversationId: string;
+        newName: string;
+        fromUserId: string;
+      }) => {
+        console.log("Socket: Group name changed event received:", data);
         callback(data);
-      });
-    } else {
-      console.warn(
-        "SocketService: Socket not initialized for groupNameChanged listener"
-      );
-    }
+      }
+    );
   }
 
   onGroupAvatarChanged(
-    callback: (data: { conversationId: string; newAvatar: string }) => void
+    callback: (data: {
+      conversationId: string;
+      newAvatar: string;
+      fromUserId: string;
+    }) => void
   ) {
     if (!this.socket) {
       this.connect();

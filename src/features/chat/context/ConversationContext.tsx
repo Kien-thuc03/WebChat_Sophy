@@ -12,22 +12,9 @@ import {
   getUserById,
   getConversationDetail,
 } from "../../../api/API";
-import { Conversation, UnreadCount } from "../types/conversationTypes";
+import { Conversation, UnreadCount, Message } from "../types/conversationTypes";
 import { User } from "../../auth/types/authTypes";
 import socketService from "../../../services/socketService";
-
-// Extended Message type to handle different message ID field names
-interface Message {
-  content: string;
-  type: string;
-  senderId: string;
-  createdAt: string;
-  messageDetailId?: string;
-  messageId?: string;
-  id?: string;
-  readBy?: string[];
-  deliveredTo?: string[];
-}
 
 export interface ConversationContextType {
   conversations: Conversation[];
@@ -54,6 +41,16 @@ export interface ConversationContextType {
     value: any
   ) => void;
   updateConversationMembers: (conversationId: string, userId: string) => void;
+  updateGroupName: (
+    conversationId: string,
+    newName: string,
+    fromUserId?: string
+  ) => void;
+  updateGroupAvatar: (
+    conversationId: string,
+    newAvatar: string,
+    fromUserId?: string
+  ) => void;
 }
 
 export const ConversationContext = createContext<ConversationContextType>({
@@ -72,7 +69,8 @@ export const ConversationContext = createContext<ConversationContextType>({
   markConversationAsRead: () => {},
   updateUnreadStatus: () => {},
   addNewConversation: () => {},
-  refreshConversations: async () => {},
+  updateGroupName: () => {},
+  updateGroupAvatar: () => {},
 });
 
 // Helper functions for localStorage avatars
@@ -425,7 +423,7 @@ export const ConversationProvider: React.FC<{ children: ReactNode }> = ({
 
   // Cập nhật hội thoại với tin nhắn mới
   const updateConversationWithNewMessage = useCallback(
-    (conversationId: string, message: Message) => {
+    (conversationId: string, message: Partial<Message>) => {
       const currentUserId = localStorage.getItem("userId");
       const isFromCurrentUser = message.senderId === currentUserId;
 
@@ -439,8 +437,7 @@ export const ConversationProvider: React.FC<{ children: ReactNode }> = ({
         const updatedConversations = [...prevConversations];
         const existingConversation = updatedConversations[conversationIndex];
 
-        const messageId =
-          message.messageDetailId || message.messageId || message.id || "";
+        const messageId = message.messageDetailId || `msg_${Date.now()}`;
 
         let newUnreadCount: UnreadCount[];
         if (Array.isArray(existingConversation.unreadCount)) {
@@ -455,7 +452,6 @@ export const ConversationProvider: React.FC<{ children: ReactNode }> = ({
                 },
               ];
         } else {
-          // Convert number to UnreadCount array
           newUnreadCount = [
             {
               userId: currentUserId || "",
@@ -465,33 +461,35 @@ export const ConversationProvider: React.FC<{ children: ReactNode }> = ({
           ];
         }
 
+        const fullMessage: Message = {
+          senderId: message.senderId || "",
+          content: message.content || "",
+          type: message.type || "text",
+          createdAt: message.createdAt || new Date().toISOString(),
+          messageDetailId: messageId,
+          conversationId: conversationId,
+          sendStatus: "sent",
+          hiddenFrom: [],
+          isRecall: false,
+          isReply: false,
+          messageReplyId: null,
+          replyData: null,
+          isPinned: false,
+          pinnedAt: null,
+          reactions: [],
+          attachments: null,
+          poll: null,
+          linkPreview: null,
+          deliveredTo: [],
+          readBy: [],
+          deletedFor: [],
+        };
+
         const updatedConversation: Conversation = {
           ...existingConversation,
-          lastMessage: {
-            senderId: message.senderId,
-            content: message.content,
-            type: message.type,
-            createdAt: message.createdAt,
-            messageDetailId: messageId,
-            conversationId: conversationId,
-            sendStatus: "sent",
-            hiddenFrom: [],
-            isRecall: false,
-            isReply: false,
-            messageReplyId: null,
-            replyData: null,
-            isPinned: false,
-            pinnedAt: null,
-            reactions: [],
-            attachments: null,
-            poll: null,
-            linkPreview: null,
-            deliveredTo: [],
-            readBy: [],
-            deletedFor: [],
-          },
+          lastMessage: fullMessage,
           newestMessageId: messageId,
-          lastChange: message.createdAt,
+          lastChange: message.createdAt || new Date().toISOString(),
           unreadCount: newUnreadCount,
           hasUnread: !isFromCurrentUser,
         };
@@ -596,10 +594,38 @@ export const ConversationProvider: React.FC<{ children: ReactNode }> = ({
       initializeData();
       // Initialize socket connection
       socketService.connect();
-      // No need to add event listeners here as they're already set up in another useEffect
-    }
 
-    // No event listeners to clean up here
+      // Add socket listeners for group avatar changes
+      const handleGroupAvatarChanged = (data: {
+        conversationId: string;
+        newAvatar: string;
+      }) => {
+        setConversations((prevConversations) =>
+          prevConversations.map((conv) => {
+            if (conv.conversationId === data.conversationId) {
+              // Save to local storage
+              saveGroupAvatarToLocalStorage(
+                data.conversationId,
+                data.newAvatar
+              );
+
+              const updatedConv: Conversation = {
+                ...conv,
+                groupAvatarUrl: data.newAvatar,
+              };
+              return updatedConv;
+            }
+            return conv;
+          })
+        );
+      };
+
+      socketService.onGroupAvatarChanged(handleGroupAvatarChanged);
+
+      return () => {
+        socketService.off("groupAvatarChanged", handleGroupAvatarChanged);
+      };
+    }
   }, [userId]);
 
   // Lưu hội thoại vào localStorage
@@ -754,6 +780,217 @@ export const ConversationProvider: React.FC<{ children: ReactNode }> = ({
     []
   );
 
+  // Lắng nghe sự kiện thay đổi tên nhóm
+  useEffect(() => {
+    const handleGroupNameChanged = (data: {
+      conversationId: string;
+      newName: string;
+    }) => {
+      console.log(
+        "ConversationContext: Received group name change event:",
+        data
+      );
+
+      // Cập nhật conversations ngay lập tức
+      setConversations((prevConversations) => {
+        return prevConversations.map((conv) => {
+          if (conv.conversationId === data.conversationId) {
+            console.log(
+              "ConversationContext: Updating conversation name:",
+              conv.conversationId,
+              "to:",
+              data.newName
+            );
+
+            // Tạo một bản sao của conversation để cập nhật
+            const updatedConv = {
+              ...conv,
+              groupName: data.newName,
+              lastChange: new Date().toISOString(),
+            };
+
+            // Cập nhật selectedConversation nếu đang được chọn
+            if (selectedConversation?.conversationId === data.conversationId) {
+              setSelectedConversation(updatedConv);
+            }
+
+            return updatedConv;
+          }
+          return conv;
+        });
+      });
+
+      // Thêm tin nhắn hệ thống và đảm bảo nó được hiển thị ngay lập tức
+      const systemMessage = {
+        type: "system",
+        content: `Tên nhóm đã được đổi thành "${data.newName}"`,
+        senderId: userId || "",
+        createdAt: new Date().toISOString(),
+      };
+
+      updateConversationWithNewMessage(data.conversationId, systemMessage);
+
+      // Kích hoạt sự kiện refresh để đảm bảo UI được cập nhật
+      window.dispatchEvent(
+        new CustomEvent("refreshConversationDetail", {
+          detail: { conversationId: data.conversationId },
+        })
+      );
+    };
+
+    // Đảm bảo socket đã kết nối và lắng nghe sự kiện
+    if (!socketService.isConnected) {
+      socketService.connect();
+    }
+
+    // Đăng ký lắng nghe sự kiện
+    socketService.onGroupNameChanged(handleGroupNameChanged);
+
+    return () => {
+      socketService.off("groupNameChanged", handleGroupNameChanged);
+    };
+  }, [userId, updateConversationWithNewMessage, selectedConversation]);
+
+  const updateGroupName = (
+    conversationId: string,
+    newName: string,
+    fromUserId?: string
+  ) => {
+    setConversations((prevConversations) =>
+      prevConversations.map((conv) => {
+        if (conv.conversationId === conversationId) {
+          // Thêm tin nhắn hệ thống về việc thay đổi tên nhóm
+          const currentUserId = localStorage.getItem("userId");
+          const isCurrentUser = fromUserId === currentUserId;
+
+          // Tạo tin nhắn hệ thống
+          const systemMessage: Message = {
+            type: "system",
+            content: isCurrentUser
+              ? "Bạn đã đổi tên nhóm thành " + newName
+              : "Tên nhóm đã được đổi thành " + newName,
+            senderId: fromUserId || "",
+            createdAt: new Date().toISOString(),
+            messageDetailId: `system_${Date.now()}`,
+            conversationId: conversationId,
+            sendStatus: "sent",
+            hiddenFrom: [],
+            isRecall: false,
+            isReply: false,
+            messageReplyId: null,
+            replyData: null,
+            isPinned: false,
+            pinnedAt: null,
+            reactions: [],
+            attachments: null,
+            poll: null,
+            linkPreview: null,
+            deliveredTo: [],
+            readBy: [],
+            deletedFor: [],
+          };
+
+          // Cập nhật conversation với tin nhắn hệ thống
+          return {
+            ...conv,
+            groupName: newName,
+            lastChange: new Date().toISOString(),
+            lastMessage: systemMessage,
+          };
+        }
+        return conv;
+      })
+    );
+
+    // Gọi hàm cập nhật tin nhắn để hiển thị thông báo trong chat
+    updateConversationWithNewMessage(conversationId, {
+      type: "system",
+      content: `Tên nhóm đã được đổi thành "${newName}"`,
+      senderId: fromUserId || "",
+      createdAt: new Date().toISOString(),
+      messageDetailId: `system_${Date.now()}`,
+      conversationId: conversationId,
+      sendStatus: "sent",
+      hiddenFrom: [],
+      isRecall: false,
+      isReply: false,
+      messageReplyId: null,
+      replyData: null,
+      isPinned: false,
+      pinnedAt: null,
+      reactions: [],
+      attachments: null,
+      poll: null,
+      linkPreview: null,
+      deliveredTo: [],
+      readBy: [],
+      deletedFor: [],
+    });
+  };
+
+  const updateGroupAvatar = (
+    conversationId: string,
+    newAvatar: string,
+    fromUserId?: string
+  ) => {
+    setConversations((prevConversations) =>
+      prevConversations.map((conv) => {
+        if (conv.conversationId === conversationId) {
+          // Save to localStorage
+          saveGroupAvatarToLocalStorage(conversationId, newAvatar);
+
+          // Thêm tin nhắn hệ thống về việc thay đổi avatar
+          const currentUserId = localStorage.getItem("userId");
+          const isCurrentUser = fromUserId === currentUserId;
+
+          // Tạo tin nhắn hệ thống
+          const systemMessage: Message = {
+            type: "system",
+            content: isCurrentUser
+              ? "Bạn đã thay đổi ảnh nhóm"
+              : `${userCache[fromUserId || ""]?.fullname || "Người dùng"} đã thay đổi ảnh nhóm`,
+            senderId: fromUserId || "",
+            createdAt: new Date().toISOString(),
+            messageDetailId: `system_${Date.now()}`,
+            conversationId: conversationId,
+            sendStatus: "sent",
+            hiddenFrom: [],
+            isRecall: false,
+            isReply: false,
+            messageReplyId: null,
+            replyData: null,
+            isPinned: false,
+            pinnedAt: null,
+            reactions: [],
+            attachments: null,
+            poll: null,
+            linkPreview: null,
+            deliveredTo: [],
+            readBy: [],
+            deletedFor: [],
+          };
+
+          // Cập nhật conversation với tin nhắn hệ thống
+          return {
+            ...conv,
+            groupAvatarUrl: newAvatar,
+            lastChange: new Date().toISOString(),
+            lastMessage: systemMessage,
+          };
+        }
+        return conv;
+      })
+    );
+
+    // Gọi hàm cập nhật tin nhắn để hiển thị thông báo trong chat
+    updateConversationWithNewMessage(conversationId, {
+      type: "system",
+      content: "Ảnh nhóm đã được thay đổi",
+      senderId: fromUserId || "",
+      createdAt: new Date().toISOString(),
+    });
+  };
+
   const value = {
     conversations,
     setConversations,
@@ -770,6 +1007,8 @@ export const ConversationProvider: React.FC<{ children: ReactNode }> = ({
     addNewConversation,
     updateConversationField,
     updateConversationMembers,
+    updateGroupName,
+    updateGroupAvatar,
   };
 
   return (

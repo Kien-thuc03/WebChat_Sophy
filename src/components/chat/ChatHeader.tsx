@@ -39,11 +39,12 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
   onInfoClick,
   showInfo,
 }) => {
-  const { userCache, userAvatars } = useConversations();
+  const { userCache, userAvatars, updateGroupName } = useConversationContext();
   const {
     conversations,
     updateConversationWithNewMessage,
     updateConversationMembers,
+    setConversations,
   } = useConversationContext();
   const { t } = useLanguage();
   const [conversation, setConversation] =
@@ -167,7 +168,6 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
     }
 
     if (conversation.conversationId) {
-      
       socketService.joinConversations([conversation.conversationId]);
     }
 
@@ -245,7 +245,7 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
           zegoService.initialize(callContainerRef.current, config, () => {
             setIsCallModalVisible(false);
           });
-          
+
           socketService.emit("startCall", {
             conversationId: conversation.conversationId,
             roomID,
@@ -284,7 +284,6 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
         return;
       }
       socketService.emit("refreshZegoToken", (response: ZegoTokenResponse) => {
-        
         try {
           if (response?.error || !response.token || !response.appID) {
             message.error("Không thể tham gia cuộc gọi do lỗi token.");
@@ -346,7 +345,6 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
       receiverId?: string;
       isVideo: boolean;
     }) => {
-
       const isCaller = data.callerId === currentUserId;
       const isReceiver = data.receiverId === currentUserId;
 
@@ -362,7 +360,6 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
           isVideo: data.isVideo,
         });
       } else {
-        
         setIsCallModalVisible(true);
         setTimeout(() => {
           if (!callContainerRef.current) {
@@ -373,7 +370,6 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
           socketService.emit(
             "refreshZegoToken",
             (response: ZegoTokenResponse) => {
-              
               try {
                 if (response?.error || !response.token || !response.appID) {
                   message.error("Không thể tham gia cuộc gọi do lỗi token.");
@@ -417,7 +413,6 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
       }
     };
 
-    
     socketService.onStartCall(handleStartCall);
     socketService.onEndCall((data: { conversationId: string }) => {
       message.info("Cuộc gọi đã kết thúc.");
@@ -529,6 +524,32 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
     updateConversationMembers,
   ]);
 
+  // Lắng nghe sự kiện thay đổi tên nhóm
+  useEffect(() => {
+    const handleGroupNameChanged = (data: {
+      conversationId: string;
+      newName: string;
+      fromUserId: string;
+    }) => {
+      if (conversation?.conversationId === data.conversationId) {
+        setConversation((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            groupName: data.newName,
+            lastChange: new Date().toISOString(),
+          };
+        });
+      }
+    };
+
+    socketService.onGroupNameChanged(handleGroupNameChanged);
+
+    return () => {
+      socketService.off("groupNameChanged", handleGroupNameChanged);
+    };
+  }, [conversation?.conversationId]);
+
   // Show add member modal
   const showAddMemberModal = () => {
     if (!conversation.isGroup) {
@@ -550,6 +571,63 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
       console.error("Error refreshing conversation data:", error);
     }
   };
+
+  // Add socket listener for group avatar changes
+  useEffect(() => {
+    const handleGroupAvatarChanged = (data: {
+      conversationId: string;
+      newAvatar: string;
+      fromUserId: string;
+    }) => {
+      if (conversation?.conversationId === data.conversationId) {
+        setConversation((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            groupAvatarUrl: data.newAvatar,
+            lastChange: new Date().toISOString(),
+          };
+        });
+
+        // Cập nhật trong context
+        setConversations((prevConversations) =>
+          prevConversations.map((conv) => {
+            if (conv.conversationId === data.conversationId) {
+              return {
+                ...conv,
+                groupAvatarUrl: data.newAvatar,
+                lastChange: new Date().toISOString(),
+              };
+            }
+            return conv;
+          })
+        );
+
+        // Thêm tin nhắn hệ thống
+        const isCurrentUser = data.fromUserId === currentUserId;
+
+        updateConversationWithNewMessage(data.conversationId, {
+          type: "system",
+          content: isCurrentUser
+            ? "Bạn đã thay đổi ảnh nhóm"
+            : `${userCache[data.fromUserId]?.fullname || "Người dùng"} đã thay đổi ảnh nhóm`,
+          senderId: data.fromUserId,
+          createdAt: new Date().toISOString(),
+        });
+      }
+    };
+
+    socketService.onGroupAvatarChanged(handleGroupAvatarChanged);
+
+    return () => {
+      socketService.off("groupAvatarChanged", handleGroupAvatarChanged);
+    };
+  }, [
+    conversation?.conversationId,
+    updateConversationWithNewMessage,
+    userCache,
+    setConversations,
+  ]);
 
   return (
     <header className="flex items-center justify-between px-4 py-2 bg-white border-b border-gray-200">
