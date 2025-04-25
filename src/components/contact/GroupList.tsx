@@ -11,6 +11,7 @@ import { Conversation } from "../../features/chat/types/conversationTypes";
 import { useLanguage } from "../../features/auth/context/LanguageContext";
 import ErrorBoundary from "../common/ErrorBoundary";
 import GroupAvatar from "../chat/GroupAvatar";
+import socketService from "../../services/socketService";
 
 interface GroupListProps {
   onSelectConversation?: (conversation: Conversation) => void;
@@ -53,6 +54,67 @@ const GroupList: React.FC<GroupListProps> = ({ onSelectConversation }) => {
       setFilteredGroups(filtered);
     }
   }, [searchText, groups]);
+
+  useEffect(() => {
+    // Set up socket listener for user leaving group
+    const handleUserLeftGroup = (data: {
+      conversationId: string;
+      userId: string;
+    }) => {
+      const currentUserId = localStorage.getItem("userId");
+
+      // If the current user left the group, remove it from the list
+      if (data.userId === currentUserId) {
+        setGroups((prevGroups) =>
+          prevGroups.filter(
+            (group) => group.conversationId !== data.conversationId
+          )
+        );
+        setFilteredGroups((prevGroups) =>
+          prevGroups.filter(
+            (group) => group.conversationId !== data.conversationId
+          )
+        );
+      } else {
+        // If another user left, update the group members
+        setGroups((prevGroups) =>
+          prevGroups.map((group) => {
+            if (group.conversationId === data.conversationId) {
+              return {
+                ...group,
+                groupMembers:
+                  group.groupMembers?.filter(
+                    (memberId) => memberId !== data.userId
+                  ) || [],
+              };
+            }
+            return group;
+          })
+        );
+        setFilteredGroups((prevGroups) =>
+          prevGroups.map((group) => {
+            if (group.conversationId === data.conversationId) {
+              return {
+                ...group,
+                groupMembers:
+                  group.groupMembers?.filter(
+                    (memberId) => memberId !== data.userId
+                  ) || [],
+              };
+            }
+            return group;
+          })
+        );
+      }
+    };
+
+    socketService.onUserLeftGroup(handleUserLeftGroup);
+
+    // Cleanup socket listener on component unmount
+    return () => {
+      socketService.off("userLeftGroup", handleUserLeftGroup);
+    };
+  }, []);
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchText(e.target.value);

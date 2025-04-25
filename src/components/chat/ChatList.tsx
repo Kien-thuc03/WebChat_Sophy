@@ -30,6 +30,8 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
     userAvatars,
     isLoading,
     updateConversationWithNewMessage,
+    setConversations,
+    updateConversationMembers,
   } = useConversationContext();
   const { t } = useLanguage();
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
@@ -368,6 +370,42 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
     }
   }, [conversations]);
 
+  // Lắng nghe sự kiện thay đổi thành viên nhóm
+  useEffect(() => {
+    const handleMemberRemoved = (data: {
+      conversationId: string;
+      userId: string;
+    }) => {
+      // Tìm conversation cần cập nhật
+      const conversationToUpdate = conversations.find(
+        (conv) => conv.conversationId === data.conversationId
+      );
+
+      if (conversationToUpdate) {
+        console.log("ChatList: Member removed, updating conversation");
+        // Cập nhật lại conversation trong context
+        updateConversationMembers(data.conversationId, data.userId);
+        // Thêm tin nhắn hệ thống
+        updateConversationWithNewMessage(data.conversationId, {
+          type: "system",
+          content: `Thành viên đã bị xóa khỏi nhóm`,
+          senderId: data.userId,
+          createdAt: new Date().toISOString(),
+        });
+      }
+    };
+
+    socketService.on("userRemovedFromGroup", handleMemberRemoved);
+
+    return () => {
+      socketService.off("userRemovedFromGroup", handleMemberRemoved);
+    };
+  }, [
+    conversations,
+    updateConversationWithNewMessage,
+    updateConversationMembers,
+  ]);
+
   return (
     <div className="chat-list w-80 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 h-full flex flex-col overflow-hidden">
       <Header onSelectConversation={onSelectConversation} />
@@ -385,17 +423,19 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
       ) : (
         <List
           className="overflow-y-auto flex-1"
-          dataSource={conversations.filter(conv => {
+          dataSource={conversations.filter((conv) => {
             // Filter out deleted conversations
             if (conv.isDeleted) return false;
-            
+
             // Filter out conversations where current user is in formerMembers
             const currentUserId = localStorage.getItem("userId") || "";
-            if (conv.formerMembers && conv.formerMembers.includes(currentUserId)) {
-
+            if (
+              conv.formerMembers &&
+              conv.formerMembers.includes(currentUserId)
+            ) {
               return false;
             }
-            
+
             return true;
           })}
           renderItem={(chat) => (

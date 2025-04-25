@@ -40,15 +40,28 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
   showInfo,
 }) => {
   const { userCache, userAvatars } = useConversations();
-  const { conversations } = useConversationContext();
+  const {
+    conversations,
+    updateConversationWithNewMessage,
+    updateConversationMembers,
+  } = useConversationContext();
   const { t } = useLanguage();
+  const [conversation, setConversation] =
+    useState<Conversation>(initialConversation);
+  const [memberCount, setMemberCount] = useState<number>(
+    conversation.groupMembers?.length || 0
+  );
 
   // Get the most up-to-date conversation data from context
-  const conversation =
-    conversations.find(
-      (conv: Conversation) =>
-        conv.conversationId === initialConversation.conversationId
-    ) || initialConversation;
+  useEffect(() => {
+    const updatedConversation =
+      conversations.find(
+        (conv: Conversation) =>
+          conv.conversationId === initialConversation.conversationId
+      ) || initialConversation;
+    setConversation(updatedConversation);
+    setMemberCount(updatedConversation.groupMembers?.length || 0);
+  }, [conversations, initialConversation]);
 
   const isGroup = conversation.isGroup;
   const groupName = conversation.groupName;
@@ -482,6 +495,51 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
     };
   }, [otherUserInfo, currentUserId]);
 
+  // Lắng nghe sự kiện thay đổi thành viên nhóm
+  useEffect(() => {
+    const handleMemberRemoved = (data: {
+      conversationId: string;
+      userId: string;
+    }) => {
+      if (data.conversationId === conversation.conversationId) {
+        // Cập nhật lại conversation từ context
+        const updatedConversation = conversations.find(
+          (conv) => conv.conversationId === conversation.conversationId
+        );
+        if (updatedConversation) {
+          console.log("ChatHeader: Member removed, updating conversation");
+          // Cập nhật lại conversation trong component
+          setConversation({
+            ...updatedConversation,
+            groupMembers: updatedConversation.groupMembers.filter(
+              (id) => id !== data.userId
+            ),
+          });
+          // Cập nhật lại conversation trong context
+          updateConversationMembers(data.conversationId, data.userId);
+          // Thêm tin nhắn hệ thống
+          updateConversationWithNewMessage(data.conversationId, {
+            type: "system",
+            content: `Thành viên đã bị xóa khỏi nhóm`,
+            senderId: data.userId,
+            createdAt: new Date().toISOString(),
+          });
+        }
+      }
+    };
+
+    socketService.on("userRemovedFromGroup", handleMemberRemoved);
+
+    return () => {
+      socketService.off("userRemovedFromGroup", handleMemberRemoved);
+    };
+  }, [
+    conversation.conversationId,
+    conversations,
+    updateConversationWithNewMessage,
+    updateConversationMembers,
+  ]);
+
   // Show add member modal
   const showAddMemberModal = () => {
     if (!conversation.isGroup) {
@@ -543,7 +601,7 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
               <div className="flex items-center cursor-pointer hover:text-blue-500">
                 <i className="far fa-user mr-1" />
                 <span>
-                  {groupMembers.length} {t.members || "thành viên"}
+                  {memberCount} {t.members || "thành viên"}
                 </span>
               </div>
             ) : (

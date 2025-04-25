@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { Button, Dropdown, Menu, App, Modal } from "antd";
+import { Button, Dropdown, Menu, App } from "antd";
 import {
   UserAddOutlined,
   MoreOutlined,
@@ -20,6 +20,7 @@ import {
 import UserInfoHeaderModal from "../../header/modal/UserInfoHeaderModal";
 import { useNavigate } from "react-router-dom";
 import socketService from "../../../services/socketService";
+import { useConversationContext } from "../../../features/chat/context/ConversationContext";
 
 // Define interface for simplified member info
 interface MemberInfo {
@@ -59,7 +60,6 @@ const MembersList: React.FC<MembersListProps> = ({
   onLeaveGroup,
   addCoOwner,
   removeCoOwner,
-  removeMember,
 }) => {
   // Keep local state of conversation to update it after changes
   const [conversation, setConversation] =
@@ -76,9 +76,17 @@ const MembersList: React.FC<MembersListProps> = ({
   const [activityLog, setActivityLog] = useState<
     Array<{ title: string; description: string; timestamp: number }>
   >([]);
+  const [memberCount, setMemberCount] = useState<number>(
+    initialConversation.groupMembers?.length || 0
+  );
   const { message, modal } = App.useApp();
   const navigate = useNavigate();
+
+  const { updateConversationMembers, updateConversationWithNewMessage } =
+    useConversationContext();
+
   const [renderKey, setRenderKey] = useState<number>(Date.now());
+
 
   const groupMembers = conversation.groupMembers || [];
   const currentUserId = localStorage.getItem("userId") || "";
@@ -91,6 +99,118 @@ const MembersList: React.FC<MembersListProps> = ({
     },
     [userCache, localUserCache]
   );
+
+  // Update this function to only log to console without showing UI notification
+  const updateGroupState = useCallback(
+    (userId: string, action: string) => {
+      console.log(`Group event: ${action}`, {
+        userId,
+        conversationId: conversation.conversationId,
+      });
+    },
+    [conversation.conversationId]
+  );
+
+  // Lắng nghe sự kiện socket khi component mount
+  useEffect(() => {
+    console.log("MembersList: Initializing socket connection");
+
+    // Đảm bảo socket đã kết nối
+    if (!socketService.isConnected) {
+      console.log("MembersList: Socket not connected, connecting...");
+      socketService.connect();
+    }
+
+    // Xác thực user nếu cần
+    const currentUserId = localStorage.getItem("userId");
+    if (currentUserId) {
+      console.log("MembersList: Authenticating user:", currentUserId);
+      socketService.authenticate(currentUserId);
+    }
+
+    // Tham gia vào room của conversation
+    if (conversation.conversationId) {
+      console.log(
+        "MembersList: Joining conversation room:",
+        conversation.conversationId
+      );
+      socketService.joinConversations([conversation.conversationId]);
+    }
+
+    const handleUserRemovedFromGroup = (data: {
+      conversationId: string;
+      userId: string;
+    }) => {
+      console.log("MembersList: Received userRemovedFromGroup event:", data);
+      console.log(
+        "MembersList: Current conversation:",
+        conversation.conversationId
+      );
+
+      if (data.conversationId === conversation.conversationId) {
+        console.log("MembersList: Updating local state for removed member");
+
+        // Cập nhật lại conversation trong component
+        setConversation((prev) => {
+          console.log("MembersList: Previous members:", prev.groupMembers);
+          const updatedMembers = prev.groupMembers.filter(
+            (id) => id !== data.userId
+          );
+          console.log("MembersList: Updated members:", updatedMembers);
+          return {
+            ...prev,
+            groupMembers: updatedMembers,
+          };
+        });
+
+        // Cập nhật số lượng thành viên
+        setMemberCount((prev) => {
+          const newCount = prev - 1;
+          console.log("MembersList: Updated member count:", newCount);
+          return newCount;
+        });
+
+        // Cập nhật lại conversation trong context
+        updateConversationMembers(data.conversationId, data.userId);
+
+        // Thêm tin nhắn hệ thống
+        updateConversationWithNewMessage(data.conversationId, {
+          type: "system",
+          content: `Thành viên đã bị xóa khỏi nhóm`,
+          senderId: data.userId,
+          createdAt: new Date().toISOString(),
+        });
+
+        // Nếu người bị xóa là người dùng hiện tại, quay về màn hình danh sách chat
+        if (data.userId === localStorage.getItem("userId")) {
+          console.log("MembersList: Current user was removed, navigating back");
+          onBack();
+        }
+      }
+    };
+
+    // Đăng ký lắng nghe sự kiện
+    console.log("MembersList: Registering userRemovedFromGroup listener");
+    socketService.on("userRemovedFromGroup", handleUserRemovedFromGroup);
+
+    // Cleanup khi component unmount
+    return () => {
+      console.log("MembersList: Cleaning up socket listeners");
+      if (conversation.conversationId) {
+        console.log(
+          "MembersList: Leaving conversation room:",
+          conversation.conversationId
+        );
+        socketService.leaveConversation(conversation.conversationId);
+      }
+      socketService.off("userRemovedFromGroup", handleUserRemovedFromGroup);
+    };
+  }, [
+    conversation.conversationId,
+    updateConversationMembers,
+    updateConversationWithNewMessage,
+    onBack,
+  ]);
 
   // Add this function to determine user role from conversation data
   const determineUserRole = useCallback((conversationData: Conversation): 'owner' | 'co-owner' | 'member' => {
@@ -105,29 +225,59 @@ const MembersList: React.FC<MembersListProps> = ({
     }
   }, []);
 
+
   // Register socket event handlers in a dedicated useEffect
   useEffect(() => {
-    if (!conversation.conversationId) return;
+    if (!conversation.conversationId) {
+      console.log("MembersList: No conversationId, skipping socket setup");
+      return;
+    }
+
+    console.log(
+      "MembersList: Setting up socket listeners for conversation:",
+      conversation.conversationId
+    );
 
     // Handler for when a user leaves the group
     const handleUserLeftGroup = (data: {
       conversationId: string;
       userId: string;
     }) => {
-      if (data.conversationId !== conversation.conversationId) return;
+      console.log("MembersList: Received userLeftGroup event:", {
+        event: "userLeftGroup",
+        data,
+        currentConversationId: conversation.conversationId,
+        currentUserId: currentUserId,
+      });
 
+      if (data.conversationId !== conversation.conversationId) {
+        console.log("MembersList: Event for different conversation, ignoring");
+        return;
+      }
       // If current user left, go back
       if (data.userId === currentUserId) {
+        console.log("MembersList: Current user left group, navigating back");
         onBack();
         return;
       }
 
+      console.log(
+        "MembersList: Updating conversation state for user left:",
+        data.userId
+      );
+
       // Update the conversation by removing the member
       setConversation((prev) => {
+        const updatedMembers =
+          prev.groupMembers?.filter((id) => id !== data.userId) || [];
+        console.log("MembersList: Updated members list:", {
+          previousCount: prev.groupMembers?.length,
+          newCount: updatedMembers.length,
+          removedUserId: data.userId,
+        });
         return {
           ...prev,
-          groupMembers:
-            prev.groupMembers?.filter((id) => id !== data.userId) || [],
+          groupMembers: updatedMembers,
         };
       });
     };
@@ -271,7 +421,8 @@ const MembersList: React.FC<MembersListProps> = ({
     };
 
     // Register socket event handlers
-    socketService.on("userLeftGroup", handleUserLeftGroup);
+    console.log("MembersList: Registering userLeftGroup handler");
+    socketService.onUserLeftGroup(handleUserLeftGroup);
     socketService.on("groupDeleted", handleGroupDeleted);
     socketService.on("groupCoOwnerAdded", handleGroupCoOwnerAdded);
     socketService.on("groupCoOwnerRemoved", handleGroupCoOwnerRemoved);
@@ -279,6 +430,7 @@ const MembersList: React.FC<MembersListProps> = ({
 
     // Cleanup function
     return () => {
+      console.log("MembersList: Cleaning up socket listeners");
       socketService.off("userLeftGroup", handleUserLeftGroup);
       socketService.off("groupDeleted", handleGroupDeleted);
       socketService.off("groupCoOwnerAdded", handleGroupCoOwnerAdded);
@@ -291,6 +443,8 @@ const MembersList: React.FC<MembersListProps> = ({
     conversation.rules?.coOwnerIds,
     currentUserId,
     onBack,
+    updateConversationMembers,
+    updateConversationWithNewMessage,
     userRole,
     determineUserRole
   ]);
@@ -531,6 +685,12 @@ const MembersList: React.FC<MembersListProps> = ({
           const key = "remove-member";
           message.loading({ content: "Đang xóa thành viên...", key });
 
+          // Đảm bảo socket đã kết nối
+          if (!socketService.isConnected) {
+            socketService.connect();
+          }
+
+          // Gọi API xóa thành viên
           await removeUserFromGroup(conversation.conversationId, memberId);
 
           message.success({
@@ -539,21 +699,29 @@ const MembersList: React.FC<MembersListProps> = ({
             duration: 2,
           });
 
-          // Refresh conversation data
-          const updatedConversation = await getConversationDetail(
-            conversation.conversationId
-          );
-          if (updatedConversation) {
-            setConversation(updatedConversation);
-          }
-        } catch (err: any) {
-          console.error("Error removing member:", err);
+          // Cập nhật state local ngay lập tức
+          setConversation((prev) => ({
+            ...prev,
+            groupMembers: prev.groupMembers.filter((id) => id !== memberId),
+          }));
+          setMemberCount((prev) => prev - 1);
 
-          // Handle specific error messages from the API
-          if (err.response?.status === 403) {
-            message.error("Bạn không có quyền xóa thành viên này khỏi nhóm");
-          } else if (err.response?.status === 404) {
-            message.error("Không tìm thấy thành viên hoặc nhóm");
+          // Cập nhật trong context
+          updateConversationMembers(conversation.conversationId, memberId);
+
+          // Thêm tin nhắn hệ thống
+          updateConversationWithNewMessage(conversation.conversationId, {
+            type: "system",
+            content: `Thành viên đã bị xóa khỏi nhóm`,
+            senderId: memberId,
+            createdAt: new Date().toISOString(),
+          });
+        } catch (error: unknown) {
+          console.error("Error removing member:", error);
+          if (error instanceof Error) {
+            message.error(
+              error.message || "Không thể xóa thành viên. Vui lòng thử lại sau."
+            );
           } else {
             message.error("Không thể xóa thành viên. Vui lòng thử lại sau.");
           }
