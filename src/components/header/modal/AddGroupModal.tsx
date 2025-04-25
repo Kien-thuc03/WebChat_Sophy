@@ -1,19 +1,14 @@
-// AddGroupModal.tsx
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect } from "react";
 import { FaSearch } from "react-icons/fa";
 import { Conversation } from "../../../features/chat/types/conversationTypes";
-import {
-  fetchFriends,
-  searchUsers,
-  createGroupConversation,
-  getUserById,
-} from "../../../api/API";
+import { fetchFriends, createGroupConversation } from "../../../api/API";
 import { useConversationContext } from "../../../features/chat/context/ConversationContext";
 
 interface Friend {
   userId: string;
   fullname: string;
   urlavatar?: string;
+  phone?: string;
 }
 
 interface User {
@@ -43,102 +38,67 @@ const AddGroupModal: React.FC<AddGroupModalProps> = ({
   const [friends, setFriends] = useState<Friend[]>([]);
   const [searchResults, setSearchResults] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [isSearching, setIsSearching] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState("all");
   const [error, setError] = useState<string | null>(null);
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
-
-  useEffect(() => {
-    const loadCurrentUser = async () => {
-      const userId = localStorage.getItem("userId");
-      if (userId) {
-        try {
-          const userData = await getUserById(userId);
-          setCurrentUser(userData);
-        } catch (error) {
-          console.error("Lỗi khi lấy thông tin người dùng hiện tại:", error);
-        }
-      }
-    };
-
-    loadCurrentUser();
-  }, []);
 
   useEffect(() => {
     const loadFriends = async () => {
       if (!visible) return;
 
       setIsLoading(true);
+      setError(null);
+
       try {
-        const friendsList = await fetchFriends();
-        setFriends(friendsList);
+        const friendsData = await fetchFriends();
+        console.log("Raw friends data:", friendsData);
 
-        // If there are pre-selected members, ensure they are in the friends list
-        if (preSelectedMembers.length > 0) {
-          const missingMembers = preSelectedMembers.filter(
-            (memberId) =>
-              !friendsList.some((friend) => friend.userId === memberId)
-          );
+        const formattedFriends = friendsData.map((friend) => ({
+          userId: friend.userId,
+          fullname: friend.fullname,
+          urlavatar: friend.urlavatar,
+          phone: friend.phone,
+        }));
 
-          if (missingMembers.length > 0) {
-            // Fetch missing members' info
-            const memberPromises = missingMembers.map((memberId) =>
-              getUserById(memberId)
-            );
-            const memberResults = await Promise.all(memberPromises);
-
-            // Add missing members to friends list
-            setFriends((prevFriends) => [
-              ...prevFriends,
-              ...memberResults.map((user) => ({
-                userId: user.userId,
-                fullname: user.fullname,
-                urlavatar: user.urlavatar,
-              })),
-            ]);
-          }
-        }
+        console.log("Formatted friends:", formattedFriends);
+        setFriends(formattedFriends);
+        setIsLoading(false);
       } catch (error) {
         console.error("Lỗi khi lấy danh sách bạn bè:", error);
-      } finally {
+        setError("Không thể tải danh sách bạn bè. Vui lòng thử lại sau.");
         setIsLoading(false);
       }
     };
 
     loadFriends();
-  }, [visible, preSelectedMembers]);
+  }, [visible]);
 
-  const debouncedSearch = useCallback(
-    (() => {
-      let timeout: NodeJS.Timeout | null = null;
-      return (query: string) => {
-        if (timeout) clearTimeout(timeout);
-        timeout = setTimeout(async () => {
-          if (query.trim() !== "") {
-            setIsSearching(true);
-            try {
-              const results = await searchUsers(query);
-              setSearchResults(results);
-            } catch (error) {
-              console.error("Lỗi khi tìm kiếm:", error);
-              setSearchResults([]);
-            } finally {
-              setIsSearching(false);
-            }
-          } else {
-            setSearchResults([]);
-          }
-        }, 500);
-      };
-    })(),
-    []
-  );
+  useEffect(() => {
+    console.log("Friends state changed:", friends);
+  }, [friends]);
+
+  useEffect(() => {
+    console.log("Current state:", {
+      isLoading,
+      friendsCount: friends.length,
+      searchQuery,
+      searchResults,
+      combinedUsers: searchQuery ? searchResults : friends,
+    });
+  }, [isLoading, friends, searchQuery, searchResults]);
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setSearchQuery(value);
-    debouncedSearch(value);
+
+    if (value.trim() === "") {
+      setSearchResults([]);
+    } else {
+      const filtered = friends.filter((friend) =>
+        friend.fullname.toLowerCase().includes(value.toLowerCase())
+      );
+      setSearchResults(filtered);
+    }
   };
 
   const handleCreateGroup = async () => {
@@ -156,34 +116,31 @@ const AddGroupModal: React.FC<AddGroupModalProps> = ({
         allMembers.push(currentUserId);
       }
 
-      // Nếu không nhập tên nhóm, tự động tạo tên từ người tạo và các thành viên
       let finalGroupName = groupName.trim();
       if (!finalGroupName) {
-        // Tách thành viên thành người tạo và những người khác
-        let currentUserName = currentUser?.fullname || "";
+        const currentUserName =
+          friends.find((f) => f.userId === currentUserId)?.fullname || "";
         const otherMemberNames: string[] = [];
 
-        // Lấy tên của các thành viên khác (không bao gồm người tạo)
         selectedContacts
           .filter((user) => user !== currentUserId)
-          .slice(0, 2) // Chỉ lấy 2 người khác (vì đã có người tạo)
+          .slice(0, 2)
           .forEach((user) => {
-            otherMemberNames.push(user);
+            const userName =
+              friends.find((f) => f.userId === user)?.fullname || "";
+            otherMemberNames.push(userName);
           });
 
-        // Tạo tên nhóm với người tạo đứng đầu
         const memberNames = [currentUserName, ...otherMemberNames].filter(
           Boolean
         );
         finalGroupName = memberNames.join(", ");
 
-        // Nếu có nhiều hơn 3 thành viên, thêm "..."
         if (selectedContacts.length > memberNames.length) {
           finalGroupName += "...";
         }
       }
 
-      // Tạo group conversation với tên đã xác định
       const newConversation = await createGroupConversation(
         finalGroupName,
         allMembers
@@ -191,7 +148,6 @@ const AddGroupModal: React.FC<AddGroupModalProps> = ({
 
       console.log("Phản hồi từ createGroupConversation:", newConversation);
 
-      // Format đối tượng conversation
       const formattedConversation: Conversation = {
         ...newConversation,
         isGroup: true,
@@ -212,15 +168,12 @@ const AddGroupModal: React.FC<AddGroupModalProps> = ({
         muteNotifications: [],
       };
 
-      // Thêm conversation vào context
       addNewConversation({ conversation: formattedConversation });
 
-      // Gọi onSelectConversation với conversation đã format
       if (onSelectConversation) {
         onSelectConversation(formattedConversation);
       }
 
-      // Reset state và đóng modal
       setGroupName("");
       setSelectedContacts([]);
       onClose();
@@ -242,15 +195,15 @@ const AddGroupModal: React.FC<AddGroupModalProps> = ({
     );
   };
 
-  const combinedUsers = searchQuery
-    ? searchResults.filter((user) =>
-        friends.some((friend) => friend.userId === user.userId)
-      )
-    : friends;
+  const combinedUsers = searchQuery ? searchResults : friends;
+
+  console.log("Combined users:", combinedUsers);
 
   const sortedUsers = [...combinedUsers].sort((a, b) =>
     a.fullname.localeCompare(b.fullname)
   );
+
+  console.log("Sorted users:", sortedUsers);
 
   const groupedUsers = sortedUsers.reduce(
     (groups, user) => {
@@ -264,14 +217,28 @@ const AddGroupModal: React.FC<AddGroupModalProps> = ({
     {} as Record<string, User[]>
   );
 
+  console.log("Grouped users:", groupedUsers);
+
   const letters = Object.keys(groupedUsers).sort();
+
+  console.log("Letters:", letters);
 
   const selectedUsers = friends.filter((friend) =>
     selectedContacts.includes(friend.userId)
   );
 
-  // Early return if not visible
-  if (!visible) return null;
+  if (!visible) {
+    console.log("Modal is not visible, returning null");
+    return null;
+  }
+
+  console.log("Rendering modal with:", {
+    isLoading,
+    hasError: !!error,
+    friendsCount: friends.length,
+    sortedUsersCount: sortedUsers.length,
+    letters,
+  });
 
   return (
     <>
@@ -371,11 +338,21 @@ const AddGroupModal: React.FC<AddGroupModalProps> = ({
               {searchQuery ? "Kết quả tìm kiếm" : "Danh bạ"}
             </h3>
             <div className="max-h-64 overflow-y-auto">
-              {isLoading || isSearching ? (
+              {isLoading ? (
                 <div className="text-center py-4 text-gray-500">
                   Đang tải...
                 </div>
-              ) : sortedUsers.length > 0 ? (
+              ) : error ? (
+                <div className="text-center py-4 text-red-500">{error}</div>
+              ) : friends.length === 0 ? (
+                <div className="text-center py-4 text-gray-500">
+                  Bạn chưa có bạn bè nào
+                </div>
+              ) : sortedUsers.length === 0 && searchQuery ? (
+                <div className="text-center py-4 text-gray-500">
+                  Không tìm thấy kết quả phù hợp
+                </div>
+              ) : (
                 <div>
                   {letters.map((letter) => (
                     <div key={letter} className="mb-2">
@@ -420,12 +397,6 @@ const AddGroupModal: React.FC<AddGroupModalProps> = ({
                       ))}
                     </div>
                   ))}
-                </div>
-              ) : (
-                <div className="text-center py-4 text-gray-500">
-                  {searchQuery
-                    ? "Không tìm thấy kết quả phù hợp"
-                    : "Bạn chưa có bạn bè nào"}
                 </div>
               )}
             </div>

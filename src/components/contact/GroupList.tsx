@@ -25,6 +25,7 @@ const GroupList: React.FC<GroupListProps> = ({ onSelectConversation }) => {
   const [loading, setLoading] = useState<boolean>(true); // State hiển thị loading
   const [leavingGroup, setLeavingGroup] = useState<boolean>(false); // State để theo dõi trạng thái rời nhóm
   const [selectedGroup, setSelectedGroup] = useState<Conversation | null>(null); // State để theo dõi nhóm được chọn
+  const [sortType, setSortType] = useState<"activity" | "alphabet">("activity");
 
   // Gọi API để lấy danh sách nhóm khi component được render
   useEffect(() => {
@@ -33,7 +34,7 @@ const GroupList: React.FC<GroupListProps> = ({ onSelectConversation }) => {
         setLoading(true);
         const groupData = await fetchUserGroups();
         setGroups(groupData);
-        setFilteredGroups(groupData);
+        setFilteredGroups(sortGroups(groupData, sortType));
       } catch (error) {
         console.error("Lỗi khi tải danh sách nhóm:", error);
       } finally {
@@ -42,18 +43,43 @@ const GroupList: React.FC<GroupListProps> = ({ onSelectConversation }) => {
     };
 
     loadGroups();
-  }, []);
+  }, [sortType]);
 
+  // Hàm sắp xếp nhóm
+  const sortGroups = (
+    groupsToSort: Conversation[],
+    type: "activity" | "alphabet"
+  ) => {
+    return [...groupsToSort].sort((a, b) => {
+      if (type === "alphabet") {
+        return (a.groupName || "").localeCompare(b.groupName || "");
+      } else {
+        // Sắp xếp theo hoạt động (mặc định)
+        return (
+          new Date(b.lastChange).getTime() - new Date(a.lastChange).getTime()
+        );
+      }
+    });
+  };
+
+  // Cập nhật filtered groups khi search hoặc sort type thay đổi
   useEffect(() => {
     if (searchText.trim() === "") {
-      setFilteredGroups(groups);
+      setFilteredGroups(sortGroups(groups, sortType));
     } else {
       const filtered = groups.filter((group) =>
         group.groupName?.toLowerCase().includes(searchText.toLowerCase())
       );
-      setFilteredGroups(filtered);
+      setFilteredGroups(sortGroups(filtered, sortType));
     }
-  }, [searchText, groups]);
+  }, [searchText, groups, sortType]);
+
+  // Toggle sort type
+  const toggleSortType = () => {
+    setSortType((current) =>
+      current === "activity" ? "alphabet" : "activity"
+    );
+  };
 
   useEffect(() => {
     // Set up socket listener for user leaving group
@@ -257,12 +283,16 @@ const GroupList: React.FC<GroupListProps> = ({ onSelectConversation }) => {
           className="rounded-lg"
         />
         <div className="flex justify-between items-center">
-          <div className="flex items-center gap-2">
+          <button
+            onClick={toggleSortType}
+            className="flex items-center gap-2 hover:bg-gray-100 dark:hover:bg-gray-800 px-3 py-1 rounded-lg transition-colors">
             <SortAscendingOutlined className="text-blue-600" />
             <span className="text-gray-600 dark:text-gray-300">
-              Hoạt động (mới -&gt; cũ)
+              {sortType === "activity"
+                ? "Hoạt động (mới -> cũ)"
+                : "Tên (A -> Z)"}
             </span>
-          </div>
+          </button>
           <div className="flex items-center gap-2">
             <FilterOutlined className="text-blue-600" />
             <span className="text-gray-600 dark:text-gray-300">Tất cả</span>
