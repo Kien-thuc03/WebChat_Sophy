@@ -275,9 +275,10 @@ const Dashboard: React.FC = () => {
     const handleGroupNameChanged = (data: {
       conversationId: string;
       newName: string;
+      fromUserId: string;
     }) => {
-      // Cập nhật tên nhóm trong context
-      updateGroupName(data.conversationId, data.newName);
+      // Cập nhật tên nhóm trong context với userId
+      updateGroupName(data.conversationId, data.newName, data.fromUserId);
 
       // Nếu đang hiển thị conversation này, cập nhật selectedConversation
       if (selectedConversation?.conversationId === data.conversationId) {

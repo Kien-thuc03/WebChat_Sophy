@@ -132,7 +132,8 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
   const [friendList, setFriendList] = useState<string[]>([]);
   const [showGroupModal, setShowGroupModal] = useState(false);
   const [showAddGroupModal, setShowAddGroupModal] = useState(false);
-  const { conversations } = useConversationContext();
+  const { conversations, updateGroupName, updateConversationWithNewMessage } =
+    useConversationContext();
   const [isAddMemberModalVisible, setIsAddMemberModalVisible] = useState(false);
   const [groupMembers, setGroupMembers] = useState<string[]>([]);
 
@@ -747,14 +748,33 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
     const handleGroupNameChanged = (data: {
       conversationId: string;
       newName: string;
+      fromUserId: string;
     }) => {
       if (data.conversationId === currentConversation.conversationId) {
+        // Cập nhật tên nhóm trong state local
         setDetailedConversation((prev) => {
           if (!prev) return prev;
           return {
             ...prev,
             groupName: data.newName,
           };
+        });
+
+        // Cập nhật tên nhóm trong context
+        updateGroupName(data.conversationId, data.newName, data.fromUserId);
+
+        // Thêm tin nhắn hệ thống vào cuộc trò chuyện
+        const currentUserId = localStorage.getItem("userId");
+        const isCurrentUser = data.fromUserId === currentUserId;
+        const userName = isCurrentUser
+          ? "Bạn"
+          : userCache[data.fromUserId]?.fullname || "Một thành viên";
+
+        updateConversationWithNewMessage(data.conversationId, {
+          type: "system",
+          content: `${userName} đã đổi tên nhóm thành "${data.newName}"`,
+          senderId: data.fromUserId,
+          createdAt: new Date().toISOString(),
         });
       }
     };
@@ -764,7 +784,12 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
     return () => {
       socketService.off("groupNameChanged", handleGroupNameChanged);
     };
-  }, [currentConversation.conversationId]);
+  }, [
+    currentConversation.conversationId,
+    updateGroupName,
+    updateConversationWithNewMessage,
+    userCache,
+  ]);
 
   // If showing members list view
   if (showMembersList && isGroup) {

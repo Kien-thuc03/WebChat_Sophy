@@ -54,7 +54,11 @@ export interface ConversationContextType {
     value: any
   ) => void;
   updateConversationMembers: (conversationId: string, userId: string) => void;
-  updateGroupName: (conversationId: string, newName: string) => void;
+  updateGroupName: (
+    conversationId: string,
+    newName: string,
+    fromUserId?: string
+  ) => void;
 }
 
 export const ConversationContext = createContext<ConversationContextType>({
@@ -826,18 +830,47 @@ export const ConversationProvider: React.FC<{ children: ReactNode }> = ({
     };
   }, [userId, updateConversationWithNewMessage, selectedConversation]);
 
-  const updateGroupName = (conversationId: string, newName: string) => {
+  const updateGroupName = (
+    conversationId: string,
+    newName: string,
+    fromUserId?: string
+  ) => {
     setConversations((prevConversations) =>
-      prevConversations.map((conv) =>
-        conv.conversationId === conversationId
-          ? {
-              ...conv,
-              groupName: newName,
-              lastChange: new Date().toISOString(),
-            }
-          : conv
-      )
+      prevConversations.map((conv) => {
+        if (conv.conversationId === conversationId) {
+          // Thêm tin nhắn hệ thống về việc thay đổi tên nhóm
+          const currentUserId = localStorage.getItem("userId");
+          const isCurrentUser = fromUserId === currentUserId;
+
+          // Tạo tin nhắn hệ thống
+          const systemMessage = {
+            type: "system",
+            content: isCurrentUser
+              ? "Bạn đã đổi tên nhóm thành " + newName
+              : "Tên nhóm đã được đổi thành " + newName,
+            senderId: fromUserId || "",
+            createdAt: new Date().toISOString(),
+          };
+
+          // Cập nhật conversation với tin nhắn hệ thống
+          return {
+            ...conv,
+            groupName: newName,
+            lastChange: new Date().toISOString(),
+            lastMessage: systemMessage,
+          };
+        }
+        return conv;
+      })
     );
+
+    // Gọi hàm cập nhật tin nhắn để hiển thị thông báo trong chat
+    updateConversationWithNewMessage(conversationId, {
+      type: "system",
+      content: `Tên nhóm đã được đổi thành "${newName}"`,
+      senderId: fromUserId || "",
+      createdAt: new Date().toISOString(),
+    });
   };
 
   const value = {

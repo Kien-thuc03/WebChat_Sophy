@@ -32,7 +32,6 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
 
         // Register listener for new conversations
         socketService.onNewConversation((data) => {
-
           const { creatorId, receiverId } = data.conversation;
 
           console.log("Current userId:", userId);
@@ -224,9 +223,11 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
           console.log("Group co-owner removed:", data);
           // If it's the current user being removed as co-owner, refresh conversation for updated permissions
           if (data.removedCoOwner === userId) {
-            window.dispatchEvent(new CustomEvent("refreshConversationDetail", { 
-              detail: { conversationId: data.conversationId } 
-            }));
+            window.dispatchEvent(
+              new CustomEvent("refreshConversationDetail", {
+                detail: { conversationId: data.conversationId },
+              })
+            );
           }
         });
 
@@ -235,9 +236,11 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
           console.log("Group co-owner added:", data);
           // If current user is in the new co-owners list, refresh conversation for updated permissions
           if (data.newCoOwnerIds.includes(userId)) {
-            window.dispatchEvent(new CustomEvent("refreshConversationDetail", { 
-              detail: { conversationId: data.conversationId } 
-            }));
+            window.dispatchEvent(
+              new CustomEvent("refreshConversationDetail", {
+                detail: { conversationId: data.conversationId },
+              })
+            );
           }
         });
 
@@ -245,9 +248,25 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
         socketService.onGroupOwnerChanged((data) => {
           console.log("Group owner changed:", data);
           // If current user is the new owner or was previously the owner, refresh
-          window.dispatchEvent(new CustomEvent("refreshConversationDetail", { 
-            detail: { conversationId: data.conversationId } 
-          }));
+          window.dispatchEvent(
+            new CustomEvent("refreshConversationDetail", {
+              detail: { conversationId: data.conversationId },
+            })
+          );
+        });
+
+        // When group name changes
+        socketService.onGroupNameChanged((data) => {
+          console.log("Group name changed:", data);
+          // Dispatch event to refresh conversation detail
+          window.dispatchEvent(
+            new CustomEvent("refreshConversationDetail", {
+              detail: {
+                conversationId: data.conversationId,
+                fromUserId: data.fromUserId,
+              },
+            })
+          );
         });
       };
 
