@@ -7,12 +7,13 @@ import {
 
 // Khai báo URL API chính
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
-
+const token = localStorage.getItem("token");
 // Tạo instance Axios
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     "Content-Type": "application/json",
+    Authorization: `Bearer ${token}`,
   },
 });
 //update tên người dùng
@@ -58,7 +59,7 @@ export const updateUserInfo = async (
 //update avatar người dùng
 export const updateUserAvatar = async (imageFile: File): Promise<void> => {
   try {
-    const token = localStorage.getItem("token");
+    
     if (!token) {
       throw new Error("Không có token xác thực");
     }
@@ -2449,8 +2450,8 @@ export const updateGroupName = async (
 ): Promise<{ message: string; conversation: any }> => {
   try {
     const response = await apiClient.put(
-      `/api/conversations/group/${conversationId}/name`,
-      { name: newName }
+      `/api/conversations/group/update/name/${conversationId}`,
+      { newName }
     );
     return response.data;
   } catch (error: any) {
