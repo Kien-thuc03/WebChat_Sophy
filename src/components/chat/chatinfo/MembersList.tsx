@@ -205,35 +205,40 @@ const MembersList: React.FC<MembersListProps> = ({
       addedUser: { userId: string; fullname: string };
       addedByUser: { userId: string; fullname: string };
     }) => {
-      if (data.conversationId !== conversation.conversationId) {
-        return;
-      }
-      
-      // Update the member count
-      setMemberCount((prev) => prev + 1);
-      
-      // Add the new member to the local state
-      setConversation((prev) => {
-        // Check if member is already in the list
-        if (prev.groupMembers?.includes(data.addedUser.userId)) {
+      if (data.conversationId === conversation.conversationId) {
+        // Cập nhật state local trước để UI phản hồi nhanh
+        setConversation((prev) => {
+          if (!prev.groupMembers.includes(data.addedUser.userId)) {
+            return {
+              ...prev,
+              groupMembers: [...prev.groupMembers, data.addedUser.userId],
+            };
+          }
           return prev;
+        });
+
+        // Gọi API để cập nhật đầy đủ thông tin về thành viên mới
+        refreshConversationData();
+
+        // Load thông tin người dùng mới nếu chưa có trong cache
+        if (
+          !userCache[data.addedUser.userId] &&
+          !localUserCache[data.addedUser.userId]
+        ) {
+          getUserById(data.addedUser.userId)
+            .then((userData) => {
+              if (userData) {
+                setLocalUserCache((prev) => ({
+                  ...prev,
+                  [data.addedUser.userId]: userData,
+                }));
+              }
+            })
+            .catch((error) => {
+              console.error("Error loading new member data:", error);
+            });
         }
-        
-        // Add the new member to the groupMembers array
-        const updatedMembers = [...(prev.groupMembers || []), data.addedUser.userId];
-        return {
-          ...prev,
-          groupMembers: updatedMembers,
-        };
-      });
-      
-      // Show success message
-      message.success(
-        `${data.addedByUser.fullname} đã thêm ${data.addedUser.fullname} vào nhóm`
-      );
-      
-      // Force a refresh to get complete member details
-      refreshConversationData();
+      }
     };
 
     // Đăng ký lắng nghe sự kiện
