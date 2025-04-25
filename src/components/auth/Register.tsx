@@ -56,7 +56,6 @@ const Register: React.FC = () => {
 
   // Xử lý khi reCAPTCHA được xác thực
   const handleRecaptchaVerified = async (verifier: RecaptchaVerifier) => {
-    console.log('Xác thực reCAPTCHA thành công, đang gửi OTP...');
     recaptchaVerifierRef.current = verifier;
     setRecaptchaVerified(true);
     
@@ -145,11 +144,9 @@ const Register: React.FC = () => {
               (el as Element).remove();
             }
           } catch (error) {
-            console.log('Error during cleanup when changing steps');
           }
         });
       } catch (error) {
-        console.log('Error during reCAPTCHA cleanup on step change');
       }
     }
     
@@ -201,7 +198,6 @@ const Register: React.FC = () => {
     // Ensure OTP is properly formatted (trim whitespace and ensure it's a string)
     const cleanOtp = (otp || '').trim();
     if (cleanOtp !== otp) {
-      console.log('OTP was trimmed from:', otp, 'to:', cleanOtp);
       setOtp(cleanOtp);
     }
     
@@ -210,14 +206,11 @@ const Register: React.FC = () => {
         throw new Error('Không tìm thấy phiên xác thực. Vui lòng yêu cầu mã OTP mới.');
       }
       
-      console.log('Đang xác thực OTP:', cleanOtp);
-      console.log('Đang sử dụng mã OTP từ backend:', backendOTP || 'Không có');
       
       // Xác thực OTP thông qua Firebase
       const result = await confirmationResultRef.current.confirm(cleanOtp);
       
       if (result.user) {
-        console.log('Xác thực OTP thành công!');
         // Use the changeStep function to ensure cleanup
         changeStep('name');
         setSuccessMessage('Số điện thoại đã được xác thực');
@@ -324,7 +317,6 @@ const Register: React.FC = () => {
         avatarFile
       );
       
-      console.log('Đăng ký thành công:', result);
       
       // Hiển thị thông báo thành công
       setSuccessMessage('Đăng ký thành công! Đang đăng nhập...');
@@ -371,7 +363,6 @@ const Register: React.FC = () => {
               (el.parentNode as Element).removeChild(el);
             }
           } catch (error) {
-            console.log('Error removing badge element, continuing cleanup');
           }
         });
         
@@ -384,7 +375,6 @@ const Register: React.FC = () => {
               parentElement.style.visibility = 'hidden'; // Use visibility instead of display to preserve functionality
             }
           } catch (error) {
-            console.log('Error hiding iframe element, continuing cleanup');
           }
         });
         
@@ -397,7 +387,6 @@ const Register: React.FC = () => {
               element.style.visibility = 'hidden';
             }
           } catch (error) {
-            console.log('Error hiding g-recaptcha element, continuing cleanup');
           }
         });
       } catch (error) {
@@ -431,7 +420,6 @@ const Register: React.FC = () => {
       } as any).then(otp => {
         if (otp && typeof otp === 'object' && 'code' in otp) {
           const otpCode = String(otp.code);
-          console.log('Mã OTP được phát hiện tự động:', otpCode);
           setOtp(otpCode);
           
           // Auto-submit OTP if detected
@@ -445,7 +433,6 @@ const Register: React.FC = () => {
                   const result = await confirmationResultRef.current.confirm(otpCode);
                   
                   if (result.user) {
-                    console.log('Xác thực OTP tự động thành công!');
                     // Use the changeStep function to ensure cleanup
                     changeStep('name');
                     setSuccessMessage('Số điện thoại đã được xác thực');
@@ -515,7 +502,6 @@ const Register: React.FC = () => {
         return;
       }
       
-      console.log("Số điện thoại đã định dạng:", formattedPhone);
       
       // Lưu số điện thoại đã định dạng để sử dụng trong callback
       setFormattedPhoneNumber(formattedPhone);
@@ -606,7 +592,6 @@ const Register: React.FC = () => {
               try {
                 window.recaptchaVerifier.clear();
               } catch (clearError) {
-                console.log('Error clearing verifier, continuing', clearError);
               }
               window.recaptchaVerifier = null;
             }
@@ -641,7 +626,6 @@ const Register: React.FC = () => {
           try {
             window.recaptchaVerifier.clear();
           } catch (clearError) {
-            console.log('Error clearing verifier, continuing', clearError);
           }
           window.recaptchaVerifier = null;
         }
@@ -652,7 +636,6 @@ const Register: React.FC = () => {
           container.innerHTML = '';
         }
       } catch (cleanupError) {
-        console.log('Cleanup before showing reCAPTCHA failed, continuing', cleanupError);
       }
       
       // Wait a bit to ensure cleanup is done before showing

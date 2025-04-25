@@ -657,12 +657,10 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
   };
 
   const handleCreateGroup = () => {
-    console.log("Opening AddGroupModal with members:", groupMembers);
     setShowAddGroupModal(true);
   };
 
   const handleCloseAddGroupModal = () => {
-    console.log("Closing AddGroupModal");
     setShowAddGroupModal(false);
   };
 

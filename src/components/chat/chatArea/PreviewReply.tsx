@@ -13,7 +13,6 @@ export const ReplyPreview: React.FC<{
 }> = ({ replyData, isOwnMessage, messageReplyId, onReplyClick }) => {
   // Default content if replyData is missing
   if (!replyData) {
-    console.log("ReplyPreview: No reply data provided");
     return null;
   }
 
@@ -33,8 +32,6 @@ export const ReplyPreview: React.FC<{
       replyType = parsedData.type || "text";
       attachment = parsedData.attachment || null;
 
-      // Debug log
-      console.log("ReplyPreview parsed data:", parsedData);
     } catch (error) {
       // If parsing fails, use the string directly
       replyContent = replyData;

@@ -150,7 +150,6 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
         // Determine and update role based on the updated conversation data
         const newRole = determineUserRole(updatedConversation);
         if (newRole !== userRole) {
-          console.log('GroupManagement: User role updated from', userRole, 'to', newRole);
           setUserRole(newRole);
         }
         
@@ -169,7 +168,6 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
     const handleGroupCoOwnerRemoved = (data: { conversationId: string, removedCoOwner: string }) => {
       if (data.conversationId !== conversation.conversationId) return;
       
-      console.log('GroupManagement: Co-owner removed:', data);
       
       // Update the conversation by removing the co-owner
       setConversation(prev => {
@@ -186,7 +184,6 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
         // Determine and update role based on the updated conversation data
         const newRole = determineUserRole(updatedConversation);
         if (newRole !== userRole) {
-          console.log('GroupManagement: User role updated from', userRole, 'to', newRole);
           setUserRole(newRole);
         }
         
@@ -203,7 +200,6 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
     const handleGroupOwnerChanged = (data: { conversationId: string, newOwner: string }) => {
       if (data.conversationId !== conversation.conversationId) return;
       
-      console.log('GroupManagement: Owner changed:', data);
       
       const previousOwner = conversation.rules?.ownerId || '';
       
@@ -226,7 +222,6 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
         // Determine and update role based on the updated conversation data
         const newRole = determineUserRole(updatedConversation);
         if (newRole !== userRole) {
-          console.log('GroupManagement: User role updated from', userRole, 'to', newRole);
           setUserRole(newRole);
         }
         
@@ -239,12 +234,40 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
       refreshConversationData();
     };
     
+    // Handler for when a user is blocked
+    const handleUserBlocked = (data: { 
+      conversationId: string; 
+      blockedUserId: string;
+      fromCurrentUser?: boolean;
+    }) => {
+      if (data.conversationId !== conversation.conversationId) return;
+      
+      // Force refresh to update our data - this ensures we have the latest state
+      // including any UI updates that might be needed when a user is blocked
+      refreshConversationData();
+    };
+
+    // Handler for when a user is unblocked
+    const handleUserUnblocked = (data: { 
+      conversationId: string; 
+      unblockedUserId: string;
+      fromCurrentUser?: boolean;
+    }) => {
+      if (data.conversationId !== conversation.conversationId) return;
+      
+      // Force refresh to update our data - this ensures we have the latest state
+      // including any UI updates that might be needed when a user is unblocked
+      refreshConversationData();
+    };
+    
     // Register socket event handlers
     socketService.on('userLeftGroup', handleUserLeftGroup);
     socketService.on('groupDeleted', handleGroupDeleted);
     socketService.on('groupCoOwnerAdded', handleGroupCoOwnerAdded);
     socketService.on('groupCoOwnerRemoved', handleGroupCoOwnerRemoved);
     socketService.on('groupOwnerChanged', handleGroupOwnerChanged);
+    socketService.on('userBlocked', handleUserBlocked);
+    socketService.on('userUnblocked', handleUserUnblocked);
     
     // Cleanup function
     return () => {
@@ -253,9 +276,11 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
       socketService.off('groupCoOwnerAdded', handleGroupCoOwnerAdded);
       socketService.off('groupCoOwnerRemoved', handleGroupCoOwnerRemoved);
       socketService.off('groupOwnerChanged', handleGroupOwnerChanged);
+      socketService.off('userBlocked', handleUserBlocked);
+      socketService.off('userUnblocked', handleUserUnblocked);
     };
-  // }, [conversation.conversationId, conversation.rules?.ownerId, conversation.rules?.coOwnerIds, updateGroupState, getUserName, onBack]);
-}, [conversation.conversationId, conversation.rules?.ownerId, conversation.rules?.coOwnerIds, getUserName, onBack]);
+  }, [conversation.conversationId, conversation.rules?.ownerId, conversation.rules?.coOwnerIds, getUserName, onBack]);
+
   // Determine user role when component mounts
   useEffect(() => {
     // Get the current user ID from localStorage
@@ -274,11 +299,7 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
         setUserRole(UserRole.MEMBER);
       }
       
-      // Log role change for debugging
-      console.log('GroupManagement: User role updated to:', 
-        conversation.rules.ownerId === currentUserId ? 'owner' : 
-        (conversation.rules.coOwnerIds && conversation.rules.coOwnerIds.includes(currentUserId)) ? 'co-owner' : 
-        'member');
+
     }
   }, [conversation]);
 
@@ -325,7 +346,6 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
   // Update handler for new messages
   const handleNewMessage = (data: any) => {
     if (data.conversationId === conversation.conversationId) {
-      console.log('GroupManagement: New message received, refreshing conversation data');
       // Refresh the conversation data with a small delay to ensure backend sync
       setTimeout(() => {
         refreshConversationData();
@@ -678,7 +698,6 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
         // Update user role based on the fresh data
         const newRole = determineUserRole(updatedConversation);
         if (newRole !== userRole) {
-          console.log('GroupManagement: User role updated from', userRole, 'to', newRole);
           
           // Force a complete re-render by setting userRole with a slight delay
           // This ensures all dependent calculations happen after role update

@@ -245,8 +245,6 @@ export function ChatArea({ conversation }: ChatAreaProps) {
 
       // Callback để xử lý tin nhắn mới từ socket
       const handleNewMessage = (data: any) => {
-        console.log("New message from socket:", data);
-
         // Kiểm tra xem tin nhắn có thuộc cuộc trò chuyện hiện tại không
         if (
           !conversation ||
@@ -285,9 +283,6 @@ export function ChatArea({ conversation }: ChatAreaProps) {
           );
           return;
         }
-
-        console.log("New message with ID:", messageId);
-
         // Cải thiện kiểm tra tin nhắn trùng lặp
         // Kiểm tra xem tin nhắn đã tồn tại với ID thực hoặc là tin nhắn tạm với cùng nội dung
         setMessages((prevMessages) => {
@@ -308,18 +303,11 @@ export function ChatArea({ conversation }: ChatAreaProps) {
 
           // Nếu đã có tin nhắn với ID thực, không thêm vào nữa
           if (exactIdMatch) {
-            console.log(
-              `Duplicate message with exact ID match detected and skipped: ${messageId}`
-            );
             return prevMessages;
           }
 
           // Nếu có tin nhắn tạm với cùng nội dung, thay thế tin nhắn tạm bằng tin nhắn thực
           if (tempMessageWithSameContent) {
-            console.log(
-              `Replacing temporary message with real message: ${tempMessageWithSameContent.id} -> ${messageId}`
-            );
-
             // Tiếp tục xử lý để tạo tin nhắn hiển thị thực tế
             // Nếu là document MongoDB, sử dụng dữ liệu từ _doc
             let messageData = msg;
@@ -470,10 +458,6 @@ export function ChatArea({ conversation }: ChatAreaProps) {
                 if (typeof msg.replyData === "string") {
                   try {
                     displayMessage.replyData = JSON.parse(msg.replyData);
-                    console.log(
-                      "Successfully parsed replyData:",
-                      displayMessage.replyData
-                    );
                   } catch (error) {
                     console.error("Error parsing replyData string:", error);
                     // Nếu parse lỗi, cố gắng tạo một đối tượng hợp lệ
@@ -487,10 +471,6 @@ export function ChatArea({ conversation }: ChatAreaProps) {
                 } else {
                   // Nếu là object, sử dụng trực tiếp
                   displayMessage.replyData = msg.replyData;
-                  console.log(
-                    "Using replyData object directly:",
-                    displayMessage.replyData
-                  );
                 }
               } else if (msg.messageReplyId) {
                 // Thêm một task để fetch dữ liệu tin nhắn gốc sau
@@ -500,10 +480,6 @@ export function ChatArea({ conversation }: ChatAreaProps) {
                       msg.messageReplyId
                     );
                     if (replyData) {
-                      console.log(
-                        "Fetched original message for reply:",
-                        replyData
-                      );
                       // Cập nhật replyData cho tin nhắn hiện tại trong state
                       setMessages((prevMessages) =>
                         prevMessages.map((m) => {
@@ -522,14 +498,6 @@ export function ChatArea({ conversation }: ChatAreaProps) {
                   }
                 }, 0);
               }
-
-              // Log để debug tin nhắn reply
-              console.log("Found reply message:", {
-                id: messageId,
-                replyTo: msg.messageReplyId,
-                replyData: displayMessage.replyData,
-                replyDataType: typeof displayMessage.replyData,
-              });
             }
 
             // Thay thế tin nhắn tạm bằng tin nhắn thực
@@ -615,7 +583,6 @@ export function ChatArea({ conversation }: ChatAreaProps) {
 
           // Xử lý dữ liệu tin nhắn trả lời (reply message)
           if (messageData.isReply) {
-            console.log("Processing INCOMING reply message:", messageData);
             displayMessage.isReply = true;
             displayMessage.messageReplyId = messageData.messageReplyId || null;
 
@@ -625,10 +592,6 @@ export function ChatArea({ conversation }: ChatAreaProps) {
               if (typeof messageData.replyData === "string") {
                 try {
                   displayMessage.replyData = JSON.parse(messageData.replyData);
-                  console.log(
-                    "Successfully parsed replyData for new message:",
-                    displayMessage.replyData
-                  );
                 } catch (error) {
                   console.error(
                     "Error parsing replyData string for new message:",
@@ -644,10 +607,6 @@ export function ChatArea({ conversation }: ChatAreaProps) {
               } else {
                 // Nếu đã là object, gán trực tiếp
                 displayMessage.replyData = messageData.replyData;
-                console.log(
-                  "Using replyData object directly for new message:",
-                  displayMessage.replyData
-                );
               }
             } else if (messageData.messageReplyId) {
               // Nếu không có replyData nhưng có messageReplyId, thử tìm nạp dữ liệu
@@ -657,10 +616,6 @@ export function ChatArea({ conversation }: ChatAreaProps) {
                     messageData.messageReplyId
                   );
                   if (replyData) {
-                    console.log(
-                      "Fetched original message for reply (new message):",
-                      replyData
-                    );
                     // Cập nhật replyData cho tin nhắn trong state
                     setMessages((prevMessages) =>
                       prevMessages.map((m) => {
@@ -855,17 +810,7 @@ export function ChatArea({ conversation }: ChatAreaProps) {
             if (data.messageIds.includes(msg.id)) {
               // Chỉ cập nhật thành "delivered" nếu chưa đến trạng thái "read"
               // và nếu đây là tin nhắn của người dùng hiện tại
-              if (
-                msg.sendStatus !== "read" &&
-                msg.sender.id === currentUserId &&
-                data.userId !== currentUserId
-              ) {
-                console.log(
-                  "Updating message status to DELIVERED:",
-                  msg.id,
-                  "Previous status:",
-                  msg.sendStatus
-                );
+              if (msg.sendStatus !== "read" && msg.sender.id === currentUserId && data.userId !== currentUserId) {
                 hasUpdates = true;
 
                 // Kiểm tra xem userId đã tồn tại trong mảng deliveredTo chưa
@@ -1210,26 +1155,13 @@ export function ChatArea({ conversation }: ChatAreaProps) {
 
       // Đăng ký trực tiếp với đối tượng socket để đảm bảo hoạt động đúng
       if (socketService.socketInstance) {
-        console.log(
-          "[ChatArea] Directly registering socket listeners for",
-          conversation.conversationId
-        );
-        socketService.socketInstance.on("userBlocked", handleUserBlocked);
-        socketService.socketInstance.on("userUnblocked", handleUserUnblocked);
-        socketService.socketInstance.on("userLeftGroup", handleUserLeftGroup);
-        socketService.socketInstance.on("groupDeleted", handleGroupDeleted);
-        socketService.socketInstance.on(
-          "groupCoOwnerRemoved",
-          handleGroupCoOwnerRemoved
-        );
-        socketService.socketInstance.on(
-          "groupCoOwnerAdded",
-          handleGroupCoOwnerAdded
-        );
-        socketService.socketInstance.on(
-          "groupOwnerChanged",
-          handleGroupOwnerChanged
-        );
+        socketService.socketInstance.on('userBlocked', handleUserBlocked);
+        socketService.socketInstance.on('userUnblocked', handleUserUnblocked);
+        socketService.socketInstance.on('userLeftGroup', handleUserLeftGroup);
+        socketService.socketInstance.on('groupDeleted', handleGroupDeleted);
+        socketService.socketInstance.on('groupCoOwnerRemoved', handleGroupCoOwnerRemoved);
+        socketService.socketInstance.on('groupCoOwnerAdded', handleGroupCoOwnerAdded);
+        socketService.socketInstance.on('groupOwnerChanged', handleGroupOwnerChanged);
       } else {
         console.warn(
           "[ChatArea] Socket instance not available, using wrapper methods"
@@ -1253,32 +1185,14 @@ export function ChatArea({ conversation }: ChatAreaProps) {
 
         // Hủy đăng ký trực tiếp
         if (socketService.socketInstance) {
-          socketService.socketInstance.off("userBlocked", handleUserBlocked);
-          socketService.socketInstance.off(
-            "userUnblocked",
-            handleUserUnblocked
-          );
-          socketService.socketInstance.off(
-            "userLeftGroup",
-            handleUserLeftGroup
-          );
-          socketService.socketInstance.off("groupDeleted", handleGroupDeleted);
-          socketService.socketInstance.off(
-            "groupCoOwnerRemoved",
-            handleGroupCoOwnerRemoved
-          );
-          socketService.socketInstance.off(
-            "groupCoOwnerAdded",
-            handleGroupCoOwnerAdded
-          );
-          socketService.socketInstance.off(
-            "groupOwnerChanged",
-            handleGroupOwnerChanged
-          );
-          console.log(
-            "[ChatArea] Directly removed socket listeners for",
-            conversation.conversationId
-          );
+          socketService.socketInstance.off('userBlocked', handleUserBlocked);
+          socketService.socketInstance.off('userUnblocked', handleUserUnblocked);
+          socketService.socketInstance.off('userLeftGroup', handleUserLeftGroup);
+          socketService.socketInstance.off('groupDeleted', handleGroupDeleted);
+          socketService.socketInstance.off('groupCoOwnerRemoved', handleGroupCoOwnerRemoved);
+          socketService.socketInstance.off('groupCoOwnerAdded', handleGroupCoOwnerAdded);
+          socketService.socketInstance.off('groupOwnerChanged', handleGroupOwnerChanged);
+
         } else {
           socketService.off("userBlocked", handleUserBlocked);
           socketService.off("userUnblocked", handleUserUnblocked);
@@ -1338,9 +1252,6 @@ export function ChatArea({ conversation }: ChatAreaProps) {
 
       // Chỉ cập nhật nếu số lượng tin nhắn đã thay đổi để tránh vòng lặp vô hạn
       if (deduplicatedMessages.length !== messages.length) {
-        console.log(
-          `Applied deduplication: ${messages.length} -> ${deduplicatedMessages.length} messages`
-        );
         setMessages(deduplicatedMessages);
       }
     }
@@ -1405,14 +1316,6 @@ export function ChatArea({ conversation }: ChatAreaProps) {
       fileUrl: localImageUrl,
     };
 
-    // Thêm log kiểm tra
-    console.log("Tin nhắn tạm thời:", {
-      tempId,
-      fileUrl: localMessage.fileUrl,
-      attachmentUrl: localMessage.attachment?.url,
-      attachmentsUrl: localMessage.attachments?.[0]?.url,
-    });
-
     // Thêm tin nhắn tạm thời vào danh sách
     setMessages((prev) => [...prev, localMessage]);
     scrollToBottomSmooth();
@@ -1430,7 +1333,6 @@ export function ChatArea({ conversation }: ChatAreaProps) {
         throw new Error("Không nhận được phản hồi hợp lệ từ server");
       }
 
-      console.log("Phản hồi từ server khi gửi ảnh:", newMessage);
 
       // Tạo sender từ cache
       const sender = userCache[currentUserId] || {
@@ -1539,17 +1441,8 @@ export function ChatArea({ conversation }: ChatAreaProps) {
         realMessage.attachments = [imageAttachment];
 
         // Log để kiểm tra
-        console.log(`Tin nhắn text-with-image thực từ server:`, {
-          id: realMessage.id,
-          fileUrl: realMessage.fileUrl,
-          content: realMessage.content,
-          attachmentUrl: realMessage.attachment?.url,
-        });
-      } else if (
-        (messageType === "file" || messageType === "image") &&
-        attachments.length > 0 &&
-        tempAttachmentData.length > 0
-      ) {
+      }
+      else if ((messageType === "file" || messageType === "image") && attachments.length > 0 && tempAttachmentData.length > 0) {
         // Tạo đối tượng attachment cho các loại tin nhắn có file đính kèm
         const fileAttachmentObj = {
           url: tempAttachmentData[0]?.url,
@@ -1568,14 +1461,6 @@ export function ChatArea({ conversation }: ChatAreaProps) {
         realMessage.fileUrl = tempAttachmentData[0]?.url;
         realMessage.attachment = fileAttachmentObj;
         realMessage.attachments = [fileAttachmentObj];
-
-        // Log để kiểm tra
-        console.log(`Tin nhắn ${messageType} thực từ server:`, {
-          id: realMessage.id,
-          fileUrl: realMessage.fileUrl,
-          attachmentUrl: realMessage.attachment?.url,
-          attachmentsArray: realMessage.attachments,
-        });
       }
 
       // Update message in the list
@@ -1856,21 +1741,10 @@ export function ChatArea({ conversation }: ChatAreaProps) {
                 new Date(realMessage.timestamp).getTime()
             ) < 5000 // trong vòng 5 giây
         );
-
-        if (similarMessages.length > 0) {
-          console.log(
-            "Found similar messages that might be duplicates:",
-            similarMessages.map((m) => m.id)
-          );
-        }
-
         if (realMessageExists && tempMessageExists) {
           // Tin nhắn thực đã tồn tại và tin nhắn tạm vẫn còn - chỉ loại bỏ tin nhắn tạm
-          console.log(
-            `Removing temp message ${tempId} as real message ${realMessage.id} already exists`
-          );
-          const result = prev.filter((msg) => msg.id !== tempId);
-
+          const result = prev.filter(msg => msg.id !== tempId);
+          
           // Loại bỏ thêm các tin nhắn trùng lặp nếu có
           if (similarMessages.length > 0) {
             return result.filter(
@@ -1890,13 +1764,8 @@ export function ChatArea({ conversation }: ChatAreaProps) {
           return prev;
         } else if (tempMessageExists) {
           // Tin nhắn tạm tồn tại, tin nhắn thực chưa có - thay thế tin nhắn tạm bằng tin nhắn thực
-          console.log(
-            `Replacing temp message ${tempId} with real message ${realMessage.id}`
-          );
-          const result = prev.map((msg) =>
-            msg.id === tempId ? realMessage : msg
-          );
-
+          const result = prev.map(msg => msg.id === tempId ? realMessage : msg);
+          
           // Loại bỏ thêm các tin nhắn trùng lặp nếu có
           if (similarMessages.length > 0) {
             return result.filter(
@@ -1908,10 +1777,6 @@ export function ChatArea({ conversation }: ChatAreaProps) {
         } else {
           // Không tìm thấy cả tin nhắn tạm và tin nhắn thực - thêm tin nhắn thực vào
           // Điều này chỉ xảy ra trong trường hợp hiếm gặp khi tin nhắn tạm đã bị xóa bằng cách nào đó
-          console.log(
-            `No temp message ${tempId} found, adding real message ${realMessage.id}`
-          );
-
           // Loại bỏ các tin nhắn trùng lặp nếu có, sau đó thêm tin nhắn mới
           if (similarMessages.length > 0) {
             return [
@@ -2390,10 +2255,7 @@ export function ChatArea({ conversation }: ChatAreaProps) {
 
     for (const message of sortedMessages) {
       // Bỏ qua tin nhắn tạm nếu đã có tin nhắn thực tương ứng
-      if (message.id.startsWith("temp-") && tempToRealMap.has(message.id)) {
-        console.log(
-          `Skipping temporary message ${message.id} as real message exists`
-        );
+      if (message.id.startsWith('temp-') && tempToRealMap.has(message.id)) {
         continue;
       }
 
@@ -2553,12 +2415,6 @@ export function ChatArea({ conversation }: ChatAreaProps) {
       if (!cursor) {
         setNotFound(false);
       }
-
-      console.log(
-        `Đang tải tin nhắn cho cuộc trò chuyện: ${conversation.conversationId}`
-      );
-      console.log(`Hướng tải: ${direction}, Cursor: ${cursor || "none"}`);
-
       // Lấy vị trí cuộn hiện tại để khôi phục sau khi tải thêm tin nhắn cũ
       const scrollContainer = messagesContainerRef.current;
       const scrollPosition = scrollContainer ? scrollContainer.scrollTop : 0;
@@ -3761,10 +3617,6 @@ export function ChatArea({ conversation }: ChatAreaProps) {
       // If still not found, try to load more historical messages
       // This is crucial after page reload when we might need to go back in history
       if (hasMore && conversation?.conversationId) {
-        console.log(
-          "Trying to load more historical messages to find pinned message:",
-          messageId
-        );
         // Try loading more messages
         await loadMoreMessages();
 
@@ -3787,10 +3639,6 @@ export function ChatArea({ conversation }: ChatAreaProps) {
             conversation.conversationId
           );
           if (specificMessage) {
-            // If we successfully got the specific message, add it to our messages
-            // and create a visual indicator
-            console.log("Found specific pinned message:", specificMessage);
-
             // Try to load messages around it
             // Access timestamp correctly based on Message interface
             const timestamp = specificMessage.createdAt;
@@ -3845,14 +3693,6 @@ export function ChatArea({ conversation }: ChatAreaProps) {
           "Người dùng",
       },
     };
-
-    // Log để theo dõi
-    console.log("Setting reply to message with sender:", {
-      id: message.id,
-      originalName: message.sender.name,
-      cachedName: enhancedMessage.sender.cachedName,
-    });
-
     setReplyingToMessage(enhancedMessage);
     inputRef.current?.focus();
   };
@@ -3880,15 +3720,6 @@ export function ChatArea({ conversation }: ChatAreaProps) {
         senderId: replyingToMessage.sender.id,
         type: replyingToMessage.type,
       };
-
-      // Debug để theo dõi dữ liệu
-      console.log("Creating reply with sender info:", {
-        originalSenderName: replyingToMessage.sender.name,
-        originalSenderId: replyingToMessage.sender.id,
-        userCacheInfo: userCache[replyingToMessage.sender.id],
-        finalSenderName: replyInfo.senderName,
-      });
-
       // Thêm dữ liệu attachment nếu tin nhắn gốc là ảnh, video hoặc file
       if (replyingToMessage.type !== "text" && replyingToMessage.attachment) {
         replyInfo.attachment = replyingToMessage.attachment;
@@ -4190,41 +4021,31 @@ export function ChatArea({ conversation }: ChatAreaProps) {
       if (data.conversationId !== conversation.conversationId) {
         return;
       }
-
-      // Tìm thông tin người rời nhóm từ cache
-      const leftUser = userCacheRef.current[data.userId];
-      const leftUserName =
-        leftUser?.fullname || `User-${data.userId.substring(0, 6)}`;
-
-      // Tạo thông báo mới
-      const newNotification = {
-        id: `notification-leave-${Date.now()}`,
-        content: `${leftUserName} đã rời khỏi nhóm`,
-        type: "notification" as const,
-        timestamp: new Date().toISOString(),
-        sender: {
-          id: "system",
-          name: "System",
-          avatar: "",
-        },
-        isNotification: true,
-        isRead: true,
-        sendStatus: "sent",
-      } as DisplayMessage;
-
-      setMessages((prev) => [...prev, newNotification]);
-
-      // Cuộn xuống dưới để hiển thị thông báo mới
-      setTimeout(() => {
-        if (messagesEndRef.current) {
-          messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
-        }
-      }, 100);
     };
 
-    // Đăng ký sự kiện
-    socketService.onUserLeftGroup(handleUserLeftGroup);
+    // Handler for when a group is deleted
+    const handleGroupDeleted = (data: { conversationId: string }): void => {
+      if (data.conversationId !== conversation.conversationId) return;
+      
+    };
 
+    // Handler for when co-owners are added
+    const handleGroupCoOwnerAdded = (data: { conversationId: string, newCoOwnerIds: string[] }): void => {
+      if (data.conversationId !== conversation.conversationId) return;
+      
+    };
+
+    // Handler for when a co-owner is removed
+    const handleGroupCoOwnerRemoved = (data: { conversationId: string, removedCoOwner: string }): void => {
+      if (data.conversationId !== conversation.conversationId) return;
+      
+    };
+
+    // Handler for when group owner changes
+    const handleGroupOwnerChanged = (data: { conversationId: string, newOwner: string }): void => {
+      if (data.conversationId !== conversation.conversationId) return;
+      
+    };
     // Cleanup function
     return () => {
       socketService.off("userLeftGroup", handleUserLeftGroup);
@@ -4429,18 +4250,26 @@ export function ChatArea({ conversation }: ChatAreaProps) {
                               handleReplyMessage(message);
                             }}
                           />
-                        </Tooltip>
-                        <Tooltip title="Chia sẻ">
-                          <Button
-                            type="text"
-                            size="small"
-                            icon={<ShareAltOutlined />}
-                            className="text-gray-500 hover:text-blue-500"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              e.preventDefault();
-                              setActiveMessageMenu(message.id);
-                              handleForwardMessage(message);
+                        </Dropdown>
+                      </Tooltip>
+                    </div>
+                    
+                    {showSender && !isOwn && (
+                        <div className="text-xs mb-1 ml-1 text-gray-600 truncate">
+                        {message.sender.name}
+                      </div>
+                    )}
+                    
+                    {/* Add Reply Preview here */}
+                    {message.isReply && message.replyData && (
+                      <div className="mb-1 rounded-t-md overflow-hidden">
+                        <div className={`${isOwn ? 'bg-blue-400' : 'bg-gray-200'} bg-opacity-60 rounded-t-md`}>
+                          <ReplyPreview
+                            replyData={message.replyData}
+                            isOwnMessage={isOwn}
+                            messageReplyId={message.messageReplyId}
+                            onReplyClick={(msgId: string) => {
+                              setTimeout(() => scrollToPinnedMessage(msgId), 0);
                             }}
                           />
                         </Tooltip>

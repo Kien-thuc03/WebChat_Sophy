@@ -153,38 +153,26 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
 
   // Xử lý kết nối socket và xác thực user
   useEffect(() => {
-    console.log("ChatHeader: Initializing socket for user:", currentUserId);
     if (!socketService.isConnected) {
-      console.log("ChatHeader: Socket not connected, connecting...");
       socketService.connect();
       if (currentUserId) {
-        console.log("ChatHeader: Authenticating user:", currentUserId);
         socketService.authenticate(currentUserId);
       } else {
         console.warn("ChatHeader: No userId found for authentication");
       }
     } else {
       if (currentUserId) {
-        console.log(
-          "ChatHeader: Socket already connected, authenticating user:",
-          currentUserId
-        );
         socketService.authenticate(currentUserId);
       }
     }
 
     if (conversation.conversationId) {
-      console.log("ChatHeader: Joining conversation room:", {
-        conversationId: conversation.conversationId,
-      });
+      
       socketService.joinConversations([conversation.conversationId]);
     }
 
     return () => {
       if (conversation.conversationId) {
-        console.log("ChatHeader: Leaving conversation room:", {
-          conversationId: conversation.conversationId,
-        });
         socketService.leaveConversation(conversation.conversationId);
       }
     };
@@ -207,9 +195,6 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
     }
     lastCallRequest.current = now;
     if (isRequestingToken.current) {
-      console.log(
-        "ChatHeader: Token request in progress, ignoring new request"
-      );
       return;
     }
     if (!socketService.isConnected) {
@@ -225,7 +210,6 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
     }
     isRequestingToken.current = true;
     socketService.emit("refreshZegoToken", (response: ZegoTokenResponse) => {
-      console.log("ChatHeader: Received refreshZegoToken response:", response);
       isRequestingToken.current = false;
       try {
         if (response?.error || !response?.token || !response?.appID) {
@@ -258,21 +242,10 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
             setIsCallModalVisible(false);
             return;
           }
-          console.log(
-            "ChatHeader: Initializing ZEGOCLOUD call with config:",
-            config
-          );
           zegoService.initialize(callContainerRef.current, config, () => {
-            console.log("ChatHeader: User left call, closing modal");
             setIsCallModalVisible(false);
           });
-          console.log("ChatHeader: Emitting startCall event:", {
-            conversationId: conversation.conversationId,
-            roomID,
-            callerId: currentUserId,
-            receiverId: otherUserId,
-            isVideo,
-          });
+          
           socketService.emit("startCall", {
             conversationId: conversation.conversationId,
             roomID,
@@ -311,10 +284,7 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
         return;
       }
       socketService.emit("refreshZegoToken", (response: ZegoTokenResponse) => {
-        console.log(
-          "ChatHeader: Received refreshZegoToken for accepted call:",
-          response
-        );
+        
         try {
           if (response?.error || !response.token || !response.appID) {
             message.error("Không thể tham gia cuộc gọi do lỗi token.");
@@ -340,9 +310,7 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
               mode: ZegoUIKitPrebuilt.OneONoneCall,
             },
           };
-          console.log("ChatHeader: Joining call with config:", config);
           zegoService.initialize(callContainerRef.current!, config, () => {
-            console.log("ChatHeader: User left call, closing modal");
             setIsCallModalVisible(false);
           });
         } catch (error) {
@@ -357,7 +325,6 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
   // Xử lý từ chối cuộc gọi (bên nhận)
   const handleRejectCall = () => {
     if (!incomingCall) return;
-    console.log("ChatHeader: Receiver rejected call:", incomingCall);
     socketService.emit("endCall", {
       conversationId: incomingCall.conversationId,
       receiverId: incomingCall.callerId,
@@ -379,22 +346,15 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
       receiverId?: string;
       isVideo: boolean;
     }) => {
-      console.log("ChatHeader: Received startCall event:", {
-        data,
-        currentUserId,
-        conversationId: conversation.conversationId,
-      });
 
       const isCaller = data.callerId === currentUserId;
       const isReceiver = data.receiverId === currentUserId;
 
       if (!isCaller && !isReceiver) {
-        console.log("ChatHeader: Not caller or receiver, ignoring startCall");
         return;
       }
 
       if (isReceiver) {
-        console.log("ChatHeader: Showing incoming call modal for receiver");
         setIncomingCall({
           conversationId: data.conversationId,
           roomID: data.roomID,
@@ -402,9 +362,7 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
           isVideo: data.isVideo,
         });
       } else {
-        console.log(
-          "ChatHeader: Caller received startCall, opening call modal"
-        );
+        
         setIsCallModalVisible(true);
         setTimeout(() => {
           if (!callContainerRef.current) {
@@ -415,10 +373,7 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
           socketService.emit(
             "refreshZegoToken",
             (response: ZegoTokenResponse) => {
-              console.log(
-                "ChatHeader: Received refreshZegoToken for caller:",
-                response
-              );
+              
               try {
                 if (response?.error || !response.token || !response.appID) {
                   message.error("Không thể tham gia cuộc gọi do lỗi token.");
@@ -444,12 +399,10 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
                     mode: ZegoUIKitPrebuilt.OneONoneCall,
                   },
                 };
-                console.log("ChatHeader: Joining call with config:", config);
                 zegoService.initialize(
                   callContainerRef.current!,
                   config,
                   () => {
-                    console.log("ChatHeader: User left call, closing modal");
                     setIsCallModalVisible(false);
                   }
                 );
@@ -464,20 +417,15 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
       }
     };
 
-    console.log(
-      "ChatHeader: Registering startCall listener for user:",
-      currentUserId
-    );
+    
     socketService.onStartCall(handleStartCall);
     socketService.onEndCall((data: { conversationId: string }) => {
-      console.log("ChatHeader: Received endCall event:", data);
       message.info("Cuộc gọi đã kết thúc.");
       setIsCallModalVisible(false);
       setIncomingCall(null);
       zegoService.destroy();
     });
     socketService.onCallError((data: { message: string }) => {
-      console.log("ChatHeader: Received callError event:", data);
       message.error(data.message);
       setIsCallModalVisible(false);
       setIncomingCall(null);
@@ -485,10 +433,6 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
     });
 
     return () => {
-      console.log(
-        "ChatHeader: Removing startCall listener for user:",
-        currentUserId
-      );
       socketService.off("startCall", handleStartCall);
       socketService.off("endCall");
       socketService.off("callError");
@@ -507,7 +451,6 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
           (conv) => conv.conversationId === conversation.conversationId
         );
         if (updatedConversation) {
-          console.log("ChatHeader: Member removed, updating conversation");
           // Cập nhật lại conversation trong component
           setConversation({
             ...updatedConversation,
@@ -558,7 +501,6 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
     // We don't need to do anything here since we're
     // using the conversation context which will update
     // automatically when the groupMembers field is updated
-    console.log("ChatHeader: Conversation data refreshed");
   };
 
   return (

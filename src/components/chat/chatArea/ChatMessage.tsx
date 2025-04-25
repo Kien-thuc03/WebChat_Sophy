@@ -108,13 +108,6 @@ const ReplyPreview: React.FC<{
     attachment = replyData.attachment || null;
   }
 
-  // Debug thông tin sender để theo dõi
-  console.log('ReplyPreview final sender:', {
-    replyDataType: typeof replyData,
-    senderName: replySender,
-    originalSenderName: typeof replyData === 'object' ? replyData.senderName : 'N/A',
-    hasSenderObject: typeof replyData === 'object' && !!replyData.sender
-  });
 
   const handleClick = () => {
     if (messageReplyId && onReplyClick) {
@@ -208,19 +201,6 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
   const [isOverflowing, setIsOverflowing] = useState(false);
   const [isVideoPlaying, setIsVideoPlaying] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
-
-  // Debug message data - especially for replies
-  useEffect(() => {
-    if (message.isReply) {
-      console.log('ChatMessage - Reply message:', {
-        id: message.id,
-        isReply: message.isReply,
-        messageReplyId: message.messageReplyId,
-        replyData: message.replyData,
-        content: message.content
-      });
-    }
-  }, [message]);
 
   useEffect(() => {
     if (contentRef.current) {
