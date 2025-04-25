@@ -128,7 +128,6 @@ const RecaptchaContainer: React.FC<RecaptchaContainerProps> = ({
                             
       // If in development mode and verification has occurred, only do minimal cleanup
       if (isDevelopment && isVerified) {
-        console.log('Skipping aggressive cleanup in development because verification already occurred');
         
         // Just hide extra elements but don't destroy
         document.querySelectorAll('.grecaptcha-badge').forEach(el => {
@@ -137,7 +136,7 @@ const RecaptchaContainer: React.FC<RecaptchaContainerProps> = ({
               (el as HTMLElement).style.visibility = 'hidden';
             }
           } catch (error) {
-            console.log('Error hiding badge element');
+
           }
         });
         
@@ -151,7 +150,6 @@ const RecaptchaContainer: React.FC<RecaptchaContainerProps> = ({
         try {
           window.grecaptcha.reset();
         } catch (resetError) {
-          console.log('No active reCAPTCHA clients to reset, continuing cleanup');
         }
       }
       
@@ -160,7 +158,6 @@ const RecaptchaContainer: React.FC<RecaptchaContainerProps> = ({
         try {
           verifierRef.current.clear();
         } catch (verifierError) {
-          console.log('Failed to clear verifier reference, continuing cleanup');
         }
         verifierRef.current = null;
       }
@@ -170,7 +167,6 @@ const RecaptchaContainer: React.FC<RecaptchaContainerProps> = ({
         try {
           window.recaptchaVerifier.clear();
         } catch (globalVerifierError) {
-          console.log('Failed to clear global verifier, continuing cleanup');
         }
         window.recaptchaVerifier = null;
       }
@@ -183,7 +179,6 @@ const RecaptchaContainer: React.FC<RecaptchaContainerProps> = ({
         try {
           script.remove();
         } catch (error) {
-          console.log('Failed to remove reCAPTCHA script');
         }
       });
 
@@ -226,7 +221,6 @@ const RecaptchaContainer: React.FC<RecaptchaContainerProps> = ({
               el.parentNode.removeChild(el);
             }
           } catch (error) {
-            console.log(`Failed to remove ${selector} element`);
           }
         });
       });
@@ -242,7 +236,6 @@ const RecaptchaContainer: React.FC<RecaptchaContainerProps> = ({
         try {
           el.remove();
         } catch (styleError) {
-          console.log('Failed to remove a style element, continuing cleanup');
         }
       });
       
@@ -260,9 +253,7 @@ const RecaptchaContainer: React.FC<RecaptchaContainerProps> = ({
     if (isRecaptchaInitialized) {
       try {
         cleanupAllRecaptcha();
-        console.log("Cleaned up existing reCAPTCHA before initializing new one");
       } catch (error) {
-        console.log("Error cleaning up existing reCAPTCHA:", error);
       }
     }
 
@@ -276,7 +267,6 @@ const RecaptchaContainer: React.FC<RecaptchaContainerProps> = ({
     try {
       cleanupAllRecaptcha();
     } catch (cleanupError) {
-      console.log('Initial cleanup failed, continuing with initialization', cleanupError);
     }
     
     // Add a slight delay to ensure cleanup is complete
@@ -329,12 +319,10 @@ const RecaptchaContainer: React.FC<RecaptchaContainerProps> = ({
         }
 
         // Initialize the RecaptchaVerifier
-        console.log(`Initializing RecaptchaVerifier in ${containerId}`);
         try {
           const appVerifier = new RecaptchaVerifier(auth, containerId, {
             size: 'normal',
             callback: () => {
-              console.log('reCAPTCHA verification successful');
               setIsVerified(true);
               setMessage({
                 text: 'Xác thực thành công! Đang gửi mã OTP...',
@@ -377,7 +365,6 @@ const RecaptchaContainer: React.FC<RecaptchaContainerProps> = ({
           const renderRecaptcha = (retryCount = 0) => {
             appVerifier.render()
               .then((widgetId) => {
-                console.log('reCAPTCHA rendered with widget ID:', widgetId);
                 window.recaptchaWidgetId = widgetId;
                 
                 // Apply some customizations after rendering
@@ -400,7 +387,6 @@ const RecaptchaContainer: React.FC<RecaptchaContainerProps> = ({
                       iframe.setAttribute('title', 'Xác thực bảo mật');
                     }
                   } catch (customizationError) {
-                    console.log('Error applying customizations:', customizationError);
                   }
                 }, 500);
               })
@@ -409,7 +395,6 @@ const RecaptchaContainer: React.FC<RecaptchaContainerProps> = ({
                 
                 // Retry logic for render failures (up to 2 retries)
                 if (retryCount < 2) {
-                  console.log(`Retrying reCAPTCHA render (attempt ${retryCount + 1})`);
                   setTimeout(() => renderRecaptcha(retryCount + 1), 1000);
                 } else {
                   setMessage({
@@ -448,7 +433,6 @@ const RecaptchaContainer: React.FC<RecaptchaContainerProps> = ({
                              
         // In development mode, if verification occurred, do minimal cleanup
         if (isDevelopment && isVerified) {
-          console.log("Skipping aggressive reCAPTCHA cleanup in development because verification occurred");
           
           // Just hide any badges that might be showing outside our container
           document.querySelectorAll('.grecaptcha-badge').forEach(el => {
@@ -465,10 +449,8 @@ const RecaptchaContainer: React.FC<RecaptchaContainerProps> = ({
           cleanupAllRecaptcha();
           // Reset the initialization flag when unmounted
           isRecaptchaInitialized = false;
-          console.log("reCAPTCHA instance cleanup complete");
         }
       } catch (unmountCleanupError) {
-        console.log('Cleanup during unmount failed:', unmountCleanupError);
       }
     };
   }, [onVerified, containerId]);

@@ -30,7 +30,6 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
     userAvatars,
     isLoading,
     updateConversationWithNewMessage,
-    setConversations,
     updateConversationMembers,
   } = useConversationContext();
   const { t } = useLanguage();
@@ -225,7 +224,6 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
   useEffect(() => {
     // Lắng nghe tin nhắn mới từ tất cả các cuộc trò chuyện
     const handleNewMessage = (data: any) => {
-      console.log("ChatList: Nhận tin nhắn mới:", data);
       // Cập nhật conversation trong danh sách, được xử lý bởi ConversationContext
       updateConversationWithNewMessage(data.conversationId, data.message);
 
@@ -342,7 +340,6 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
             conversationIds.forEach((id) => {
               if (id && !prevConvIds.current.has(id)) {
                 // This is a new conversation - highlight it
-                console.log("ChatList: New conversation detected:", id);
                 setNewConversationHighlight((prev) => ({
                   ...prev,
                   [id]: true,
@@ -382,7 +379,6 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
       );
 
       if (conversationToUpdate) {
-        console.log("ChatList: Member removed, updating conversation");
         // Cập nhật lại conversation trong context
         updateConversationMembers(data.conversationId, data.userId);
         // Thêm tin nhắn hệ thống
@@ -675,7 +671,6 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
           setIsLabelModalOpen(false);
         }}
         onManageLabels={() => {
-          console.log("Manage labels clicked");
           setIsLabelModalOpen(false);
         }}
       />

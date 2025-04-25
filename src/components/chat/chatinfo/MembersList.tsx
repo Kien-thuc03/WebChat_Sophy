@@ -100,40 +100,22 @@ const MembersList: React.FC<MembersListProps> = ({
     [userCache, localUserCache]
   );
 
-  // Update this function to only log to console without showing UI notification
-  const updateGroupState = useCallback(
-    (userId: string, action: string) => {
-      console.log(`Group event: ${action}`, {
-        userId,
-        conversationId: conversation.conversationId,
-      });
-    },
-    [conversation.conversationId]
-  );
-
   // Lắng nghe sự kiện socket khi component mount
   useEffect(() => {
-    console.log("MembersList: Initializing socket connection");
 
     // Đảm bảo socket đã kết nối
     if (!socketService.isConnected) {
-      console.log("MembersList: Socket not connected, connecting...");
       socketService.connect();
     }
 
     // Xác thực user nếu cần
     const currentUserId = localStorage.getItem("userId");
     if (currentUserId) {
-      console.log("MembersList: Authenticating user:", currentUserId);
       socketService.authenticate(currentUserId);
     }
 
     // Tham gia vào room của conversation
     if (conversation.conversationId) {
-      console.log(
-        "MembersList: Joining conversation room:",
-        conversation.conversationId
-      );
       socketService.joinConversations([conversation.conversationId]);
     }
 
@@ -141,22 +123,12 @@ const MembersList: React.FC<MembersListProps> = ({
       conversationId: string;
       userId: string;
     }) => {
-      console.log("MembersList: Received userRemovedFromGroup event:", data);
-      console.log(
-        "MembersList: Current conversation:",
-        conversation.conversationId
-      );
-
       if (data.conversationId === conversation.conversationId) {
-        console.log("MembersList: Updating local state for removed member");
-
         // Cập nhật lại conversation trong component
         setConversation((prev) => {
-          console.log("MembersList: Previous members:", prev.groupMembers);
           const updatedMembers = prev.groupMembers.filter(
             (id) => id !== data.userId
           );
-          console.log("MembersList: Updated members:", updatedMembers);
           return {
             ...prev,
             groupMembers: updatedMembers,
@@ -166,7 +138,6 @@ const MembersList: React.FC<MembersListProps> = ({
         // Cập nhật số lượng thành viên
         setMemberCount((prev) => {
           const newCount = prev - 1;
-          console.log("MembersList: Updated member count:", newCount);
           return newCount;
         });
 
@@ -183,24 +154,17 @@ const MembersList: React.FC<MembersListProps> = ({
 
         // Nếu người bị xóa là người dùng hiện tại, quay về màn hình danh sách chat
         if (data.userId === localStorage.getItem("userId")) {
-          console.log("MembersList: Current user was removed, navigating back");
           onBack();
         }
       }
     };
 
     // Đăng ký lắng nghe sự kiện
-    console.log("MembersList: Registering userRemovedFromGroup listener");
     socketService.on("userRemovedFromGroup", handleUserRemovedFromGroup);
 
     // Cleanup khi component unmount
     return () => {
-      console.log("MembersList: Cleaning up socket listeners");
       if (conversation.conversationId) {
-        console.log(
-          "MembersList: Leaving conversation room:",
-          conversation.conversationId
-        );
         socketService.leaveConversation(conversation.conversationId);
       }
       socketService.off("userRemovedFromGroup", handleUserRemovedFromGroup);
@@ -229,52 +193,27 @@ const MembersList: React.FC<MembersListProps> = ({
   // Register socket event handlers in a dedicated useEffect
   useEffect(() => {
     if (!conversation.conversationId) {
-      console.log("MembersList: No conversationId, skipping socket setup");
       return;
     }
-
-    console.log(
-      "MembersList: Setting up socket listeners for conversation:",
-      conversation.conversationId
-    );
 
     // Handler for when a user leaves the group
     const handleUserLeftGroup = (data: {
       conversationId: string;
       userId: string;
     }) => {
-      console.log("MembersList: Received userLeftGroup event:", {
-        event: "userLeftGroup",
-        data,
-        currentConversationId: conversation.conversationId,
-        currentUserId: currentUserId,
-      });
-
       if (data.conversationId !== conversation.conversationId) {
-        console.log("MembersList: Event for different conversation, ignoring");
         return;
       }
       // If current user left, go back
       if (data.userId === currentUserId) {
-        console.log("MembersList: Current user left group, navigating back");
         onBack();
         return;
       }
-
-      console.log(
-        "MembersList: Updating conversation state for user left:",
-        data.userId
-      );
 
       // Update the conversation by removing the member
       setConversation((prev) => {
         const updatedMembers =
           prev.groupMembers?.filter((id) => id !== data.userId) || [];
-        console.log("MembersList: Updated members list:", {
-          previousCount: prev.groupMembers?.length,
-          newCount: updatedMembers.length,
-          removedUserId: data.userId,
-        });
         return {
           ...prev,
           groupMembers: updatedMembers,
@@ -420,22 +359,54 @@ const MembersList: React.FC<MembersListProps> = ({
       refreshConversationData();
     };
 
+    // Handler for when a user is blocked
+    const handleUserBlocked = (data: { 
+      conversationId: string; 
+      blockedUserId: string;
+      fromCurrentUser?: boolean;
+    }) => {
+      if (data.conversationId !== conversation.conversationId) {
+        return;
+      }
+
+      // Force refresh to update our data - this ensures we have the latest state
+      // including any UI updates that might be needed when a user is blocked
+      refreshConversationData();
+    };
+
+    // Handler for when a user is unblocked
+    const handleUserUnblocked = (data: { 
+      conversationId: string; 
+      unblockedUserId: string;
+      fromCurrentUser?: boolean;
+    }) => {
+      if (data.conversationId !== conversation.conversationId) {
+        return;
+      }
+
+      // Force refresh to update our data - this ensures we have the latest state
+      // including any UI updates that might be needed when a user is unblocked
+      refreshConversationData();
+    };
+
     // Register socket event handlers
-    console.log("MembersList: Registering userLeftGroup handler");
     socketService.onUserLeftGroup(handleUserLeftGroup);
     socketService.on("groupDeleted", handleGroupDeleted);
     socketService.on("groupCoOwnerAdded", handleGroupCoOwnerAdded);
     socketService.on("groupCoOwnerRemoved", handleGroupCoOwnerRemoved);
     socketService.on("groupOwnerChanged", handleGroupOwnerChanged);
+    socketService.on("userBlocked", handleUserBlocked);
+    socketService.on("userUnblocked", handleUserUnblocked);
 
     // Cleanup function
     return () => {
-      console.log("MembersList: Cleaning up socket listeners");
       socketService.off("userLeftGroup", handleUserLeftGroup);
       socketService.off("groupDeleted", handleGroupDeleted);
       socketService.off("groupCoOwnerAdded", handleGroupCoOwnerAdded);
       socketService.off("groupCoOwnerRemoved", handleGroupCoOwnerRemoved);
       socketService.off("groupOwnerChanged", handleGroupOwnerChanged);
+      socketService.off("userBlocked", handleUserBlocked);
+      socketService.off("userUnblocked", handleUserUnblocked);
     };
   }, [
     conversation.conversationId,
@@ -477,7 +448,7 @@ const MembersList: React.FC<MembersListProps> = ({
         }
       }
     } catch (err) {
-      console.error('Error refreshing conversation data:', err);
+      // Error handling without logs
     } finally {
       setIsRefreshing(false);
     }
@@ -495,7 +466,7 @@ const MembersList: React.FC<MembersListProps> = ({
         setFriendList(friendIds);
       }
     } catch (err) {
-      console.error("Error refreshing friend list:", err);
+      // Error handling without logs
     }
   };
 
@@ -525,7 +496,7 @@ const MembersList: React.FC<MembersListProps> = ({
               }));
             }
           } catch (error) {
-            console.error(`Failed to load data for user ${memberId}:`, error);
+            // Error handling without logs
           }
         }
       }
@@ -566,7 +537,6 @@ const MembersList: React.FC<MembersListProps> = ({
         setIsUserInfoModalVisible(true);
       }
     } catch (err) {
-      console.error("Error fetching member data:", err);
       message.error("Không thể tải thông tin người dùng");
     }
   };
@@ -599,7 +569,6 @@ const MembersList: React.FC<MembersListProps> = ({
   // Handle send friend request from modal
   const handleSendFriendRequest = (userId: string) => {
     // This is handled by the UserInfoHeaderModal
-    console.log("Send friend request to:", userId);
   };
 
   // Function to add a co-owner
@@ -633,7 +602,6 @@ const MembersList: React.FC<MembersListProps> = ({
         });
       }
     } catch (err) {
-      console.error("Error adding co-owner:", err);
       message.error("Đã xảy ra lỗi. Vui lòng thử lại sau.");
     }
   };
@@ -665,7 +633,6 @@ const MembersList: React.FC<MembersListProps> = ({
         });
       }
     } catch (err) {
-      console.error("Error removing co-owner:", err);
       message.error("Đã xảy ra lỗi. Vui lòng thử lại sau.");
     }
   };
@@ -717,7 +684,6 @@ const MembersList: React.FC<MembersListProps> = ({
             createdAt: new Date().toISOString(),
           });
         } catch (error: unknown) {
-          console.error("Error removing member:", error);
           if (error instanceof Error) {
             message.error(
               error.message || "Không thể xóa thành viên. Vui lòng thử lại sau."
@@ -734,6 +700,12 @@ const MembersList: React.FC<MembersListProps> = ({
   const calculateCanShowMenu = useCallback((memberId: string, currentUserRole: string): boolean => {
     const isOwner = conversation.rules?.ownerId === memberId;
     const isCoOwner = conversation.rules?.coOwnerIds?.includes(memberId) || false;
+    const isCurrentUser = memberId === localStorage.getItem("userId");
+    
+    // Always show menu for the current user to allow leaving the group
+    if (isCurrentUser) {
+      return true;
+    }
     
     if (currentUserRole === 'owner') {
       // Owner can see menu for everyone
@@ -865,7 +837,7 @@ const MembersList: React.FC<MembersListProps> = ({
                   <Dropdown
                     overlay={
                       <Menu>
-                        {isCurrentUserMember && userRole === "owner" ? (
+                        {isCurrentUserMember ? (
                           <Menu.Item
                             key="leave"
                             onClick={onLeaveGroup}

@@ -93,7 +93,6 @@ const QRScanner: React.FC = () => {
     socketIo.emit("initQrLogin", qrToken);
 
     socketIo.on("qrScanned", (data) => {
-      console.log("QR scanned by mobile app:", data);
       setStatus("scanned");
       setUserInfo({
         fullname: data.fullname,
@@ -102,7 +101,6 @@ const QRScanner: React.FC = () => {
     });
 
     socketIo.on("qrLoginConfirmed", async (data) => {
-      console.log("QR login confirmed:", data);
       try {
         const qrToken = data.token;
         const response = await checkQRStatus(qrToken);
@@ -132,11 +130,9 @@ const QRScanner: React.FC = () => {
     });
 
     socketIo.on("connect", () => {
-      console.log("WebSocket connected");
     });
 
     socketIo.on("disconnect", (reason) => {
-      console.log("WebSocket disconnected:", reason);
     });
 
     return () => {
