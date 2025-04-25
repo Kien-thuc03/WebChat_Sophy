@@ -225,7 +225,6 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
   useEffect(() => {
     // Lắng nghe tin nhắn mới từ tất cả các cuộc trò chuyện
     const handleNewMessage = (data: any) => {
-      console.log("ChatList: Nhận tin nhắn mới:", data);
       // Cập nhật conversation trong danh sách, được xử lý bởi ConversationContext
       updateConversationWithNewMessage(data.conversationId, data.message);
 
@@ -342,7 +341,6 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
             conversationIds.forEach((id) => {
               if (id && !prevConvIds.current.has(id)) {
                 // This is a new conversation - highlight it
-                console.log("ChatList: New conversation detected:", id);
                 setNewConversationHighlight((prev) => ({
                   ...prev,
                   [id]: true,
@@ -382,8 +380,6 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
       );
 
       if (conversationToUpdate) {
-        console.log("ChatList: Member removed, updating conversation");
-        // Cập nhật lại conversation trong context
         updateConversationMembers(data.conversationId, data.userId);
         // Thêm tin nhắn hệ thống
         updateConversationWithNewMessage(data.conversationId, {
@@ -409,7 +405,6 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
   useEffect(() => {
     // Lắng nghe sự kiện cuộc trò chuyện mới
     const handleNewConversation = (data: ConversationData) => {
-      console.log("ChatList: Nhận cuộc trò chuyện mới:", data);
       if (data.conversation) {
         // Thêm cuộc trò chuyện mới vào danh sách
         setConversations((prev: Conversation[]) => {
@@ -449,8 +444,6 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
       addedUser: { userId: string; fullname: string };
       addedByUser: { userId: string; fullname: string };
     }) => {
-      console.log("ChatList: Nhận sự kiện thêm thành viên:", data);
-
       // Kiểm tra xem người được thêm có phải là người dùng hiện tại không
       const currentUserId = localStorage.getItem("userId");
       if (data.addedUser.userId === currentUserId) {
