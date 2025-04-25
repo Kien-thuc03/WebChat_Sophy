@@ -59,7 +59,6 @@ export const updateUserInfo = async (
 //update avatar người dùng
 export const updateUserAvatar = async (imageFile: File): Promise<void> => {
   try {
-    
     if (!token) {
       throw new Error("Không có token xác thực");
     }
@@ -150,7 +149,6 @@ export const checkQRStatus = async (qrToken: string) => {
 
 export const login = async (phone: string, password: string) => {
   try {
-
     // Đảm bảo số điện thoại đúng định dạng
     let formattedPhone = phone;
     if (phone.startsWith("+84")) {
@@ -429,7 +427,6 @@ export const changePassword = async (
       newPassword,
     });
 
-
     const { token, user } = response.data;
 
     if (!token?.accessToken || !token?.refreshToken || !user || !user.userId) {
@@ -646,7 +643,6 @@ export const getBlockedUsers = async () => {
   }
 };
 
-
 // Get messages
 export const getMessages = async (
   conversationId: string,
@@ -655,7 +651,6 @@ export const getMessages = async (
   direction: "before" | "after" = "before"
 ) => {
   try {
-
     if (!conversationId || conversationId === "undefined") {
       return { messages: [], hasMore: false, nextCursor: null, direction };
     }
@@ -676,7 +671,6 @@ export const getMessages = async (
     if (!response.data) {
       return { messages: [], hasMore: false, nextCursor: null, direction };
     }
-
 
     // Xử lý nhiều trường hợp định dạng dữ liệu khác nhau
     let messages = [];
@@ -699,7 +693,6 @@ export const getMessages = async (
       hasMore = response.data.hasMore ?? false;
       nextCursor = response.data.nextCursor ?? null;
       responseDirection = response.data.direction || direction;
-
     } else if (response.data && Array.isArray(response.data.data)) {
       // Trường hợp 3: Dữ liệu nằm trong property data
       messages = response.data.data;
@@ -1535,7 +1528,8 @@ export const sendFriendRequest = async (
             throw new Error("Người dùng này đã là bạn của bạn");
           default:
             throw new Error(
-              data.message || "Không thể gửi yêu cầu kết bạn. Dữ liệu không hợp lệ."
+              data.message ||
+                "Không thể gửi yêu cầu kết bạn. Dữ liệu không hợp lệ."
             );
         }
       } else if (status === 404) {
@@ -1745,14 +1739,29 @@ export const fetchFriends = async () => {
       throw new Error("Không có token xác thực");
     }
 
-    const response = await apiClient.get("/api/users/friends");
+    const response = await apiClient.get("/api/users/friends", {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+    });
 
-    if (!Array.isArray(response.data)) {
+    if (!response.data || !Array.isArray(response.data)) {
+      console.error("Dữ liệu không hợp lệ từ API:", response.data);
       return [];
     }
 
-    return response.data;
+    // Kiểm tra và xử lý dữ liệu trước khi trả về
+    const friends = response.data.map((friend) => ({
+      userId: friend.userId,
+      fullname: friend.fullname,
+      urlavatar: friend.urlavatar,
+      phone: friend.phone,
+    }));
+
+    return friends;
   } catch (error) {
+    console.error("Lỗi chi tiết khi lấy danh sách bạn bè:", error);
     const apiError = error as AxiosError<{ message?: string }>;
     if (apiError.response?.status === 401) {
       throw new Error("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.");
