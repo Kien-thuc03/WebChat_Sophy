@@ -664,18 +664,20 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
     setShowAddGroupModal(false);
   };
 
-  // Lắng nghe sự kiện thay đổi thành viên nhóm
+  // Update the useEffect that listens for socket events related to member changes
   useEffect(() => {
+    // Handler for when a member is removed from the group
     const handleMemberRemoved = (data: {
       conversationId: string;
       userId: string;
     }) => {
       if (data.conversationId === currentConversation.conversationId) {
-        // Cập nhật lại danh sách thành viên
+        // Update the members list
         setGroupMembers((prevMembers) =>
           prevMembers.filter((id) => id !== data.userId)
         );
-        // Cập nhật lại conversation detail
+        
+        // Update the conversation detail
         setDetailedConversation((prev) => {
           if (!prev) return prev;
           return {
@@ -684,17 +686,61 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
               prev.groupMembers?.filter((id) => id !== data.userId) || [],
           };
         });
+
+        // If current user is removed, close the chat info panel and redirect
+        const currentUserId = localStorage.getItem("userId");
+        if (data.userId === currentUserId) {
+          message.info("Bạn đã bị xóa khỏi nhóm");
+          // Close the chat info panel
+          onClose();
+          // Navigate away from this conversation
+          navigate("/chat");
+        }
       }
     };
 
+    // Handler for when a user leaves the group (similar to removal but with different UI message)
+    const handleUserLeftGroup = (data: {
+      conversationId: string;
+      userId: string;
+    }) => {
+      if (data.conversationId === currentConversation.conversationId) {
+        // Update the members list
+        setGroupMembers((prevMembers) =>
+          prevMembers.filter((id) => id !== data.userId)
+        );
+        
+        // Update the conversation detail
+        setDetailedConversation((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            groupMembers:
+              prev.groupMembers?.filter((id) => id !== data.userId) || [],
+          };
+        });
+
+        // If current user has left, close the chat info panel and redirect
+        const currentUserId = localStorage.getItem("userId");
+        if (data.userId === currentUserId) {
+          // Close the chat info panel
+          onClose();
+          // Navigate away from this conversation
+          navigate("/chat");
+        }
+      }
+    };
+
+    // Register the event handlers with socketService
     socketService.on("userRemovedFromGroup", handleMemberRemoved);
-    socketService.onUserLeftGroup(handleMemberRemoved);
+    socketService.on("userLeftGroup", handleUserLeftGroup);
 
     return () => {
+      // Clean up the event handlers when component unmounts
       socketService.off("userRemovedFromGroup", handleMemberRemoved);
-      socketService.off("userLeftGroup", handleMemberRemoved);
+      socketService.off("userLeftGroup", handleUserLeftGroup);
     };
-  }, [currentConversation.conversationId]);
+  }, [currentConversation.conversationId, onClose, navigate]);
 
   // If showing members list view
   if (showMembersList && isGroup) {
