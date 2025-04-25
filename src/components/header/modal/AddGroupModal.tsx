@@ -3,6 +3,7 @@ import { FaSearch } from "react-icons/fa";
 import { Conversation } from "../../../features/chat/types/conversationTypes";
 import { fetchFriends, createGroupConversation } from "../../../api/API";
 import { useConversationContext } from "../../../features/chat/context/ConversationContext";
+import socketService from "../../../services/socketService";
 
 interface Friend {
   userId: string;
@@ -87,6 +88,49 @@ const AddGroupModal: React.FC<AddGroupModalProps> = ({
     });
   }, [isLoading, friends, searchQuery, searchResults]);
 
+  useEffect(() => {
+    if (!visible) return;
+
+    const currentUserId = localStorage.getItem("userId");
+    if (!currentUserId) return;
+
+    if (!socketService.isConnected) {
+      socketService.connect();
+    }
+
+    socketService.authenticate(currentUserId);
+
+    const handleUserAddedToGroup = (data: {
+      conversationId: string;
+      addedUser: { userId: string; fullname: string };
+      addedByUser: { userId: string; fullname: string };
+    }) => {
+      console.log("User added to group:", data);
+      if (data.addedUser.userId === currentUserId) {
+        onClose();
+      }
+    };
+
+    const handleGroupCreated = (data: {
+      conversationId: string;
+      groupName: string;
+      members: string[];
+    }) => {
+      console.log("Group created:", data);
+      if (data.members.includes(currentUserId)) {
+        onClose();
+      }
+    };
+
+    socketService.onUserAddedToGroup(handleUserAddedToGroup);
+    socketService.on("groupCreated", handleGroupCreated);
+
+    return () => {
+      socketService.off("userAddedToGroup", handleUserAddedToGroup);
+      socketService.off("groupCreated", handleGroupCreated);
+    };
+  }, [visible, onClose]);
+
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setSearchQuery(value);
@@ -169,6 +213,8 @@ const AddGroupModal: React.FC<AddGroupModalProps> = ({
       };
 
       addNewConversation({ conversation: formattedConversation });
+
+      socketService.joinConversation(formattedConversation.conversationId);
 
       if (onSelectConversation) {
         onSelectConversation(formattedConversation);
