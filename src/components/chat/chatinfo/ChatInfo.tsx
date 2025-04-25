@@ -137,10 +137,15 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
   const [friendList, setFriendList] = useState<string[]>([]);
   const [showGroupModal, setShowGroupModal] = useState(false);
   const [showAddGroupModal, setShowAddGroupModal] = useState(false);
-  const { conversations, updateGroupName, updateConversationWithNewMessage } =
-    useConversationContext();
+  const {
+    conversations,
+    updateGroupName,
+    updateConversationWithNewMessage,
+    setConversations,
+  } = useConversationContext();
   const [isAddMemberModalVisible, setIsAddMemberModalVisible] = useState(false);
   const [groupMembers, setGroupMembers] = useState<string[]>([]);
+  const [memberCount, setMemberCount] = useState<number>(0);
 
   // Find the most up-to-date conversation data from context
   const updatedConversation =
@@ -159,9 +164,12 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
   const isGroup = currentConversation.isGroup;
   const groupName = currentConversation.groupName;
   const groupAvatarUrl = currentConversation.groupAvatarUrl;
+
+  // Cập nhật danh sách thành viên và số lượng thành viên khi conversation thay đổi
   useEffect(() => {
     if (currentConversation.groupMembers) {
       setGroupMembers(currentConversation.groupMembers);
+      setMemberCount(currentConversation.groupMembers.length);
     }
   }, [currentConversation.groupMembers]);
 
@@ -543,7 +551,7 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
     : otherUserInfo?.fullname || t.loading || "Đang tải...";
 
   // Determine online status
-  const onlineStatus = isGroup ? `${groupMembers.length} thành viên` : "Online";
+  const onlineStatus = isGroup ? `${memberCount} thành viên` : "Online";
 
   // Function to load media and files
   const loadMediaAndFiles = async (conversationId: string) => {
@@ -748,26 +756,37 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
     };
   }, [currentConversation.conversationId, onClose, navigate]);
 
-  // Lắng nghe sự kiện thay đổi tên nhóm
+  // Lắng nghe sự kiện thay đổi avatar nhóm
   useEffect(() => {
-    const handleGroupNameChanged = (data: {
+    const handleGroupAvatarChanged = (data: {
       conversationId: string;
-      newName: string;
+      newAvatar: string;
       fromUserId: string;
     }) => {
-      if (data.conversationId === conversation?.conversationId) {
-        setConversation((prev) => {
-          if (!prev) return prev;
-          return {
-            ...prev,
-            groupName: data.newName,
-          };
-        });
+      if (data.conversationId === currentConversation.conversationId) {
+        // Update in context first
+        setConversations((prevConversations) =>
+          prevConversations.map((conv) =>
+            conv.conversationId === data.conversationId
+              ? {
+                  ...conv,
+                  groupAvatarUrl: data.newAvatar,
+                  lastChange: new Date().toISOString(),
+                }
+              : conv
+          )
+        );
 
         // Create system message
+        const isCurrentUser =
+          data.fromUserId === localStorage.getItem("userId");
+        const userName = isCurrentUser
+          ? "Bạn"
+          : userCache[data.fromUserId]?.fullname || "Người dùng";
+
         const systemMessage: Message = {
           type: "system",
-          content: `${data.fromUserId === localStorage.getItem("userId") ? "Bạn" : "Người dùng"} đã đổi tên nhóm thành ${data.newName}`,
+          content: `${userName} đã thay đổi ảnh nhóm`,
           senderId: data.fromUserId,
           createdAt: new Date().toISOString(),
           messageDetailId: `system_${Date.now()}`,
@@ -789,46 +808,95 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
           deletedFor: [],
         };
 
-        // Update conversation with new message
         updateConversationWithNewMessage(data.conversationId, systemMessage);
       }
     };
 
-    socketService.onGroupNameChanged(handleGroupNameChanged);
-
-    return () => {
-      socketService.off("groupNameChanged", handleGroupNameChanged);
-    };
-  }, [
-    currentConversation.conversationId,
-    updateGroupName,
-    updateConversationWithNewMessage,
-    userCache,
-  ]);
-
-  // Add socket listener for group avatar changes
-  useEffect(() => {
-    const handleGroupAvatarChanged = (data: {
-      conversationId: string;
-      newAvatar: string;
-    }) => {
-      if (conversation?.conversationId === data.conversationId) {
-        setConversation((prev: Conversation) => {
-          if (!prev) return prev;
-          return {
-            ...prev,
-            groupAvatarUrl: data.newAvatar,
-          };
-        });
+    // Setup socket connection
+    const setupSocket = () => {
+      const currentUserId = localStorage.getItem("userId");
+      if (!socketService.isConnected) {
+        socketService.connect();
+      }
+      if (currentUserId) {
+        socketService.authenticate(currentUserId);
+      }
+      if (currentConversation?.conversationId) {
+        socketService.joinConversation(currentConversation.conversationId);
       }
     };
 
-    socketService.onGroupAvatarChanged(handleGroupAvatarChanged);
+    setupSocket();
+    socketService.on("groupAvatarChanged", handleGroupAvatarChanged);
 
     return () => {
+      if (currentConversation?.conversationId) {
+        socketService.leaveConversation(currentConversation.conversationId);
+      }
       socketService.off("groupAvatarChanged", handleGroupAvatarChanged);
     };
-  }, [conversation?.conversationId]);
+  }, [
+    currentConversation?.conversationId,
+    userCache,
+    setConversations,
+    updateConversationWithNewMessage,
+  ]);
+
+  // Poll for conversation updates
+  useEffect(() => {
+    let pollInterval: NodeJS.Timeout;
+
+    const pollForUpdates = async () => {
+      if (currentConversation?.conversationId) {
+        try {
+          const updatedData = await getConversationDetail(
+            currentConversation.conversationId
+          );
+          if (updatedData) {
+            // Update local states if avatar has changed
+            if (updatedData.groupAvatarUrl !== conversation?.groupAvatarUrl) {
+              setConversation((prev) => ({
+                ...prev,
+                groupAvatarUrl: updatedData.groupAvatarUrl,
+                lastChange: updatedData.lastChange,
+              }));
+
+              setDetailedConversation((prev) => ({
+                ...prev,
+                ...updatedData,
+              }));
+            }
+          }
+        } catch (error) {
+          console.error("Error polling for updates:", error);
+        }
+      }
+    };
+
+    // Poll every 2 seconds
+    pollInterval = setInterval(pollForUpdates, 2000);
+
+    return () => {
+      if (pollInterval) {
+        clearInterval(pollInterval);
+      }
+    };
+  }, [currentConversation?.conversationId]);
+
+  // Update from context changes
+  useEffect(() => {
+    const updatedConv = conversations.find(
+      (conv) => conv.conversationId === currentConversation?.conversationId
+    );
+
+    if (
+      updatedConv &&
+      updatedConv.groupAvatarUrl !== conversation?.groupAvatarUrl
+    ) {
+      setConversation(updatedConv);
+      refreshConversationData();
+    }
+  }, [conversations]);
 
   // If showing members list view
   if (showMembersList && isGroup) {
@@ -1157,7 +1225,7 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
                           onClick={handleShowMembers}>
                           <i className="far fa-user mr-1" />
                           <span>
-                            {groupMembers.length} {t.members || "thành viên"}
+                            {memberCount} {t.members || "thành viên"}
                           </span>
                         </span>
                       </div>
