@@ -18,6 +18,12 @@ import { getUserById, getConversationDetail } from "../../api/API";
 import { User } from "../../features/auth/types/authTypes";
 import socketService from "../../services/socketService";
 
+// Xóa khai báo interface riêng và sử dụng kiểu any tạm thời để tránh xung đột type
+// interface ConversationData {
+//   conversation: Conversation;
+//   timestamp: string;
+// }
+
 interface ChatListProps {
   onSelectConversation: (conversation: Conversation) => void;
 }
@@ -405,7 +411,7 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
 
   useEffect(() => {
     // Lắng nghe sự kiện cuộc trò chuyện mới
-    const handleNewConversation = (data: ConversationData) => {
+    const handleNewConversation = (data: any) => {
       if (data.conversation) {
         // Thêm cuộc trò chuyện mới vào danh sách
         setConversations((prev: Conversation[]) => {
@@ -475,12 +481,37 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
       }
     };
 
+    // Thêm xử lý cho sự kiện nhóm bị giải tán
+    const handleGroupDeleted = (data: { conversationId: string }) => {
+      // Xóa conversation khỏi danh sách
+      setConversations((prev: Conversation[]) => {
+        return prev.filter(
+          (conv) => conv.conversationId !== data.conversationId
+        );
+      });
+      
+      // Hiển thị thông báo
+      const notification = document.createElement('div');
+      notification.className = 'fixed bottom-4 right-4 bg-red-500 text-white px-4 py-2 rounded shadow-lg z-50';
+      notification.textContent = 'Một nhóm chat đã bị giải tán';
+      document.body.appendChild(notification);
+      
+      // Xóa thông báo sau 5 giây
+      setTimeout(() => {
+        if (notification.parentNode) {
+          document.body.removeChild(notification);
+        }
+      }, 5000);
+    };
+
     socketService.onNewConversation(handleNewConversation);
     socketService.onUserAddedToGroup(handleUserAddedToGroup);
+    socketService.onGroupDeleted(handleGroupDeleted);
 
     return () => {
       socketService.off("newConversation", handleNewConversation);
       socketService.off("userAddedToGroup", handleUserAddedToGroup);
+      socketService.off("groupDeleted", handleGroupDeleted);
     };
   }, [setConversations]);
 
