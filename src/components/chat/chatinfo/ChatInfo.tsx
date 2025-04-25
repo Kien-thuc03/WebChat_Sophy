@@ -137,8 +137,12 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
   const [friendList, setFriendList] = useState<string[]>([]);
   const [showGroupModal, setShowGroupModal] = useState(false);
   const [showAddGroupModal, setShowAddGroupModal] = useState(false);
-  const { conversations, updateGroupName, updateConversationWithNewMessage } =
-    useConversationContext();
+  const {
+    conversations,
+    updateGroupName,
+    updateConversationWithNewMessage,
+    setConversations,
+  } = useConversationContext();
   const [isAddMemberModalVisible, setIsAddMemberModalVisible] = useState(false);
   const [groupMembers, setGroupMembers] = useState<string[]>([]);
 
@@ -806,29 +810,105 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
     userCache,
   ]);
 
-  // Add socket listener for group avatar changes
+  // Update the group avatar change handler
   useEffect(() => {
     const handleGroupAvatarChanged = (data: {
       conversationId: string;
       newAvatar: string;
+      fromUserId: string;
     }) => {
       if (conversation?.conversationId === data.conversationId) {
-        setConversation((prev: Conversation) => {
+        // Update local state immediately
+        setConversation((prev) => ({
+          ...prev,
+          groupAvatarUrl: data.newAvatar,
+          lastChange: new Date().toISOString(),
+        }));
+
+        // Update detailed conversation state if it exists
+        setDetailedConversation((prev) => {
           if (!prev) return prev;
           return {
             ...prev,
             groupAvatarUrl: data.newAvatar,
+            lastChange: new Date().toISOString(),
           };
         });
+
+        // Update in context
+        setConversations((prevConversations) =>
+          prevConversations.map((conv) => {
+            if (conv.conversationId === data.conversationId) {
+              return {
+                ...conv,
+                groupAvatarUrl: data.newAvatar,
+                lastChange: new Date().toISOString(),
+              };
+            }
+            return conv;
+          })
+        );
+
+        // Add system message
+        const isCurrentUser =
+          data.fromUserId === localStorage.getItem("userId");
+        const userName = isCurrentUser
+          ? "Bạn"
+          : userCache[data.fromUserId]?.fullname || "Người dùng";
+        const systemMessage: Message = {
+          type: "system",
+          content: `${userName} đã thay đổi ảnh nhóm`,
+          senderId: data.fromUserId,
+          createdAt: new Date().toISOString(),
+          messageDetailId: `system_${Date.now()}`,
+          conversationId: data.conversationId,
+          sendStatus: "sent",
+          hiddenFrom: [],
+          isRecall: false,
+          isReply: false,
+          messageReplyId: null,
+          replyData: null,
+          isPinned: false,
+          pinnedAt: null,
+          reactions: [],
+          attachments: null,
+          poll: null,
+          linkPreview: null,
+          deliveredTo: [],
+          readBy: [],
+          deletedFor: [],
+        };
+
+        updateConversationWithNewMessage(data.conversationId, systemMessage);
       }
     };
 
-    socketService.onGroupAvatarChanged(handleGroupAvatarChanged);
+    // Connect socket and listen for avatar changes
+    const currentUserId = localStorage.getItem("userId");
+    if (!socketService.isConnected) {
+      socketService.connect();
+    }
+    if (currentUserId) {
+      socketService.authenticate(currentUserId);
+    }
+    if (conversation?.conversationId) {
+      socketService.joinConversation(conversation.conversationId);
+    }
+
+    socketService.on("groupAvatarChanged", handleGroupAvatarChanged);
 
     return () => {
+      if (conversation?.conversationId) {
+        socketService.leaveConversation(conversation.conversationId);
+      }
       socketService.off("groupAvatarChanged", handleGroupAvatarChanged);
     };
-  }, [conversation?.conversationId]);
+  }, [
+    conversation?.conversationId,
+    updateConversationWithNewMessage,
+    userCache,
+    setConversations,
+  ]);
 
   // If showing members list view
   if (showMembersList && isGroup) {
