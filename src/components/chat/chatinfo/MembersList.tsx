@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Button, Dropdown, Menu, App } from "antd";
 import {
   UserAddOutlined,
@@ -21,6 +21,7 @@ import UserInfoHeaderModal from "../../header/modal/UserInfoHeaderModal";
 import { useNavigate } from "react-router-dom";
 import socketService from "../../../services/socketService";
 import { useConversationContext } from "../../../features/chat/context/ConversationContext";
+import AddMemberModal from "../modals/AddMemberModal";
 
 // Define interface for simplified member info
 interface MemberInfo {
@@ -86,10 +87,13 @@ const MembersList: React.FC<MembersListProps> = ({
     useConversationContext();
 
   const [renderKey, setRenderKey] = useState<number>(Date.now());
-
+  const [isAddMemberModalVisible, setIsAddMemberModalVisible] = useState(false);
 
   const groupMembers = conversation.groupMembers || [];
   const currentUserId = localStorage.getItem("userId") || "";
+
+  // Thêm biến ref để theo dõi xem người dùng đã bị kick chưa
+  const hasBeenRemovedRef = useRef(false);
 
   // Function to get user name from cache or default value
   const getUserName = useCallback(
@@ -102,7 +106,6 @@ const MembersList: React.FC<MembersListProps> = ({
 
   // Lắng nghe sự kiện socket khi component mount
   useEffect(() => {
-
     // Đảm bảo socket đã kết nối
     if (!socketService.isConnected) {
       socketService.connect();
@@ -131,9 +134,44 @@ const MembersList: React.FC<MembersListProps> = ({
       const userId = data.kickedUser.userId;
       const removedById = data.kickedByUser.userId;
       
-      // If current user is removed, go back
+      // If current user is removed, show notification and go back
       if (userId === currentUserId) {
+        // Kiểm tra biến cờ để tránh xử lý nhiều lần
+        if (hasBeenRemovedRef.current) {
+          return; // Đã xử lý rồi, thoát ngay
+        }
+        
+        // Đánh dấu là đã xử lý
+        hasBeenRemovedRef.current = true;
+        
+        // Đánh dấu cuộc trò chuyện là đã bị xóa khỏi danh sách của người dùng
+        updateConversationMembers(conversation.conversationId, userId);
+        
+        // Đóng modal hoặc panel hiện tại
         onBack();
+        
+        // Huỷ đăng ký sự kiện sau khi đã xử lý để tránh lặp lại
+        socketService.off("userRemovedFromGroup", handleUserRemovedFromGroup);
+        
+        // Lưu thông tin người kick để hiển thị trong modal
+        const kickedByName = data.kickedByUser.fullname;
+        
+        // Đặt hẹn giờ để đảm bảo chuyển hướng diễn ra 
+        setTimeout(() => {
+          // Trực tiếp chuyển hướng ra trang chính
+          window.location.href = '/main';
+          
+          // Hiển thị thông báo dạng modal sau khi đã bắt đầu chuyển trang
+          setTimeout(() => {
+            modal.error({
+              title: 'Bạn đã bị xóa khỏi nhóm',
+              content: `${kickedByName} đã xóa bạn khỏi nhóm chat này`,
+              okText: 'Đã hiểu',
+              centered: true
+            });
+          }, 100);
+        }, 100);
+        
         return;
       }
 
@@ -162,8 +200,45 @@ const MembersList: React.FC<MembersListProps> = ({
       });
     };
 
+    const handleUserAddedToGroup = (data: {
+      conversationId: string;
+      addedUser: { userId: string; fullname: string };
+      addedByUser: { userId: string; fullname: string };
+    }) => {
+      if (data.conversationId !== conversation.conversationId) {
+        return;
+      }
+      
+      // Update the member count
+      setMemberCount((prev) => prev + 1);
+      
+      // Add the new member to the local state
+      setConversation((prev) => {
+        // Check if member is already in the list
+        if (prev.groupMembers?.includes(data.addedUser.userId)) {
+          return prev;
+        }
+        
+        // Add the new member to the groupMembers array
+        const updatedMembers = [...(prev.groupMembers || []), data.addedUser.userId];
+        return {
+          ...prev,
+          groupMembers: updatedMembers,
+        };
+      });
+      
+      // Show success message
+      message.success(
+        `${data.addedByUser.fullname} đã thêm ${data.addedUser.fullname} vào nhóm`
+      );
+      
+      // Force a refresh to get complete member details
+      refreshConversationData();
+    };
+
     // Đăng ký lắng nghe sự kiện
     socketService.on("userRemovedFromGroup", handleUserRemovedFromGroup);
+    socketService.on("userAddedToGroup", handleUserAddedToGroup);
 
     // Cleanup khi component unmount
     return () => {
@@ -171,12 +246,17 @@ const MembersList: React.FC<MembersListProps> = ({
         socketService.leaveConversation(conversation.conversationId);
       }
       socketService.off("userRemovedFromGroup", handleUserRemovedFromGroup);
+      socketService.off("userAddedToGroup", handleUserAddedToGroup);
+      
+      // Reset biến cờ khi unmount
+      hasBeenRemovedRef.current = false;
     };
   }, [
     conversation.conversationId,
     updateConversationMembers,
     updateConversationWithNewMessage,
     onBack,
+    navigate
   ]);
 
   // Add this function to determine user role from conversation data
@@ -480,7 +560,7 @@ const MembersList: React.FC<MembersListProps> = ({
       if (friendsData && Array.isArray(friendsData)) {
         // Extract user IDs from friend list
         const friendIds = friendsData
-          .map((friend) => friend.userId || friend._id || friend.id || "")
+          .map((friend) => friend.userId|| "")
           .filter((id) => id);
         setFriendList(friendIds);
       }
@@ -760,6 +840,16 @@ const MembersList: React.FC<MembersListProps> = ({
     };
   }, [conversation.conversationId]);
 
+  // Handler to show the add member modal
+  const handleShowAddMemberModal = () => {
+    setIsAddMemberModalVisible(true);
+  };
+
+  // Handler to close the add member modal
+  const handleCloseAddMemberModal = () => {
+    setIsAddMemberModalVisible(false);
+  };
+
   return (
     <div className="h-full bg-white" key={`members-list-${renderKey}`}>
       <div className="flex-none p-4 border-b border-gray-200 flex items-center">
@@ -779,7 +869,8 @@ const MembersList: React.FC<MembersListProps> = ({
         <Button
           block
           icon={<UserAddOutlined />}
-          className="flex items-center justify-center bg-gray-100 hover:bg-gray-200 border-gray-200">
+          className="flex items-center justify-center bg-gray-100 hover:bg-gray-200 border-gray-200"
+          onClick={handleShowAddMemberModal}>
           <span>Thêm thành viên</span>
         </Button>
       </div>
@@ -859,7 +950,18 @@ const MembersList: React.FC<MembersListProps> = ({
                         {isCurrentUserMember ? (
                           <Menu.Item
                             key="leave"
-                            onClick={onLeaveGroup}
+                            onClick={() => {
+                              // Thêm thông báo rời nhóm vào conversation
+                              updateConversationWithNewMessage(conversation.conversationId, {
+                                type: "system",
+                                content: `${getUserName(currentUserId)} đã rời khỏi nhóm`,
+                                senderId: currentUserId,
+                                createdAt: new Date().toISOString(),
+                              });
+                              
+                              // Sau đó gọi hàm rời nhóm
+                              onLeaveGroup();
+                            }}
                             icon={<LogoutOutlined />}>
                             Rời nhóm
                           </Menu.Item>
@@ -943,6 +1045,15 @@ const MembersList: React.FC<MembersListProps> = ({
           onRequestsUpdate={handleFriendListRefresh}
         />
       )}
+
+      {/* Add Member Modal */}
+      <AddMemberModal
+        visible={isAddMemberModalVisible}
+        onClose={handleCloseAddMemberModal}
+        conversationId={conversation.conversationId}
+        groupMembers={conversation.groupMembers || []}
+        refreshConversationData={refreshConversationData}
+      />
     </div>
   );
 };

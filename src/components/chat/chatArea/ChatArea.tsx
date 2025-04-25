@@ -3721,12 +3721,68 @@ export function ChatArea({ conversation }: ChatAreaProps) {
     const handleUserLeftGroup = (data: { conversationId: string, userId: string }): void => {
       if (data.conversationId !== conversation.conversationId) return;
 
+      // Lấy thông tin người rời nhóm
+      const currentUserId = localStorage.getItem("userId");
+      const leftUserId = data.userId;
+      const leftUser = userCache[leftUserId] || { fullname: "Một thành viên" };
+      const leftUserName = leftUser?.fullname || "Một thành viên";
+      
+      // Tạo thông báo về việc rời nhóm
+      const newNotification = {
+        id: `notification-user-left-${Date.now()}`,
+        content: leftUserId === currentUserId 
+          ? "Bạn đã rời khỏi nhóm" 
+          : `${leftUserName} đã rời khỏi nhóm`,
+        type: "notification" as "notification",
+        timestamp: new Date().toISOString(),
+        sender: {
+          id: "system",
+          name: "Hệ thống",
+          avatar: ""
+        },
+        isNotification: true,
+        isRead: true,
+        sendStatus: "sent"
+      } as DisplayMessage;
+      
+      setMessages(prev => [...prev, newNotification]);
+      
+      // Cuộn xuống dưới để hiển thị thông báo mới
+      setTimeout(() => {
+        if (messagesEndRef.current) {
+          messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+        }
+      }, 100);
     };
 
     // Handler for when a group is deleted
     const handleGroupDeleted = (data: { conversationId: string }): void => {
       if (data.conversationId !== conversation.conversationId) return;
       
+      // Tạo thông báo về việc nhóm bị xóa
+      const newNotification = {
+        id: `notification-group-deleted-${Date.now()}`,
+        content: "Nhóm này đã bị xóa",
+        type: "notification" as "notification",
+        timestamp: new Date().toISOString(),
+        sender: {
+          id: "system",
+          name: "Hệ thống",
+          avatar: ""
+        },
+        isNotification: true,
+        isRead: true,
+        sendStatus: "sent"
+      } as DisplayMessage;
+      
+      setMessages(prev => [...prev, newNotification]);
+      
+      // Cuộn xuống dưới để hiển thị thông báo mới
+      setTimeout(() => {
+        if (messagesEndRef.current) {
+          messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+        }
+      }, 100);
     };
 
     // Handler for when co-owners are added
@@ -3764,10 +3820,16 @@ export function ChatArea({ conversation }: ChatAreaProps) {
       const remover = userCache[data.kickedByUser.userId] || { fullname: data.kickedByUser.fullname };
       const removerName = remover?.fullname || "Một quản trị viên";
       
+      // Kiểm tra xem người bị xóa có phải là người dùng hiện tại không
+      const currentUserId = localStorage.getItem("userId");
+      const isCurrentUser = data.kickedUser.userId === currentUserId;
+      
       // Tạo thông báo hệ thống
       const newNotification = {
         id: `notification-user-removed-${Date.now()}`,
-        content: `${removerName} đã xóa ${removedUserName} khỏi nhóm`,
+        content: isCurrentUser 
+          ? `Bạn đã bị ${removerName} xóa khỏi nhóm` 
+          : `${removerName} đã xóa ${removedUserName} khỏi nhóm`,
         type: "notification" as "notification",
         timestamp: new Date().toISOString(),
         sender: {
