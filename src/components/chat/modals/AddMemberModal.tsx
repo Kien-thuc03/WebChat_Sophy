@@ -82,6 +82,8 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
         message.success(
           `${data.addedByUser.fullname} đã thêm ${data.addedUser.fullname} vào nhóm`
         );
+        // Join conversation for the new member
+        socketService.joinConversation(conversationId);
         if (refreshConversationData) {
           refreshConversationData();
         }
@@ -91,7 +93,7 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
     socketService.onUserAddedToGroup(handleUserAddedToGroup);
 
     return () => {
-      socketService.off("userAddedToGroup");
+      socketService.off("userAddedToGroup", handleUserAddedToGroup);
     };
   }, [conversationId, refreshConversationData]);
 
@@ -184,6 +186,12 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
       try {
         await addMemberToGroup(conversationId, userId);
         successes.push(userId);
+
+        // Join conversation for the new member
+        socketService.joinConversation(conversationId);
+
+        // Refresh conversation data immediately
+        await refreshConversation();
       } catch (error) {
         console.error(`Error adding member ${userId}:`, error);
         if (error instanceof Error) {
@@ -210,8 +218,6 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
 
     if (successes.length > 0) {
       message.success(`Đã thêm ${successes.length} thành viên vào nhóm`);
-      // Refresh the conversation data to get updated member list
-      await refreshConversation();
     }
 
     if (errors.length > 0) {
