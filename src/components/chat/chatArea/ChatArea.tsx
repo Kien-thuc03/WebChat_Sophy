@@ -1759,7 +1759,6 @@ export function ChatArea({ conversation }: ChatAreaProps) {
       await fetchConversations();
       
       // Thông báo cho người dùng
-      message.success("Đã làm mới danh sách cuộc trò chuyện");
       
       // Thiết lập lại trạng thái not-found
       setNotFound(false);

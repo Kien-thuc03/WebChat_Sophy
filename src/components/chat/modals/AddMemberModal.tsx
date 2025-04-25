@@ -79,9 +79,7 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
       addedByUser: { userId: string; fullname: string };
     }) => {
       if (data.conversationId === conversationId) {
-        message.success(
-          `${data.addedByUser.fullname} đã thêm ${data.addedUser.fullname} vào nhóm`
-        );
+        
         // Join conversation for the new member
         socketService.joinConversation(conversationId);
         if (refreshConversationData) {
@@ -263,7 +261,6 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
     }
 
     if (successes.length > 0) {
-      message.success(`Đã thêm ${successes.length} thành viên vào nhóm`);
       handleClose();
     }
 
