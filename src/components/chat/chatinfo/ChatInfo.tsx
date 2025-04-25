@@ -135,6 +135,7 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
   const { conversations } = useConversationContext();
   const [isAddMemberModalVisible, setIsAddMemberModalVisible] = useState(false);
   const [groupMembers, setGroupMembers] = useState<string[]>([]);
+  const [memberCount, setMemberCount] = useState<number>(0);
 
   // Find the most up-to-date conversation data from context
   const updatedConversation =
@@ -153,9 +154,12 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
   const isGroup = currentConversation.isGroup;
   const groupName = currentConversation.groupName;
   const groupAvatarUrl = currentConversation.groupAvatarUrl;
+  
+  // Cập nhật danh sách thành viên và số lượng thành viên khi conversation thay đổi
   useEffect(() => {
     if (currentConversation.groupMembers) {
       setGroupMembers(currentConversation.groupMembers);
+      setMemberCount(currentConversation.groupMembers.length);
     }
   }, [currentConversation.groupMembers]);
 
@@ -537,7 +541,7 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
     : otherUserInfo?.fullname || t.loading || "Đang tải...";
 
   // Determine online status
-  const onlineStatus = isGroup ? `${groupMembers.length} thành viên` : "Online";
+  const onlineStatus = isGroup ? `${memberCount} thành viên` : "Online";
 
   // Function to load media and files
   const loadMediaAndFiles = async (conversationId: string) => {
@@ -664,83 +668,78 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
     setShowAddGroupModal(false);
   };
 
-  // Update the useEffect that listens for socket events related to member changes
+  // Lắng nghe sự kiện thay đổi thành viên nhóm từ socket
   useEffect(() => {
-    // Handler for when a member is removed from the group
+    if (!currentConversation.conversationId) return;
+    
+    // Xử lý khi một thành viên bị xóa khỏi nhóm
     const handleMemberRemoved = (data: {
       conversationId: string;
       userId: string;
     }) => {
       if (data.conversationId === currentConversation.conversationId) {
-        // Update the members list
-        setGroupMembers((prevMembers) =>
-          prevMembers.filter((id) => id !== data.userId)
-        );
+        // Cập nhật số lượng thành viên
+        setMemberCount((prev) => Math.max(0, prev - 1));
         
-        // Update the conversation detail
-        setDetailedConversation((prev) => {
-          if (!prev) return prev;
-          return {
-            ...prev,
-            groupMembers:
-              prev.groupMembers?.filter((id) => id !== data.userId) || [],
-          };
-        });
-
-        // If current user is removed, close the chat info panel and redirect
-        const currentUserId = localStorage.getItem("userId");
-        if (data.userId === currentUserId) {
-          message.info("Bạn đã bị xóa khỏi nhóm");
-          // Close the chat info panel
-          onClose();
-          // Navigate away from this conversation
-          navigate("/chat");
-        }
+        // Cập nhật danh sách thành viên nhóm
+        setGroupMembers((prevMembers) => 
+          prevMembers.filter(id => id !== data.userId)
+        );
       }
     };
 
-    // Handler for when a user leaves the group (similar to removal but with different UI message)
-    const handleUserLeftGroup = (data: {
+    // Xử lý khi một thành viên bị kick khỏi nhóm
+    const handleUserRemovedFromGroup = (data: {
       conversationId: string;
-      userId: string;
+      kickedUser: { userId: string; fullname: string };
+      kickedByUser: { userId: string; fullname: string };
     }) => {
       if (data.conversationId === currentConversation.conversationId) {
-        // Update the members list
-        setGroupMembers((prevMembers) =>
-          prevMembers.filter((id) => id !== data.userId)
-        );
+        // Cập nhật số lượng thành viên
+        setMemberCount((prev) => Math.max(0, prev - 1));
         
-        // Update the conversation detail
-        setDetailedConversation((prev) => {
-          if (!prev) return prev;
-          return {
-            ...prev,
-            groupMembers:
-              prev.groupMembers?.filter((id) => id !== data.userId) || [],
-          };
-        });
+        // Cập nhật danh sách thành viên nhóm
+        setGroupMembers((prevMembers) => 
+          prevMembers.filter(id => id !== data.kickedUser.userId)
+        );
+      }
+    };
 
-        // If current user has left, close the chat info panel and redirect
-        const currentUserId = localStorage.getItem("userId");
-        if (data.userId === currentUserId) {
-          // Close the chat info panel
-          onClose();
-          // Navigate away from this conversation
-          navigate("/chat");
+    // Xử lý khi một thành viên mới được thêm vào nhóm
+    const handleUserAddedToGroup = (data: {
+      conversationId: string;
+      addedUser: { userId: string; fullname: string };
+      addedByUser: { userId: string; fullname: string };
+    }) => {
+      if (data.conversationId === currentConversation.conversationId) {
+        const addedUserId = data.addedUser.userId;
+        
+        // Kiểm tra xem thành viên này đã có trong danh sách chưa
+        if (!groupMembers.includes(addedUserId)) {
+          // Cập nhật số lượng thành viên
+          setMemberCount((prev) => prev + 1);
+          
+          // Cập nhật danh sách thành viên nhóm
+          setGroupMembers((prevMembers) => [...prevMembers, addedUserId]);
+          
+          // Gọi API để lấy thông tin nhóm mới nhất
+          refreshConversationData();
         }
       }
     };
 
-    // Register the event handlers with socketService
-    socketService.on("userRemovedFromGroup", handleMemberRemoved);
-    socketService.on("userLeftGroup", handleUserLeftGroup);
+    // Đăng ký lắng nghe các sự kiện
+    socketService.on("userRemovedFromGroup", handleUserRemovedFromGroup);
+    socketService.on("userLeftGroup", handleMemberRemoved);
+    socketService.on("userAddedToGroup", handleUserAddedToGroup);
 
+    // Hủy đăng ký khi component unmount
     return () => {
-      // Clean up the event handlers when component unmounts
-      socketService.off("userRemovedFromGroup", handleMemberRemoved);
-      socketService.off("userLeftGroup", handleUserLeftGroup);
+      socketService.off("userRemovedFromGroup", handleUserRemovedFromGroup);
+      socketService.off("userLeftGroup", handleMemberRemoved);
+      socketService.off("userAddedToGroup", handleUserAddedToGroup);
     };
-  }, [currentConversation.conversationId, onClose, navigate]);
+  }, [currentConversation.conversationId, groupMembers]);
 
   // If showing members list view
   if (showMembersList && isGroup) {
@@ -1069,7 +1068,7 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
                           onClick={handleShowMembers}>
                           <i className="far fa-user mr-1" />
                           <span>
-                            {groupMembers.length} {t.members || "thành viên"}
+                            {memberCount} {t.members || "thành viên"}
                           </span>
                         </span>
                       </div>

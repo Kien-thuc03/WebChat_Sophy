@@ -1076,6 +1076,7 @@ export function ChatArea({ conversation }: ChatAreaProps) {
         socketService.socketInstance.on('groupCoOwnerAdded', handleGroupCoOwnerAdded);
         socketService.socketInstance.on('groupOwnerChanged', handleGroupOwnerChanged);
         socketService.socketInstance.on('userRemovedFromGroup', handleUserRemovedFromGroup);
+        socketService.socketInstance.on('userAddedToGroup', handleUserAddedToGroup);
       } else {
         console.warn("[ChatArea] Socket instance not available, using wrapper methods");
         socketService.onUserBlocked(handleUserBlocked);
@@ -1086,6 +1087,7 @@ export function ChatArea({ conversation }: ChatAreaProps) {
         socketService.onGroupCoOwnerAdded(handleGroupCoOwnerAdded);
         socketService.onGroupOwnerChanged(handleGroupOwnerChanged);
         socketService.onUserRemovedFromGroup(handleUserRemovedFromGroup);
+        socketService.onUserAddedToGroup(handleUserAddedToGroup);
       }
       
       // Cleanup khi unmount hoặc change conversation
@@ -1106,6 +1108,7 @@ export function ChatArea({ conversation }: ChatAreaProps) {
           socketService.socketInstance.off('groupCoOwnerAdded', handleGroupCoOwnerAdded);
           socketService.socketInstance.off('groupOwnerChanged', handleGroupOwnerChanged);
           socketService.socketInstance.off('userRemovedFromGroup', handleUserRemovedFromGroup);
+          socketService.socketInstance.off('userAddedToGroup', handleUserAddedToGroup);
         } else {
           socketService.off("userBlocked", handleUserBlocked);
           socketService.off("userUnblocked", handleUserUnblocked);
@@ -1115,6 +1118,7 @@ export function ChatArea({ conversation }: ChatAreaProps) {
           socketService.off("groupCoOwnerAdded", handleGroupCoOwnerAdded);
           socketService.off("groupOwnerChanged", handleGroupOwnerChanged);
           socketService.off("userRemovedFromGroup", handleUserRemovedFromGroup);
+          socketService.off("userAddedToGroup", handleUserAddedToGroup);
         }
         
         // Xóa tất cả timers
@@ -1755,7 +1759,6 @@ export function ChatArea({ conversation }: ChatAreaProps) {
       await fetchConversations();
       
       // Thông báo cho người dùng
-      message.success("Đã làm mới danh sách cuộc trò chuyện");
       
       // Thiết lập lại trạng thái not-found
       setNotFound(false);
@@ -3870,6 +3873,46 @@ export function ChatArea({ conversation }: ChatAreaProps) {
       socketService.off('userRemovedFromGroup', handleUserRemovedFromGroup);
     };
   }, [conversation?.conversationId, conversation?.rules?.ownerId, conversation?.rules?.coOwnerIds]);
+
+  // Thêm handler cho sự kiện userAddedToGroup
+  const handleUserAddedToGroup = (data: {
+    conversationId: string;
+    addedUser: { userId: string; fullname: string };
+    addedByUser: { userId: string; fullname: string };
+  }): void => {
+    // Kiểm tra xem sự kiện có thuộc cuộc trò chuyện hiện tại không
+    if (conversation?.conversationId !== data.conversationId) return;
+    
+    // Lấy tên người dùng từ cache hoặc từ data
+    const addedUserName = userCache[data.addedUser.userId]?.fullname || data.addedUser.fullname || "Người dùng mới";
+    const adderName = userCache[data.addedByUser.userId]?.fullname || data.addedByUser.fullname || "Quản trị viên";
+    
+    // Tạo thông báo hệ thống - chỉ tạo một thông báo duy nhất
+    const newNotification = {
+      id: `notification-user-added-${Date.now()}`,
+      content: `${adderName} đã thêm ${addedUserName} vào nhóm`,
+      type: "notification" as "notification",
+      timestamp: new Date().toISOString(),
+      sender: {
+        id: "system",
+        name: "Hệ thống",
+        avatar: ""
+      },
+      isNotification: true,
+      isRead: true,
+      sendStatus: "sent"
+    } as DisplayMessage;
+    
+    // Thêm thông báo vào danh sách tin nhắn
+    setMessages(prev => [...prev, newNotification]);
+    
+    // Cuộn xuống dưới để hiển thị thông báo mới
+    setTimeout(() => {
+      if (messagesEndRef.current) {
+        messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+      }
+    }, 100);
+  };
 
   return (
     <div className="w-full h-full flex flex-col">

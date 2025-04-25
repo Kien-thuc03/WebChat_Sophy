@@ -205,35 +205,40 @@ const MembersList: React.FC<MembersListProps> = ({
       addedUser: { userId: string; fullname: string };
       addedByUser: { userId: string; fullname: string };
     }) => {
-      if (data.conversationId !== conversation.conversationId) {
-        return;
-      }
-      
-      // Update the member count
-      setMemberCount((prev) => prev + 1);
-      
-      // Add the new member to the local state
-      setConversation((prev) => {
-        // Check if member is already in the list
-        if (prev.groupMembers?.includes(data.addedUser.userId)) {
+      if (data.conversationId === conversation.conversationId) {
+        // Cập nhật state local trước để UI phản hồi nhanh
+        setConversation((prev) => {
+          if (!prev.groupMembers.includes(data.addedUser.userId)) {
+            return {
+              ...prev,
+              groupMembers: [...prev.groupMembers, data.addedUser.userId],
+            };
+          }
           return prev;
+        });
+
+        // Gọi API để cập nhật đầy đủ thông tin về thành viên mới
+        refreshConversationData();
+
+        // Load thông tin người dùng mới nếu chưa có trong cache
+        if (
+          !userCache[data.addedUser.userId] &&
+          !localUserCache[data.addedUser.userId]
+        ) {
+          getUserById(data.addedUser.userId)
+            .then((userData) => {
+              if (userData) {
+                setLocalUserCache((prev) => ({
+                  ...prev,
+                  [data.addedUser.userId]: userData,
+                }));
+              }
+            })
+            .catch((error) => {
+              console.error("Error loading new member data:", error);
+            });
         }
-        
-        // Add the new member to the groupMembers array
-        const updatedMembers = [...(prev.groupMembers || []), data.addedUser.userId];
-        return {
-          ...prev,
-          groupMembers: updatedMembers,
-        };
-      });
-      
-      // Show success message
-      message.success(
-        `${data.addedByUser.fullname} đã thêm ${data.addedUser.fullname} vào nhóm`
-      );
-      
-      // Force a refresh to get complete member details
-      refreshConversationData();
+      }
     };
 
     // Đăng ký lắng nghe sự kiện
@@ -323,8 +328,40 @@ const MembersList: React.FC<MembersListProps> = ({
     const handleGroupDeleted = (data: { conversationId: string }) => {
       if (data.conversationId !== conversation.conversationId) return;
 
-      // Go back to conversation list
-      onBack();
+      try {
+        // Unregister event to prevent duplicate handling
+        socketService.off("groupDeleted", handleGroupDeleted);
+        
+        // Ensure we already have the correct reference to hasBeenRemovedRef
+        if (hasBeenRemovedRef.current) {
+          return; // Already processed, avoid duplicate redirects
+        }
+        
+        // Mark as processed
+        hasBeenRemovedRef.current = true;
+        
+        // Show notification first
+        modal.error({
+          title: 'Nhóm đã bị giải tán',
+          content: 'Nhóm chat này đã bị giải tán bởi người quản trị',
+          okText: 'Đã hiểu',
+          centered: true,
+        });
+        
+        // Safely call onBack if it's a function
+        if (typeof onBack === 'function') {
+          onBack();
+        }
+        
+        // Use direct window location change with timeout
+        setTimeout(() => {
+          window.location.href = '/main';
+        }, 1000);
+      } catch (error) {
+        console.error("Error handling group deletion:", error);
+        // Force redirect even if an error occurs
+        window.location.href = '/main';
+      }
     };
 
     // Handler for when co-owners are added

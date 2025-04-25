@@ -79,9 +79,7 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
       addedByUser: { userId: string; fullname: string };
     }) => {
       if (data.conversationId === conversationId) {
-        message.success(
-          `${data.addedByUser.fullname} đã thêm ${data.addedUser.fullname} vào nhóm`
-        );
+        
         // Join conversation for the new member
         socketService.joinConversation(conversationId);
         if (refreshConversationData) {
@@ -182,50 +180,92 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
     const errors: string[] = [];
     const successes: string[] = [];
 
-    for (const userId of selectedUsers) {
-      try {
-        await addMemberToGroup(conversationId, userId);
-        successes.push(userId);
-
-        // Join conversation for the new member
-        socketService.joinConversation(conversationId);
-
-        // Refresh conversation data immediately
-        await refreshConversation();
-      } catch (error) {
-        console.error(`Error adding member ${userId}:`, error);
-        if (error instanceof Error) {
-          errors.push(
-            `${
-              searchResults.find((u) => u.userId === userId)?.fullname ||
-              friends.find((f) => f.userId === userId)?.fullname ||
-              "Người dùng"
-            }: ${error.message}`
-          );
-        } else {
-          errors.push(
-            `Không thể thêm ${
-              searchResults.find((u) => u.userId === userId)?.fullname ||
-              friends.find((f) => f.userId === userId)?.fullname ||
-              "người dùng"
-            }`
-          );
+    try {
+      // Thêm tất cả thành viên cùng lúc và chỉ phát một thông báo
+      for (const userId of selectedUsers) {
+        try {
+          await addMemberToGroup(conversationId, userId);
+          successes.push(userId);
+        } catch (error) {
+          console.error(`Error adding member ${userId}:`, error);
+          if (error instanceof Error) {
+            errors.push(
+              `${
+                searchResults.find((u) => u.userId === userId)?.fullname ||
+                friends.find((f) => f.userId === userId)?.fullname ||
+                "Người dùng"
+              }: ${error.message}`
+            );
+          } else {
+            errors.push(
+              `Không thể thêm ${
+                searchResults.find((u) => u.userId === userId)?.fullname ||
+                friends.find((f) => f.userId === userId)?.fullname ||
+                "người dùng"
+              }`
+            );
+          }
         }
       }
-    }
 
-    setIsAddingMember(false);
+      if (successes.length > 0) {
+        // Chỉ emit một sự kiện socket duy nhất cho tất cả thành viên đã thêm
+        const currentUser = {
+          userId: localStorage.getItem("userId") || "",
+          fullname: localStorage.getItem("fullname") || "Người dùng"
+        };
 
-    if (successes.length > 0) {
-      message.success(`Đã thêm ${successes.length} thành viên vào nhóm`);
-    }
+        // Nếu có nhiều thành viên được thêm, chỉ gửi một thông báo tổng hợp
+        if (successes.length > 1) {
+          // Gửi một thông báo hệ thống rằng nhiều người đã được thêm vào
+          socketService.emit("newMessage", {
+            conversationId: conversationId,
+            message: {
+              type: "system",
+              content: `${currentUser.fullname} đã thêm ${successes.length} thành viên vào nhóm`,
+              senderId: currentUser.userId,
+              createdAt: new Date().toISOString(),
+            }
+          });
+        } else if (successes.length === 1) {
+          // Nếu chỉ thêm một người, gửi thông báo chi tiết
+          const addedUser = searchResults.find(u => u.userId === successes[0]) || 
+                          friends.find(f => f.userId === successes[0]) || 
+                          { userId: successes[0], fullname: "Người dùng mới" };
+                          
+          socketService.emitUserAddedToGroup({
+            conversationId,
+            addedUser: {
+              userId: addedUser.userId,
+              fullname: addedUser.fullname
+            },
+            addedByUser: {
+              userId: currentUser.userId,
+              fullname: currentUser.fullname
+            }
+          });
+        }
 
-    if (errors.length > 0) {
-      message.error(errors.join("\n"));
+        // Join conversation for new members và refresh dữ liệu
+        for (const userId of successes) {
+          socketService.joinConversation(conversationId);
+        }
+        
+        // Refresh conversation data một lần duy nhất
+        await refreshConversation();
+      }
+    } catch (error) {
+      console.error("Error in batch adding members:", error);
+    } finally {
+      setIsAddingMember(false);
     }
 
     if (successes.length > 0) {
       handleClose();
+    }
+
+    if (errors.length > 0) {
+      message.error(errors.join("\n"));
     }
   };
 
