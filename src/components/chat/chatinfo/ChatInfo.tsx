@@ -137,12 +137,8 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
   const [friendList, setFriendList] = useState<string[]>([]);
   const [showGroupModal, setShowGroupModal] = useState(false);
   const [showAddGroupModal, setShowAddGroupModal] = useState(false);
-  const {
-    conversations,
-    updateGroupName,
-    updateConversationWithNewMessage,
-    setConversations,
-  } = useConversationContext();
+  const { conversations, updateGroupName, updateConversationWithNewMessage } =
+    useConversationContext();
   const [isAddMemberModalVisible, setIsAddMemberModalVisible] = useState(false);
   const [groupMembers, setGroupMembers] = useState<string[]>([]);
 
@@ -674,53 +670,104 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
     setShowAddGroupModal(false);
   };
 
-  // Track changes from props and context
+  // Update the useEffect that listens for socket events related to member changes
   useEffect(() => {
-    if (updatedConversation?.groupAvatarUrl !== conversation?.groupAvatarUrl) {
-      setConversation(updatedConversation);
-
-      // Also update detailed conversation if exists
-      if (detailedConversation) {
-        setDetailedConversation((prev) => ({
-          ...prev,
-          groupAvatarUrl: updatedConversation.groupAvatarUrl,
-          lastChange: updatedConversation.lastChange,
-        }));
-      }
-    }
-  }, [updatedConversation?.groupAvatarUrl, updatedConversation?.lastChange]);
-
-  // Socket handler for group avatar changes
-  useEffect(() => {
-    const handleGroupAvatarChanged = async (data: {
+    // Handler for when a member is removed from the group
+    const handleMemberRemoved = (data: {
       conversationId: string;
-      newAvatar: string;
-      fromUserId: string;
+      userId: string;
     }) => {
       if (data.conversationId === currentConversation.conversationId) {
-        // Update in context first
-        setConversations((prevConversations) =>
-          prevConversations.map((conv) =>
-            conv.conversationId === data.conversationId
-              ? {
-                  ...conv,
-                  groupAvatarUrl: data.newAvatar,
-                  lastChange: new Date().toISOString(),
-                }
-              : conv
-          )
+        // Update the members list
+        setGroupMembers((prevMembers) =>
+          prevMembers.filter((id) => id !== data.userId)
         );
 
-        // Add system message
-        const isCurrentUser =
-          data.fromUserId === localStorage.getItem("userId");
-        const userName = isCurrentUser
-          ? "Bạn"
-          : userCache[data.fromUserId]?.fullname || "Người dùng";
+        // Update the conversation detail
+        setDetailedConversation((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            groupMembers:
+              prev.groupMembers?.filter((id) => id !== data.userId) || [],
+          };
+        });
 
+        // If current user is removed, close the chat info panel and redirect
+        const currentUserId = localStorage.getItem("userId");
+        if (data.userId === currentUserId) {
+          message.info("Bạn đã bị xóa khỏi nhóm");
+          // Close the chat info panel
+          onClose();
+          // Navigate away from this conversation
+          navigate("/chat");
+        }
+      }
+    };
+
+    // Handler for when a user leaves the group (similar to removal but with different UI message)
+    const handleUserLeftGroup = (data: {
+      conversationId: string;
+      userId: string;
+    }) => {
+      if (data.conversationId === currentConversation.conversationId) {
+        // Update the members list
+        setGroupMembers((prevMembers) =>
+          prevMembers.filter((id) => id !== data.userId)
+        );
+
+        // Update the conversation detail
+        setDetailedConversation((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            groupMembers:
+              prev.groupMembers?.filter((id) => id !== data.userId) || [],
+          };
+        });
+
+        // If current user has left, close the chat info panel and redirect
+        const currentUserId = localStorage.getItem("userId");
+        if (data.userId === currentUserId) {
+          // Close the chat info panel
+          onClose();
+          // Navigate away from this conversation
+          navigate("/chat");
+        }
+      }
+    };
+
+    // Register the event handlers with socketService
+    socketService.on("userRemovedFromGroup", handleMemberRemoved);
+    socketService.on("userLeftGroup", handleUserLeftGroup);
+
+    return () => {
+      // Clean up the event handlers when component unmounts
+      socketService.off("userRemovedFromGroup", handleMemberRemoved);
+      socketService.off("userLeftGroup", handleUserLeftGroup);
+    };
+  }, [currentConversation.conversationId, onClose, navigate]);
+
+  // Lắng nghe sự kiện thay đổi tên nhóm
+  useEffect(() => {
+    const handleGroupNameChanged = (data: {
+      conversationId: string;
+      newName: string;
+      fromUserId: string;
+    }) => {
+      if (data.conversationId === conversation?.conversationId) {
+        setConversation((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            groupName: data.newName,
+          };
+        });
+
+        // Create system message
         const systemMessage: Message = {
           type: "system",
-          content: `${userName} đã thay đổi ảnh nhóm`,
+          content: `${data.fromUserId === localStorage.getItem("userId") ? "Bạn" : "Người dùng"} đã đổi tên nhóm thành ${data.newName}`,
           senderId: data.fromUserId,
           createdAt: new Date().toISOString(),
           messageDetailId: `system_${Date.now()}`,
@@ -742,49 +789,46 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
           deletedFor: [],
         };
 
+        // Update conversation with new message
         updateConversationWithNewMessage(data.conversationId, systemMessage);
       }
     };
 
-    // Setup socket connection
-    const setupSocket = () => {
-      const currentUserId = localStorage.getItem("userId");
-
-      if (!socketService.isConnected) {
-        socketService.connect();
-      }
-
-      if (currentUserId) {
-        socketService.authenticate(currentUserId);
-      }
-
-      if (currentConversation?.conversationId) {
-        socketService.joinConversation(currentConversation.conversationId);
-      }
-    };
-
-    setupSocket();
-    socketService.on("groupAvatarChanged", handleGroupAvatarChanged);
+    socketService.onGroupNameChanged(handleGroupNameChanged);
 
     return () => {
-      if (currentConversation?.conversationId) {
-        socketService.leaveConversation(currentConversation.conversationId);
-      }
-      socketService.off("groupAvatarChanged", handleGroupAvatarChanged);
+      socketService.off("groupNameChanged", handleGroupNameChanged);
     };
   }, [
-    currentConversation?.conversationId,
-    userCache,
-    setConversations,
+    currentConversation.conversationId,
+    updateGroupName,
     updateConversationWithNewMessage,
+    userCache,
   ]);
 
-  // Refresh conversation data when needed
+  // Add socket listener for group avatar changes
   useEffect(() => {
-    if (conversation?.conversationId) {
-      refreshConversationData();
-    }
-  }, [conversation?.lastChange]);
+    const handleGroupAvatarChanged = (data: {
+      conversationId: string;
+      newAvatar: string;
+    }) => {
+      if (conversation?.conversationId === data.conversationId) {
+        setConversation((prev: Conversation) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            groupAvatarUrl: data.newAvatar,
+          };
+        });
+      }
+    };
+
+    socketService.onGroupAvatarChanged(handleGroupAvatarChanged);
+
+    return () => {
+      socketService.off("groupAvatarChanged", handleGroupAvatarChanged);
+    };
+  }, [conversation?.conversationId]);
 
   // If showing members list view
   if (showMembersList && isGroup) {

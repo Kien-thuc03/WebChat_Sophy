@@ -122,8 +122,25 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
     // Handler for when a group is deleted
     const handleGroupDeleted = (data: { conversationId: string }) => {
       if (data.conversationId !== conversation.conversationId) return;
-      // Go back
-      onBack();
+      
+      // Unregister the event to prevent it from firing again
+      socketService.off("groupDeleted", handleGroupDeleted);
+      
+      // Show notification
+      notification.error({
+        message: "Nhóm đã bị giải tán",
+        description: "Nhóm chat này đã bị giải tán bởi người quản trị",
+        duration: 2
+      });
+      
+      // Use setTimeout to give time for notification to be seen
+      setTimeout(() => {
+        // Go back
+        onBack();
+        
+        // Redirect to main page
+        window.location.href = '/main';
+      }, 1000);
     };
     
     // Handler for when co-owners are added

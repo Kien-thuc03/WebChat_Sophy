@@ -12,7 +12,7 @@ import { useConversations } from "../../features/chat/hooks/useConversations";
 import { useConversationContext } from "../../features/chat/context/ConversationContext";
 import { Avatar } from "../common/Avatar";
 import { useLanguage } from "../../features/auth/context/LanguageContext";
-import { getUserById } from "../../api/API";
+import { getUserById, getConversationDetail } from "../../api/API";
 import { User } from "../../features/auth/types/authTypes";
 import { Button, Tooltip, Modal, message } from "antd";
 import { zegoService } from "../../services/zegoService";
@@ -456,7 +456,7 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
           // Cập nhật lại conversation trong context
           updateConversationMembers(data.conversationId, data.userId);
           // Cập nhật số lượng thành viên
-          setMemberCount((prev) => prev - 1);
+          setMemberCount((prev) => Math.max(0, prev - 1));
           // Thêm tin nhắn hệ thống
           updateConversationWithNewMessage(data.conversationId, {
             type: "system",
@@ -468,15 +468,57 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
       }
     };
 
-    socketService.on("userRemovedFromGroup", handleMemberRemoved);
-    socketService.onUserLeftGroup(handleMemberRemoved);
+    // Xử lý khi có thành viên bị xóa khỏi nhóm bởi admin
+    const handleUserRemovedFromGroup = (data: {
+      conversationId: string;
+      kickedUser: { userId: string; fullname: string };
+      kickedByUser: { userId: string; fullname: string };
+    }) => {
+      if (data.conversationId === conversation.conversationId) {
+        // Cập nhật số lượng thành viên
+        setMemberCount((prev) => Math.max(0, prev - 1));
+        
+        // Cập nhật danh sách thành viên trong conversation
+        setConversation((prev) => ({
+          ...prev,
+          groupMembers: prev.groupMembers.filter(id => id !== data.kickedUser.userId)
+        }));
+      }
+    };
+
+    // Xử lý khi có thành viên mới được thêm vào nhóm
+    const handleUserAddedToGroup = (data: {
+      conversationId: string;
+      addedUser: { userId: string; fullname: string };
+      addedByUser: { userId: string; fullname: string };
+    }) => {
+      if (data.conversationId === conversation.conversationId) {
+        // Cập nhật số lượng thành viên và state local trước cho UI phản hồi nhanh
+        setMemberCount((prev) => prev + 1);
+        
+        // Cập nhật danh sách thành viên trong conversation
+        setConversation((prev) => ({
+          ...prev,
+          groupMembers: [...prev.groupMembers, data.addedUser.userId]
+        }));
+        
+        // Gọi API để lấy thông tin nhóm mới nhất (bao gồm thông tin user mới)
+        refreshConversationData();
+      }
+    };
+
+    socketService.on("userRemovedFromGroup", handleUserRemovedFromGroup);
+    socketService.on("userLeftGroup", handleMemberRemoved);
+    socketService.on("userAddedToGroup", handleUserAddedToGroup);
 
     return () => {
-      socketService.off("userRemovedFromGroup", handleMemberRemoved);
+      socketService.off("userRemovedFromGroup", handleUserRemovedFromGroup);
       socketService.off("userLeftGroup", handleMemberRemoved);
+      socketService.off("userAddedToGroup", handleUserAddedToGroup);
     };
   }, [
     conversation.conversationId,
+    conversation.groupMembers,
     conversations,
     updateConversationWithNewMessage,
     updateConversationMembers,
@@ -517,11 +559,17 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
     setIsAddMemberModalVisible(true);
   };
 
-  // Function to refresh the conversation data
+  // Hàm refreshConversationData để gọi API lấy thông tin conversation mới nhất
   const refreshConversationData = async () => {
-    // We don't need to do anything here since we're
-    // using the conversation context which will update
-    // automatically when the groupMembers field is updated
+    try {
+      const updatedConversation = await getConversationDetail(conversation.conversationId);
+      if (updatedConversation) {
+        setConversation(updatedConversation);
+        setMemberCount(updatedConversation.groupMembers?.length || 0);
+      }
+    } catch (error) {
+      console.error("Error refreshing conversation data:", error);
+    }
   };
 
   // Add socket listener for group avatar changes

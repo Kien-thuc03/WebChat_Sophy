@@ -1165,27 +1165,16 @@ class SocketService {
     }
   }
 
-  onUserAddedToGroup(
-    callback: (data: {
-      conversationId: string;
-      addedUser: { userId: string; fullname: string };
-      addedByUser: { userId: string; fullname: string };
-    }) => void
-  ) {
-    if (!this.socket) {
-      this.connect();
-    }
+  onUserAddedToGroup(callback: (data: any) => void) {
+    this.on("userAddedToGroup", callback);
+  }
 
-    if (this.socket) {
-      this.socket.off("userAddedToGroup");
-      this.socket.on("userAddedToGroup", (data) => {
-        callback(data);
-      });
-    } else {
-      console.warn(
-        "SocketService: Socket not initialized for userAddedToGroup listener"
-      );
-    }
+  emitUserAddedToGroup(data: {
+    conversationId: string;
+    addedUser: { userId: string; fullname: string };
+    addedByUser: { userId: string; fullname: string };
+  }) {
+    this.emit("userAddedToGroup", data);
   }
 
   onUserRemovedFromGroup(
