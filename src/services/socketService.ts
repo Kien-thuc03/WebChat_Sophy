@@ -173,7 +173,6 @@ class SocketService {
       });
 
       this.socket.on("reconnect", () => {
-
         console.log("Socket reconnected successfully");
         this.connectionAttempts = 0;
 
@@ -236,7 +235,6 @@ class SocketService {
 
       console.log("Socket authentication sent for user:", userId);
       this.isAuthenticated = true;
-
     } else {
       console.warn("Cannot authenticate: Socket not connected");
       this.connect();
@@ -249,7 +247,6 @@ class SocketService {
             userId
           );
           this.isAuthenticated = true;
-
         }
       }, 500);
     }
@@ -393,13 +390,10 @@ class SocketService {
   onReconnect(callback: () => void) {
     if (this.socket) {
       this.socket.on("connect", callback);
-
     }
   }
 
-  cleanup() {
-    
-  }
+  cleanup() {}
 
   joinConversations(conversationIds: string[]) {
     if (!this.socket || !this.socket.connected) {
@@ -479,7 +473,6 @@ class SocketService {
       const processedMessageIds = new Map<string, number>();
 
       this.socket.on("newMessage", (data: any) => {
-
         console.log("SocketService: Received new message:", data);
 
         let messageData = data.message;
@@ -500,12 +493,10 @@ class SocketService {
           const lastProcessedTime = processedMessageIds.get(messageId);
 
           if (lastProcessedTime && now - lastProcessedTime < 10000) {
-
             console.log(
               `SocketService: Duplicate message detected and skipped (ID: ${messageId})`
             );
             return;
-
           }
 
           processedMessageIds.set(messageId, now);
@@ -559,7 +550,6 @@ class SocketService {
           rawData
         );
 
-
         let normalizedData: ConversationData;
 
         if (rawData.conversation) {
@@ -592,7 +582,6 @@ class SocketService {
         console.log(
           `SocketService: New conversation - creator: ${creatorId}, receiver: ${receiverId}, current user: ${userId}`
         );
-
 
         callback(normalizedData);
 
@@ -1041,7 +1030,6 @@ class SocketService {
 
   private async setupInitialConversations() {
     try {
-
       const userId = localStorage.getItem("userId");
       if (!userId) {
         return;
@@ -1065,7 +1053,9 @@ class SocketService {
   }
 
   // Group management events
-  onUserJoinedGroup(callback: (data: { conversationId: string, userId: string }) => void) {
+  onUserJoinedGroup(
+    callback: (data: { conversationId: string; userId: string }) => void
+  ) {
     if (!this.socket) {
       this.connect();
     }
@@ -1077,11 +1067,15 @@ class SocketService {
         callback(data);
       });
     } else {
-      console.warn("SocketService: Socket not initialized for userJoinedGroup listener");
+      console.warn(
+        "SocketService: Socket not initialized for userJoinedGroup listener"
+      );
     }
   }
 
-  onUserLeftGroup(callback: (data: { conversationId: string, userId: string }) => void) {
+  onUserLeftGroup(
+    callback: (data: { conversationId: string; userId: string }) => void
+  ) {
     if (!this.socket) {
       this.connect();
     }
@@ -1093,11 +1087,15 @@ class SocketService {
         callback(data);
       });
     } else {
-      console.warn("SocketService: Socket not initialized for userLeftGroup listener");
+      console.warn(
+        "SocketService: Socket not initialized for userLeftGroup listener"
+      );
     }
   }
 
-  onGroupNameChanged(callback: (data: { conversationId: string, newName: string }) => void) {
+  onGroupNameChanged(
+    callback: (data: { conversationId: string; newName: string }) => void
+  ) {
     if (!this.socket) {
       this.connect();
     }
@@ -1109,11 +1107,15 @@ class SocketService {
         callback(data);
       });
     } else {
-      console.warn("SocketService: Socket not initialized for groupNameChanged listener");
+      console.warn(
+        "SocketService: Socket not initialized for groupNameChanged listener"
+      );
     }
   }
 
-  onGroupAvatarChanged(callback: (data: { conversationId: string, newAvatar: string }) => void) {
+  onGroupAvatarChanged(
+    callback: (data: { conversationId: string; newAvatar: string }) => void
+  ) {
     if (!this.socket) {
       this.connect();
     }
@@ -1125,11 +1127,15 @@ class SocketService {
         callback(data);
       });
     } else {
-      console.warn("SocketService: Socket not initialized for groupAvatarChanged listener");
+      console.warn(
+        "SocketService: Socket not initialized for groupAvatarChanged listener"
+      );
     }
   }
 
-  onGroupOwnerChanged(callback: (data: { conversationId: string, newOwner: string }) => void) {
+  onGroupOwnerChanged(
+    callback: (data: { conversationId: string; newOwner: string }) => void
+  ) {
     if (!this.socket) {
       this.connect();
     }
@@ -1141,11 +1147,18 @@ class SocketService {
         callback(data);
       });
     } else {
-      console.warn("SocketService: Socket not initialized for groupOwnerChanged listener");
+      console.warn(
+        "SocketService: Socket not initialized for groupOwnerChanged listener"
+      );
     }
   }
 
-  onGroupCoOwnerAdded(callback: (data: { conversationId: string, newCoOwnerIds: string[] }) => void) {
+  onGroupCoOwnerAdded(
+    callback: (data: {
+      conversationId: string;
+      newCoOwnerIds: string[];
+    }) => void
+  ) {
     if (!this.socket) {
       this.connect();
     }
@@ -1157,11 +1170,15 @@ class SocketService {
         callback(data);
       });
     } else {
-      console.warn("SocketService: Socket not initialized for groupCoOwnerAdded listener");
+      console.warn(
+        "SocketService: Socket not initialized for groupCoOwnerAdded listener"
+      );
     }
   }
 
-  onGroupCoOwnerRemoved(callback: (data: { conversationId: string, removedCoOwner: string }) => void) {
+  onGroupCoOwnerRemoved(
+    callback: (data: { conversationId: string; removedCoOwner: string }) => void
+  ) {
     if (!this.socket) {
       this.connect();
     }
@@ -1173,7 +1190,9 @@ class SocketService {
         callback(data);
       });
     } else {
-      console.warn("SocketService: Socket not initialized for groupCoOwnerRemoved listener");
+      console.warn(
+        "SocketService: Socket not initialized for groupCoOwnerRemoved listener"
+      );
     }
   }
 
@@ -1189,12 +1208,16 @@ class SocketService {
         callback(data);
       });
     } else {
-      console.warn("SocketService: Socket not initialized for groupDeleted listener");
+      console.warn(
+        "SocketService: Socket not initialized for groupDeleted listener"
+      );
     }
   }
 
   // User blocking events
-  onUserBlocked(callback: (data: { conversationId: string, blockedUserId: string }) => void) {
+  onUserBlocked(
+    callback: (data: { conversationId: string; blockedUserId: string }) => void
+  ) {
     if (!this.socket) {
       this.connect();
     }
@@ -1206,11 +1229,18 @@ class SocketService {
         callback(data);
       });
     } else {
-      console.warn("SocketService: Socket not initialized for userBlocked listener");
+      console.warn(
+        "SocketService: Socket not initialized for userBlocked listener"
+      );
     }
   }
 
-  onUserUnblocked(callback: (data: { conversationId: string, unblockedUserId: string }) => void) {
+  onUserUnblocked(
+    callback: (data: {
+      conversationId: string;
+      unblockedUserId: string;
+    }) => void
+  ) {
     if (!this.socket) {
       this.connect();
     }
@@ -1222,12 +1252,16 @@ class SocketService {
         callback(data);
       });
     } else {
-      console.warn("SocketService: Socket not initialized for userUnblocked listener");
+      console.warn(
+        "SocketService: Socket not initialized for userUnblocked listener"
+      );
     }
   }
 
   // Notification events
-  onNewNotification(callback: (data: { conversationId: string, notification: any }) => void) {
+  onNewNotification(
+    callback: (data: { conversationId: string; notification: any }) => void
+  ) {
     if (!this.socket) {
       this.connect();
     }
@@ -1239,7 +1273,9 @@ class SocketService {
         callback(data);
       });
     } else {
-      console.warn("SocketService: Socket not initialized for newNotification listener");
+      console.warn(
+        "SocketService: Socket not initialized for newNotification listener"
+      );
     }
   }
 

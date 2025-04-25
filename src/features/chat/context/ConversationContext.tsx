@@ -7,8 +7,12 @@ import React, {
   useCallback,
   ReactNode,
 } from "react";
-import { fetchConversations, getUserById, getConversationDetail } from "../../../api/API";
-import { Conversation ,UnreadCount} from "../types/conversationTypes";
+import {
+  fetchConversations,
+  getUserById,
+  getConversationDetail,
+} from "../../../api/API";
+import { Conversation, UnreadCount } from "../types/conversationTypes";
 import { User } from "../../auth/types/authTypes";
 import socketService from "../../../services/socketService";
 
@@ -48,6 +52,7 @@ interface ConversationContextType {
     field: string,
     value: any
   ) => void;
+  updateConversationMembers: (conversationId: string, userId: string) => void;
 }
 
 const ConversationContext = createContext<ConversationContextType | undefined>(
@@ -651,32 +656,49 @@ export const ConversationProvider: React.FC<{ children: ReactNode }> = ({
       const { conversationId } = event.detail || {};
       if (conversationId) {
         console.log(`Refreshing conversation detail for ID: ${conversationId}`);
-        
+
         // Tìm và cập nhật thông tin hội thoại cụ thể
         (async () => {
           try {
             const response = await getConversationDetail(conversationId);
             if (response) {
               // Cập nhật conversation cụ thể trong state
-              setConversations(prevConversations => 
-                prevConversations.map(conv => 
-                  conv.conversationId === conversationId ? {...conv, ...response} : conv
+              setConversations((prevConversations) =>
+                prevConversations.map((conv) =>
+                  conv.conversationId === conversationId
+                    ? { ...conv, ...response }
+                    : conv
                 )
               );
             }
           } catch (err) {
-            console.error(`Failed to refresh conversation detail: ${conversationId}`, err);
+            console.error(
+              `Failed to refresh conversation detail: ${conversationId}`,
+              err
+            );
           }
         })();
       }
     };
 
-    window.addEventListener("refreshConversations", handleRefreshConversations as EventListener);
-    window.addEventListener("refreshConversationDetail", handleRefreshConversationDetail as EventListener);
+    window.addEventListener(
+      "refreshConversations",
+      handleRefreshConversations as EventListener
+    );
+    window.addEventListener(
+      "refreshConversationDetail",
+      handleRefreshConversationDetail as EventListener
+    );
 
     return () => {
-      window.removeEventListener("refreshConversations", handleRefreshConversations as EventListener);
-      window.removeEventListener("refreshConversationDetail", handleRefreshConversationDetail as EventListener);
+      window.removeEventListener(
+        "refreshConversations",
+        handleRefreshConversations as EventListener
+      );
+      window.removeEventListener(
+        "refreshConversationDetail",
+        handleRefreshConversationDetail as EventListener
+      );
     };
   }, [fetchConversations]);
 
@@ -698,6 +720,24 @@ export const ConversationProvider: React.FC<{ children: ReactNode }> = ({
     []
   );
 
+  // Thêm hàm cập nhật thành viên nhóm
+  const updateConversationMembers = useCallback(
+    (conversationId: string, userId: string) => {
+      setConversations((prevConversations) =>
+        prevConversations.map((conv) => {
+          if (conv.conversationId === conversationId) {
+            return {
+              ...conv,
+              groupMembers: conv.groupMembers.filter((id) => id !== userId),
+            };
+          }
+          return conv;
+        })
+      );
+    },
+    []
+  );
+
   const value = {
     conversations,
     userCache,
@@ -712,6 +752,7 @@ export const ConversationProvider: React.FC<{ children: ReactNode }> = ({
     updateUnreadStatus,
     addNewConversation,
     updateConversationField,
+    updateConversationMembers,
   };
 
   return (
