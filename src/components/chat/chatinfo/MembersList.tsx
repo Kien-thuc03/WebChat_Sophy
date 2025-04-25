@@ -950,7 +950,18 @@ const MembersList: React.FC<MembersListProps> = ({
                         {isCurrentUserMember ? (
                           <Menu.Item
                             key="leave"
-                            onClick={onLeaveGroup}
+                            onClick={() => {
+                              // Thêm thông báo rời nhóm vào conversation
+                              updateConversationWithNewMessage(conversation.conversationId, {
+                                type: "system",
+                                content: `${getUserName(currentUserId)} đã rời khỏi nhóm`,
+                                senderId: currentUserId,
+                                createdAt: new Date().toISOString(),
+                              });
+                              
+                              // Sau đó gọi hàm rời nhóm
+                              onLeaveGroup();
+                            }}
                             icon={<LogoutOutlined />}>
                             Rời nhóm
                           </Menu.Item>
