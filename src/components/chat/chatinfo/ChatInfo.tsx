@@ -865,6 +865,7 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
         groupLink={groupLink}
         onBack={handleBackFromGroupManagement}
         onDisband={handleLeaveGroup}
+        onAfterTransferOwner={handleBackFromGroupManagement}
       />
     );
   }
