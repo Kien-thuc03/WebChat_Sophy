@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useReducer, useMemo } from "react";
 import { Button, Switch, Tooltip, Modal, Input, List , notification } from "antd";
 import {
   ArrowLeftOutlined,
@@ -10,8 +10,7 @@ import {
   TeamOutlined,
   DeleteOutlined,
   LockOutlined,
-  SearchOutlined,
-  InfoCircleOutlined,
+  SearchOutlined
 } from "@ant-design/icons";
 import { Conversation } from "../../../features/chat/types/conversationTypes";
 import { User } from "../../../features/auth/types/authTypes";
@@ -36,33 +35,179 @@ enum UserRole {
   MEMBER = "member",
 }
 
+// Thêm reducer types
+type State = {
+  conversation: Conversation;
+  userRole: UserRole;
+  showOwnerManagement: boolean;
+  isAddCoOwnerModalVisible: boolean;
+  searchQuery: string;
+  selectedMember: string | null;
+  selectedNewOwner: string | null;
+  isTransferOwnerModalVisible: boolean;
+  showBlockedMembers: boolean;
+  localUserCache: Record<string, User>;
+  renderKey: number;
+};
+
+type Action =
+  | { type: 'UPDATE_CONVERSATION'; payload: Conversation }
+  | { type: 'SET_USER_ROLE'; payload: UserRole }
+  | { type: 'TOGGLE_OWNER_MANAGEMENT' }
+  | { type: 'TOGGLE_ADD_CO_OWNER_MODAL' }
+  | { type: 'SET_SEARCH_QUERY'; payload: string }
+  | { type: 'SET_SELECTED_MEMBER'; payload: string | null }
+  | { type: 'SET_SELECTED_NEW_OWNER'; payload: string | null }
+  | { type: 'TOGGLE_TRANSFER_OWNER_MODAL' }
+  | { type: 'TOGGLE_BLOCKED_MEMBERS' }
+  | { type: 'UPDATE_USER_CACHE'; payload: Record<string, User> }
+  | { type: 'FORCE_RENDER' };
+
+// Thêm reducer function
+const reducer = (state: State, action: Action): State => {
+  switch (action.type) {
+    case 'UPDATE_CONVERSATION':
+      return {
+        ...state,
+        conversation: action.payload,
+        userRole: determineUserRole(action.payload)
+      };
+    case 'SET_USER_ROLE':
+      return { ...state, userRole: action.payload };
+    case 'TOGGLE_OWNER_MANAGEMENT':
+      return { ...state, showOwnerManagement: !state.showOwnerManagement };
+    case 'TOGGLE_ADD_CO_OWNER_MODAL':
+      return { ...state, isAddCoOwnerModalVisible: !state.isAddCoOwnerModalVisible };
+    case 'SET_SEARCH_QUERY':
+      return { ...state, searchQuery: action.payload };
+    case 'SET_SELECTED_MEMBER':
+      return { ...state, selectedMember: action.payload };
+    case 'SET_SELECTED_NEW_OWNER':
+      return { ...state, selectedNewOwner: action.payload };
+    case 'TOGGLE_TRANSFER_OWNER_MODAL':
+      return { ...state, isTransferOwnerModalVisible: !state.isTransferOwnerModalVisible };
+    case 'TOGGLE_BLOCKED_MEMBERS':
+      return { ...state, showBlockedMembers: !state.showBlockedMembers };
+    case 'UPDATE_USER_CACHE':
+      return { ...state, localUserCache: { ...state.localUserCache, ...action.payload } };
+    case 'FORCE_RENDER':
+      return { ...state, renderKey: Date.now() };
+    default:
+      return state;
+  }
+};
+
+// Thêm hàm determineUserRole
+const determineUserRole = (conversationData: Conversation): UserRole => {
+  const currentUserId = localStorage.getItem("userId") || "";
+  
+  if (conversationData.rules?.ownerId === currentUserId) {
+    return UserRole.OWNER;
+  } else if (
+    conversationData.rules?.coOwnerIds &&
+    conversationData.rules?.coOwnerIds.includes(currentUserId)
+  ) {
+    return UserRole.CO_OWNER;
+  } else {
+    return UserRole.MEMBER;
+  }
+};
+
+// Tối ưu socket event handling với useCallback
+const useSocketEvents = (conversationId: string, dispatch: React.Dispatch<Action>, conversation: Conversation) => {
+  useEffect(() => {
+    if (!conversationId) return;
+        
+    const handleGroupCoOwnerAdded = useCallback((data: { conversationId: string, newCoOwnerIds: string[] }) => {
+      if (data.conversationId !== conversationId) return;
+      
+      dispatch({ type: 'UPDATE_CONVERSATION', payload: {
+        ...conversation,
+        rules: {
+          ...conversation.rules,
+          ownerId: conversation.rules?.ownerId || '',
+          coOwnerIds: data.newCoOwnerIds
+        }
+      }});
+    }, [conversationId, conversation, dispatch]);
+
+    const handleGroupCoOwnerRemoved = useCallback((data: { conversationId: string, removedCoOwner: string }) => {
+      if (data.conversationId !== conversationId) return;
+      
+      dispatch({ type: 'UPDATE_CONVERSATION', payload: {
+        ...conversation,
+        rules: {
+          ...conversation.rules,
+          ownerId: conversation.rules?.ownerId || '',
+          coOwnerIds: conversation.rules?.coOwnerIds?.filter((id: string) => id !== data.removedCoOwner) || []
+        }
+      }});
+    }, [conversationId, conversation, dispatch]);
+
+    const handleGroupOwnerChanged = useCallback((data: { conversationId: string, newOwner: string }) => {
+      if (data.conversationId !== conversationId) return;
+      
+      dispatch({ type: 'UPDATE_CONVERSATION', payload: {
+        ...conversation,
+        rules: {
+          ...conversation.rules,
+          ownerId: data.newOwner,
+          coOwnerIds: conversation.rules?.coOwnerIds?.filter((id: string) => id !== data.newOwner) || []
+        }
+      }});
+    }, [conversationId, conversation, dispatch]);
+
+    // Register socket events
+    socketService.on('groupCoOwnerAdded', handleGroupCoOwnerAdded);
+    socketService.on('groupCoOwnerRemoved', handleGroupCoOwnerRemoved);
+    socketService.on('groupOwnerChanged', handleGroupOwnerChanged);
+
+    // Cleanup
+    return () => {
+      socketService.off('groupCoOwnerAdded', handleGroupCoOwnerAdded);
+      socketService.off('groupCoOwnerRemoved', handleGroupCoOwnerRemoved);
+      socketService.off('groupOwnerChanged', handleGroupOwnerChanged);
+    };
+  }, [conversationId, conversation, dispatch]);
+};
+
 const GroupManagement: React.FC<GroupManagementProps> = ({
   conversation: initialConversation,
   groupLink,
   onBack,
   onDisband
 }) => {
-  // State for the conversation (now local to allow updates)
-  const [conversation, setConversation] = useState<Conversation>(initialConversation);
-  
-  // State for user role
-  const [userRole, setUserRole] = useState<UserRole>(UserRole.MEMBER);
+  // Thay thế các useState bằng useReducer
+  const [state, dispatch] = useReducer(reducer, {
+    conversation: initialConversation,
+    userRole: UserRole.MEMBER,
+    showOwnerManagement: false,
+    isAddCoOwnerModalVisible: false,
+    searchQuery: "",
+    selectedMember: null,
+    selectedNewOwner: null,
+    isTransferOwnerModalVisible: false,
+    showBlockedMembers: false,
+    localUserCache: {},
+    renderKey: Date.now()
+  });
+
+  // Destructure state
+  const {
+    conversation,
+    userRole,
+    showOwnerManagement,
+    isAddCoOwnerModalVisible,
+    searchQuery,
+    selectedMember,
+    selectedNewOwner,
+    isTransferOwnerModalVisible,
+    showBlockedMembers,
+    localUserCache,
+    renderKey
+  } = state;
   
   // State for managing owners and co-owners
-  const [showOwnerManagement, setShowOwnerManagement] = useState(false);
-  const [isAddCoOwnerModalVisible, setIsAddCoOwnerModalVisible] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedMember, setSelectedMember] = useState<string | null>(null);
-  const [localUserCache, setLocalUserCache] = useState<Record<string, User>>({});
-  
-  // Add state for showing blocked members
-  const [showBlockedMembers, setShowBlockedMembers] = useState(false);
-  
-  // Use the chat info hook
-  const { loading, error, addCoOwner, removeCoOwnerDirectly, transferOwnership, deleteGroupConversation, blockGroupMember, unblockGroupMember } = useChatInfo();
-  const { userCache, userAvatars } = useConversations();
-
-  // State for the permission settings
   const [permissions, setPermissions] = useState({
     canChangeNameAndAvatar: false,
     canPinMessages: true,
@@ -79,12 +224,9 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
     allowLinkInvitation: true,
   });
 
-  // Thêm state cho modal chuyển quyền
-  const [isTransferOwnerModalVisible, setIsTransferOwnerModalVisible] = useState(false);
-  const [selectedNewOwner, setSelectedNewOwner] = useState<string | null>(null);
-
-  // Add a renderKey state to force re-renders
-  const [renderKey, setRenderKey] = useState<number>(Date.now());
+  // Use the chat info hook
+  const { loading, error, addCoOwner, removeCoOwnerDirectly, transferOwnership, deleteGroupConversation, blockGroupMember, unblockGroupMember } = useChatInfo();
+  const { userCache, userAvatars } = useConversations();
 
   // Function to get user name from cache or default value
   const getUserName = useCallback((userId: string): string => {
@@ -92,233 +234,8 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
     return user ? user.fullname : 'Một thành viên';
   }, [userCache, localUserCache]);
   
-  // Register socket event handlers
-  useEffect(() => {
-    if (!conversation.conversationId) return;
-    
-    const currentUserId = localStorage.getItem("userId") || "";
-    
-    // Handler for when a user leaves the group
-    const handleUserLeftGroup = (data: { conversationId: string, userId: string }) => {
-      if (data.conversationId !== conversation.conversationId) return;
-      
-      // If current user left, go back
-      if (data.userId === currentUserId) {
-        onBack();
-        return;
-      }
-      
-      // Update the conversation by removing the member
-      setConversation(prev => {
-        return {
-          ...prev,
-          groupMembers: prev.groupMembers?.filter(id => id !== data.userId) || []
-        };
-      });
-      
-      // updateGroupState(data.userId, 'userLeftGroup');
-    };
-    
-    // Handler for when a group is deleted
-    const handleGroupDeleted = (data: { conversationId: string }) => {
-      if (data.conversationId !== conversation.conversationId) return;
-      
-      // Unregister the event to prevent it from firing again
-      socketService.off("groupDeleted", handleGroupDeleted);
-      
-      // Show notification
-      notification.error({
-        message: "Nhóm đã bị giải tán",
-        description: "Nhóm chat này đã bị giải tán bởi người quản trị",
-        duration: 2
-      });
-      
-      // Use setTimeout to give time for notification to be seen
-      setTimeout(() => {
-        // Go back
-        onBack();
-        
-        // Redirect to main page
-        window.location.href = '/main';
-      }, 1000);
-    };
-    
-    // Handler for when co-owners are added
-    const handleGroupCoOwnerAdded = (data: { conversationId: string, newCoOwnerIds: string[] }) => {
-      if (data.conversationId !== conversation.conversationId) return;
-      // Get existing co-owner IDs
-      const existingCoOwnerIds = conversation.rules?.coOwnerIds || [];
-      
-      // Find the new co-owners (those in newCoOwnerIds but not in existingCoOwnerIds)
-      const newCoOwners = data.newCoOwnerIds.filter(id => !existingCoOwnerIds.includes(id));
-      
-      // Update the conversation with the new co-owners
-      setConversation(prev => {
-        if (!prev.rules) return prev;
-        
-        const updatedConversation = {
-          ...prev,
-          rules: {
-            ...prev.rules,
-            coOwnerIds: data.newCoOwnerIds
-          }
-        };
-        
-        // Determine and update role based on the updated conversation data
-        const newRole = determineUserRole(updatedConversation);
-        if (newRole !== userRole) {
-          setUserRole(newRole);
-        }
-        
-        return updatedConversation;
-      });
-      
-      if (newCoOwners.length > 0) {
-        // updateGroupState(newCoOwners[0], 'groupCoOwnerAdded');
-      }
-      
-      // Force refresh to ensure we have the latest data
-      refreshConversationData();
-    };
-    
-    // Handler for when a co-owner is removed
-    const handleGroupCoOwnerRemoved = (data: { conversationId: string, removedCoOwner: string }) => {
-      if (data.conversationId !== conversation.conversationId) return;
-      
-      
-      // Update the conversation by removing the co-owner
-      setConversation(prev => {
-        if (!prev.rules || !prev.rules.coOwnerIds) return prev;
-        
-        const updatedConversation = {
-          ...prev,
-          rules: {
-            ...prev.rules,
-            coOwnerIds: prev.rules.coOwnerIds.filter(id => id !== data.removedCoOwner)
-          }
-        };
-        
-        // Determine and update role based on the updated conversation data
-        const newRole = determineUserRole(updatedConversation);
-        if (newRole !== userRole) {
-          setUserRole(newRole);
-        }
-        
-        return updatedConversation;
-      });
-      
-      // updateGroupState(data.removedCoOwner, 'groupCoOwnerRemoved');
-      
-      // Force refresh to ensure we have the latest data
-      refreshConversationData();
-    };
-    
-    // Handler for when group owner changes
-    const handleGroupOwnerChanged = (data: { conversationId: string, newOwner: string }) => {
-      if (data.conversationId !== conversation.conversationId) return;
-      
-      
-      const previousOwner = conversation.rules?.ownerId || '';
-      
-      // Update the conversation with the new owner
-      setConversation(prev => {
-        if (!prev.rules) return prev;
-        
-        const updatedConversation = {
-          ...prev,
-          rules: {
-            ...prev.rules,
-            ownerId: data.newOwner,
-            // If the new owner was a co-owner, remove them from co-owners list
-            coOwnerIds: prev.rules.coOwnerIds ? 
-              prev.rules.coOwnerIds.filter(id => id !== data.newOwner) : 
-              []
-          }
-        };
-        
-        // Determine and update role based on the updated conversation data
-        const newRole = determineUserRole(updatedConversation);
-        if (newRole !== userRole) {
-          setUserRole(newRole);
-        }
-        
-        return updatedConversation;
-      });
-      
-      // updateGroupState(data.newOwner, 'groupOwnerChanged');
-      
-      // Force refresh to ensure we have the latest data
-      refreshConversationData();
-    };
-    
-    // Handler for when a user is blocked
-    const handleUserBlocked = (data: { 
-      conversationId: string; 
-      blockedUserId: string;
-      fromCurrentUser?: boolean;
-    }) => {
-      if (data.conversationId !== conversation.conversationId) return;
-      
-      // Force refresh to update our data - this ensures we have the latest state
-      // including any UI updates that might be needed when a user is blocked
-      refreshConversationData();
-    };
-
-    // Handler for when a user is unblocked
-    const handleUserUnblocked = (data: { 
-      conversationId: string; 
-      unblockedUserId: string;
-      fromCurrentUser?: boolean;
-    }) => {
-      if (data.conversationId !== conversation.conversationId) return;
-      
-      // Force refresh to update our data - this ensures we have the latest state
-      // including any UI updates that might be needed when a user is unblocked
-      refreshConversationData();
-    };
-    
-    // Register socket event handlers
-    socketService.on('userLeftGroup', handleUserLeftGroup);
-    socketService.on('groupDeleted', handleGroupDeleted);
-    socketService.on('groupCoOwnerAdded', handleGroupCoOwnerAdded);
-    socketService.on('groupCoOwnerRemoved', handleGroupCoOwnerRemoved);
-    socketService.on('groupOwnerChanged', handleGroupOwnerChanged);
-    socketService.on('userBlocked', handleUserBlocked);
-    socketService.on('userUnblocked', handleUserUnblocked);
-    
-    // Cleanup function
-    return () => {
-      socketService.off('userLeftGroup', handleUserLeftGroup);
-      socketService.off('groupDeleted', handleGroupDeleted);
-      socketService.off('groupCoOwnerAdded', handleGroupCoOwnerAdded);
-      socketService.off('groupCoOwnerRemoved', handleGroupCoOwnerRemoved);
-      socketService.off('groupOwnerChanged', handleGroupOwnerChanged);
-      socketService.off('userBlocked', handleUserBlocked);
-      socketService.off('userUnblocked', handleUserUnblocked);
-    };
-  }, [conversation.conversationId, conversation.rules?.ownerId, conversation.rules?.coOwnerIds, getUserName, onBack]);
-
-  // Determine user role when component mounts
-  useEffect(() => {
-    // Get the current user ID from localStorage
-    const currentUserId = localStorage.getItem("userId") || "";
-
-    // Check if the user is the owner or co-owner
-    if (conversation.rules) {
-      if (conversation.rules.ownerId === currentUserId) {
-        setUserRole(UserRole.OWNER);
-      } else if (
-        conversation.rules.coOwnerIds &&
-        conversation.rules.coOwnerIds.includes(currentUserId)
-      ) {
-        setUserRole(UserRole.CO_OWNER);
-      } else {
-        setUserRole(UserRole.MEMBER);
-      }
-      
-
-    }
-  }, [conversation]);
+  // Sử dụng custom hook cho socket events
+  useSocketEvents(conversation.conversationId, dispatch, conversation);
 
   // Load user data for members not in the cache
   useEffect(() => {
@@ -336,10 +253,9 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
         try {
           const userData = await getUserById(memberId);
           if (userData) {
-            setLocalUserCache(prev => ({
-              ...prev,
+            dispatch({ type: 'UPDATE_USER_CACHE', payload: {
               [memberId]: userData
-            }));
+            } });
           }
         } catch (error) {
           console.error(`Failed to load data for user ${memberId}:`, error);
@@ -352,7 +268,7 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
 
   // Update the local conversation when the prop changes
   useEffect(() => {
-    setConversation(initialConversation);
+    dispatch({ type: 'UPDATE_CONVERSATION', payload: initialConversation });
   }, [initialConversation]);
 
   // Fetch the most up-to-date conversation data when component mounts
@@ -503,7 +419,8 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
     return userCache[userId] || localUserCache[userId] || null;
   };
 
-  const handleAddCoOwner = async () => {
+  // Tối ưu handleAddCoOwner
+  const handleAddCoOwner = useCallback(async () => {
     if (!selectedMember || !conversation.conversationId) {
       notification.error({
         message: 'Lỗi',
@@ -513,7 +430,6 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
     }
     
     try {
-      // Turn on loading state
       const key = 'coowner';
       notification.open({
         key,
@@ -525,25 +441,18 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
       const updatedConversation = await addCoOwner(
         conversation.conversationId,
         selectedMember,
-        coOwners
+        conversation.rules?.coOwnerIds || []
       );
       
       if (updatedConversation) {
-        // Update the local conversation state with the new data
-        setConversation(updatedConversation);
+        dispatch({ type: 'UPDATE_CONVERSATION', payload: updatedConversation });
+        dispatch({ type: 'TOGGLE_ADD_CO_OWNER_MODAL' });
+        dispatch({ type: 'SET_SELECTED_MEMBER', payload: null });
+        
         notification.success({
           key,
           message: 'Thành công',
           description: 'Đã thêm phó nhóm thành công',
-          duration: 2
-        });
-        setIsAddCoOwnerModalVisible(false);
-        setSelectedMember(null);
-      } else {
-        notification.error({
-          key,
-          message: 'Lỗi',
-          description: error || 'Không thể thêm phó nhóm',
           duration: 2
         });
       }
@@ -555,9 +464,10 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
         duration: 2
       });
     }
-  };
+  }, [conversation.conversationId, selectedMember, conversation.rules?.coOwnerIds]);
 
-  const handleRemoveCoOwner = async (coOwnerId: string) => {
+  // Tối ưu handleRemoveCoOwner
+  const handleRemoveCoOwner = useCallback(async (coOwnerId: string) => {
     if (!conversation.conversationId) {
       notification.error({
         message: 'Lỗi',
@@ -567,7 +477,6 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
     }
     
     try {
-      // Turn on loading state
       const key = 'coowner-remove';
       notification.open({
         key,
@@ -576,26 +485,17 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
         duration: 0
       });
       
-      // Sử dụng API mới thay vì removeCoOwner
       const updatedConversation = await removeCoOwnerDirectly(
         conversation.conversationId,
         coOwnerId
       );
       
       if (updatedConversation) {
-        // Update the local conversation state with the new data
-        setConversation(updatedConversation);
+        dispatch({ type: 'UPDATE_CONVERSATION', payload: updatedConversation });
         notification.success({
           key,
           message: 'Thành công',
           description: 'Đã xóa phó nhóm thành công',
-          duration: 2
-        });
-      } else {
-        notification.error({
-          key,
-          message: 'Lỗi',
-          description: error || 'Không thể xóa phó nhóm',
           duration: 2
         });
       }
@@ -607,10 +507,10 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
         duration: 2
       });
     }
-  };
+  }, [conversation.conversationId]);
 
-  // Thêm hàm xử lý chuyển quyền trưởng nhóm
-  const handleTransferOwnership = async () => {
+  // Tối ưu handleTransferOwnership
+  const handleTransferOwnership = useCallback(async () => {
     if (!selectedNewOwner || !conversation.conversationId) {
       notification.error({
         message: 'Lỗi',
@@ -620,7 +520,6 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
     }
     
     try {
-      // Turn on loading state
       const key = 'transfer-owner';
       notification.open({
         key,
@@ -635,20 +534,18 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
       );
       
       if (updatedConversation) {
-        // Update the local conversation state with the new data
-        setConversation(updatedConversation);
+        dispatch({ type: 'UPDATE_CONVERSATION', payload: updatedConversation });
+        dispatch({ type: 'TOGGLE_TRANSFER_OWNER_MODAL' });
+        dispatch({ type: 'SET_SELECTED_NEW_OWNER', payload: null });
+        dispatch({ type: 'TOGGLE_OWNER_MANAGEMENT' });
+        
         notification.success({
           key,
           message: 'Thành công',
           description: 'Đã chuyển quyền trưởng nhóm thành công. Bạn có thể rời nhóm an toàn bây giờ.',
           duration: 5
         });
-        setIsTransferOwnerModalVisible(false);
-        setSelectedNewOwner(null);
-        // Trở về màn hình chính sau khi chuyển quyền
-        setShowOwnerManagement(false);
-
-        // Hiển thị thông báo hướng dẫn rời nhóm
+        
         setTimeout(() => {
           Modal.info({
             title: 'Chuyển quyền thành công',
@@ -656,13 +553,6 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
             okText: 'Đã hiểu'
           });
         }, 1000);
-      } else {
-        notification.error({
-          key,
-          message: 'Lỗi',
-          description: error || 'Không thể chuyển quyền trưởng nhóm',
-          duration: 2
-        });
       }
     } catch (err) {
       console.error('Failed to transfer ownership:', err);
@@ -672,74 +562,58 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
         duration: 2
       });
     }
-  };
+  }, [conversation.conversationId, selectedNewOwner]);
 
   // Add handler function for showing blocked members list
   const handleShowBlockedMembers = () => {
-    setShowBlockedMembers(true);
+    dispatch({ type: 'TOGGLE_BLOCKED_MEMBERS' });
   };
 
   const handleBackFromBlockedMembers = () => {
-    setShowBlockedMembers(false);
+    dispatch({ type: 'TOGGLE_BLOCKED_MEMBERS' });
     // Refresh conversation data when returning from blocked members list
     refreshConversationData();
   };
 
-  // Add a function to determine user role from conversation data
-  const determineUserRole = useCallback((conversationData: Conversation): UserRole => {
-    const currentUserId = localStorage.getItem("userId") || "";
-    
-    if (conversationData.rules?.ownerId === currentUserId) {
-      return UserRole.OWNER;
-    } else if (
-      conversationData.rules?.coOwnerIds &&
-      conversationData.rules?.coOwnerIds.includes(currentUserId)
-    ) {
-      return UserRole.CO_OWNER;
-    } else {
-      return UserRole.MEMBER;
-    }
-  }, []);
-
-  // Update the refreshConversationData function
-  const refreshConversationData = async () => {
+  // Tối ưu refreshConversationData
+  const refreshConversationData = useCallback(async () => {
     try {
       if (!conversation.conversationId) return;
       
-      // Get updated conversation data from the API
       const updatedConversation = await getConversationDetail(conversation.conversationId);
       if (updatedConversation) {
-        // Update conversation first
-        setConversation(updatedConversation);
+        dispatch({ type: 'UPDATE_CONVERSATION', payload: updatedConversation });
         
-        // Update user role based on the fresh data
         const newRole = determineUserRole(updatedConversation);
         if (newRole !== userRole) {
-          
-          // Force a complete re-render by setting userRole with a slight delay
-          // This ensures all dependent calculations happen after role update
           setTimeout(() => {
-            setUserRole(newRole);
-            
-            // Force a re-render by updating a timestamp state
-            setRenderKey(Date.now());
+            dispatch({ type: 'SET_USER_ROLE', payload: newRole });
+            dispatch({ type: 'FORCE_RENDER' });
           }, 50);
         } else {
-          // Even if role is the same, we may need to force a re-render
-          setRenderKey(Date.now());
+          dispatch({ type: 'FORCE_RENDER' });
         }
       }
     } catch (err) {
       console.error('Error refreshing conversation data:', err);
     }
-  };
+  }, [conversation.conversationId, userRole]);
 
-  // Add handler for when a member is blocked/unblocked
-  const handleMemberBlockStatusChange = (updatedConversation: Conversation) => {
+  // Tối ưu handleMemberBlockStatusChange
+  const handleMemberBlockStatusChange = useCallback((updatedConversation: Conversation) => {
     if (updatedConversation) {
-      setConversation(updatedConversation);
+      dispatch({ type: 'UPDATE_CONVERSATION', payload: updatedConversation });
     }
-  };
+  }, []);
+
+  // Tối ưu filtered members với useMemo
+  const filteredMembers = useMemo(() => {
+    const members = [...regularMembers, ...(conversation.rules?.coOwnerIds || [])];
+    return members.filter(memberId => {
+      const memberDetails = getUserDetails(memberId);
+      return memberDetails?.fullname.toLowerCase().includes(searchQuery.toLowerCase()) || false;
+    });
+  }, [regularMembers, conversation.rules?.coOwnerIds, searchQuery, getUserDetails]);
 
   const renderOwnerCoOwnerView = () => {
     const ownerData = getUserDetails(owner);
@@ -752,7 +626,7 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
             type="text"
             icon={<ArrowLeftOutlined />}
             className="absolute"
-            onClick={() => setShowOwnerManagement(false)}
+            onClick={() => dispatch({ type: 'TOGGLE_OWNER_MANAGEMENT' })}
           />
           <div className="flex items-center justify-center w-full">
             <h2 className="text-lg font-semibold text-center">Trưởng & phó nhóm</h2>
@@ -844,7 +718,7 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
               type="default"
               block
               className="mt-4"
-              onClick={() => setIsAddCoOwnerModalVisible(true)}
+              onClick={() => dispatch({ type: 'TOGGLE_ADD_CO_OWNER_MODAL' })}
             >
               Thêm phó nhóm
             </Button>
@@ -856,7 +730,7 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
               type="default"
               block
               className="mt-4"
-              onClick={() => setIsTransferOwnerModalVisible(true)}
+              onClick={() => dispatch({ type: 'TOGGLE_TRANSFER_OWNER_MODAL' })}
             >
               Chuyển quyền trưởng nhóm
             </Button>
@@ -868,19 +742,13 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
 
   // Modal for adding co-owner
   const renderAddCoOwnerModal = () => {
-    // Filter members based on search query
-    const filteredMembers = regularMembers.filter(memberId => {
-      const memberDetails = getUserDetails(memberId);
-      return memberDetails?.fullname.toLowerCase().includes(searchQuery.toLowerCase()) || false;
-    });
-
     return (
       <Modal
         title="Điều chỉnh phó nhóm"
         open={isAddCoOwnerModalVisible}
-        onCancel={() => setIsAddCoOwnerModalVisible(false)}
+        onCancel={() => dispatch({ type: 'TOGGLE_ADD_CO_OWNER_MODAL' })}
         footer={[
-          <Button key="cancel" onClick={() => setIsAddCoOwnerModalVisible(false)}>
+          <Button key="cancel" onClick={() => dispatch({ type: 'TOGGLE_ADD_CO_OWNER_MODAL' })}>
             Hủy
           </Button>,
           <Button
@@ -899,7 +767,7 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
             placeholder="Tìm kiếm thành viên"
             prefix={<SearchOutlined />}
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => dispatch({ type: 'SET_SEARCH_QUERY', payload: e.target.value })}
             className="mb-4"
           />
           
@@ -914,7 +782,7 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
               return (
                 <List.Item
                   className={`cursor-pointer hover:bg-gray-50 ${isSelected ? 'bg-blue-50' : ''}`}
-                  onClick={() => setSelectedMember(memberId)}
+                  onClick={() => dispatch({ type: 'SET_SELECTED_MEMBER', payload: memberId })}
                 >
                   <div className="flex items-center w-full">
                     <div className="mr-3">
@@ -950,19 +818,13 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
 
   // Thêm modal chuyển quyền trưởng nhóm
   const renderTransferOwnerModal = () => {
-    // Lọc thành viên theo từ khóa tìm kiếm
-    const filteredMembers = [...regularMembers, ...coOwners].filter(memberId => {
-      const memberDetails = getUserDetails(memberId);
-      return memberDetails?.fullname.toLowerCase().includes(searchQuery.toLowerCase()) || false;
-    });
-
     return (
       <Modal
         title="Chuyển quyền trưởng nhóm"
         open={isTransferOwnerModalVisible}
-        onCancel={() => setIsTransferOwnerModalVisible(false)}
+        onCancel={() => dispatch({ type: 'TOGGLE_TRANSFER_OWNER_MODAL' })}
         footer={[
-          <Button key="cancel" onClick={() => setIsTransferOwnerModalVisible(false)}>
+          <Button key="cancel" onClick={() => dispatch({ type: 'TOGGLE_TRANSFER_OWNER_MODAL' })}>
             Hủy
           </Button>,
           <Button
@@ -986,7 +848,7 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
             placeholder="Tìm kiếm thành viên"
             prefix={<SearchOutlined />}
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => dispatch({ type: 'SET_SEARCH_QUERY', payload: e.target.value })}
             className="mb-4"
           />
           
@@ -1001,7 +863,7 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
               return (
                 <List.Item
                   className={`cursor-pointer hover:bg-gray-50 ${isSelected ? 'bg-blue-50' : ''}`}
-                  onClick={() => setSelectedNewOwner(memberId)}
+                  onClick={() => dispatch({ type: 'SET_SELECTED_NEW_OWNER', payload: memberId })}
                 >
                   <div className="flex items-center w-full">
                     <div className="mr-3">
@@ -1470,7 +1332,7 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
           {userRole === UserRole.OWNER && (
             <div 
               className="flex items-center py-2 cursor-pointer"
-              onClick={() => setShowOwnerManagement(true)}
+              onClick={() => dispatch({ type: 'TOGGLE_OWNER_MANAGEMENT' })}
             >
               <TeamOutlined className="mr-2 text-gray-600" />
               <span>Trưởng & phó nhóm</span>
