@@ -12,7 +12,7 @@ import GroupAvatar from "./GroupAvatar";
 import LabelModal from "./modals/LabelModal";
 import NotificationModal from "./modals/NotificationModal";
 import AutoDeleteModal from "./modals/AutoDeleteModal";
-import { Conversation } from "../../features/chat/types/conversationTypes";
+import { Conversation, Message } from "../../features/chat/types/conversationTypes";
 import { useLanguage } from "../../features/auth/context/LanguageContext";
 import { getUserById, getConversationDetail } from "../../api/API";
 import { User } from "../../features/auth/types/authTypes";
@@ -38,7 +38,6 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
     updateConversationWithNewMessage,
     setConversations,
     updateConversationMembers,
-    updateGroupName,
   } = useConversationContext();
   const { t } = useLanguage();
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
@@ -394,7 +393,7 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
           content: `Thành viên đã bị xóa khỏi nhóm`,
           senderId: data.userId,
           createdAt: new Date().toISOString(),
-        });
+        } as Message);
       }
     };
 
@@ -514,75 +513,6 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
       socketService.off("groupDeleted", handleGroupDeleted);
     };
   }, [setConversations]);
-
-  // Lắng nghe sự kiện thay đổi tên nhóm
-  useEffect(() => {
-    const handleGroupNameChanged = (data: {
-      conversationId: string;
-      newName: string;
-      fromUserId: string;
-    }) => {
-      setConversations((prevConversations) =>
-        prevConversations.map((conv) => {
-          if (conv.conversationId === data.conversationId) {
-            return {
-              ...conv,
-              groupName: data.newName,
-              lastChange: new Date().toISOString(),
-            };
-          }
-          return conv;
-        })
-      );
-    };
-
-    socketService.onGroupNameChanged(handleGroupNameChanged);
-
-    return () => {
-      socketService.off("groupNameChanged", handleGroupNameChanged);
-    };
-  }, [setConversations]);
-
-  // Add socket listener for group avatar changes
-  useEffect(() => {
-    const handleGroupAvatarChanged = (data: {
-      conversationId: string;
-      newAvatar: string;
-      fromUserId: string;
-    }) => {
-      setConversations((prevConversations) =>
-        prevConversations.map((conv) => {
-          if (conv.conversationId === data.conversationId) {
-            return {
-              ...conv,
-              groupAvatarUrl: data.newAvatar,
-              lastChange: new Date().toISOString(),
-            };
-          }
-          return conv;
-        })
-      );
-
-      // Thêm tin nhắn hệ thống về việc thay đổi avatar
-      const currentUserId = localStorage.getItem("userId");
-      const isCurrentUser = data.fromUserId === currentUserId;
-
-      updateConversationWithNewMessage(data.conversationId, {
-        type: "system",
-        content: isCurrentUser
-          ? "Bạn đã thay đổi ảnh nhóm"
-          : `${userCache[data.fromUserId]?.fullname || "Người dùng"} đã thay đổi ảnh nhóm`,
-        senderId: data.fromUserId,
-        createdAt: new Date().toISOString(),
-      });
-    };
-
-    socketService.onGroupAvatarChanged(handleGroupAvatarChanged);
-
-    return () => {
-      socketService.off("groupAvatarChanged", handleGroupAvatarChanged);
-    };
-  }, [setConversations, updateConversationWithNewMessage, userCache]);
 
   return (
     <div className="chat-list w-80 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 h-full flex flex-col overflow-hidden">
