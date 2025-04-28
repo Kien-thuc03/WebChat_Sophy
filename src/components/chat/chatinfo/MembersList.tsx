@@ -95,6 +95,10 @@ const MembersList: React.FC<MembersListProps> = ({
   // Thêm biến ref để theo dõi xem người dùng đã bị kick chưa
   const hasBeenRemovedRef = useRef(false);
 
+  // Thêm state cho loading
+  const [isUpdatingRole, setIsUpdatingRole] = useState(false);
+  const [updatingMemberId, setUpdatingMemberId] = useState<string | null>(null);
+
   // Function to get user name from cache or default value
   const getUserName = useCallback(
     (userId: string): string => {
@@ -660,35 +664,47 @@ const MembersList: React.FC<MembersListProps> = ({
   const handleAddCoOwner = async (memberId: string) => {
     if (!conversation.conversationId || !conversation.rules) return;
     try {
+      setIsUpdatingRole(true);
+      setUpdatingMemberId(memberId);
+      
       message.loading({
         content: "Đang thêm phó nhóm...",
         key: "add-co-owner",
       });
+
+      // Optimistic update
+      setConversation(prev => ({
+        ...prev,
+        rules: {
+          ...prev.rules,
+          ownerId: prev.rules?.ownerId || '',
+          coOwnerIds: [...(prev.rules?.coOwnerIds || []), memberId]
+        }
+      }));
+
       const result = await addCoOwner(
         conversation.conversationId,
         memberId,
         conversation.rules.coOwnerIds || []
       );
+
       if (result) {
         message.success({
           content: "Đã thêm phó nhóm thành công",
           key: "add-co-owner",
           duration: 2,
         });
-        // Cập nhật state local bằng response API (toàn bộ conversation)
         setConversation(result);
-        // KHÔNG gọi lại refreshConversationData() ở đây!
         if (typeof setIsAddMemberModalVisible === 'function') setIsAddMemberModalVisible(false);
         if (typeof setSelectedMember === 'function') setSelectedMember(null);
-      } else {
-        message.error({
-          content: "Không thể thêm phó nhóm",
-          key: "add-co-owner",
-          duration: 2,
-        });
       }
     } catch (err) {
+      // Revert optimistic update on error
+      setConversation(conversation);
       message.error("Đã xảy ra lỗi. Vui lòng thử lại sau.");
+    } finally {
+      setIsUpdatingRole(false);
+      setUpdatingMemberId(null);
     }
   };
 
@@ -696,10 +712,24 @@ const MembersList: React.FC<MembersListProps> = ({
   const handleRemoveCoOwner = async (memberId: string) => {
     if (!conversation.conversationId) return;
     try {
+      setIsUpdatingRole(true);
+      setUpdatingMemberId(memberId);
+      
       message.loading({
         content: "Đang gỡ quyền phó nhóm...",
         key: "remove-co-owner",
       });
+
+      // Optimistic update
+      setConversation(prev => ({
+        ...prev,
+        rules: {
+          ...prev.rules,
+          ownerId: prev.rules?.ownerId || '',
+          coOwnerIds: prev.rules?.coOwnerIds?.filter(id => id !== memberId) || []
+        }
+      }));
+
       const result = await removeCoOwner(conversation.conversationId, memberId);
       if (result) {
         message.success({
@@ -707,18 +737,15 @@ const MembersList: React.FC<MembersListProps> = ({
           key: "remove-co-owner",
           duration: 2,
         });
-        // Cập nhật state local bằng response API (toàn bộ conversation)
         setConversation(result);
-        // KHÔNG gọi lại refreshConversationData() ở đây!
-      } else {
-        message.error({
-          content: "Không thể gỡ quyền phó nhóm",
-          key: "remove-co-owner",
-          duration: 2,
-        });
       }
     } catch (err) {
+      // Revert optimistic update on error
+      setConversation(conversation);
       message.error("Đã xảy ra lỗi. Vui lòng thử lại sau.");
+    } finally {
+      setIsUpdatingRole(false);
+      setUpdatingMemberId(null);
     }
   };
 
@@ -836,6 +863,154 @@ const MembersList: React.FC<MembersListProps> = ({
     setIsAddMemberModalVisible(false);
   };
 
+  // Thêm loading indicator vào UI
+  const renderLoadingIndicator = (memberId: string) => {
+    if (isUpdatingRole && updatingMemberId === memberId) {
+      return (
+        <div className="ml-2 text-xs text-gray-500">
+          Đang cập nhật...
+        </div>
+      );
+    }
+    return null;
+  };
+
+  // Sửa phần render member để thêm loading indicator
+  const renderMember = (memberId: string) => {
+    const memberInfo = userCache[memberId] || localUserCache[memberId];
+    const isCurrentUserMember = memberId === localStorage.getItem("userId");
+    const isOwner = conversation.rules?.ownerId === memberId;
+    const isCoOwner = conversation.rules?.coOwnerIds?.includes(memberId);
+    const isMemberFriend = isFriend(memberId);
+    const canShowMenu = calculateCanShowMenu(memberId, userRole);
+
+    return (
+      <div
+        key={memberId}
+        className="flex items-center justify-between p-3 hover:bg-gray-100 relative"
+        onMouseEnter={() => setHoveredMemberId(memberId)}
+        onMouseLeave={() => setHoveredMemberId(null)}>
+        <div className="flex items-center">
+          <Avatar
+            name={memberInfo?.fullname || "User"}
+            avatarUrl={memberInfo?.urlavatar || userAvatars[memberId]}
+            size={48}
+            className="rounded-full mr-3"
+          />
+          <div>
+            <div className="font-medium flex items-center">
+              {memberInfo?.fullname || `User-${memberId.substring(0, 6)}`}
+              {isCurrentUserMember && (
+                <span className="text-gray-500 ml-2">(Bạn)</span>
+              )}
+            </div>
+            <div className="text-sm text-gray-500">
+              {isOwner ? "Trưởng nhóm" : isCoOwner ? "Phó nhóm" : ""}
+              {renderLoadingIndicator(memberId)}
+            </div>
+          </div>
+        </div>
+
+        {/* Buttons container with proper spacing */}
+        <div className="flex items-center space-x-2">
+          {/* Kết bạn/Nhắn tin button (only for non-current user) */}
+          {!isCurrentUserMember && (
+            <>
+              {!isMemberFriend ? (
+                <Button
+                  type="link"
+                  className="text-blue-500"
+                  onClick={() => handleFriendRequest(memberId)}>
+                  Kết bạn
+                </Button>
+              ) : (
+                <Button
+                  type="link"
+                  className="text-blue-500"
+                  onClick={() => handleFriendRequest(memberId)}>
+                  Nhắn tin
+                </Button>
+              )}
+            </>
+          )}
+
+          {/* Three dots menu (only show when hovering) */}
+          {hoveredMemberId === memberId && canShowMenu && (
+            <Dropdown
+              overlay={
+                <Menu>
+                  {isCurrentUserMember ? (
+                    <Menu.Item
+                      key="leave"
+                      onClick={() => {
+                        // Thêm thông báo rời nhóm vào conversation
+                        updateConversationWithNewMessage(conversation.conversationId, {
+                          type: "system",
+                          content: `${getUserName(currentUserId)} đã rời khỏi nhóm`,
+                          senderId: currentUserId,
+                          createdAt: new Date().toISOString(),
+                        });
+                        
+                        // Sau đó gọi hàm rời nhóm
+                        onLeaveGroup();
+                      }}
+                      icon={<LogoutOutlined />}>
+                      Rời nhóm
+                    </Menu.Item>
+                  ) : userRole === "owner" && isCoOwner ? (
+                    <>
+                      <Menu.Item
+                        key="remove-co-owner"
+                        onClick={() => handleRemoveCoOwner(memberId)}
+                        icon={<LockOutlined />}>
+                        Gỡ quyền phó nhóm
+                      </Menu.Item>
+                      <Menu.Item
+                        key="remove-member"
+                        onClick={() => handleRemoveMember(memberId)}
+                        icon={<UserDeleteOutlined />}>
+                        Xóa khỏi nhóm
+                      </Menu.Item>
+                    </>
+                  ) : userRole === "owner" && !isOwner && !isCoOwner ? (
+                    <>
+                      <Menu.Item
+                        key="add-co-owner"
+                        onClick={() => handleAddCoOwner(memberId)}
+                        icon={<LockOutlined />}>
+                        Thêm phó nhóm
+                      </Menu.Item>
+                      <Menu.Item
+                        key="remove-member"
+                        onClick={() => handleRemoveMember(memberId)}
+                        icon={<UserDeleteOutlined />}>
+                        Xóa khỏi nhóm
+                      </Menu.Item>
+                    </>
+                  ) : userRole === "co-owner" && !isOwner && !isCoOwner ? (
+                    <Menu.Item
+                      key="remove-member"
+                      onClick={() => handleRemoveMember(memberId)}
+                      icon={<UserDeleteOutlined />}>
+                      Xóa khỏi nhóm
+                    </Menu.Item>
+                  ) : null}
+                </Menu>
+              }
+              trigger={["click"]}
+              placement="bottomRight">
+              <Button
+                type="text"
+                icon={<MoreOutlined />}
+                className="flex items-center justify-center"
+              />
+            </Dropdown>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="h-full bg-white" key={`members-list-${renderKey}`}>
       <div className="flex-none p-4 border-b border-gray-200 flex items-center">
@@ -869,141 +1044,7 @@ const MembersList: React.FC<MembersListProps> = ({
       </div>
 
       <div className="member-list overflow-y-auto">
-        {groupMembers.map((memberId) => {
-          const memberInfo = userCache[memberId] || localUserCache[memberId];
-          const isCurrentUserMember =
-            memberId === localStorage.getItem("userId");
-          const isOwner = conversation.rules?.ownerId === memberId;
-          const isCoOwner =
-            conversation.rules?.coOwnerIds?.includes(memberId) || false;
-          const isMemberFriend = isFriend(memberId);      
-          // Use the new function to calculate canShowMenu dynamically on each render
-          const canShowMenu = calculateCanShowMenu(memberId, userRole);
-          return (
-            <div
-              key={memberId}
-              className="flex items-center justify-between p-3 hover:bg-gray-100 relative"
-              onMouseEnter={() => setHoveredMemberId(memberId)}
-              onMouseLeave={() => setHoveredMemberId(null)}>
-              <div className="flex items-center">
-                <Avatar
-                  name={memberInfo?.fullname || "User"}
-                  avatarUrl={memberInfo?.urlavatar || userAvatars[memberId]}
-                  size={48}
-                  className="rounded-full mr-3"
-                />
-                <div>
-                  <div className="font-medium flex items-center">
-                    {memberInfo?.fullname || `User-${memberId.substring(0, 6)}`}
-                    {isCurrentUserMember && (
-                      <span className="text-gray-500 ml-2">(Bạn)</span>
-                    )}
-                  </div>
-                  <div className="text-sm text-gray-500">
-                    {isOwner ? "Trưởng nhóm" : isCoOwner ? "Phó nhóm" : ""}
-                  </div>
-                </div>
-              </div>
-
-              {/* Buttons container with proper spacing */}
-              <div className="flex items-center space-x-2">
-                {/* Kết bạn/Nhắn tin button (only for non-current user) */}
-                {!isCurrentUserMember && (
-                  <>
-                    {!isMemberFriend ? (
-                      <Button
-                        type="link"
-                        className="text-blue-500"
-                        onClick={() => handleFriendRequest(memberId)}>
-                        Kết bạn
-                      </Button>
-                    ) : (
-                      <Button
-                        type="link"
-                        className="text-blue-500"
-                        onClick={() => handleFriendRequest(memberId)}>
-                        Nhắn tin
-                      </Button>
-                    )}
-                  </>
-                )}
-
-                {/* Three dots menu (only show when hovering) */}
-                {hoveredMemberId === memberId && canShowMenu && (
-                  <Dropdown
-                    overlay={
-                      <Menu>
-                        {isCurrentUserMember ? (
-                          <Menu.Item
-                            key="leave"
-                            onClick={() => {
-                              // Thêm thông báo rời nhóm vào conversation
-                              updateConversationWithNewMessage(conversation.conversationId, {
-                                type: "system",
-                                content: `${getUserName(currentUserId)} đã rời khỏi nhóm`,
-                                senderId: currentUserId,
-                                createdAt: new Date().toISOString(),
-                              });
-                              
-                              // Sau đó gọi hàm rời nhóm
-                              onLeaveGroup();
-                            }}
-                            icon={<LogoutOutlined />}>
-                            Rời nhóm
-                          </Menu.Item>
-                        ) : userRole === "owner" && isCoOwner ? (
-                          <>
-                            <Menu.Item
-                              key="remove-co-owner"
-                              onClick={() => handleRemoveCoOwner(memberId)}
-                              icon={<LockOutlined />}>
-                              Gỡ quyền phó nhóm
-                            </Menu.Item>
-                            <Menu.Item
-                              key="remove-member"
-                              onClick={() => handleRemoveMember(memberId)}
-                              icon={<UserDeleteOutlined />}>
-                              Xóa khỏi nhóm
-                            </Menu.Item>
-                          </>
-                        ) : userRole === "owner" && !isOwner && !isCoOwner ? (
-                          <>
-                            <Menu.Item
-                              key="add-co-owner"
-                              onClick={() => handleAddCoOwner(memberId)}
-                              icon={<LockOutlined />}>
-                              Thêm phó nhóm
-                            </Menu.Item>
-                            <Menu.Item
-                              key="remove-member"
-                              onClick={() => handleRemoveMember(memberId)}
-                              icon={<UserDeleteOutlined />}>
-                              Xóa khỏi nhóm
-                            </Menu.Item>
-                          </>
-                        ) : userRole === "co-owner" && !isOwner && !isCoOwner ? (
-                          <Menu.Item
-                            key="remove-member"
-                            onClick={() => handleRemoveMember(memberId)}
-                            icon={<UserDeleteOutlined />}>
-                            Xóa khỏi nhóm
-                          </Menu.Item>
-                        ) : null}
-                      </Menu>
-                    }
-                    trigger={["click"]}
-                    placement="bottomRight">
-                    <Button
-                      type="text"
-                      icon={<MoreOutlined />}
-                      className="flex items-center justify-center"
-                    />
-                  </Dropdown>
-                )}
-              </div>
-            </div>
-          );
-        })}
+        {groupMembers.map((memberId) => renderMember(memberId))}
       </div>
 
       {/* User Info Modal for friend requests */}

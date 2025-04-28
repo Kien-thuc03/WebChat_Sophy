@@ -171,6 +171,10 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
   onDisband,
   onAfterTransferOwner
 }) => {
+  // Thêm state cho loading
+  const [isUpdatingRole, setIsUpdatingRole] = useState(false);
+  const [updatingMemberId, setUpdatingMemberId] = useState<string | null>(null);
+
   // Thay thế các useState bằng useReducer
   const [state, dispatch] = useReducer(reducer, {
     conversation: initialConversation,
@@ -423,6 +427,9 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
       return;
     }
     try {
+      setIsUpdatingRole(true);
+      setUpdatingMemberId(selectedMember);
+      
       const key = 'coowner';
       notification.open({
         key,
@@ -430,11 +437,23 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
         description: 'Đang thêm phó nhóm...',
         duration: 0
       });
+
+      // Optimistic update
+      dispatch({ type: 'UPDATE_CONVERSATION', payload: {
+        ...conversation,
+        rules: {
+          ...conversation.rules,
+          ownerId: conversation.rules?.ownerId || '',
+          coOwnerIds: [...(conversation.rules?.coOwnerIds || []), selectedMember]
+        }
+      }});
+
       const updatedConversation = await addCoOwner(
         conversation.conversationId,
         selectedMember,
         conversation.rules?.coOwnerIds || []
       );
+
       if (updatedConversation) {
         dispatch({ type: 'UPDATE_CONVERSATION', payload: updatedConversation });
         dispatch({ type: 'TOGGLE_ADD_CO_OWNER_MODAL' });
@@ -448,11 +467,16 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
       }
     } catch (err) {
       console.error('Failed to add co-owner:', err);
+      // Revert optimistic update on error
+      dispatch({ type: 'UPDATE_CONVERSATION', payload: conversation });
       notification.error({
         message: 'Lỗi',
         description: 'Không thể thêm phó nhóm. Vui lòng thử lại.',
         duration: 2
       });
+    } finally {
+      setIsUpdatingRole(false);
+      setUpdatingMemberId(null);
     }
   }, [conversation.conversationId, selectedMember, conversation.rules?.coOwnerIds]);
 
@@ -466,6 +490,9 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
       return;
     }
     try {
+      setIsUpdatingRole(true);
+      setUpdatingMemberId(coOwnerId);
+      
       const key = 'coowner-remove';
       notification.open({
         key,
@@ -473,10 +500,22 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
         description: 'Đang xóa phó nhóm...',
         duration: 0
       });
+
+      // Optimistic update
+      dispatch({ type: 'UPDATE_CONVERSATION', payload: {
+        ...conversation,
+        rules: {
+          ...conversation.rules,
+          ownerId: conversation.rules?.ownerId || '',
+          coOwnerIds: conversation.rules?.coOwnerIds?.filter(id => id !== coOwnerId) || []
+        }
+      }});
+
       const updatedConversation = await removeCoOwnerDirectly(
         conversation.conversationId,
         coOwnerId
       );
+
       if (updatedConversation) {
         dispatch({ type: 'UPDATE_CONVERSATION', payload: updatedConversation });
         notification.success({
@@ -488,11 +527,16 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
       }
     } catch (err) {
       console.error('Failed to remove co-owner:', err);
+      // Revert optimistic update on error
+      dispatch({ type: 'UPDATE_CONVERSATION', payload: conversation });
       notification.error({
         message: 'Lỗi',
         description: 'Không thể xóa phó nhóm. Vui lòng thử lại.',
         duration: 2
       });
+    } finally {
+      setIsUpdatingRole(false);
+      setUpdatingMemberId(null);
     }
   }, [conversation.conversationId]);
 
@@ -608,6 +652,45 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
       return memberDetails?.fullname.toLowerCase().includes(searchQuery.toLowerCase()) || false;
     });
   }, [regularMembers, conversation.rules?.coOwnerIds, searchQuery, getUserDetails]);
+
+  // Thêm loading indicator vào UI
+  const renderLoadingIndicator = (memberId: string) => {
+    if (isUpdatingRole && updatingMemberId === memberId) {
+      return (
+        <div className="ml-2 text-xs text-gray-500">
+          Đang cập nhật...
+        </div>
+      );
+    }
+    return null;
+  };
+
+  // Sửa phần render member để thêm loading indicator
+  const renderMember = (memberId: string) => {
+    const memberDetails = getUserDetails(memberId);
+    const isOwner = conversation.rules?.ownerId === memberId;
+    const isCoOwner = conversation.rules?.coOwnerIds?.includes(memberId);
+    
+    return (
+      <div className="flex items-center justify-between">
+        <div className="flex items-center">
+          <Avatar 
+            name={memberDetails?.fullname || ''}
+            avatarUrl={memberDetails?.urlavatar}
+            size={40}
+          />
+          <div className="ml-3">
+            <div className="font-semibold">{memberDetails?.fullname}</div>
+            <div className="text-sm text-gray-500">
+              {isOwner ? 'Trưởng nhóm' : isCoOwner ? 'Phó nhóm' : 'Thành viên'}
+              {renderLoadingIndicator(memberId)}
+            </div>
+          </div>
+        </div>
+        {/* ... existing buttons ... */}
+      </div>
+    );
+  };
 
   const renderOwnerCoOwnerView = () => {
     const ownerData = getUserDetails(owner);
