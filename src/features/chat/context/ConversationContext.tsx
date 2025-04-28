@@ -24,7 +24,7 @@ export interface ConversationContextType {
   displayNames: Record<string, string>;
   updateConversationWithNewMessage: (
     conversationId: string,
-    message: Message
+    message: Partial<Message>
   ) => void;
   refreshConversations: () => Promise<void>;
   selectedConversation: Conversation | null;

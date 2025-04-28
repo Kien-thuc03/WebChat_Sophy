@@ -12,7 +12,7 @@ import GroupAvatar from "./GroupAvatar";
 import LabelModal from "./modals/LabelModal";
 import NotificationModal from "./modals/NotificationModal";
 import AutoDeleteModal from "./modals/AutoDeleteModal";
-import { Conversation } from "../../features/chat/types/conversationTypes";
+import { Conversation, Message } from "../../features/chat/types/conversationTypes";
 import { useLanguage } from "../../features/auth/context/LanguageContext";
 import { getUserById, getConversationDetail } from "../../api/API";
 import { User } from "../../features/auth/types/authTypes";
@@ -393,7 +393,7 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
           content: `Thành viên đã bị xóa khỏi nhóm`,
           senderId: data.userId,
           createdAt: new Date().toISOString(),
-        });
+        } as Message);
       }
     };
 
