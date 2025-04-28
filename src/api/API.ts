@@ -2268,12 +2268,19 @@ export const removeCoOwnerById = async (
   userId: string
 ) => {
   try {
+    const token = getAuthToken();
     if (!token) {
       throw new Error("User not authenticated");
     }
 
     const response = await apiClient.put(
-      `/api/conversations/group/${conversationId}/remove-co-owner/${userId}`
+      `/api/conversations/group/${conversationId}/remove-co-owner/${userId}`,
+      {},
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
     );
 
     if (response.status !== 200) {
@@ -2282,6 +2289,15 @@ export const removeCoOwnerById = async (
 
     return response.data;
   } catch (error: any) {
+    if (error.response?.status === 401) {
+      throw new Error("Phiên đăng nhập hết hạn, vui lòng đăng nhập lại");
+    }
+    if (error.response?.status === 403) {
+      throw new Error("Bạn không có quyền xóa phó nhóm");
+    }
+    if (error.response?.status === 404) {
+      throw new Error("Không tìm thấy người dùng hoặc cuộc trò chuyện");
+    }
     throw error;
   }
 };

@@ -115,48 +115,48 @@ const determineUserRole = (conversationData: Conversation): UserRole => {
 
 // Tối ưu socket event handling với useCallback
 const useSocketEvents = (conversationId: string, dispatch: React.Dispatch<Action>, conversation: Conversation) => {
+  const handleGroupCoOwnerAdded = useCallback((data: { conversationId: string, newCoOwnerIds: string[] }) => {
+    if (data.conversationId !== conversationId) return;
+    
+    dispatch({ type: 'UPDATE_CONVERSATION', payload: {
+      ...conversation,
+      rules: {
+        ...conversation.rules,
+        ownerId: conversation.rules?.ownerId || '',
+        coOwnerIds: data.newCoOwnerIds
+      }
+    }});
+  }, [conversationId, conversation, dispatch]);
+
+  const handleGroupCoOwnerRemoved = useCallback((data: { conversationId: string, removedCoOwner: string }) => {
+    if (data.conversationId !== conversationId) return;
+    
+    dispatch({ type: 'UPDATE_CONVERSATION', payload: {
+      ...conversation,
+      rules: {
+        ...conversation.rules,
+        ownerId: conversation.rules?.ownerId || '',
+        coOwnerIds: conversation.rules?.coOwnerIds?.filter((id: string) => id !== data.removedCoOwner) || []
+      }
+    }});
+  }, [conversationId, conversation, dispatch]);
+
+  const handleGroupOwnerChanged = useCallback((data: { conversationId: string, newOwner: string }) => {
+    if (data.conversationId !== conversationId) return;
+    
+    dispatch({ type: 'UPDATE_CONVERSATION', payload: {
+      ...conversation,
+      rules: {
+        ...conversation.rules,
+        ownerId: data.newOwner,
+        coOwnerIds: conversation.rules?.coOwnerIds?.filter((id: string) => id !== data.newOwner) || []
+      }
+    }});
+  }, [conversationId, conversation, dispatch]);
+
   useEffect(() => {
     if (!conversationId) return;
-        
-    const handleGroupCoOwnerAdded = useCallback((data: { conversationId: string, newCoOwnerIds: string[] }) => {
-      if (data.conversationId !== conversationId) return;
-      
-      dispatch({ type: 'UPDATE_CONVERSATION', payload: {
-        ...conversation,
-        rules: {
-          ...conversation.rules,
-          ownerId: conversation.rules?.ownerId || '',
-          coOwnerIds: data.newCoOwnerIds
-        }
-      }});
-    }, [conversationId, conversation, dispatch]);
-
-    const handleGroupCoOwnerRemoved = useCallback((data: { conversationId: string, removedCoOwner: string }) => {
-      if (data.conversationId !== conversationId) return;
-      
-      dispatch({ type: 'UPDATE_CONVERSATION', payload: {
-        ...conversation,
-        rules: {
-          ...conversation.rules,
-          ownerId: conversation.rules?.ownerId || '',
-          coOwnerIds: conversation.rules?.coOwnerIds?.filter((id: string) => id !== data.removedCoOwner) || []
-        }
-      }});
-    }, [conversationId, conversation, dispatch]);
-
-    const handleGroupOwnerChanged = useCallback((data: { conversationId: string, newOwner: string }) => {
-      if (data.conversationId !== conversationId) return;
-      
-      dispatch({ type: 'UPDATE_CONVERSATION', payload: {
-        ...conversation,
-        rules: {
-          ...conversation.rules,
-          ownerId: data.newOwner,
-          coOwnerIds: conversation.rules?.coOwnerIds?.filter((id: string) => id !== data.newOwner) || []
-        }
-      }});
-    }, [conversationId, conversation, dispatch]);
-
+    
     // Register socket events
     socketService.on('groupCoOwnerAdded', handleGroupCoOwnerAdded);
     socketService.on('groupCoOwnerRemoved', handleGroupCoOwnerRemoved);
@@ -168,7 +168,7 @@ const useSocketEvents = (conversationId: string, dispatch: React.Dispatch<Action
       socketService.off('groupCoOwnerRemoved', handleGroupCoOwnerRemoved);
       socketService.off('groupOwnerChanged', handleGroupOwnerChanged);
     };
-  }, [conversationId, conversation, dispatch]);
+  }, [conversationId, handleGroupCoOwnerAdded, handleGroupCoOwnerRemoved, handleGroupOwnerChanged]);
 };
 
 const GroupManagement: React.FC<GroupManagementProps> = ({
@@ -455,6 +455,7 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
           description: 'Đã thêm phó nhóm thành công',
           duration: 2
         });
+        await refreshConversationData();
       }
     } catch (err) {
       console.error('Failed to add co-owner:', err);
