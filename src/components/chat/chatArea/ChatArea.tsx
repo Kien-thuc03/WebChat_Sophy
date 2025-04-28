@@ -3930,7 +3930,10 @@ export function ChatArea({ conversation }: ChatAreaProps) {
     // Lấy thông tin người thay đổi tên nhóm
     let changerName = "Một thành viên";
     if (data.changedBy) {
-      changerName = userCache[data.changedBy.userId]?.fullname || data.changedBy.fullname || changerName;
+      // Ưu tiên lấy tên từ userCache nếu có, nếu không thì dùng tên được truyền từ socket
+      changerName = userCache[data.changedBy.userId]?.fullname || 
+                    data.changedBy.fullname || 
+                    changerName;
     }
     
     // Tạo thông báo hệ thống
@@ -3968,7 +3971,10 @@ export function ChatArea({ conversation }: ChatAreaProps) {
     // Lấy thông tin người thay đổi ảnh nhóm
     let changerName = "Một thành viên";
     if (data.changedBy) {
-      changerName = userCache[data.changedBy.userId]?.fullname || data.changedBy.fullname || changerName;
+      // Ưu tiên lấy tên từ userCache nếu có, nếu không thì dùng tên được truyền từ socket
+      changerName = userCache[data.changedBy.userId]?.fullname || 
+                    data.changedBy.fullname || 
+                    changerName;
     }
     
     // Tạo thông báo hệ thống

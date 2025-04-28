@@ -186,9 +186,16 @@ const GroupModal: React.FC<GroupModalProps> = ({
 
   // Đảm bảo giá trị của groupAvatarUrl được log ra để kiểm tra
   useEffect(() => {
-    console.log("Conversation in GroupModal:", conversation);
-    console.log("Group avatar URL:", conversation.groupAvatarUrl);
-  }, [conversation]);
+    // Giới hạn log để tránh spam
+    const savedLogTimestamp = sessionStorage.getItem('lastAvatarLog');
+    const currentTime = Date.now();
+    
+    if (!savedLogTimestamp || currentTime - parseInt(savedLogTimestamp) > 2000) {
+      console.log("Conversation in GroupModal:", conversation);
+      console.log("Group avatar URL:", conversation.groupAvatarUrl);
+      sessionStorage.setItem('lastAvatarLog', currentTime.toString());
+    }
+  }, [conversation.groupAvatarUrl]);
 
   // Tạo link tham gia nhóm
   const groupLink = `https://zalo.me/g/${conversation.conversationId.replace("conv", "")}`;
@@ -258,15 +265,11 @@ const GroupModal: React.FC<GroupModalProps> = ({
       const key = "updating-avatar";
       message.loading({ content: "Đang cập nhật ảnh đại diện...", key });
 
-      // Pre-update the UI with the local image data to show immediate feedback
-      const localImageUrl = data.url;
-      // Add a timestamp to force browser to not use cached image
-      const timestampedUrl = `${localImageUrl}?t=${Date.now()}`;
+      // Lưu URL trước đó để có thể quay lại nếu cập nhật thất bại
+      const previousAvatarUrl = conversation.groupAvatarUrl;
 
-      setConversation((prev) => ({
-        ...prev,
-        groupAvatarUrl: timestampedUrl,
-      }));
+      // Không cập nhật blob URL trực tiếp vào state để tránh vấn đề với việc render và lưu trữ
+      // Chỉ hiển thị URL tạm thời trên UI và đợi URL thực từ server
 
       // Gọi API để cập nhật ảnh
       const result = await updateGroupAvatar(
@@ -283,13 +286,14 @@ const GroupModal: React.FC<GroupModalProps> = ({
 
         // Lấy thông tin user hiện tại
         const currentUserId = localStorage.getItem("userId") || "";
-        const currentUser = await getUserById(currentUserId);
-        const currentUserName = currentUser.fullname || "Một thành viên";
+        // Tìm thông tin người dùng hiện tại từ danh sách thành viên
+        const currentMember = memberDetails.find(member => member.userId === currentUserId);
+        const currentUserName = currentMember?.fullname || "Một thành viên";
 
         // Emit sự kiện thay đổi ảnh nhóm với thông tin người thay đổi
         socketService.emit("groupAvatarChanged", {
           conversationId: conversation.conversationId,
-          newAvatar: serverUrlWithTimestamp,
+          newAvatar: result.conversation.groupAvatarUrl, // Sử dụng URL thực từ server, không phải URL blob
           changedBy: {
             userId: currentUserId,
             fullname: currentUserName
@@ -297,11 +301,11 @@ const GroupModal: React.FC<GroupModalProps> = ({
         });
 
         // Cập nhật state conversation with actual server URL
-        const updatedConversation = {
+        const finalConversation = {
           ...conversation,
           groupAvatarUrl: serverUrlWithTimestamp,
         };
-        setConversation(updatedConversation);
+        setConversation(finalConversation);
 
         // Cập nhật vào context
         updateConversationField(
@@ -325,7 +329,7 @@ const GroupModal: React.FC<GroupModalProps> = ({
         // Revert to previous avatar if update failed
         setConversation((prev) => ({
           ...prev,
-          groupAvatarUrl: prev.groupAvatarUrl,
+          groupAvatarUrl: previousAvatarUrl,
         }));
         message.error({
           content: "Không thể cập nhật ảnh đại diện",
@@ -390,7 +394,9 @@ const GroupModal: React.FC<GroupModalProps> = ({
 
         // Lấy thông tin user hiện tại
         const currentUserId = localStorage.getItem("userId") || "";
-        const currentUserName = localStorage.getItem("fullname") || "Một thành viên";
+        // Tìm thông tin người dùng hiện tại từ danh sách thành viên
+        const currentMember = memberDetails.find(member => member.userId === currentUserId);
+        const currentUserName = currentMember?.fullname || "Một thành viên";
 
         // Emit sự kiện thay đổi tên nhóm với thông tin người thay đổi
         socketService.emit("groupNameChanged", {
@@ -435,6 +441,7 @@ const GroupModal: React.FC<GroupModalProps> = ({
     const handleGroupNameChanged = (data: {
       conversationId: string;
       newName: string;
+      changedBy?: { userId: string; fullname: string };
     }) => {
       if (data.conversationId === conversation.conversationId) {
         setConversation((prev) => ({
@@ -451,6 +458,33 @@ const GroupModal: React.FC<GroupModalProps> = ({
       socketService.off("groupNameChanged", handleGroupNameChanged);
     };
   }, [conversation.conversationId]);
+
+  // Lắng nghe sự kiện thay đổi ảnh nhóm
+  useEffect(() => {
+    const handleGroupAvatarChanged = (data: {
+      conversationId: string;
+      newAvatar: string;
+      changedBy?: { userId: string; fullname: string };
+    }) => {
+      if (data.conversationId === conversation.conversationId) {
+        // Chỉ cập nhật nếu URL mới khác với URL hiện tại
+        if (data.newAvatar && data.newAvatar !== conversation.groupAvatarUrl) {
+          // Cập nhật ảnh đại diện nhóm với timestamp để tránh cache
+          const avatarUrl = `${data.newAvatar}?t=${Date.now()}`;
+          setConversation((prev) => ({
+            ...prev,
+            groupAvatarUrl: avatarUrl,
+          }));
+        }
+      }
+    };
+
+    socketService.onGroupAvatarChanged(handleGroupAvatarChanged);
+
+    return () => {
+      socketService.off("groupAvatarChanged", handleGroupAvatarChanged);
+    };
+  }, [conversation.conversationId, conversation.groupAvatarUrl]);
 
   return (
     <>

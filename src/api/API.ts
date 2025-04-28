@@ -168,6 +168,7 @@ export const login = async (phone: string, password: string) => {
 
     // Lưu userId, accessToken và refreshToken vào localStorage
     localStorage.setItem("userId", user.userId);
+    localStorage.setItem("user", JSON.stringify(user));
     localStorage.setItem("token", token.accessToken);
     localStorage.setItem("refreshToken", token.refreshToken);
 
@@ -2207,7 +2208,6 @@ export const setCoOwner = async (
   coOwnerIds: string[]
 ) => {
   try {
-    const token = localStorage.getItem("token");
     if (!token) {
       throw new Error("User not authenticated");
     }
@@ -2236,7 +2236,6 @@ export const setCoOwner = async (
  */
 export const setOwner = async (conversationId: string, userId: string) => {
   try {
-    const token = localStorage.getItem("token");
     if (!token) {
       throw new Error("User not authenticated");
     }
@@ -2269,7 +2268,6 @@ export const removeCoOwnerById = async (
   userId: string
 ) => {
   try {
-    const token = localStorage.getItem("token");
     if (!token) {
       throw new Error("User not authenticated");
     }
@@ -2294,7 +2292,6 @@ export const removeCoOwnerById = async (
  */
 export const deleteGroup = async (conversationId: string) => {
   try {
-    const token = localStorage.getItem("token");
     if (!token) {
       throw new Error("User not authenticated");
     }
@@ -2371,7 +2368,6 @@ export const blockUserFromGroup = async (
   userId: string
 ) => {
   try {
-    const token = localStorage.getItem("token");
     if (!token) {
       throw new Error("User not authenticated");
     }
@@ -2407,7 +2403,6 @@ export const unblockUserFromGroup = async (
   userId: string
 ) => {
   try {
-    const token = localStorage.getItem("token");
     if (!token) {
       throw new Error("User not authenticated");
     }

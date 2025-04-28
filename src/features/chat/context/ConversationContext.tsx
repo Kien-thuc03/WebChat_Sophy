@@ -82,12 +82,28 @@ const saveGroupAvatarToLocalStorage = (
     const storedAvatars = JSON.parse(
       localStorage.getItem("groupAvatars") || "{}"
     );
+    
+    // Kiểm tra xem URL mới có khác với URL đã lưu không
+    if (storedAvatars[conversationId] === avatarUrl) {
+      // URL không thay đổi, không cần lưu lại
+      return true;
+    }
+    
+    // Cập nhật URL mới
     storedAvatars[conversationId] = avatarUrl;
     localStorage.setItem("groupAvatars", JSON.stringify(storedAvatars));
-    console.log(
-      "Saved avatar to localStorage for conversationId:",
-      conversationId
-    );
+    
+    // Giới hạn log
+    const lastLogTime = Number(sessionStorage.getItem(`lastAvatarLog_${conversationId}`) || "0");
+    const currentTime = Date.now();
+    if (currentTime - lastLogTime > 5000) { // Chỉ log mỗi 5 giây một lần cho mỗi conversationId
+      console.log(
+        "Saved avatar to localStorage for conversationId:",
+        conversationId
+      );
+      sessionStorage.setItem(`lastAvatarLog_${conversationId}`, currentTime.toString());
+    }
+    
     return true;
   } catch (error) {
     console.error("Error saving avatar to localStorage:", error);
@@ -603,15 +619,22 @@ export const ConversationProvider: React.FC<{ children: ReactNode }> = ({
         setConversations((prevConversations) =>
           prevConversations.map((conv) => {
             if (conv.conversationId === data.conversationId) {
+              // Kiểm tra nếu avatar đã được cập nhật rồi
+              if (conv.groupAvatarUrl === data.newAvatar) {
+                return conv;
+              }
               // Save to local storage
               saveGroupAvatarToLocalStorage(
                 data.conversationId,
                 data.newAvatar
               );
 
+              // Thêm timestamp để tránh cache trình duyệt
+              const avatarWithTimestamp = `${data.newAvatar}?t=${Date.now()}`;
+
               const updatedConv: Conversation = {
                 ...conv,
-                groupAvatarUrl: data.newAvatar,
+                groupAvatarUrl: avatarWithTimestamp,
               };
               return updatedConv;
             }
