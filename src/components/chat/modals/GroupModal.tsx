@@ -281,6 +281,21 @@ const GroupModal: React.FC<GroupModalProps> = ({
         // Add timestamp to server URL to prevent caching
         const serverUrlWithTimestamp = `${result.conversation.groupAvatarUrl}?t=${Date.now()}`;
 
+        // Lấy thông tin user hiện tại
+        const currentUserId = localStorage.getItem("userId") || "";
+        const currentUser = await getUserById(currentUserId);
+        const currentUserName = currentUser.fullname || "Một thành viên";
+
+        // Emit sự kiện thay đổi ảnh nhóm với thông tin người thay đổi
+        socketService.emit("groupAvatarChanged", {
+          conversationId: conversation.conversationId,
+          newAvatar: serverUrlWithTimestamp,
+          changedBy: {
+            userId: currentUserId,
+            fullname: currentUserName
+          }
+        });
+
         // Cập nhật state conversation with actual server URL
         const updatedConversation = {
           ...conversation,
@@ -369,8 +384,23 @@ const GroupModal: React.FC<GroupModalProps> = ({
       );
 
       if (result && result.conversation) {
+        // Cập nhật tên nhóm thành công, hiển thị thông báo thành công
         message.success("Đã cập nhật tên nhóm");
         setUpdatedName(newName);
+
+        // Lấy thông tin user hiện tại
+        const currentUserId = localStorage.getItem("userId") || "";
+        const currentUserName = localStorage.getItem("fullname") || "Một thành viên";
+
+        // Emit sự kiện thay đổi tên nhóm với thông tin người thay đổi
+        socketService.emit("groupNameChanged", {
+          conversationId: conversation.conversationId,
+          newName,
+          changedBy: {
+            userId: currentUserId,
+            fullname: currentUserName
+          }
+        });
 
         // Update the global context
         updateConversationField(
