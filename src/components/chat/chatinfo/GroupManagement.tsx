@@ -26,6 +26,7 @@ interface GroupManagementProps {
   groupLink: string;
   onBack: () => void;
   onDisband?: () => void;
+  onAfterTransferOwner?: () => void;
 }
 
 // User roles enum
@@ -115,54 +116,46 @@ const determineUserRole = (conversationData: Conversation): UserRole => {
 
 // Tối ưu socket event handling với useCallback
 const useSocketEvents = (conversationId: string, dispatch: React.Dispatch<Action>, conversation: Conversation) => {
-  const handleGroupCoOwnerAdded = useCallback((data: { conversationId: string, newCoOwnerIds: string[] }) => {
+  const currentUserId = localStorage.getItem("userId") || "";
+  const handleGroupCoOwnerAdded = useCallback((data: { conversationId: string, newCoOwnerIds: string[], byUserId?: string }) => {
     if (data.conversationId !== conversationId) return;
-    
-    dispatch({ type: 'UPDATE_CONVERSATION', payload: {
-      ...conversation,
-      rules: {
-        ...conversation.rules,
-        ownerId: conversation.rules?.ownerId || '',
-        coOwnerIds: data.newCoOwnerIds
+    // Nếu event không gửi đủ conversation, gọi lại API để lấy conversation mới nhất
+    if (!data.newCoOwnerIds || !Array.isArray(data.newCoOwnerIds)) return;
+    // Nếu coOwnerIds đã giống thì không làm gì cả
+    const existingCoOwnerIds = conversation.rules?.coOwnerIds || [];
+    if (JSON.stringify(existingCoOwnerIds) === JSON.stringify(data.newCoOwnerIds)) return;
+    // Gọi lại API để lấy conversation mới nhất
+    getConversationDetail(conversationId).then((updatedConversation) => {
+      if (updatedConversation) {
+        dispatch({ type: 'UPDATE_CONVERSATION', payload: updatedConversation });
       }
-    }});
+    });
   }, [conversationId, conversation, dispatch]);
 
   const handleGroupCoOwnerRemoved = useCallback((data: { conversationId: string, removedCoOwner: string }) => {
     if (data.conversationId !== conversationId) return;
-    
-    dispatch({ type: 'UPDATE_CONVERSATION', payload: {
-      ...conversation,
-      rules: {
-        ...conversation.rules,
-        ownerId: conversation.rules?.ownerId || '',
-        coOwnerIds: conversation.rules?.coOwnerIds?.filter((id: string) => id !== data.removedCoOwner) || []
+    // Gọi lại API để lấy conversation mới nhất
+    getConversationDetail(conversationId).then((updatedConversation) => {
+      if (updatedConversation) {
+        dispatch({ type: 'UPDATE_CONVERSATION', payload: updatedConversation });
       }
-    }});
-  }, [conversationId, conversation, dispatch]);
+    });
+  }, [conversationId, dispatch]);
 
   const handleGroupOwnerChanged = useCallback((data: { conversationId: string, newOwner: string }) => {
     if (data.conversationId !== conversationId) return;
-    
-    dispatch({ type: 'UPDATE_CONVERSATION', payload: {
-      ...conversation,
-      rules: {
-        ...conversation.rules,
-        ownerId: data.newOwner,
-        coOwnerIds: conversation.rules?.coOwnerIds?.filter((id: string) => id !== data.newOwner) || []
+    getConversationDetail(conversationId).then((updatedConversation) => {
+      if (updatedConversation) {
+        dispatch({ type: 'UPDATE_CONVERSATION', payload: updatedConversation });
       }
-    }});
-  }, [conversationId, conversation, dispatch]);
+    });
+  }, [conversationId, dispatch]);
 
   useEffect(() => {
     if (!conversationId) return;
-    
-    // Register socket events
     socketService.on('groupCoOwnerAdded', handleGroupCoOwnerAdded);
     socketService.on('groupCoOwnerRemoved', handleGroupCoOwnerRemoved);
     socketService.on('groupOwnerChanged', handleGroupOwnerChanged);
-
-    // Cleanup
     return () => {
       socketService.off('groupCoOwnerAdded', handleGroupCoOwnerAdded);
       socketService.off('groupCoOwnerRemoved', handleGroupCoOwnerRemoved);
@@ -175,7 +168,8 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
   conversation: initialConversation,
   groupLink,
   onBack,
-  onDisband
+  onDisband,
+  onAfterTransferOwner
 }) => {
   // Thay thế các useState bằng useReducer
   const [state, dispatch] = useReducer(reducer, {
@@ -428,7 +422,6 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
       });
       return;
     }
-    
     try {
       const key = 'coowner';
       notification.open({
@@ -437,25 +430,21 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
         description: 'Đang thêm phó nhóm...',
         duration: 0
       });
-      
       const updatedConversation = await addCoOwner(
         conversation.conversationId,
         selectedMember,
         conversation.rules?.coOwnerIds || []
       );
-      
       if (updatedConversation) {
         dispatch({ type: 'UPDATE_CONVERSATION', payload: updatedConversation });
         dispatch({ type: 'TOGGLE_ADD_CO_OWNER_MODAL' });
         dispatch({ type: 'SET_SELECTED_MEMBER', payload: null });
-        
         notification.success({
           key,
           message: 'Thành công',
           description: 'Đã thêm phó nhóm thành công',
           duration: 2
         });
-        await refreshConversationData();
       }
     } catch (err) {
       console.error('Failed to add co-owner:', err);
@@ -476,7 +465,6 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
       });
       return;
     }
-    
     try {
       const key = 'coowner-remove';
       notification.open({
@@ -485,12 +473,10 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
         description: 'Đang xóa phó nhóm...',
         duration: 0
       });
-      
       const updatedConversation = await removeCoOwnerDirectly(
         conversation.conversationId,
         coOwnerId
       );
-      
       if (updatedConversation) {
         dispatch({ type: 'UPDATE_CONVERSATION', payload: updatedConversation });
         notification.success({
@@ -551,7 +537,14 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
           Modal.info({
             title: 'Chuyển quyền thành công',
             content: 'Bạn đã chuyển quyền trưởng nhóm thành công và hiện là thành viên thường. Bạn có thể rời nhóm bằng cách nhấn vào "Rời nhóm" ở cuối trang.',
-            okText: 'Đã hiểu'
+            okText: 'Đã hiểu',
+            onOk: () => {
+              if (onAfterTransferOwner) {
+                onAfterTransferOwner();
+              } else {
+                dispatch({ type: 'TOGGLE_OWNER_MANAGEMENT' });
+              }
+            }
           });
         }, 1000);
       }
@@ -563,7 +556,7 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
         duration: 2
       });
     }
-  }, [conversation.conversationId, selectedNewOwner]);
+  }, [conversation.conversationId, selectedNewOwner, onAfterTransferOwner]);
 
   // Add handler function for showing blocked members list
   const handleShowBlockedMembers = () => {

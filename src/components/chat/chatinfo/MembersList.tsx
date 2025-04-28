@@ -368,85 +368,34 @@ const MembersList: React.FC<MembersListProps> = ({
     const handleGroupCoOwnerAdded = (data: {
       conversationId: string;
       newCoOwnerIds: string[];
+      byUserId?: string;
     }) => {
       if (data.conversationId !== conversation.conversationId) return;
-      // Get existing co-owner IDs
+      // Nếu event không gửi đủ conversation, gọi lại API để lấy conversation mới nhất
+      if (!data.newCoOwnerIds || !Array.isArray(data.newCoOwnerIds)) return;
       const existingCoOwnerIds = conversation.rules?.coOwnerIds || [];
-
-      // Find the new co-owners (those in newCoOwnerIds but not in existingCoOwnerIds)
-      const newCoOwners = data.newCoOwnerIds.filter(
-        (id) => !existingCoOwnerIds.includes(id)
-      );
-
-      // Update the conversation with the new co-owners
-      setConversation((prev) => {
-        if (!prev.rules) return prev;
-
-        const updatedConversation = {
-          ...prev,
-          rules: {
-            ...prev.rules,
-            coOwnerIds: data.newCoOwnerIds,
-          },
-        };
-        
-        // Determine and update role based on the updated conversation data
-        const newRole = determineUserRole(updatedConversation);
-        if (newRole !== userRole) {
-          setUserRole(newRole);
-        }
-        
-        return updatedConversation;
-      });
-      // If current user is in the new co-owners list, update role
-      if (
-        data.newCoOwnerIds.includes(currentUserId) &&
-        !existingCoOwnerIds.includes(currentUserId)
-      ) {
-        setUserRole("co-owner");
+      if (JSON.stringify(existingCoOwnerIds) === JSON.stringify(data.newCoOwnerIds)) {
+        return;
       }
-      
-      // Force refresh to ensure we have the latest data
-      refreshConversationData();
+      getConversationDetail(conversation.conversationId).then((updatedConversation) => {
+        if (updatedConversation) {
+          setConversation(updatedConversation);
+        }
+      });
     };
 
     // Handler for when a co-owner is removed
     const handleGroupCoOwnerRemoved = (data: {
       conversationId: string;
       removedCoOwner: string;
+      byUserId?: string;
     }) => {
       if (data.conversationId !== conversation.conversationId) return;
-
-      // Update the conversation by removing the co-owner
-      setConversation((prev) => {
-        if (!prev.rules || !prev.rules.coOwnerIds) return prev;
-
-        const updatedConversation = {
-          ...prev,
-          rules: {
-            ...prev.rules,
-            coOwnerIds: prev.rules.coOwnerIds.filter(
-              (id) => id !== data.removedCoOwner
-            ),
-          },
-        };
-        
-        // Determine and update role based on the updated conversation data
-        const newRole = determineUserRole(updatedConversation);
-        if (newRole !== userRole) {
-          setUserRole(newRole);
+      getConversationDetail(conversation.conversationId).then((updatedConversation) => {
+        if (updatedConversation) {
+          setConversation(updatedConversation);
         }
-        
-        return updatedConversation;
       });
-
-      // If current user was removed as co-owner, update role
-      if (data.removedCoOwner === currentUserId) {
-        setUserRole("member");
-      }
-      
-      // Force refresh to ensure we have the latest data
-      refreshConversationData();
     };
 
     // Handler for when group owner changes
@@ -710,7 +659,6 @@ const MembersList: React.FC<MembersListProps> = ({
   // Function to add a co-owner
   const handleAddCoOwner = async (memberId: string) => {
     if (!conversation.conversationId || !conversation.rules) return;
-
     try {
       message.loading({
         content: "Đang thêm phó nhóm...",
@@ -721,15 +669,17 @@ const MembersList: React.FC<MembersListProps> = ({
         memberId,
         conversation.rules.coOwnerIds || []
       );
-
       if (result) {
         message.success({
           content: "Đã thêm phó nhóm thành công",
           key: "add-co-owner",
           duration: 2,
         });
-        // Immediately update the local conversation state
-        await refreshConversationData();
+        // Cập nhật state local bằng response API (toàn bộ conversation)
+        setConversation(result);
+        // KHÔNG gọi lại refreshConversationData() ở đây!
+        if (typeof setIsAddMemberModalVisible === 'function') setIsAddMemberModalVisible(false);
+        if (typeof setSelectedMember === 'function') setSelectedMember(null);
       } else {
         message.error({
           content: "Không thể thêm phó nhóm",
@@ -745,22 +695,21 @@ const MembersList: React.FC<MembersListProps> = ({
   // Function to remove a co-owner
   const handleRemoveCoOwner = async (memberId: string) => {
     if (!conversation.conversationId) return;
-
     try {
       message.loading({
         content: "Đang gỡ quyền phó nhóm...",
         key: "remove-co-owner",
       });
       const result = await removeCoOwner(conversation.conversationId, memberId);
-
       if (result) {
         message.success({
           content: "Đã gỡ quyền phó nhóm thành công",
           key: "remove-co-owner",
           duration: 2,
         });
-        // Immediately update the local conversation state
-        await refreshConversationData();
+        // Cập nhật state local bằng response API (toàn bộ conversation)
+        setConversation(result);
+        // KHÔNG gọi lại refreshConversationData() ở đây!
       } else {
         message.error({
           content: "Không thể gỡ quyền phó nhóm",

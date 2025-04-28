@@ -648,7 +648,6 @@ export const getBlockedUsers = async () => {
 export const getMessages = async (
   conversationId: string,
   lastMessageTime?: string,
-  limit = 20,
   direction: "before" | "after" = "before"
 ) => {
   try {
