@@ -7,30 +7,18 @@ import {
   Empty,
   Spin,
   Tooltip,
-  Modal,
-  Dropdown,
-  Menu,
-  Select,
+  Menu
 } from "antd";
 import {
   SendOutlined,
-  VideoCameraOutlined,
-  AudioOutlined,
   ReloadOutlined,
   DownOutlined,
   SmileOutlined,
   PictureOutlined,
-  CheckOutlined,
-  LoadingOutlined,
-  CheckCircleOutlined,
-  DownloadOutlined,
   FileOutlined,
   FileImageOutlined,
   DeleteOutlined,
   UndoOutlined,
-  MoreOutlined,
-  ShareAltOutlined,
-  CommentOutlined,
   CopyOutlined,
   PushpinOutlined,
   StarOutlined,
@@ -55,17 +43,14 @@ import {
   forwardImageMessage,
 } from "../../../api/API";
 import { useLanguage } from "../../../features/auth/context/LanguageContext";
-import { formatMessageTime } from "../../../utils/dateUtils";
-import { Avatar } from "../../common/Avatar";
 import { DisplayMessage } from "../../../features/chat/types/chatTypes";
 import { useConversationContext } from "../../../features/chat/context/ConversationContext";
 import data from "@emoji-mart/data";
 import Picker from "@emoji-mart/react";
 import socketService from "../../../services/socketService";
 import FileUploader from "./FileUploader";
-import ReactPlayer from "react-player";
 import PinnedMessages from "./PinnedMessages";
-import { ReplyPreview } from "./PreviewReply";
+import MessageDisplay from "./MessageDisplay";
 
 // Chuyển đổi Message từ API sang định dạng tin nhắn cần hiển thị
 
@@ -117,8 +102,7 @@ export function ChatArea({ conversation }: ChatAreaProps) {
     markConversationAsRead, 
     updateConversationWithNewMessage,
     updateUnreadStatus,
-    userCache,
-    conversations
+    userCache
   } = useConversationContext();
   const currentUserId = localStorage.getItem("userId") || "";
   // const [imageInputVisible, setImageInputVisible] = useState(false);
@@ -1781,41 +1765,6 @@ export function ChatArea({ conversation }: ChatAreaProps) {
     }
   };
 
-  // Format date for timestamp separator
-  const formatDateForSeparator = (timestamp: string) => {
-    const date = new Date(timestamp);
-    const today = new Date();
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
-
-    // Check if date is today
-    if (date.toDateString() === today.toDateString()) {
-      return `Hôm nay, ${date.getHours().toString().padStart(2, "0")}:${date.getMinutes().toString().padStart(2, "0")}`;
-    }
-    // Check if date is yesterday
-    else if (date.toDateString() === yesterday.toDateString()) {
-      return `Hôm qua, ${date.getHours().toString().padStart(2, "0")}:${date.getMinutes().toString().padStart(2, "0")}`;
-    }
-    // Otherwise show full date
-    else {
-      return `${date.getDate().toString().padStart(2, "0")}/${(date.getMonth() + 1).toString().padStart(2, "0")}/${date.getFullYear()}, ${date.getHours().toString().padStart(2, "0")}:${date.getMinutes().toString().padStart(2, "0")}`;
-    }
-  };
-
-  // Check if a timestamp separator should be shown between messages
-  const shouldShowTimestampSeparator = (
-    currentMsg: DisplayMessage,
-    prevMsg: DisplayMessage | null
-  ) => {
-    if (!prevMsg) return true; // Always show for first message
-
-    const currentTime = new Date(currentMsg.timestamp).getTime();
-    const prevTime = new Date(prevMsg.timestamp).getTime();
-
-    // Show separator if time difference is 5 minutes (300000 ms) or more
-    return currentTime - prevTime >= 300000;
-  };
-
   // Handle emoji selection
   const handleEmojiSelect = (emoji: any) => {
     setInputValue((prev) => prev + emoji.native);
@@ -1928,57 +1877,6 @@ export function ChatArea({ conversation }: ChatAreaProps) {
     return "received";
   };
   
-  // Enhance the message status indicator
-  const renderMessageStatus = (message: DisplayMessage, isOwn: boolean) => {
-    if (!isOwn) return null;
-    
-    if (message.isError) {
-      return (
-        <span className="text-red-500 text-xs ml-1 flex items-center">
-          <span className="mr-1">⚠️</span>
-          Lỗi
-        </span>
-      );
-    }
-    
-    switch (message.sendStatus) {
-      case 'sending':
-        return (
-          <span className="text-gray-400 text-xs ml-1 flex items-center">
-            <LoadingOutlined className="mr-1" style={{ fontSize: '10px' }} />
-            Đang gửi
-          </span>
-        );
-      case 'sent':
-        return (
-          <span className="text-blue-400 text-xs ml-1 flex items-center">
-            <CheckOutlined className="mr-1" style={{ fontSize: '10px' }} />
-            Đã gửi
-          </span>
-        );
-      case 'delivered':
-        return (
-          <span className="text-blue-400 text-xs ml-1 flex items-center">
-            <span className="mr-1">✓✓</span>
-            Đã nhận
-          </span>
-        );
-      case 'read':
-        return (
-          <span className="text-blue-500 text-xs ml-1 flex items-center">
-            <CheckCircleOutlined className="mr-1" style={{ fontSize: '10px' }} />
-            Đã xem
-          </span>
-        );
-      default:
-        return (
-          <span className="text-blue-400 text-xs ml-1 flex items-center">
-            <CheckOutlined className="mr-1" style={{ fontSize: '10px' }} />
-            Đã gửi
-          </span>
-        );
-    }
-  };
 
   // Thêm hàm xử lý sự kiện paste
   const handlePaste = useCallback((e: ClipboardEvent) => {
@@ -2263,7 +2161,6 @@ export function ChatArea({ conversation }: ChatAreaProps) {
       const result = await getMessages(
         conversation.conversationId,
         cursor,
-        20,
         direction
       );
       
@@ -2708,12 +2605,87 @@ export function ChatArea({ conversation }: ChatAreaProps) {
             {isValidConversation && (
               <FileUploader 
                 conversationId={conversation?.conversationId || ''}
-                onUploadComplete={(result) => {
-                  console.log('File uploaded successfully:', result);
+                onBeforeUpload={(file: File) => {
+                  // Tạo tin nhắn tạm thời cho file
+                  const tempId = `temp-file-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+                  const attachmentObj = {
+                    url: URL.createObjectURL(file),
+                    type: file.type,
+                    name: file.name,
+                    size: file.size,
+                  };
+                  // Xác định loại file
+                  let msgType: 'file' | 'video' | 'audio' | 'image' = 'file';
+                  if (file.type.startsWith('video/')) msgType = 'video';
+                  else if (file.type.startsWith('audio/')) msgType = 'audio';
+                  else if (file.type.startsWith('image/')) msgType = 'image';
+
+                  const tempMessage: DisplayMessage = {
+                    id: tempId,
+                    content: file.name,
+                    timestamp: new Date().toISOString(),
+                    sender: {
+                      id: currentUserId,
+                      name: userCache[currentUserId]?.fullname || 'Bạn',
+                      avatar: userCache[currentUserId]?.urlavatar || '',
+                    },
+                    type: msgType,
+                    isRead: false,
+                    sendStatus: 'sending',
+                    readBy: [],
+                    deliveredTo: [],
+                    fileUrl: attachmentObj.url,
+                    fileName: file.name,
+                    fileSize: file.size,
+                    attachment: attachmentObj,
+                    attachments: [attachmentObj],
+                  };
+                  setMessages((prev) => [...prev, tempMessage]);
+                  scrollToBottomSmooth();
+                  return tempId;
                 }}
-                onUploadError={(error) => {
-                  console.error('File upload error:', error);
-                  message.error('Failed to upload file. Please try again.');
+                onUploadComplete={(result, tempId) => {
+                  // Khi upload xong, thay thế tin nhắn tạm bằng tin nhắn thật
+                  if (!result || !result.messageDetailId) return;
+                  // Xác định loại file từ result.attachment?.type hoặc result.attachments[0]?.type
+                  let msgType: 'file' | 'video' | 'audio' | 'image' = 'file';
+                  const typeStr = result.attachment?.type || (result.attachments && result.attachments[0]?.type) || '';
+                  if (typeStr.startsWith('video/')) msgType = 'video';
+                  else if (typeStr.startsWith('audio/')) msgType = 'audio';
+                  else if (typeStr.startsWith('image/')) msgType = 'image';
+
+                  const realMessage: DisplayMessage = {
+                    id: result.messageDetailId,
+                    content: result.content || result.fileName || '',
+                    timestamp: result.createdAt,
+                    sender: {
+                      id: result.senderId,
+                      name: userCache[result.senderId]?.fullname || 'Bạn',
+                      avatar: userCache[result.senderId]?.urlavatar || '',
+                    },
+                    type: msgType,
+                    isRead: Array.isArray(result.readBy) && result.readBy.length > 0,
+                    readBy: result.readBy || [],
+                    deliveredTo: result.deliveredTo || [],
+                    sendStatus: 'sent',
+                    fileUrl: (result.attachment && result.attachment.url) || (result.attachments && result.attachments[0]?.url) || '',
+                    fileName: (result.attachment && result.attachment.name) || (result.attachments && result.attachments[0]?.name) || result.fileName || '',
+                    fileSize: (result.attachment && result.attachment.size) || (result.attachments && result.attachments[0]?.size) || result.fileSize || 0,
+                    attachment: result.attachment || (result.attachments && result.attachments[0]) || undefined,
+                    attachments: Array.isArray(result.attachments) ? result.attachments : (result.attachments ? [result.attachments] : []),
+                  };
+                  setMessages((prev) => prev.map(msg => msg.id === tempId ? realMessage : msg));
+                  updateConversationWithNewMessage(conversation.conversationId, {
+                    content: realMessage.content,
+                    type: msgType,
+                    createdAt: realMessage.timestamp,
+                    senderId: realMessage.sender.id
+                  });
+                }}
+                onUploadError={(error, tempId) => {
+                  setMessages((prev) => prev.map(msg => msg.id === tempId ? { ...msg, isError: true, sendStatus: undefined } : msg));
+                  message.error('Không thể gửi file. Vui lòng thử lại.');
+                  console.error('Error uploading file:', error);
                 }}
               />
             )}
@@ -3294,32 +3266,6 @@ export function ChatArea({ conversation }: ChatAreaProps) {
     );
   };
 
-  // Add this new component in the ChatArea.tsx file
-  const NotificationMessage = ({ message, onViewClick }: { message: DisplayMessage, onViewClick: () => void }) => {
-    return (
-      <div className="flex justify-center my-2">
-        <div className="flex items-center bg-white rounded-full py-2 px-4 max-w-md border border-gray-100 shadow-sm">
-          <div className="mr-2 text-orange-500">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
-              <path d="M16,12V4H17V2H7V4H8V12L6,14V16H11.2V22H12.8V16H18V14L16,12Z" />
-            </svg>
-          </div>
-          <div className="text-sm text-gray-700 flex-grow">
-            {message.content}
-          </div>
-          {message.content.includes("ghim tin nhắn") && (
-            <button 
-              className="text-blue-500 text-sm font-medium ml-2"
-              onClick={onViewClick}
-            >
-              Xem
-            </button>
-          )}
-        </div>
-      </div>
-    );
-  };
-
   // Add a new function to locate and scroll to a pinned message by ID
   const scrollToPinnedMessage = async (messageId: string) => {
     if (!messageId) {
@@ -3572,107 +3518,6 @@ export function ChatArea({ conversation }: ChatAreaProps) {
     setShowForwardModal(true);
   };
 
-  // Handle send forward message
-  const handleSendForwardMessage = async () => {
-    if (!forwardingMessage || !selectedConversationForForward) {
-      message.error("Cannot forward message: missing conversation or message");
-      return;
-    }
-
-    try {
-      // Xử lý theo loại tin nhắn
-      if (forwardingMessage.type === "image" && forwardingMessage.attachment) {
-        // Forward image message with attachment
-        await forwardImageMessage(
-          forwardingMessage.id,
-          selectedConversationForForward,
-          forwardingMessage.attachment
-        );
-      } else if (forwardingMessage.type === "video" && forwardingMessage.attachment) {
-        // Đặc biệt cho video - tải lại video từ URL và gửi
-        try {
-          // Tải file từ URL
-          const videoResponse = await fetch(forwardingMessage.attachment.url);
-          const videoBlob = await videoResponse.blob();
-          const videoFile = new File(
-            [videoBlob], 
-            forwardingMessage.attachment.name || "forwarded-video.mp4", 
-            { type: 'video/mp4' }
-          );
-          
-          // Gửi qua socketService
-          await socketService.sendFileMessage(selectedConversationForForward, videoFile);
-          
-          message.success("Video forwarded successfully");
-        } catch (videoError) {
-          console.error("Error forwarding video:", videoError);
-          message.error("Failed to forward video");
-        }
-      } else if (forwardingMessage.type === "text-with-image" && forwardingMessage.attachment && forwardingMessage.content) {
-        // Forward text with image using sendMessageWithImage
-        const imageFile = await fetch(forwardingMessage.attachment.url)
-          .then(res => res.blob())
-          .then(blob => new File([blob], forwardingMessage.attachment?.name || "forwarded-image.jpg", { type: blob.type }));
-        
-        await sendMessageWithImage(
-          selectedConversationForForward,
-          forwardingMessage.content,
-          imageFile
-        );
-      } else if (forwardingMessage.type === "file" && forwardingMessage.attachment) {
-        // Forward file message - tải lại file từ URL và gửi
-        try {
-          // Tải file từ URL
-          const fileResponse = await fetch(forwardingMessage.attachment.url);
-          const fileBlob = await fileResponse.blob();
-          const fileObject = new File(
-            [fileBlob], 
-            forwardingMessage.attachment.name || "forwarded-file", 
-            { type: fileBlob.type }
-          );
-          
-          // Gửi qua socketService
-          await socketService.sendFileMessage(selectedConversationForForward, fileObject);
-          
-          message.success("File forwarded successfully");
-        } catch (fileError) {
-          console.error("Error forwarding file:", fileError);
-          message.error("Failed to forward file");
-        }
-      } else if (forwardingMessage.content) {
-        // Forward regular text message
-        await sendMessage(
-          selectedConversationForForward,
-          forwardingMessage.content,
-          "text"
-        );
-      } else {
-        message.error("Cannot forward empty message");
-        return;
-      }
-      
-      setShowForwardModal(false);
-      setForwardingMessage(null);
-      setSelectedConversationForForward(null);
-    } catch (error) {
-      console.error("Error forwarding message:", error);
-      message.error("Failed to forward message");
-    }
-  };
-
-  // Helper function to get the name of the other user in a 1-on-1 conversation
-  const getOtherUserName = (conv: Conversation): string => {
-    const currentUserId = localStorage.getItem('userId') || '';
-    
-    if (conv.isGroup) {
-      return conv.groupName || 'Group Chat';
-    }
-    
-    const otherUserId = conv.creatorId === currentUserId ? conv.receiverId : conv.creatorId;
-    const user = userCache[otherUserId || ''];
-    
-    return user?.fullname || 'User';
-  };
 
   // Thêm hàm để lấy thông tin tin nhắn gốc cho các tin nhắn reply
   const fetchOriginalMessageForReply = async (messageReplyId: string): Promise<ReplyData | null> => {
@@ -4102,379 +3947,23 @@ export function ChatArea({ conversation }: ChatAreaProps) {
             </div>
           )}
           
-          <div className="space-y-3">
-            {messagesToRender.map((message, index) => {
-              if (!message) return null;
-              
-              const isOwn = isOwnMessage(message.sender.id);
-              const showAvatar =
-                !isOwn && shouldShowAvatar();
-              // Chỉ hiển thị tên người gửi trong nhóm, không hiển thị trong chat 1-1
-              const showSender = showAvatar && conversation.isGroup;
-
-              // Determine if timestamp separator should be shown
-              const prevMessage = index > 0 ? messages[index - 1] : null;
-              const showTimestamp = shouldShowTimestampSeparator(
-                message,
-                prevMessage
-              );
-
-              // Determine if this is the last message in a sequence from this sender
-              // Show timestamp only for the last message in a sequence
-              const nextMessage =
-                index < messages.length - 1 ? messages[index + 1] : null;
-              const isLastInSequence =
-                !nextMessage || // It's the last message overall
-                nextMessage.sender.id !== message.sender.id || // Next message is from different sender
-                shouldShowTimestampSeparator(nextMessage, message); // There's a time separator after this message
-              
-              // Determine if this is the last message from the current user in the conversation
-              const isLastMessageFromUser = isOwn && 
-                messages.findIndex((msg, i) => i > index && msg.sender.id === currentUserId) === -1;
-
-              // If message is a notification, render it with the NotificationMessage component
-              if (message.type === "notification") {
-                return (
-                  <React.Fragment key={`${message.id}-${index}`}>
-                    {/* Timestamp separator */}
-                    {showTimestamp && (
-                      <div className="flex justify-center my-2">
-                        <div className="bg-gray-200 text-gray-600 text-xs px-3 py-1 rounded-full">
-                          {formatDateForSeparator(message.timestamp)}
-                        </div>
-                      </div>
-                    )}
-                    
-                    <NotificationMessage 
-                      message={message} 
-                      onViewClick={() => {
-                        // Find the pinned message ID from the message's attachment URL if available
-                        const pinnedMessageId = message.attachment?.url || "";
-                        scrollToPinnedMessage(pinnedMessageId);
-                      }}
-                    />
-                  </React.Fragment>
-                );
-              }
-
-              return (
-                <React.Fragment key={`${message.id}-${index}`}>
-                  {/* Timestamp separator */}
-                  {showTimestamp && (
-                    <div className="flex justify-center my-2">
-                      <div className="bg-gray-200 text-gray-600 text-xs px-3 py-1 rounded-full">
-                        {formatDateForSeparator(message.timestamp)}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Message bubble */}
-                  <div
-                    className={`flex mb-2 ${isOwn ? "justify-end" : "justify-start"}`}
-                    id={`message-${message.id}`}
-                  >
-                    {!isOwn && (
-                      <div
-                        className="flex-shrink-0 mr-2"
-                      >
-                      <Avatar 
-                        name={message.sender.name}
-                        avatarUrl={userCache[message.sender.id]?.urlavatar || ''}
-                        size={30}
-                        className="rounded-full"
-                      />
-                      </div>
-                    )}
-                    
-                    <div
-                      className="flex flex-col relative group"
-                      style={{ maxWidth: "min(80%)" }}
-                    >
-                    {/* Hover message controls */}
-                    <div 
-                      className={`absolute right-0 top-0 -mt-8 ${activeMessageMenu === message.id ? 'flex' : 'hidden group-hover:flex'} items-center space-x-1 bg-white rounded-lg shadow-md px-1 py-0.5 z-10 message-hover-controls ${activeMessageMenu === message.id ? 'active' : ''}`}
-                    >
-                      <Tooltip title="Trả lời">
-                        <Button 
-                          type="text" 
-                          size="small" 
-                          icon={<CommentOutlined />} 
-                          className="text-gray-500 hover:text-blue-500"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            e.preventDefault();
-                            setActiveMessageMenu(message.id);
-                            handleReplyMessage(message);
-                          }}
-                        />
-                      </Tooltip>
-                      <Tooltip title="Chia sẻ">
-                        <Button 
-                          type="text" 
-                          size="small" 
-                          icon={<ShareAltOutlined />} 
-                          className="text-gray-500 hover:text-blue-500"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            e.preventDefault();
-                            setActiveMessageMenu(message.id);
-                            handleForwardMessage(message);
-                          }}
-                        />
-                      </Tooltip>
-                      <Tooltip title="Tùy chọn khác">
-                        <Dropdown 
-                          overlay={getMessageMenu(message)} 
-                          trigger={['click']} 
-                          placement="bottomRight"
-                          overlayClassName="message-dropdown-overlay"
-                          visible={dropdownVisible[message.id] || false}
-                          onVisibleChange={(visible) => {
-                            setDropdownVisible(prev => ({
-                              ...prev,
-                              [message.id]: visible
-                            }));
-                            
-                            if (visible) {
-                              setActiveMessageMenu(message.id);
-                            } else {
-                              // Don't clear activeMessageMenu immediately to allow 
-                              // for smooth transitions between options
-                              setTimeout(() => {
-                                if (activeMessageMenu === message.id) {
-                                  setActiveMessageMenu(null);
-                                }
-                              }, 200);
-                            }
-                          }}
-                        >
-                          <Button 
-                            type="text" 
-                            size="small" 
-                            icon={<MoreOutlined />} 
-                            className="text-gray-500 hover:text-blue-500"
-                            loading={messageActionLoading === message.id}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                            }}
-                          />
-                        </Dropdown>
-                      </Tooltip>
-                    </div>
-                    
-                    {showSender && !isOwn && (
-                        <div className="text-xs mb-1 ml-1 text-gray-600 truncate">
-                        {message.sender.name}
-                      </div>
-                    )}
-                    
-                    {/* Add Reply Preview here */}
-                    {message.isReply && message.replyData && (
-                      <div className="mb-1 rounded-t-md overflow-hidden">
-                        <div className={`${isOwn ? 'bg-blue-400' : 'bg-gray-200'} bg-opacity-60 rounded-t-md`}>
-                          <ReplyPreview
-                            replyData={message.replyData}
-                            isOwnMessage={isOwn}
-                            messageReplyId={message.messageReplyId}
-                            onReplyClick={(msgId: string) => {
-                              setTimeout(() => scrollToPinnedMessage(msgId), 0);
-                            }}
-                          />
-                        </div>
-                      </div>
-                    )}
-                    
-                    <div 
-                      className={`px-3 py-2 rounded-2xl ${
-                        isOwn 
-                            ? message.isError
-                              ? "bg-red-100 text-red-800"
-                              : "bg-blue-500 text-white rounded-tr-none"
-                            : "bg-gray-100 text-gray-800 rounded-tl-none"
-                        } overflow-hidden ${message.isReply ? 'rounded-tl-none rounded-tr-none' : ''}`}
-                        style={{ wordBreak: "break-word", maxWidth: "100%" }}
-                        onClick={() => setActiveMessageMenu(message.id)}
-                    >
-                      {/* Hiển thị nội dung tin nhắn */}
-                      {message.isRecall ? (
-                        // Nội dung tin nhắn đã thu hồi
-                        <div className={`text-xs italic ${isOwn ? 'text-blue-200' : 'text-gray-500'}`}>
-                          Tin nhắn đã bị thu hồi
-                        </div>
-                      ) : message.type === "image" ? (
-                        // Tin nhắn hình ảnh
-                        <div className="relative">
-                          <img
-                            src={message.fileUrl || message.content}
-                            alt="Hình ảnh"
-                            className="max-w-full max-h-60 rounded-lg cursor-pointer"
-                            onClick={() => handleImagePreview(message.fileUrl || message.content)}
-                            onError={(e) => {
-                              e.currentTarget.onerror = null; 
-                              e.currentTarget.src = '/images/image-placeholder.png';
-                            }}
-                          />
-                          <div className="text-right mt-1">
-                            <Button 
-                              type="primary" 
-                              size="small" 
-                              icon={<DownloadOutlined />}
-                              onClick={() => handleDownloadFile(message.fileUrl || message.content, "image")}
-                              className="inline-flex items-center text-xs shadow-sm"
-                            >
-                            </Button>
-                          </div>
-                        </div>
-                      ) : message.type === "text-with-image" ? (
-                        // Tin nhắn văn bản kèm hình ảnh
-                        <div className="flex flex-col">
-                          <p className="text-sm whitespace-pre-wrap break-words mb-2">
-                            {message.content}
-                          </p>
-                          <div className="relative">
-                            <img
-                              src={message.fileUrl || 
-                                (message.attachments && message.attachments.length > 0 
-                                  ? message.attachments[0].url 
-                                  : message.attachment?.url || undefined)}
-                              alt="Hình ảnh đính kèm"
-                              className="max-w-full max-h-60 rounded-lg cursor-pointer"
-                              onClick={() => handleImagePreview(message.fileUrl || 
-                                (message.attachments && message.attachments.length > 0 
-                                  ? message.attachments[0].url 
-                                  : message.attachment?.url || ''))}
-                              onError={(e) => {
-                                e.currentTarget.onerror = null; 
-                                e.currentTarget.src = '/images/image-placeholder.png';
-                              }}
-                            />
-                            <div className="text-right mt-1">
-                              <Button 
-                                type="primary" 
-                                size="small" 
-                                icon={<DownloadOutlined />}
-                                onClick={() => handleDownloadFile(
-                                  message.fileUrl || 
-                                  (message.attachments && message.attachments.length > 0 
-                                    ? message.attachments[0].downloadUrl || message.attachments[0].url
-                                    : message.attachment?.downloadUrl || message.attachment?.url),
-                                  message.fileName || message.attachment?.name || "image"
-                                )}
-                                className="inline-flex items-center text-xs shadow-sm"
-                              >
-                              </Button>
-                            </div>
-                          </div>
-                        </div>
-                      ) : message.type === "file" ? (
-                        // File message
-                        <div className="flex items-center gap-2 bg-gray-50 p-2 rounded-lg">
-                          <div className="text-xl mr-2">
-                            {message.attachment?.type?.startsWith('image/') ? (
-                              <FileImageOutlined className="text-blue-500" />
-                            ) : message.attachment?.type?.startsWith('audio/') ? (
-                              <AudioOutlined className="text-green-500" />
-                            ) : message.attachment?.type?.startsWith('video/') ? (
-                              <VideoCameraOutlined className="text-purple-500" />
-                            ) : (
-                              <FileOutlined className="text-gray-500" />
-                            )}
-                          </div>
-                          <div className="flex-grow">
-                            <div className="text-sm font-medium truncate">
-                              {message.fileName || message.attachment?.name || message.content}
-                            </div>
-                            <div className="text-xs text-gray-500">
-                              {message.fileSize ? 
-                                `${Math.round(message.fileSize / 1024)} KB` : 
-                                message.attachment?.size ? 
-                                `${Math.round(message.attachment.size / 1024)} KB` : ""}
-                            </div>
-                          </div>
-                          <Button 
-                            type="primary"
-                            size="small"
-                            icon={<DownloadOutlined />}
-                            onClick={() => handleDownloadFile(
-                              message.fileUrl || message.attachment?.downloadUrl || message.attachment?.url, 
-                              message.fileName || message.attachment?.name || "file"
-                            )}
-                            className="inline-flex items-center text-xs shadow-sm ml-2"
-                          >
-                          </Button>
-                        </div>
-                      ) : message.type === "video" ? (
-                        // Video message
-                        <div className="relative">
-                          <div className="video-player-container rounded-lg overflow-hidden" style={{ maxWidth: '300px' }}>
-                            <ReactPlayer
-                              url={message.fileUrl || (message.attachment && message.attachment.url) || ''}
-                              width="100%"
-                              height="auto"
-                              controls={true}
-                              light={message.attachment && message.attachment.thumbnail ? message.attachment.thumbnail : true}
-                              pip={false}
-                              playing={false}
-                              className="video-player"
-                              config={{
-                                file: {
-                                  attributes: {
-                                    controlsList: 'nodownload',
-                                    onContextMenu: (e: React.MouseEvent) => e.preventDefault(),
-                                  },
-                                },
-                              }}
-                            />
-                          </div>
-                          <div className="text-right mt-1">
-                            <Button 
-                              type="primary" 
-                              size="small" 
-                              icon={<DownloadOutlined />}
-                              onClick={() => handleDownloadFile(
-                                message.fileUrl || message.attachment?.downloadUrl || message.attachment?.url, 
-                                message.fileName || message.attachment?.name || "video"
-                              )}
-                              className="inline-flex items-center text-xs shadow-sm"
-                            >
-                            </Button>
-                          </div>
-                        </div>
-                      ) : (
-                        // Text message (default)
-                        <div className="relative">
-                          <p className="text-sm whitespace-pre-wrap break-words">
-                            {message.content}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                    
-                      {/* Only show timestamp for the last message in a sequence */}
-                      {isLastInSequence && (
-                        <div
-                          className={`flex text-xs text-gray-500 mt-1 ${isOwn ? "justify-end items-center" : "justify-start"}`}
-                        >
-                      <span>{formatMessageTime(message.timestamp)}</span>
-                      {/* Show status indicator for all message types except recalled */}
-                      {isOwn && !message.isRecall && (
-                        <span className="ml-2">
-                          {message.sendStatus === "read" ? 
-                            (isLastMessageFromUser ? renderMessageStatus(message, isOwn) : 
-                             <span className="text-blue-400 text-xs flex items-center">
-                               <CheckOutlined className="mr-1" style={{ fontSize: '10px' }} />
-                             </span>) : 
-                            renderMessageStatus(message, isOwn)
-                          }
-                        </span>
-                      )}
-                    </div>
-                      )}
-                  </div>
-                </div>
-                </React.Fragment>
-              );
-            })}
+          <MessageDisplay
+            messages={messagesToRender}
+            currentUserId={currentUserId}
+            conversation={conversation}
+            userCache={userCache}
+            handleImagePreview={handleImagePreview}
+            handleDownloadFile={handleDownloadFile}
+            handleReplyMessage={handleReplyMessage}
+            handleForwardMessage={handleForwardMessage}
+            scrollToPinnedMessage={scrollToPinnedMessage}
+            getMessageMenu={getMessageMenu}
+            messageActionLoading={messageActionLoading}
+            activeMessageMenu={activeMessageMenu}
+            setActiveMessageMenu={setActiveMessageMenu}
+            dropdownVisible={dropdownVisible}
+            setDropdownVisible={setDropdownVisible}
+          />
             <div ref={messagesEndRef} />
           </div>
 
@@ -4561,245 +4050,5 @@ export function ChatArea({ conversation }: ChatAreaProps) {
           </div>
         )}
       </div>
-      
-      {/* CSS cho trạng thái typing */}
-      <style>
-        {`
-        .typing-animation {
-          display: inline-flex;
-          align-items: center;
-          margin-left: 5px;
-        }
-        
-        .typing-animation .dot {
-          display: inline-block;
-          width: 3px;
-          height: 3px;
-          border-radius: 50%;
-          margin: 0 1px;
-          background: #888;
-          animation: bounce 1.4s infinite ease-in-out both;
-        }
-        
-        .typing-animation .dot:nth-child(1) {
-          animation-delay: -0.32s;
-        }
-        
-        .typing-animation .dot:nth-child(2) {
-          animation-delay: -0.16s;
-        }
-        
-        @keyframes bounce {
-          0%, 80%, 100% { transform: scale(0); }
-          40% { transform: scale(1); }
-        }
-
-        .chat-input-container {
-          background-color: white;
-          border-top: 1px solid #eee;
-          padding: 8px;
-        }
-
-        .emoji-picker-container {
-          position: relative;
-        }
-
-        .emoji-picker-container .emoji-picker {
-          position: absolute;
-          bottom: 40px;
-          left: 0;
-          z-index: 100;
-          box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-          border-radius: 8px;
-          overflow: hidden;
-        }
-        
-        /* Message hover controls styles */
-        .group:hover .hidden.group-hover\\:flex {
-          display: flex !important;
-        }
-        
-        .message-options-menu .ant-dropdown-menu-item.text-red-500 {
-          color: #ef4444;
-        }
-        
-        .message-options-menu .ant-dropdown-menu-item.text-red-500:hover {
-          color: #b91c1c;
-          background-color: rgba(239, 68, 68, 0.1);
-        }
-        
-        .message-options-menu .ant-dropdown-menu-item {
-          padding: 8px 12px;
-        }
-        
-        /* Message dropdown overlay styles */
-        .message-dropdown-overlay .ant-dropdown-menu {
-          padding: 4px 0;
-          border-radius: 8px;
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-        }
-        
-        .message-dropdown-overlay .ant-dropdown-menu-item {
-          min-width: 180px;
-        }
-        
-        .message-dropdown-overlay .ant-dropdown-menu-item .anticon {
-          margin-right: 10px;
-        }
-        
-        .ant-dropdown-menu-item-divider {
-          margin: 4px 0;
-        }
-
-        /* Improve hover control persistence */
-        .message-hover-controls {
-          opacity: 0;
-          transition: opacity 0.2s ease-in-out, transform 0.2s ease-in-out;
-          transform: translateY(2px);
-          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-        }
-        
-        .group:hover .message-hover-controls {
-          opacity: 1;
-          transform: translateY(0);
-        }
-        
-        .message-hover-controls:hover,
-        .message-hover-controls.active {
-          opacity: 1;
-          transform: translateY(0);
-          box-shadow: 0 4px 8px -2px rgba(0, 0, 0, 0.1), 0 2px 6px -2px rgba(0, 0, 0, 0.1);
-        }
-
-        /* Add hover effect to the buttons */
-        .message-hover-controls .ant-btn {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          width: 28px;
-          height: 28px;
-          padding: 0;
-          border-radius: 50%;
-          transition: background-color 0.2s ease-in-out;
-        }
-
-        .message-hover-controls .ant-btn:hover {
-          background-color: rgba(0, 0, 0, 0.05);
-        }
-        
-        /* Make buttons in hover controls stay visible when clicked */
-        .message-hover-controls .ant-btn:active,
-        .message-hover-controls .ant-btn:focus {
-          background-color: rgba(0, 0, 0, 0.1);
-        }
-        `}
-      </style>
-      
-      {/* Add highlight animation styles */}
-      <style>
-        {`
-        @keyframes highlight {
-          0% { background-color: rgba(255, 224, 102, 0.9); box-shadow: 0 0 8px rgba(255, 224, 102, 0.8); }
-          50% { background-color: rgba(255, 224, 102, 0.7); box-shadow: 0 0 5px rgba(255, 224, 102, 0.6); }
-          100% { background-color: transparent; box-shadow: none; }
-        }
-        
-        .highlight-message {
-          animation: highlight 2s ease-in-out;
-          transition: background-color 0.5s, box-shadow 0.5s;
-          border-radius: 8px;
-          z-index: 1;
-        }
-        `}
-      </style>
-      
-      {/* Image preview modal */}
-      <Modal
-        open={isImageModalOpen}
-        footer={null}
-        onCancel={closeImageModal}
-        centered
-        className="image-viewer-modal"
-        width="auto"
-        bodyStyle={{ padding: 0, maxHeight: '90vh', overflow: 'hidden' }}
-        style={{ maxWidth: '90vw' }}
-        maskStyle={{ background: 'rgba(0, 0, 0, 0.85)' }}
-      >
-        {selectedImage && (
-          <div className="relative">
-            <img 
-              src={selectedImage} 
-              alt="Enlarged view" 
-              className="max-h-[90vh] max-w-[90vw] object-contain"
-              onError={(e) => {
-                e.currentTarget.onerror = null;
-                e.currentTarget.src = '/images/image-placeholder.png';
-              }}
-            />
-          </div>
-        )}
-      </Modal>
-
-      {/* Forward message modal */}
-      {showForwardModal && (
-        <Modal
-          title="Chuyển tiếp tin nhắn"
-          open={showForwardModal}
-          onCancel={() => setShowForwardModal(false)}
-          footer={[
-            <Button key="cancel" onClick={() => setShowForwardModal(false)}>
-              Hủy
-            </Button>,
-            <Button
-              key="forward"
-              type="primary"
-              onClick={handleSendForwardMessage}
-              disabled={!selectedConversationForForward}
-            >
-              Chuyển tiếp
-            </Button>
-          ]}
-        >
-          <div className="mb-4">
-            <div className="font-semibold mb-2">Chọn cuộc trò chuyện:</div>
-            <Select
-              style={{ width: '100%' }}
-              placeholder="Chọn người nhận"
-              onChange={(value) => setSelectedConversationForForward(value)}
-            >
-              {conversations
-                .filter((conv: Conversation) => conv.conversationId !== conversation?.conversationId)
-                .map((conv: Conversation) => {
-                  const name = conv.isGroup 
-                    ? conv.groupName 
-                    : getOtherUserName(conv);
-                  return (
-                    <Select.Option key={conv.conversationId} value={conv.conversationId}>
-                      {name}
-                    </Select.Option>
-                  );
-                })
-              }
-            </Select>
-          </div>
-          
-          <div className="border rounded p-3 bg-gray-50">
-            <div className="text-sm text-gray-500 mb-1">Tin nhắn gốc:</div>
-            {forwardingMessage?.type === 'image' && forwardingMessage.attachment && (
-              <div className="mb-2">
-                <img 
-                  src={forwardingMessage.attachment.url} 
-                  alt="Forward attachment" 
-                  className="max-h-40 rounded"
-                />
-              </div>
-            )}
-            {forwardingMessage?.content && (
-              <div className="text-sm">{forwardingMessage.content}</div>
-            )}
-          </div>
-        </Modal>
-      )}
-    </div>
   );
 }

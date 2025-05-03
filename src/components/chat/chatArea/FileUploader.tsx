@@ -14,27 +14,30 @@ import {
   VideoCameraOutlined,
   AudioOutlined
 } from '@ant-design/icons';
-import cloudinaryService, { formatFileSize } from '../../../services/cloudinaryService';
+import { formatFileSize } from '../../../services/cloudinaryService';
 import socketService from '../../../services/socketService';
 import './FileUploader.css';
 
 interface FileUploaderProps {
   conversationId: string;
   onUploadStart?: () => void;
-  onUploadComplete?: (result: any) => void;
-  onUploadError?: (error: Error) => void;
+  onUploadComplete?: (result: any, tempId?: string) => void;
+  onUploadError?: (error: Error, tempId?: string) => void;
+  onBeforeUpload?: (file: File) => string | undefined;
 }
 
 const FileUploader: React.FC<FileUploaderProps> = ({
   conversationId,
   onUploadStart,
   onUploadComplete,
-  onUploadError
+  onUploadError,
+  onBeforeUpload
 }) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploading, setUploading] = useState(false);
+  const [tempId, setTempId] = useState<string | undefined>(undefined);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // File type icons mapping
@@ -97,6 +100,12 @@ const FileUploader: React.FC<FileUploaderProps> = ({
   const uploadFile = async () => {
     if (!selectedFile || !conversationId) return;
 
+    let generatedTempId: string | undefined = undefined;
+    if (onBeforeUpload) {
+      generatedTempId = onBeforeUpload(selectedFile);
+      setTempId(generatedTempId);
+    }
+
     try {
       setUploading(true);
       onUploadStart?.();
@@ -117,11 +126,11 @@ const FileUploader: React.FC<FileUploaderProps> = ({
       
       message.success(`${selectedFile.name} uploaded successfully`);
       clearSelectedFile();
-      onUploadComplete?.(result);
+      onUploadComplete?.(result, generatedTempId);
     } catch (error) {
       console.error('Error uploading file:', error);
       message.error(`Failed to upload ${selectedFile.name}. Please try again.`);
-      onUploadError?.(error as Error);
+      onUploadError?.(error as Error, generatedTempId);
     } finally {
       setUploading(false);
     }
