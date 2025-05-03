@@ -51,6 +51,7 @@ import socketService from "../../../services/socketService";
 import FileUploader from "./FileUploader";
 import PinnedMessages from "./PinnedMessages";
 import MessageDisplay from "./MessageDisplay";
+import ChatInputArea from "./ChatInputArea";
 
 // Chuyển đổi Message từ API sang định dạng tin nhắn cần hiển thị
 
@@ -2510,283 +2511,7 @@ export function ChatArea({ conversation }: ChatAreaProps) {
     loadMoreMessages,
   ]);
 
-  const renderInputArea = () => {
-    return (
-      <div className="chat-input-container bg-white border-t border-gray-200">
-        {/* Display pasted image if any */}
-        {pastedImage && pastedImagePreview && (
-          <div className="pasted-image-preview p-2 border-b border-gray-100 flex items-center">
-            <div className="relative">
-              <img src={pastedImagePreview} alt="Pasted" className="h-16 rounded object-cover" />
-              <button
-                className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs"
-                onClick={handleRemovePastedImage}
-              >
-                ×
-              </button>
-            </div>
-            <div className="ml-2 text-xs text-gray-600">
-              <div>Ảnh đã dán</div>
-              <div className="text-blue-500">Sẽ được gửi cùng với tin nhắn</div>
-            </div>
-          </div>
-        )}
-
-        {/* Reply indicator */}
-        {replyingToMessage && (
-          <div className="reply-indicator p-2 border-b border-gray-100 flex items-center">
-            <div className="flex-grow flex items-start">
-              <div className="w-1 bg-blue-500 self-stretch mr-2"></div>
-              <div className="flex-grow">
-                <div className="font-medium text-sm text-blue-600">
-                  Đang trả lời {replyingToMessage.sender.name}
-                </div>
-                <div className="text-xs text-gray-600 truncate max-w-xs">
-                  {replyingToMessage.type === 'image' ? (
-                    <div className="flex items-center">
-                      <FileImageOutlined className="mr-1" />
-                      <span>Hình ảnh</span>
-                    </div>
-                  ) : replyingToMessage.type === 'file' ? (
-                    <div className="flex items-center">
-                      <FileOutlined className="mr-1" />
-                      <span>{replyingToMessage.fileName || "Tập tin"}</span>
-                    </div>
-                  ) : (
-                    replyingToMessage.content
-                  )}
-                </div>
-              </div>
-            </div>
-            <button
-              className="ml-2 text-gray-400 hover:text-gray-600 p-1"
-              onClick={handleCancelReply}
-              aria-label="Cancel reply"
-            >
-              <svg 
-                viewBox="0 0 24 24" 
-                width="16" 
-                height="16" 
-                stroke="currentColor" 
-                strokeWidth="2" 
-                fill="none"
-              >
-                <line x1="18" y1="6" x2="6" y2="18"></line>
-                <line x1="6" y1="6" x2="18" y2="18"></line>
-              </svg>
-            </button>
-          </div>
-        )}
-
-        {/* Main input area */}
-        <div className="flex items-center p-2">
-          {/* Input field */}
-          <div className="flex-grow">
-            <Input
-              ref={inputRef}
-              className="w-full py-2 px-2 bg-gray-100 rounded-2xl border-none focus:shadow-none"
-              placeholder={
-                isUploading
-                  ? "Đang tải lên..."
-                  : replyingToMessage
-                  ? `Trả lời ${replyingToMessage.sender.name}`
-                  : `Nhắn @, tin nhắn tới ${conversation?.isGroup ? conversation.groupName : "Bạn"}`
-              }
-              bordered={false}
-              disabled={isUploading}
-              value={inputValue}
-              onChange={handleInputChange}
-              onPressEnter={handleKeyPress}
-            />
-          </div>
-
-          {/* File attachment button */}
-          <div className="flex-shrink-0 mr-2">
-            {isValidConversation && (
-              <FileUploader 
-                conversationId={conversation?.conversationId || ''}
-                onBeforeUpload={(file: File) => {
-                  // Tạo tin nhắn tạm thời cho file
-                  const tempId = `temp-file-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-                  const attachmentObj = {
-                    url: URL.createObjectURL(file),
-                    type: file.type,
-                    name: file.name,
-                    size: file.size,
-                  };
-                  // Xác định loại file
-                  let msgType: 'file' | 'video' | 'audio' | 'image' = 'file';
-                  if (file.type.startsWith('video/')) msgType = 'video';
-                  else if (file.type.startsWith('audio/')) msgType = 'audio';
-                  else if (file.type.startsWith('image/')) msgType = 'image';
-
-                  const tempMessage: DisplayMessage = {
-                    id: tempId,
-                    content: file.name,
-                    timestamp: new Date().toISOString(),
-                    sender: {
-                      id: currentUserId,
-                      name: userCache[currentUserId]?.fullname || 'Bạn',
-                      avatar: userCache[currentUserId]?.urlavatar || '',
-                    },
-                    type: msgType,
-                    isRead: false,
-                    sendStatus: 'sending',
-                    readBy: [],
-                    deliveredTo: [],
-                    fileUrl: attachmentObj.url,
-                    fileName: file.name,
-                    fileSize: file.size,
-                    attachment: attachmentObj,
-                    attachments: [attachmentObj],
-                  };
-                  setMessages((prev) => [...prev, tempMessage]);
-                  scrollToBottomSmooth();
-                  return tempId;
-                }}
-                onUploadComplete={(result, tempId) => {
-                  // Khi upload xong, thay thế tin nhắn tạm bằng tin nhắn thật
-                  if (!result || !result.messageDetailId) return;
-                  // Xác định loại file từ result.attachment?.type hoặc result.attachments[0]?.type
-                  let msgType: 'file' | 'video' | 'audio' | 'image' = 'file';
-                  const typeStr = result.attachment?.type || (result.attachments && result.attachments[0]?.type) || '';
-                  if (typeStr.startsWith('video/')) msgType = 'video';
-                  else if (typeStr.startsWith('audio/')) msgType = 'audio';
-                  else if (typeStr.startsWith('image/')) msgType = 'image';
-
-                  const realMessage: DisplayMessage = {
-                    id: result.messageDetailId,
-                    content: result.content || result.fileName || '',
-                    timestamp: result.createdAt,
-                    sender: {
-                      id: result.senderId,
-                      name: userCache[result.senderId]?.fullname || 'Bạn',
-                      avatar: userCache[result.senderId]?.urlavatar || '',
-                    },
-                    type: msgType,
-                    isRead: Array.isArray(result.readBy) && result.readBy.length > 0,
-                    readBy: result.readBy || [],
-                    deliveredTo: result.deliveredTo || [],
-                    sendStatus: 'sent',
-                    fileUrl: (result.attachment && result.attachment.url) || (result.attachments && result.attachments[0]?.url) || '',
-                    fileName: (result.attachment && result.attachment.name) || (result.attachments && result.attachments[0]?.name) || result.fileName || '',
-                    fileSize: (result.attachment && result.attachment.size) || (result.attachments && result.attachments[0]?.size) || result.fileSize || 0,
-                    attachment: result.attachment || (result.attachments && result.attachments[0]) || undefined,
-                    attachments: Array.isArray(result.attachments) ? result.attachments : (result.attachments ? [result.attachments] : []),
-                  };
-                  setMessages((prev) => prev.map(msg => msg.id === tempId ? realMessage : msg));
-                  updateConversationWithNewMessage(conversation.conversationId, {
-                    content: realMessage.content,
-                    type: msgType,
-                    createdAt: realMessage.timestamp,
-                    senderId: realMessage.sender.id
-                  });
-                }}
-                onUploadError={(error, tempId) => {
-                  setMessages((prev) => prev.map(msg => msg.id === tempId ? { ...msg, isError: true, sendStatus: undefined } : msg));
-                  message.error('Không thể gửi file. Vui lòng thử lại.');
-                  console.error('Error uploading file:', error);
-                }}
-              />
-            )}
-          </div>
-          
-          {/* Image button */}
-          <div className="flex-shrink-0 mr-2">
-            <Tooltip title="Gửi hình ảnh">
-              <Button
-                type="text"
-                icon={<PictureOutlined />}
-                onClick={handleImageClick}
-                disabled={!isValidConversation}
-              />
-            </Tooltip>
-          </div>
-          
-          {/* Emoji picker button */}
-          <div className="emoji-picker-container flex-shrink-0 relative mr-2">
-            <Button 
-              type="text" 
-              icon={<SmileOutlined />} 
-              onClick={toggleEmojiPicker} 
-              className="emoji-button"
-            />
-            {emojiPickerVisible && (
-              <div className="emoji-picker absolute bottom-12 left-0 z-10 shadow-lg rounded-lg bg-white emoji-picker-container" style={{ width: '320px', height: '350px', zIndex: 5050,left: 'auto', right: '10px' }}>
-                <Picker 
-                  data={data} 
-                  onEmojiSelect={handleEmojiSelect} 
-                  theme="light"
-                  previewPosition="none"
-                />
-              </div>
-            )}
-          </div>
-          
-          {/* Like/Send button */}
-          <div className="flex-shrink-0 ml-2">
-            {inputValue.trim() || attachments.length > 0 || pastedImage ? (
-              <Button
-                type="primary"
-                shape="circle"
-                icon={<SendOutlined />}
-                onClick={replyingToMessage ? handleSendReplyMessage : handleSendMessage}
-                disabled={!isValidConversation}
-              />
-            ) : (
-              <Button
-                type="primary" 
-                shape="circle"
-                icon={
-                  <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" strokeWidth="2" fill="none">
-                    <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"></path>
-                  </svg>
-                }
-                onClick={handleSendLike}
-                disabled={!isValidConversation}
-              />
-            )}
-          </div>
-        </div>
-        
-        {/* Hidden file inputs */}
-        <input
-          type="file"
-          ref={fileInputRef}
-          onChange={handleFileChange}
-          className="hidden"
-          multiple
-          accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
-          aria-label="Tải lên tập tin đính kèm"
-        />
-        <input
-          type="file"
-          ref={imageInputRef}
-          onChange={handleFileChange}
-          className="hidden"
-          accept="image/*"
-          aria-label="Tải lên hình ảnh"
-        />
-        <input
-          type="file"
-          ref={videoInputRef}
-          onChange={handleFileChange}
-          className="hidden"
-          accept="video/*"
-          aria-label="Tải lên video"
-        />
-        <input
-          type="file"
-          ref={audioInputRef}
-          onChange={handleFileChange}
-          className="hidden"
-          accept="audio/*"
-          aria-label="Tải lên ghi âm"
-        />
-      </div>
-    );
-  };
-
+  
   // Function to handle sending a "like" message
   const handleSendLike = async () => {
     if (!isValidConversation) return;
@@ -2998,12 +2723,6 @@ export function ChatArea({ conversation }: ChatAreaProps) {
     </Menu>
   );
 
-  // Render recalled message
-  // const renderRecalledMessage = (isOwn: boolean) => (
-  //   <div className={`text-xs italic ${isOwn ? 'text-blue-200' : 'text-gray-500'}`}>
-  //     Tin nhắn đã bị thu hồi
-  //   </div>
-  // );
 
   // Add a click event handler to the document to close active menu when clicking outside
   useEffect(() => {
@@ -4014,40 +3733,126 @@ export function ChatArea({ conversation }: ChatAreaProps) {
         
         {/* Khu vực nhập tin nhắn (ẩn nếu không tìm thấy cuộc trò chuyện) */}
         {!notFound && (
-          <div className="flex-shrink-0 border-t border-gray-100 bg-white">
-            {/* Hiển thị danh sách tập tin đính kèm */}
-            {attachments.length > 0 && (
-              <div className="flex flex-wrap gap-2 p-2 border-b border-gray-100">
-                {attachments.map((file, index) => (
-                  <div
-                    key={index}
-                    className="flex items-center gap-1 bg-gray-100 rounded px-2 py-1"
-                  >
-                    {file.type.startsWith("image/") ? (
-                      <img
-                        src={URL.createObjectURL(file)}
-                        alt={file.name}
-                        className="w-10 h-10 object-cover rounded"
-                      />
-                    ) : (
-                      <i className="fas fa-file text-gray-500"></i>
-                    )}
-                    <span className="text-xs truncate max-w-32">
-                      {file.name}
-                    </span>
-                    <button
-                      onClick={() => handleRemoveAttachment(index)}
-                      className="text-gray-500 hover:text-red-500"
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {renderInputArea()}
-          </div>
+          <ChatInputArea
+            conversationId={conversation?.conversationId || ''}
+            currentUserId={currentUserId}
+            userCache={userCache}
+            sendMessage={sendMessage}
+            sendImageMessage={sendImageMessage}
+            replyMessage={replyMessage}
+            updateConversationWithNewMessage={updateConversationWithNewMessage}
+            scrollToBottomSmooth={scrollToBottomSmooth}
+            isValidConversation={isValidConversation}
+            t={t}
+            attachments={attachments}
+            setAttachments={setAttachments}
+            pastedImage={pastedImage}
+            setPastedImage={setPastedImage}
+            pastedImagePreview={pastedImagePreview}
+            setPastedImagePreview={setPastedImagePreview}
+            replyingToMessage={replyingToMessage}
+            setReplyingToMessage={setReplyingToMessage}
+            inputValue={inputValue}
+            setInputValue={setInputValue}
+            isUploading={isUploading}
+            setIsUploading={setIsUploading}
+            emojiPickerVisible={emojiPickerVisible}
+            setEmojiPickerVisible={setEmojiPickerVisible}
+            inputRef={inputRef}
+            fileInputRef={fileInputRef}
+            imageInputRef={imageInputRef}
+            videoInputRef={videoInputRef}
+            audioInputRef={audioInputRef}
+            handleSendMessage={handleSendMessage}
+            handleSendReplyMessage={handleSendReplyMessage}
+            handleSendLike={handleSendLike}
+            handleRemoveAttachment={handleRemoveAttachment}
+            handleRemovePastedImage={handleRemovePastedImage}
+            handleFileChange={handleFileChange}
+            handleImageClick={handleImageClick}
+            handleEmojiSelect={handleEmojiSelect}
+            toggleEmojiPicker={toggleEmojiPicker}
+            handleKeyPress={handleKeyPress}
+            onBeforeUpload={(file) => {
+              // Tạo tin nhắn tạm thời cho file
+              const tempId = `temp-file-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+              const attachmentObj = {
+                url: URL.createObjectURL(file),
+                type: file.type,
+                name: file.name,
+                size: file.size,
+              };
+              // Xác định loại file
+              let msgType: 'file' | 'video' | 'audio' | 'image' = 'file';
+              if (file.type.startsWith('video/')) msgType = 'video';
+              else if (file.type.startsWith('audio/')) msgType = 'audio';
+              else if (file.type.startsWith('image/')) msgType = 'image';
+              const tempMessage: DisplayMessage = {
+                id: tempId,
+                content: file.name,
+                timestamp: new Date().toISOString(),
+                sender: {
+                  id: currentUserId,
+                  name: userCache[currentUserId]?.fullname || 'Bạn',
+                  avatar: userCache[currentUserId]?.urlavatar || '',
+                },
+                type: msgType,
+                isRead: false,
+                sendStatus: 'sending',
+                readBy: [],
+                deliveredTo: [],
+                fileUrl: attachmentObj.url,
+                fileName: file.name,
+                fileSize: file.size,
+                attachment: attachmentObj,
+                attachments: [attachmentObj],
+              };
+              setMessages((prev) => [...prev, tempMessage]);
+              scrollToBottomSmooth();
+              return tempId;
+            }}
+            onUploadComplete={(result, tempId) => {
+              if (!result || !result.messageDetailId) return;
+              let msgType: 'file' | 'video' | 'audio' | 'image' = 'file';
+              const typeStr = result.attachment?.type || (result.attachments && result.attachments[0]?.type) || '';
+              if (typeStr.startsWith('video/')) msgType = 'video';
+              else if (typeStr.startsWith('audio/')) msgType = 'audio';
+              else if (typeStr.startsWith('image/')) msgType = 'image';
+              const realMessage: DisplayMessage = {
+                id: result.messageDetailId,
+                content: result.content || result.fileName || '',
+                timestamp: result.createdAt,
+                sender: {
+                  id: result.senderId,
+                  name: userCache[result.senderId]?.fullname || 'Bạn',
+                  avatar: userCache[result.senderId]?.urlavatar || '',
+                },
+                type: msgType,
+                isRead: Array.isArray(result.readBy) && result.readBy.length > 0,
+                readBy: result.readBy || [],
+                deliveredTo: result.deliveredTo || [],
+                sendStatus: 'sent',
+                fileUrl: (result.attachment && result.attachment.url) || (result.attachments && result.attachments[0]?.url) || '',
+                fileName: (result.attachment && result.attachment.name) || (result.attachments && result.attachments[0]?.name) || result.fileName || '',
+                fileSize: (result.attachment && result.attachment.size) || (result.attachments && result.attachments[0]?.size) || result.fileSize || 0,
+                attachment: result.attachment || (result.attachments && result.attachments[0]) || undefined,
+                attachments: Array.isArray(result.attachments) ? result.attachments : (result.attachments ? [result.attachments] : []),
+              };
+              setMessages((prev) => prev.map(msg => msg.id === tempId ? realMessage : msg));
+              updateConversationWithNewMessage(conversation.conversationId, {
+                content: realMessage.content,
+                type: msgType,
+                createdAt: realMessage.timestamp,
+                senderId: realMessage.sender.id
+              });
+            }}
+            onUploadError={(error, tempId) => {
+              setMessages((prev) => prev.map(msg => msg.id === tempId ? { ...msg, isError: true, sendStatus: undefined } : msg));
+              message.error('Không thể gửi file. Vui lòng thử lại.');
+              console.error('Error uploading file:', error);
+            }}
+            handleInputChange={handleInputChange}
+          />
         )}
       </div>
   );
