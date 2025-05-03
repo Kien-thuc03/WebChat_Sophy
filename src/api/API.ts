@@ -2540,3 +2540,34 @@ export const removeUserFromGroup = async (
     );
   }
 };
+
+// Lấy thông báo của một cuộc trò chuyện (theo conversationId, có thể truyền thêm oldestTime/newestTime)
+export const getConversationNotifications = async (
+  conversationId: string,
+  options?: { oldestTime?: string; newestTime?: string }
+) => {
+  try {
+    const token = localStorage.getItem("token");
+    if (!token) throw new Error("Không có token xác thực");
+    const params: any = {};
+    if (options?.oldestTime) params.oldestTime = options.oldestTime;
+    if (options?.newestTime) params.newestTime = options.newestTime;
+    const response = await apiClient.get(`/api/notifications/conversation/${conversationId}`, { params });
+    return response.data;
+  } catch (error: any) {
+    throw new Error(error.response?.data?.message || "Không thể lấy thông báo cuộc trò chuyện");
+  }
+};
+
+// Lấy tất cả thông báo của một cuộc trò chuyện mà user là thành viên
+export const getAllConversationNotifications = async (conversationId: string) => {
+  try {
+    const token = localStorage.getItem("token");
+    if (!token) throw new Error("Không có token xác thực");
+    const response = await apiClient.get(`/api/notifications/all/conversation/${conversationId}`);
+    return response.data;
+  } catch (error: any) {
+    throw new Error(error.response?.data?.message || "Không thể lấy tất cả thông báo cuộc trò chuyện");
+  }
+};
+
