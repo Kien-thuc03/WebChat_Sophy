@@ -1,22 +1,15 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
-  Input,
   Button,
   message,
   Alert,
   Empty,
   Spin,
-  Tooltip,
   Menu
 } from "antd";
 import {
-  SendOutlined,
   ReloadOutlined,
   DownOutlined,
-  SmileOutlined,
-  PictureOutlined,
-  FileOutlined,
-  FileImageOutlined,
   DeleteOutlined,
   UndoOutlined,
   CopyOutlined,
@@ -40,15 +33,12 @@ import {
   getPinnedMessages,
   getSpecificMessage,
   replyMessage,
-  forwardImageMessage,
 } from "../../../api/API";
 import { useLanguage } from "../../../features/auth/context/LanguageContext";
 import { DisplayMessage } from "../../../features/chat/types/chatTypes";
 import { useConversationContext } from "../../../features/chat/context/ConversationContext";
-import data from "@emoji-mart/data";
-import Picker from "@emoji-mart/react";
+// import data from "@emoji-mart/data";
 import socketService from "../../../services/socketService";
-import FileUploader from "./FileUploader";
 import PinnedMessages from "./PinnedMessages";
 import MessageDisplay from "./MessageDisplay";
 import ChatInputArea from "./ChatInputArea";
