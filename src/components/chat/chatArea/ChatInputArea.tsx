@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Input, Button, Tooltip, Spin, message } from 'antd';
 import { SendOutlined, SmileOutlined, PictureOutlined, DownOutlined, FileOutlined, FileImageOutlined } from '@ant-design/icons';
 import Picker from '@emoji-mart/react';
+import data from '@emoji-mart/data';
 import FileUploader from './FileUploader';
 import { ReplyPreview } from './PreviewReply';
 import { DisplayMessage } from '../../../features/chat/types/chatTypes';
@@ -245,7 +246,7 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
           {emojiPickerVisible && (
             <div className="emoji-picker absolute bottom-12 left-0 z-10 shadow-lg rounded-lg bg-white emoji-picker-container" style={{ width: '320px', height: '350px', zIndex: 5050,left: 'auto', right: '10px' }}>
               <Picker 
-                data={{}} // Truyền data emoji-mart nếu cần
+                data={data} // Truyền data emoji-mart nếu cần
                 onEmojiSelect={handleEmojiSelect} 
                 theme="light"
                 previewPosition="none"
