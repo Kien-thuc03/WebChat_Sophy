@@ -377,7 +377,6 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
             if (onDisband) {
               onDisband();
             } else {
-              // Fallback nếu không có callback
               onBack();
             }
           } else {

@@ -263,9 +263,10 @@ const Dashboard: React.FC = () => {
 
   const handleGroupLeaveOrDisband = async () => {
     setSelectedConversation(null);
+    setShowChatInfo(false);
+    setActiveSection("chat");
     await new Promise((resolve) => setTimeout(resolve, 100));
     await refreshConversations();
-    setActiveSection("chat");
     setTimeout(() => {
       const chatListContainer = document.querySelector(".chat-list");
       if (chatListContainer) {
@@ -280,10 +281,12 @@ const Dashboard: React.FC = () => {
     const handleGroupNameChanged = (data: {
       conversationId: string;
       newName: string;
-      fromUserId: string;
+      fromUserId?: string;
+      changedBy?: { userId: string; fullname: string };
     }) => {
       // Cập nhật tên nhóm trong context với userId
-      updateGroupName(data.conversationId, data.newName, data.fromUserId);
+      const userId = data.fromUserId || data.changedBy?.userId || '';
+      updateGroupName(data.conversationId, data.newName, userId);
 
       // Nếu đang hiển thị conversation này, cập nhật selectedConversation
       if (selectedConversation?.conversationId === data.conversationId) {
@@ -307,10 +310,12 @@ const Dashboard: React.FC = () => {
     const handleGroupAvatarChanged = (data: {
       conversationId: string;
       newAvatar: string;
-      fromUserId: string;
+      fromUserId?: string;
+      changedBy?: { userId: string; fullname: string };
     }) => {
       // Cập nhật avatar trong context với userId
-      updateGroupAvatar(data.conversationId, data.newAvatar, data.fromUserId);
+      const userId = data.fromUserId || data.changedBy?.userId || '';
+      updateGroupAvatar(data.conversationId, data.newAvatar, userId);
 
       // Nếu đang hiển thị conversation này, cập nhật selectedConversation
       if (selectedConversation?.conversationId === data.conversationId) {
@@ -412,6 +417,8 @@ const Dashboard: React.FC = () => {
                 <ChatInfo
                   conversation={selectedConversation}
                   onLeaveGroup={handleGroupLeaveOrDisband}
+                  onClose={() => setShowChatInfo(false)}
+                  onSelectConversation={handleSelectConversation}
                 />
               </div>
             )}

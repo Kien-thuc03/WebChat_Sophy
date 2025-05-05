@@ -48,6 +48,7 @@ interface ChatInfoProps {
   conversation: Conversation;
   onClose: () => void;
   onSelectConversation: (conversation: Conversation) => void;
+  onLeaveGroup?: () => void;
 }
 
 // DetailedConversation extends the base Conversation type
@@ -78,7 +79,10 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
   conversation,
   onClose,
   onSelectConversation,
+  onLeaveGroup,
 }) => {
+  if (!conversation || !conversation.conversationId) return null;
+
   const [activeKeys, setActiveKeys] = useState<string[]>([]);
   const [isEditNameModalVisible, setIsEditNameModalVisible] = useState(false);
   const [localName, setLocalName] = useState("");
@@ -248,35 +252,42 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
 
   // Add this function to allow refreshing conversation data
   const refreshConversationData = async () => {
-    if (conversation?.conversationId) {
-      try {
-        setLoading(true);
-        const conversationData = await getConversationDetail(
-          conversation.conversationId
-        );
-        setDetailedConversation(conversationData as DetailedConversation);
+    if (!conversation?.conversationId) return;
+    try {
+      setLoading(true);
+      const conversationData = await getConversationDetail(
+        conversation.conversationId
+      );
+      setDetailedConversation(conversationData as DetailedConversation);
 
-        // Initialize state values based on fetched data
-        if (conversationData) {
-          // Cast to DetailedConversation to access extended properties
-          const detailedData = conversationData as DetailedConversation;
-          setIsMuted(detailedData.isMuted || false);
-          setIsPinned(detailedData.isPinned || false);
-          setIsHidden(detailedData.isHidden || false);
+      // Initialize state values based on fetched data
+      if (conversationData) {
+        // Cast to DetailedConversation to access extended properties
+        const detailedData = conversationData as DetailedConversation;
+        setIsMuted(detailedData.isMuted || false);
+        setIsPinned(detailedData.isPinned || false);
+        setIsHidden(detailedData.isHidden || false);
 
-          // Fetch media and files
-          loadMediaAndFiles(conversation.conversationId);
-        }
-      } catch (error) {
-        console.error("Failed to load conversation details:", error);
-      } finally {
-        setLoading(false);
+        // Fetch media and files
+        loadMediaAndFiles(conversation.conversationId);
       }
+    } catch (error) {
+      // Nếu lỗi 403 hoặc không phải thành viên, không hiển thị lỗi nữa
+      const errObj = error as any;
+      if ((errObj && errObj.response && errObj.response.status === 403) || (errObj && errObj.message && errObj.message.includes('not a member'))) {
+        setDetailedConversation(null);
+        if (typeof onLeaveGroup === 'function') onLeaveGroup();
+        return;
+      }
+      console.error("Failed to load conversation details:", error);
+    } finally {
+      setLoading(false);
     }
   };
 
   // Fetch detailed conversation information
   useEffect(() => {
+    if (!conversation?.conversationId) return;
     refreshConversationData();
   }, [
     conversation?.conversationId,
@@ -406,12 +417,11 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
                 setDetailedConversation(null);
 
                 // Gọi callback để cập nhật giao diện ngay lập tức
-                if (onClose) {
+                if (typeof onLeaveGroup === 'function') {
+                  onLeaveGroup();
+                } else if (typeof onClose === 'function') {
                   onClose();
-                } else {
-                  // Fallback: Reload trang nếu không có callback
-                  setTimeout(() => window.location.reload(), 1000);
-                }
+                } 
               } else {
                 message.error({
                   content: "Không thể rời nhóm",
@@ -864,7 +874,7 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
         conversation={currentConversation}
         groupLink={groupLink}
         onBack={handleBackFromGroupManagement}
-        onDisband={handleLeaveGroup}
+        onDisband={onLeaveGroup}
         onAfterTransferOwner={handleBackFromGroupManagement}
       />
     );

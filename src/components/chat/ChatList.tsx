@@ -38,6 +38,7 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
     updateConversationWithNewMessage,
     setConversations,
     updateConversationMembers,
+    refreshConversations,
   } = useConversationContext();
   const { t } = useLanguage();
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
@@ -727,7 +728,7 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
                   {t.no_conversations || "Không có hội thoại nào"}
                 </p>
                 <button
-                  onClick={() => window.location.reload()}
+                  onClick={() => refreshConversations()}
                   className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 mt-2">
                   Tải lại
                 </button>
