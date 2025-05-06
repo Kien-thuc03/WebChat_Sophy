@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Avatar } from "../../common/Avatar";
 import { Button, Switch, Modal, Input, App } from "antd";
 import {
@@ -140,6 +140,8 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
   const [isAddMemberModalVisible, setIsAddMemberModalVisible] = useState(false);
   const [groupMembers, setGroupMembers] = useState<string[]>([]);
   const [memberCount, setMemberCount] = useState<number>(0);
+
+  const hasShownGroupDeletedRef = useRef<string | null>(null);
 
   // Find the most up-to-date conversation data from context
   const updatedConversation =
@@ -751,6 +753,32 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
     };
   }, [currentConversation.conversationId, groupMembers]);
 
+  // Lắng nghe sự kiện nhóm bị giải tán để đẩy mọi thành viên ra khỏi conversation
+  useEffect(() => {
+    if (!currentConversation.conversationId) return;
+
+    const handleGroupDeleted = (data: { conversationId: string }) => {
+      if (data.conversationId !== currentConversation.conversationId) return;
+      // Nếu đã hiển thị thông báo cho conversation này thì bỏ qua
+      if (hasShownGroupDeletedRef.current === data.conversationId) return;
+      hasShownGroupDeletedRef.current = data.conversationId;
+      modal.error({
+        title: 'Nhóm đã bị giải tán',
+        content: 'Nhóm chat này đã bị giải tán bởi người quản trị',
+        okText: 'Đã hiểu',
+        centered: true,
+      });
+      if (typeof onLeaveGroup === 'function') {
+        onLeaveGroup();
+      }
+    };
+
+    socketService.on('groupDeleted', handleGroupDeleted);
+    return () => {
+      socketService.off('groupDeleted', handleGroupDeleted);
+    };
+  }, [currentConversation.conversationId, onLeaveGroup]);
+
   // If showing members list view
   if (showMembersList && isGroup) {
     return (
@@ -760,7 +788,7 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
         userAvatars={userAvatars}
         userRole={userRole}
         onBack={handleBackFromMembersList}
-        onLeaveGroup={handleLeaveGroup}
+        onLeaveGroup={onLeaveGroup || (() => {})}
         addCoOwner={addCoOwner}
         removeCoOwner={removeCoOwnerDirectly}
         removeMember={removeGroupMember}
