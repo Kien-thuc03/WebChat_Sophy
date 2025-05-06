@@ -335,36 +335,29 @@ const MembersList: React.FC<MembersListProps> = ({
       try {
         // Unregister event to prevent duplicate handling
         socketService.off("groupDeleted", handleGroupDeleted);
-        
-        // Ensure we already have the correct reference to hasBeenRemovedRef
         if (hasBeenRemovedRef.current) {
-          return; // Already processed, avoid duplicate redirects
+          return;
         }
-        
-        // Mark as processed
         hasBeenRemovedRef.current = true;
-        
-        // Show notification first
         modal.error({
           title: 'Nhóm đã bị giải tán',
           content: 'Nhóm chat này đã bị giải tán bởi người quản trị',
           okText: 'Đã hiểu',
           centered: true,
         });
-        
-        // Safely call onBack if it's a function
-        if (typeof onBack === 'function') {
+        // Gọi callback để Dashboard xử lý UI (reset selectedConversation, panel, ...)
+        if (typeof onLeaveGroup === 'function') {
+          onLeaveGroup();
+        } else if (typeof onBack === 'function') {
           onBack();
         }
-        
-        // Use direct window location change with timeout
-        setTimeout(() => {
-          window.location.href = '/main';
-        }, 1000);
       } catch (error) {
         console.error("Error handling group deletion:", error);
-        // Force redirect even if an error occurs
-        window.location.href = '/main';
+        if (typeof onLeaveGroup === 'function') {
+          onLeaveGroup();
+        } else if (typeof onBack === 'function') {
+          onBack();
+        }
       }
     };
 
