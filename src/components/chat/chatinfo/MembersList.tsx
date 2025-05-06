@@ -101,6 +101,9 @@ const MembersList: React.FC<MembersListProps> = ({
   const [isUpdatingRole, setIsUpdatingRole] = useState(false);
   const [updatingMemberId, setUpdatingMemberId] = useState<string | null>(null);
 
+  // NEW: flag to prevent loop on API error
+  const [isApiError, setIsApiError] = useState(false);
+
   // Function to get user name from cache or default value
   const getUserName = useCallback(
     (userId: string): string => {
@@ -457,33 +460,29 @@ const MembersList: React.FC<MembersListProps> = ({
 
   // Update the refreshConversationData function to trigger full re-render
   const refreshConversationData = async () => {
+    if (isApiError) return; // Nếu đang lỗi, không gọi lại nữa
     try {
       if (!conversation.conversationId) return; 
       setIsRefreshing(true);
       const updatedConversation = await getConversationDetail(conversation.conversationId);
       if (updatedConversation) {
-        // Update conversation first
         setConversation(updatedConversation);
-        
+        setIsApiError(false); // Reset error flag on success
         // Update user role based on the fresh data
         const newRole = determineUserRole(updatedConversation);
         if (newRole !== userRole) {
-          
-          // Force a complete re-render by setting userRole with a slight delay
-          // This ensures all dependent calculations happen after role update
           setTimeout(() => {
             setUserRole(newRole);
-            
-            // Force a re-render by updating a timestamp state if needed
             setRenderKey(Date.now());
           }, 50);
         } else {
-          // Even if role is the same, we may need to force a re-render
           setRenderKey(Date.now());
         }
       }
     } catch (err) {
-      // Error handling without logs
+      setIsApiError(true);
+      setIsRefreshing(false);
+      message.error("Không thể lấy chi tiết cuộc trò chuyện. Vui lòng thử lại sau.");
     } finally {
       setIsRefreshing(false);
     }
@@ -608,6 +607,7 @@ const MembersList: React.FC<MembersListProps> = ({
 
   // Function to add a co-owner
   const handleAddCoOwner = async (memberId: string) => {
+    setIsApiError(false); // Reset flag trước khi thao tác
     if (!conversation.conversationId || !conversation.rules) return;
     try {
       setIsUpdatingRole(true);
@@ -656,6 +656,7 @@ const MembersList: React.FC<MembersListProps> = ({
 
   // Function to remove a co-owner
   const handleRemoveCoOwner = async (memberId: string) => {
+    setIsApiError(false); // Reset flag trước khi thao tác
     if (!conversation.conversationId) return;
     try {
       setIsUpdatingRole(true);
@@ -697,6 +698,7 @@ const MembersList: React.FC<MembersListProps> = ({
 
   // Function to remove a member
   const handleRemoveMember = async (memberId: string) => {
+    setIsApiError(false); // Reset flag trước khi thao tác
     if (!conversation.conversationId) return;
 
     modal.confirm({
