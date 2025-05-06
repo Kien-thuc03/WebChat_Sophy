@@ -50,6 +50,7 @@ interface MembersListProps {
     userId: string
   ) => Promise<Conversation | null>;
   removeMember: (conversationId: string, userId: string) => Promise<boolean>;
+  onRefreshConversationData?: () => void;
 }
 
 const MembersList: React.FC<MembersListProps> = ({
@@ -61,6 +62,7 @@ const MembersList: React.FC<MembersListProps> = ({
   onLeaveGroup,
   addCoOwner,
   removeCoOwner,
+  onRefreshConversationData,
 }) => {
   // Keep local state of conversation to update it after changes
   const [conversation, setConversation] =
@@ -98,6 +100,9 @@ const MembersList: React.FC<MembersListProps> = ({
   // Thêm state cho loading
   const [isUpdatingRole, setIsUpdatingRole] = useState(false);
   const [updatingMemberId, setUpdatingMemberId] = useState<string | null>(null);
+
+  // NEW: flag to prevent loop on API error
+  const [isApiError, setIsApiError] = useState(false);
 
   // Function to get user name from cache or default value
   const getUserName = useCallback(
@@ -281,7 +286,6 @@ const MembersList: React.FC<MembersListProps> = ({
     }
   }, []);
 
-
   // Register socket event handlers in a dedicated useEffect
   useEffect(() => {
     if (!conversation.conversationId) {
@@ -368,17 +372,7 @@ const MembersList: React.FC<MembersListProps> = ({
       byUserId?: string;
     }) => {
       if (data.conversationId !== conversation.conversationId) return;
-      // Nếu event không gửi đủ conversation, gọi lại API để lấy conversation mới nhất
-      if (!data.newCoOwnerIds || !Array.isArray(data.newCoOwnerIds)) return;
-      const existingCoOwnerIds = conversation.rules?.coOwnerIds || [];
-      if (JSON.stringify(existingCoOwnerIds) === JSON.stringify(data.newCoOwnerIds)) {
-        return;
-      }
-      getConversationDetail(conversation.conversationId).then((updatedConversation) => {
-        if (updatedConversation) {
-          setConversation(updatedConversation);
-        }
-      });
+      if (onRefreshConversationData) onRefreshConversationData();
     };
 
     // Handler for when a co-owner is removed
@@ -388,56 +382,17 @@ const MembersList: React.FC<MembersListProps> = ({
       byUserId?: string;
     }) => {
       if (data.conversationId !== conversation.conversationId) return;
-      getConversationDetail(conversation.conversationId).then((updatedConversation) => {
-        if (updatedConversation) {
-          setConversation(updatedConversation);
-        }
-      });
+      if (onRefreshConversationData) onRefreshConversationData();
     };
 
     // Handler for when group owner changes
     const handleGroupOwnerChanged = (data: {
       conversationId: string;
       newOwner: string;
+      byUserId?: string;
     }) => {
       if (data.conversationId !== conversation.conversationId) return;
-
-      const previousOwner = conversation.rules?.ownerId || "";
-
-      // Update the conversation with the new owner
-      setConversation((prev) => {
-        if (!prev.rules) return prev;
-        
-        const updatedConversation = {
-          ...prev,
-          rules: {
-            ...prev.rules,
-            ownerId: data.newOwner,
-            // If the new owner was a co-owner, remove them from co-owners list
-            coOwnerIds: prev.rules.coOwnerIds
-              ? prev.rules.coOwnerIds.filter((id) => id !== data.newOwner)
-              : [],
-          },
-        };
-        
-        // Determine and update role based on the updated conversation data
-        const newRole = determineUserRole(updatedConversation);
-        if (newRole !== userRole) {
-          setUserRole(newRole);
-        }
-        
-        return updatedConversation;
-      });
-
-      // Update the user role based on the change
-      if (data.newOwner === currentUserId) {
-        setUserRole("owner");
-      } else if (previousOwner === currentUserId) {
-        // If current user was the previous owner, downgrade to member
-        setUserRole("member");
-      }
-
-      refreshConversationData();
+      if (onRefreshConversationData) onRefreshConversationData();
     };
 
     // Handler for when a user is blocked
@@ -499,38 +454,35 @@ const MembersList: React.FC<MembersListProps> = ({
     updateConversationWithNewMessage,
     userRole,
     determineUserRole,
-    getUserName
+    getUserName,
+    onRefreshConversationData
   ]);
 
   // Update the refreshConversationData function to trigger full re-render
   const refreshConversationData = async () => {
+    if (isApiError) return; // Nếu đang lỗi, không gọi lại nữa
     try {
       if (!conversation.conversationId) return; 
       setIsRefreshing(true);
       const updatedConversation = await getConversationDetail(conversation.conversationId);
       if (updatedConversation) {
-        // Update conversation first
         setConversation(updatedConversation);
-        
+        setIsApiError(false); // Reset error flag on success
         // Update user role based on the fresh data
         const newRole = determineUserRole(updatedConversation);
         if (newRole !== userRole) {
-          
-          // Force a complete re-render by setting userRole with a slight delay
-          // This ensures all dependent calculations happen after role update
           setTimeout(() => {
             setUserRole(newRole);
-            
-            // Force a re-render by updating a timestamp state if needed
             setRenderKey(Date.now());
           }, 50);
         } else {
-          // Even if role is the same, we may need to force a re-render
           setRenderKey(Date.now());
         }
       }
     } catch (err) {
-      // Error handling without logs
+      setIsApiError(true);
+      setIsRefreshing(false);
+      message.error("Không thể lấy chi tiết cuộc trò chuyện. Vui lòng thử lại sau.");
     } finally {
       setIsRefreshing(false);
     }
@@ -655,6 +607,7 @@ const MembersList: React.FC<MembersListProps> = ({
 
   // Function to add a co-owner
   const handleAddCoOwner = async (memberId: string) => {
+    setIsApiError(false); // Reset flag trước khi thao tác
     if (!conversation.conversationId || !conversation.rules) return;
     try {
       setIsUpdatingRole(true);
@@ -703,6 +656,7 @@ const MembersList: React.FC<MembersListProps> = ({
 
   // Function to remove a co-owner
   const handleRemoveCoOwner = async (memberId: string) => {
+    setIsApiError(false); // Reset flag trước khi thao tác
     if (!conversation.conversationId) return;
     try {
       setIsUpdatingRole(true);
@@ -744,6 +698,7 @@ const MembersList: React.FC<MembersListProps> = ({
 
   // Function to remove a member
   const handleRemoveMember = async (memberId: string) => {
+    setIsApiError(false); // Reset flag trước khi thao tác
     if (!conversation.conversationId) return;
 
     modal.confirm({
@@ -1003,6 +958,14 @@ const MembersList: React.FC<MembersListProps> = ({
       </div>
     );
   };
+
+  // 1. Cập nhật userRole khi conversation thay đổi
+  useEffect(() => {
+    const newRole = determineUserRole(conversation);
+    if (newRole !== userRole) {
+      setUserRole(newRole);
+    }
+  }, [conversation, determineUserRole]);
 
   return (
     <div className="h-full bg-white" key={`members-list-${renderKey}`}>

@@ -792,6 +792,7 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
         addCoOwner={addCoOwner}
         removeCoOwner={removeCoOwnerDirectly}
         removeMember={removeGroupMember}
+        onRefreshConversationData={refreshConversationData}
       />
     );
   }
