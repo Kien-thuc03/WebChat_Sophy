@@ -3566,6 +3566,9 @@ export function ChatArea({ conversation }: ChatAreaProps) {
     }, 100);
   };
 
+  const [hoveredMessageId, setHoveredMessageId] = useState<string | null>(null);
+  const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   return (
     <div className="w-full h-full flex flex-col">
       <div className="flex flex-col h-full overflow-hidden bg-white rounded-lg relative">
@@ -3680,6 +3683,9 @@ export function ChatArea({ conversation }: ChatAreaProps) {
             setActiveMessageMenu={setActiveMessageMenu}
             dropdownVisible={dropdownVisible}
             setDropdownVisible={setDropdownVisible}
+            hoveredMessageId={hoveredMessageId}
+            setHoveredMessageId={setHoveredMessageId}
+            hoverTimeoutRef={hoverTimeoutRef}
           />
             <div ref={messagesEndRef} />
           </div>
