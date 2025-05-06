@@ -152,6 +152,12 @@ export function ChatArea({ conversation }: ChatAreaProps) {
     userCacheRef.current = { ...userCache };
   }, [userCache]);
 
+  // Thêm ref lưu conversationId hiện tại
+  const currentConversationIdRef = useRef(conversation?.conversationId);
+  useEffect(() => {
+    currentConversationIdRef.current = conversation?.conversationId;
+  }, [conversation?.conversationId]);
+
   useEffect(() => {
     if (!conversation) return; // Early return if no conversation
     
@@ -715,10 +721,8 @@ export function ChatArea({ conversation }: ChatAreaProps) {
       
       // Callback khi có thành viên bị chặn
       const handleUserBlocked = (data: { conversationId: string, blockedUserId: string, fromCurrentUser?: boolean }) => {
-        // Nếu không phải cuộc trò chuyện hiện tại, không xử lý
-        if (data.conversationId !== conversation.conversationId) {
-          return;
-        }
+        // Kiểm tra xem sự kiện có thuộc cuộc trò chuyện hiện tại không
+        if (conversation?.conversationId !== data.conversationId) return;
         
         // Tìm thông tin người bị chặn từ cache
         const blockedUser = userCacheRef.current[data.blockedUserId];
@@ -2182,6 +2186,7 @@ export function ChatArea({ conversation }: ChatAreaProps) {
       }
       
       if (messagesData.length === 0 && !cursor) {
+        if (currentConversationIdRef.current !== conversation.conversationId) return;
         setMessages([]);
         return;
       }
@@ -2347,6 +2352,7 @@ export function ChatArea({ conversation }: ChatAreaProps) {
       // Cập nhật danh sách tin nhắn dựa trên hướng tải và áp dụng deduplication
       if (cursor) {
         if (direction === "before") {
+          if (currentConversationIdRef.current !== conversation.conversationId) return;
           // Thêm tin nhắn cũ vào đầu danh sách khi kéo lên và loại bỏ trùng lặp
           setMessages((prev) => {
             // Tạo danh sách tin nhắn mới bằng cách kết hợp với tin nhắn hiện tại
@@ -2369,6 +2375,7 @@ export function ChatArea({ conversation }: ChatAreaProps) {
           });
       } else {
           // Thêm tin nhắn mới vào cuối danh sách khi kéo xuống và loại bỏ trùng lặp
+          if (currentConversationIdRef.current !== conversation.conversationId) return;
           setMessages((prev) => {
             // Tạo danh sách tin nhắn mới bằng cách kết hợp với tin nhắn hiện tại
             const combinedMessages = [...prev, ...sortedMessages];
@@ -2386,6 +2393,7 @@ export function ChatArea({ conversation }: ChatAreaProps) {
       } else {
         // Thay thế hoàn toàn nếu là lần tải đầu tiên, đảm bảo tin nhắn cũ lên đầu
         // Áp dụng deduplication
+        if (currentConversationIdRef.current !== conversation.conversationId) return;
         const dedupedMessages = deduplicateMessages(sortedMessages);
         
         
