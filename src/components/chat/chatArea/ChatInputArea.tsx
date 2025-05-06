@@ -1,10 +1,9 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Input, Button, Tooltip, Spin, message } from 'antd';
-import { SendOutlined, SmileOutlined, PictureOutlined, DownOutlined, FileOutlined, FileImageOutlined } from '@ant-design/icons';
+import React from 'react';
+import { Input, Button, Tooltip } from 'antd';
+import { SendOutlined, SmileOutlined, PictureOutlined, FileOutlined, FileImageOutlined } from '@ant-design/icons';
 import Picker from '@emoji-mart/react';
 import data from '@emoji-mart/data';
 import FileUploader from './FileUploader';
-import { ReplyPreview } from './PreviewReply';
 import { DisplayMessage } from '../../../features/chat/types/chatTypes';
 import { User } from '../../../features/auth/types/authTypes';
 
@@ -56,29 +55,15 @@ interface ChatInputAreaProps {
 
 export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
   conversationId,
-  currentUserId,
-  userCache,
-  sendMessage,
-  sendImageMessage,
-  replyMessage,
-  updateConversationWithNewMessage,
-  scrollToBottomSmooth,
   isValidConversation,
-  t,
   attachments,
-  setAttachments,
   pastedImage,
-  setPastedImage,
   pastedImagePreview,
-  setPastedImagePreview,
   replyingToMessage,
   setReplyingToMessage,
   inputValue,
-  setInputValue,
   isUploading,
-  setIsUploading,
   emojiPickerVisible,
-  setEmojiPickerVisible,
   inputRef,
   fileInputRef,
   imageInputRef,

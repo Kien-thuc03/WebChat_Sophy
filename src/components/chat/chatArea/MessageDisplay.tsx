@@ -37,6 +37,9 @@ interface MessageDisplayProps {
   setActiveMessageMenu: (id: string | null) => void;
   dropdownVisible: { [key: string]: boolean };
   setDropdownVisible: (visible: { [key: string]: boolean }) => void;
+  hoveredMessageId: string | null;
+  setHoveredMessageId: (id: string | null) => void;
+  hoverTimeoutRef: React.MutableRefObject<NodeJS.Timeout | null>;
 }
 
 
@@ -140,6 +143,9 @@ const MessageDisplay: React.FC<MessageDisplayProps> = ({
   setActiveMessageMenu,
   dropdownVisible,
   setDropdownVisible,
+  hoveredMessageId,
+  setHoveredMessageId,
+  hoverTimeoutRef,
 }) => {
   const isOwnMessage = (senderId: string) => senderId === currentUserId;
   const shouldShowAvatar = () => true;
@@ -192,6 +198,13 @@ const MessageDisplay: React.FC<MessageDisplayProps> = ({
             <div
               className={`flex mb-2 ${isOwn ? 'justify-end' : 'justify-start'}`}
               id={`message-${message.id}`}
+              onMouseEnter={() => {
+                if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+                setHoveredMessageId(message.id);
+              }}
+              onMouseLeave={() => {
+                hoverTimeoutRef.current = setTimeout(() => setHoveredMessageId(null), 300);
+              }}
             >
               {!isOwn && (
                 <div className="flex-shrink-0 mr-2">
@@ -203,13 +216,28 @@ const MessageDisplay: React.FC<MessageDisplayProps> = ({
                   />
                 </div>
               )}
-              <div className="flex flex-col relative group" style={{ maxWidth: 'min(80%)' }}>
+              <div className="flex flex-col relative group" style={{ maxWidth: 'min(80%)' }}
+                onMouseEnter={() => {
+                  if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+                  setHoveredMessageId(message.id);
+                }}
+                onMouseLeave={() => {
+                  hoverTimeoutRef.current = setTimeout(() => setHoveredMessageId(null), 300);
+                }}
+              >
                 <div
                   className={`absolute right-0 top-0 -mt-8 ${
-                    activeMessageMenu === message.id ? 'flex' : 'hidden group-hover:flex'
+                    activeMessageMenu === message.id || hoveredMessageId === message.id ? 'flex' : 'hidden group-hover:flex'
                   } items-center space-x-1 bg-white rounded-lg shadow-md px-1 py-0.5 z-10 message-hover-controls ${
                     activeMessageMenu === message.id ? 'active' : ''
                   }`}
+                  onMouseEnter={() => {
+                    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+                    setHoveredMessageId(message.id);
+                  }}
+                  onMouseLeave={() => {
+                    hoverTimeoutRef.current = setTimeout(() => setHoveredMessageId(null), 300);
+                  }}
                 >
                   <Tooltip title="Trả lời">
                     <Button
@@ -267,6 +295,13 @@ const MessageDisplay: React.FC<MessageDisplayProps> = ({
                         loading={messageActionLoading === message.id}
                         onClick={e => {
                           e.stopPropagation();
+                        }}
+                        onMouseEnter={() => {
+                          if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+                          setHoveredMessageId(message.id);
+                        }}
+                        onMouseLeave={() => {
+                          hoverTimeoutRef.current = setTimeout(() => setHoveredMessageId(null), 300);
                         }}
                       />
                     </Dropdown>
