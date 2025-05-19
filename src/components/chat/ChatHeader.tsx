@@ -241,6 +241,15 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
 
     console.log("ChatHeader: Bắt đầu cuộc gọi với roomID:", consistentRoomID);
 
+    // Thêm log chi tiết để debug
+    console.log("ChatHeader: Thông tin cuộc gọi đi:", {
+      conversationId: conversation.conversationId,
+      roomID: consistentRoomID,
+      callerId: currentUserId,
+      receiverId: otherUserId,
+      isVideo,
+    });
+
     // Hiển thị modal cuộc gọi
     setIsCallModalVisible(true);
 
@@ -258,22 +267,42 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
   const handleCloseCallModal = () => {
     console.log("ChatHeader: Đóng modal cuộc gọi");
 
-    setIsCallModalVisible(false);
-
-    // Cần đặt incomingCall thành null khi đóng modal
-    // để không còn hiển thị cuộc gọi đến nữa
-    setIncomingCall(null);
-
     // Dừng tất cả âm thanh
     stopAllCallAudios();
 
-    // Gửi sự kiện endCall
-    if (otherUserId) {
-      socketService.emit("endCall", {
-        conversationId: conversation.conversationId,
-        receiverId: otherUserId,
+    // Thêm kiểm tra để chắc chắn âm thanh đã dừng hoàn toàn
+    setTimeout(() => {
+      if (window.incomingCallAudio) {
+        console.log(
+          "ChatHeader: Dừng incomingCallAudio trong handleCloseCallModal"
+        );
+        window.incomingCallAudio.pause();
+        window.incomingCallAudio.currentTime = 0;
+        window.incomingCallAudio.src = "";
+        window.incomingCallAudio = undefined;
+      }
+
+      // Dừng mọi audio element trên trang
+      document.querySelectorAll("audio").forEach((audio) => {
+        audio.pause();
+        audio.currentTime = 0;
+        audio.src = "";
       });
-    }
+
+      setIsCallModalVisible(false);
+
+      // Cần đặt incomingCall thành null khi đóng modal
+      // để không còn hiển thị cuộc gọi đến nữa
+      setIncomingCall(null);
+
+      // Gửi sự kiện endCall
+      if (otherUserId) {
+        socketService.emit("endCall", {
+          conversationId: conversation.conversationId,
+          receiverId: otherUserId,
+        });
+      }
+    }, 100);
   };
 
   // Xử lý chấp nhận cuộc gọi (bên nhận - UI action)
@@ -294,17 +323,55 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
     // Đặt loại cuộc gọi
     setIsVideo(incomingCall.isVideo);
 
-    // QUAN TRỌNG: Gửi sự kiện acceptCall TRƯỚC KHI hiển thị modal
-    // Đảm bảo người gọi nhận được thông báo trước khi UI thay đổi
-    socketService.emit("acceptCall", {
+    // Log thông tin quan trọng để debug
+    console.log("ChatHeader: Thông tin chấp nhận cuộc gọi:", {
       conversationId: incomingCall.conversationId,
       roomID: incomingCall.roomID,
       callerId: incomingCall.callerId,
       receiverId: currentUserId,
+      isVideo: incomingCall.isVideo,
     });
 
-    // Hiển thị modal cuộc gọi sau khi đã gửi sự kiện
-    setIsCallModalVisible(true);
+    // Hiển thị thông báo rõ ràng cho người dùng
+    message.success("Đang kết nối cuộc gọi...");
+
+    // Xác nhận rằng âm thanh đã bị dừng hoàn toàn trước khi tiếp tục
+    setTimeout(() => {
+      // Kiểm tra lại và dừng một lần nữa để đảm bảo không có âm thanh nào còn phát
+      if (window.incomingCallAudio) {
+        console.log(
+          "ChatHeader: Dừng incomingCallAudio trong handleAcceptCallUI"
+        );
+        window.incomingCallAudio.pause();
+        window.incomingCallAudio.currentTime = 0;
+        window.incomingCallAudio.src = "";
+        window.incomingCallAudio = undefined;
+      }
+
+      // Dừng mọi audio element đang phát trên trang
+      document.querySelectorAll("audio").forEach((audio) => {
+        audio.pause();
+        audio.currentTime = 0;
+        audio.src = "";
+      });
+
+      // QUAN TRỌNG: Gửi sự kiện acceptCall TRƯỚC KHI hiển thị modal
+      // Đảm bảo người gọi nhận được thông báo trước khi UI thay đổi
+      socketService.emit("acceptCall", {
+        conversationId: incomingCall.conversationId,
+        roomID: incomingCall.roomID,
+        callerId: incomingCall.callerId,
+        receiverId: currentUserId,
+      });
+
+      // Hiển thị modal cuộc gọi sau một khoảng thời gian ngắn
+      // Đây là một fix quan trọng: thêm khoảng thời gian chờ để đảm bảo
+      // event acceptCall đã được xử lý bởi server trước khi hiển thị giao diện Zego
+      setTimeout(() => {
+        // Hiển thị modal cuộc gọi sau khi đã gửi sự kiện
+        setIsCallModalVisible(true);
+      }, 300);
+    }, 100);
   };
 
   // Xử lý từ chối cuộc gọi (bên nhận)
@@ -320,10 +387,18 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
     setTimeout(() => {
       // Kiểm tra lại và dừng âm thanh còn sót lại nếu có
       const audioElements = document.querySelectorAll("audio");
+      console.log(
+        `ChatHeader: Kiểm tra ${audioElements.length} audio elements còn lại`
+      );
+
       audioElements.forEach((audio) => {
         try {
           if (!audio.paused) {
+            console.log(
+              "ChatHeader: Dừng audio element đang phát trong handleRejectCall"
+            );
             audio.pause();
+            audio.currentTime = 0;
             audio.src = "";
           }
         } catch {
@@ -331,10 +406,26 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
         }
       });
 
+      // Xác nhận lại incomingCallAudio đã bị dừng
+      if (window.incomingCallAudio) {
+        console.log(
+          "ChatHeader: Dừng incomingCallAudio trong handleRejectCall"
+        );
+        window.incomingCallAudio.pause();
+        window.incomingCallAudio = undefined;
+      }
+
+      // Thông báo rõ ràng
+      message.info("Đã từ chối cuộc gọi", 2);
+
+      // Gửi sự kiện từ chối
+      console.log("ChatHeader: Gửi sự kiện endCall do từ chối cuộc gọi");
       socketService.emit("endCall", {
         conversationId: incomingCall.conversationId,
         receiverId: incomingCall.callerId,
       });
+
+      // Xóa thông tin cuộc gọi đến
       setIncomingCall(null);
     }, 100);
   };
@@ -591,6 +682,8 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
         console.log(
           "ChatHeader: Người dùng hiện tại là người gọi, đang xử lý chấp nhận"
         );
+
+        // Thông báo cho người dùng rõ ràng
         message.success("Cuộc gọi đã được chấp nhận");
 
         // Đảm bảo roomID được sử dụng đúng
@@ -603,7 +696,11 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
 
         // Đảm bảo modal hiển thị
         if (!isCallModalVisible) {
-          setIsCallModalVisible(true);
+          // Hiển thị UI sau một khoảng thời gian nhỏ
+          // để đảm bảo dữ liệu đã được xử lý
+          setTimeout(() => {
+            setIsCallModalVisible(true);
+          }, 200);
         }
       }
     };

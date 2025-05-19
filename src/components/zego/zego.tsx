@@ -18,6 +18,7 @@ declare global {
     ZegoExpressEngine?: typeof ZegoExpressEngine;
     loadZegoSDK?: () => void;
     incomingCallAudio?: HTMLAudioElement;
+    callAudioElements: HTMLAudioElement[];
   }
 }
 
@@ -74,6 +75,8 @@ interface ZegoRefMethods {
   stopPublishingStream: () => void;
   toggleMicrophone: () => boolean | undefined;
   toggleCamera: () => boolean | undefined;
+  isRoomLoggedIn: () => Promise<boolean>;
+  isPublishing: () => Promise<boolean>;
 }
 
 const ZegoComponent = React.forwardRef<ZegoRefMethods, ZegoProps>(
@@ -650,15 +653,38 @@ const ZegoComponent = React.forwardRef<ZegoRefMethods, ZegoProps>(
       }
     };
 
-    React.useImperativeHandle(ref, () => ({
-      loginRoom,
-      logoutRoom,
-      createStream,
-      startPublishingStream,
-      stopPublishingStream,
-      toggleMicrophone,
-      toggleCamera,
-    }));
+    React.useImperativeHandle(
+      ref,
+      () => ({
+        loginRoom,
+        logoutRoom,
+        createStream,
+        startPublishingStream,
+        stopPublishingStream,
+        toggleMicrophone,
+        toggleCamera,
+        isRoomLoggedIn: async () => {
+          if (!zg) return false;
+          return isLoggedIn;
+        },
+        isPublishing: async () => {
+          if (!zg) return false;
+          return isPublishing;
+        },
+      }),
+      [
+        zg,
+        isLoggedIn,
+        isPublishing,
+        loginRoom,
+        logoutRoom,
+        createStream,
+        startPublishingStream,
+        stopPublishingStream,
+        toggleMicrophone,
+        toggleCamera,
+      ]
+    );
 
     return (
       <div className="zego-container">
@@ -777,7 +803,12 @@ export const ZegoVideoCall: React.FC<{
 
         // Nếu token đã có sẵn, bắt đầu cuộc gọi ngay lập tức
         if (token && appID > 0 && zegoRef.current) {
+          console.log(
+            "ZegoVideoCall: Token đã sẵn sàng, bắt đầu cuộc gọi ngay"
+          );
           startCall();
+        } else {
+          console.log("ZegoVideoCall: Đang chờ token để bắt đầu cuộc gọi");
         }
       }
     };
@@ -854,7 +885,15 @@ export const ZegoVideoCall: React.FC<{
         }
       }
     };
-  }, [roomID, isIncomingCall]);
+  }, [roomID, isIncomingCall, callActive]);
+
+  // Theo dõi sự thay đổi của trạng thái callActive riêng để đảm bảo bắt đầu cuộc gọi khi cần thiết
+  useEffect(() => {
+    if (callActive && token && appID > 0 && zegoRef.current) {
+      console.log("ZegoVideoCall: Call activated, starting call with token");
+      startCall();
+    }
+  }, [callActive, token, appID]);
 
   useEffect(() => {
     if (!roomID) {
@@ -911,15 +950,54 @@ export const ZegoVideoCall: React.FC<{
       return;
     }
 
+    // Đảm bảo dừng tất cả âm thanh trước khi bắt đầu cuộc gọi
+    console.log(
+      "ZegoVideoCall: Dừng âm thanh cuộc gọi trước khi bắt đầu cuộc gọi"
+    );
+    if (window.incomingCallAudio) {
+      window.incomingCallAudio.pause();
+      window.incomingCallAudio.currentTime = 0;
+      window.incomingCallAudio.src = "";
+      window.incomingCallAudio.load();
+      window.incomingCallAudio = undefined;
+    }
+
+    // Dừng tất cả audio được theo dõi
+    if (window.callAudioElements && Array.isArray(window.callAudioElements)) {
+      window.callAudioElements.forEach((audio) => {
+        if (audio) {
+          try {
+            audio.pause();
+            audio.currentTime = 0;
+            audio.src = "";
+            audio.load();
+          } catch (error) {
+            console.warn("ZegoVideoCall: Lỗi khi dừng audio:", error);
+          }
+        }
+      });
+      window.callAudioElements = [];
+    }
+
     try {
       setCallStatus("Đang đăng nhập vào phòng...");
       console.log("ZegoVideoCall: Logging into room:", roomID);
 
-      const loginSuccess = await zegoRef.current.loginRoom();
-      if (!loginSuccess) {
-        message.error("Không thể tham gia phòng gọi.");
-        if (onEndCall) onEndCall();
-        return;
+      // Kiểm tra xem đã đăng nhập hay chưa để tránh đăng nhập nhiều lần
+      const isAlreadyLoggedIn = await zegoRef.current.isRoomLoggedIn();
+      let loginSuccess = isAlreadyLoggedIn;
+
+      if (!isAlreadyLoggedIn) {
+        loginSuccess = await zegoRef.current.loginRoom();
+        console.log("ZegoVideoCall: Login result:", loginSuccess);
+
+        if (!loginSuccess) {
+          message.error("Không thể tham gia phòng gọi.");
+          if (onEndCall) onEndCall();
+          return;
+        }
+      } else {
+        console.log("ZegoVideoCall: Đã đăng nhập vào phòng trước đó");
       }
 
       setCallStatus("Đang tạo luồng media...");
@@ -935,15 +1013,25 @@ export const ZegoVideoCall: React.FC<{
       setCallStatus("Đang xuất bản luồng...");
       console.log("ZegoVideoCall: Publishing stream...");
 
+      // Tạo streamID duy nhất và nhất quán dựa trên roomID và userID
       const streamID = `${roomID}_${userID}_${Date.now()}`;
       console.log("ZegoVideoCall: Using streamID:", streamID);
 
-      const publishSuccess =
-        await zegoRef.current.startPublishingStream(streamID);
-      if (!publishSuccess) {
-        message.error("Không thể xuất bản luồng của bạn.");
-        if (onEndCall) onEndCall();
-        return;
+      // Kiểm tra xem đã publishing chưa để tránh publishing nhiều lần
+      const isAlreadyPublishing = await zegoRef.current.isPublishing();
+      let publishSuccess = isAlreadyPublishing;
+
+      if (!isAlreadyPublishing) {
+        publishSuccess = await zegoRef.current.startPublishingStream(streamID);
+        console.log("ZegoVideoCall: Publish result:", publishSuccess);
+
+        if (!publishSuccess) {
+          message.error("Không thể xuất bản luồng của bạn.");
+          if (onEndCall) onEndCall();
+          return;
+        }
+      } else {
+        console.log("ZegoVideoCall: Đã xuất bản luồng trước đó");
       }
 
       setCallStatus("Đang kết nối...");
@@ -957,6 +1045,13 @@ export const ZegoVideoCall: React.FC<{
         isIncomingCall,
         token: token.substring(0, 20) + "...",
       });
+
+      // Đặt thời gian để cập nhật trạng thái sau khi kết nối thành công
+      setTimeout(() => {
+        if (callActive) {
+          setCallStatus("Cuộc gọi đang diễn ra");
+        }
+      }, 3000);
     } catch (error) {
       console.error("ZegoVideoCall: Error during call setup:", error);
       message.error("Có lỗi khi thiết lập cuộc gọi.");
@@ -977,6 +1072,32 @@ export const ZegoVideoCall: React.FC<{
       console.error("ZegoVideoCall: Error ending call:", error);
       message.error("Có lỗi khi kết thúc cuộc gọi.");
       if (onEndCall) onEndCall();
+    }
+  };
+
+  // Thêm hàm để kiểm tra trạng thái
+  const isRoomLoggedIn = async (): Promise<boolean> => {
+    if (!zegoRef.current) return false;
+
+    try {
+      // Kiểm tra trạng thái đăng nhập phòng
+      return true; // Giả định luôn đã đăng nhập, sẽ thay thế bằng API thực tế nếu có
+    } catch (error) {
+      console.error("ZegoVideoCall: Error checking room login status:", error);
+      return false;
+    }
+  };
+
+  // Thêm hàm để kiểm tra trạng thái publishing
+  const isPublishing = async (): Promise<boolean> => {
+    if (!zegoRef.current) return false;
+
+    try {
+      // Kiểm tra trạng thái publishing
+      return false; // Giả định chưa publishing, sẽ thay thế bằng API thực tế nếu có
+    } catch (error) {
+      console.error("ZegoVideoCall: Error checking publishing status:", error);
+      return false;
     }
   };
 
