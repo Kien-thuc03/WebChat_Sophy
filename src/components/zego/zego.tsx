@@ -1071,7 +1071,9 @@ export const ZegoVideoCall: React.FC<{
         </>
       )}
 
-      <style jsx>{`
+      <style
+        dangerouslySetInnerHTML={{
+          __html: `
         .call-error {
           display: flex;
           flex-direction: column;
@@ -1088,7 +1090,9 @@ export const ZegoVideoCall: React.FC<{
           margin-bottom: 20px;
           color: #f5222d;
         }
-      `}</style>
+        `,
+        }}
+      />
     </div>
   );
 };

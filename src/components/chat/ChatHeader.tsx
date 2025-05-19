@@ -27,11 +27,17 @@ interface ExtendedChatHeaderProps extends ChatHeaderProps {
   showInfo?: boolean;
 }
 
-// Declare the incomingCallAudio property for the Window interface
+// Mở rộng interface Window ở đầu file
 declare global {
   interface Window {
     incomingCallAudio?: HTMLAudioElement;
+    callAudioElements: HTMLAudioElement[]; // Không còn undefined
   }
+}
+
+// Khởi tạo callAudioElements nếu chưa tồn tại
+if (typeof window !== "undefined") {
+  window.callAudioElements = window.callAudioElements || [];
 }
 
 // Thêm định nghĩa cho response checkUserStatus
@@ -258,12 +264,8 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
     // để không còn hiển thị cuộc gọi đến nữa
     setIncomingCall(null);
 
-    // Dừng nhạc chuông nếu đang phát
-    if (window.incomingCallAudio) {
-      window.incomingCallAudio.pause();
-      window.incomingCallAudio.currentTime = 0;
-      window.incomingCallAudio = undefined;
-    }
+    // Dừng tất cả âm thanh
+    stopAllCallAudios();
 
     // Gửi sự kiện endCall
     if (otherUserId) {
@@ -286,12 +288,8 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
       incomingCall.roomID
     );
 
-    // Stop any playing ringtone
-    if (window.incomingCallAudio) {
-      window.incomingCallAudio.pause();
-      window.incomingCallAudio.currentTime = 0;
-      window.incomingCallAudio = undefined;
-    }
+    // Dừng tất cả âm thanh trước khi chấp nhận cuộc gọi
+    stopAllCallAudios();
 
     // Đặt loại cuộc gọi
     setIsVideo(incomingCall.isVideo);
@@ -315,18 +313,30 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
 
     console.log("ChatHeader: Từ chối cuộc gọi");
 
-    // Stop any playing ringtone
-    if (window.incomingCallAudio) {
-      window.incomingCallAudio.pause();
-      window.incomingCallAudio.currentTime = 0;
-      window.incomingCallAudio = undefined;
-    }
+    // Dừng tất cả âm thanh
+    stopAllCallAudios();
 
-    socketService.emit("endCall", {
-      conversationId: incomingCall.conversationId,
-      receiverId: incomingCall.callerId,
-    });
-    setIncomingCall(null);
+    // Đặt timeout để chắc chắn âm thanh đã dừng hoàn toàn trước khi gửi sự kiện endCall
+    setTimeout(() => {
+      // Kiểm tra lại và dừng âm thanh còn sót lại nếu có
+      const audioElements = document.querySelectorAll("audio");
+      audioElements.forEach((audio) => {
+        try {
+          if (!audio.paused) {
+            audio.pause();
+            audio.src = "";
+          }
+        } catch {
+          // Bỏ qua lỗi
+        }
+      });
+
+      socketService.emit("endCall", {
+        conversationId: incomingCall.conversationId,
+        receiverId: incomingCall.callerId,
+      });
+      setIncomingCall(null);
+    }, 100);
   };
 
   // Lắng nghe sự kiện cuộc gọi (startCall, endCall, callError, acceptCall)
@@ -409,6 +419,12 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
         return;
       }
 
+      // Nếu đã có cuộc gọi đến, không xử lý cuộc gọi mới
+      if (incomingCall) {
+        console.log("ChatHeader: Đã có cuộc gọi đến, bỏ qua cuộc gọi mới");
+        return;
+      }
+
       // Nếu là người nhận, hiển thị giao diện cuộc gọi đến
       if (isReceiver) {
         console.log(
@@ -423,116 +439,90 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
           isVideo: data.isVideo,
         });
 
+        // Dừng tất cả âm thanh trước khi bắt đầu
+        stopAllCallAudios();
+
         // Phát âm thanh thông báo nếu có thể
         try {
-          // Sử dụng đối tượng Audio HTML5 cục bộ để tránh vấn đề CORS
-          const audioUrls = [
-            "/sounds/phone-calling-sfx-333916.mp3", // Nhạc chuông chính
-            "/sounds/phone-call-14472.mp3", // Phương án dự phòng 1
-            "/sounds/end-call-120633.mp3", // Phương án dự phòng 2
-          ];
+          // Tạo một global array để theo dõi tất cả audio elements được tạo
+          if (!window.callAudioElements) {
+            window.callAudioElements = [];
+          }
 
-          const audio = new Audio();
-          let currentUrlIndex = 0;
+          console.log("ChatHeader: Bắt đầu phát nhạc chuông mới");
 
-          // Xử lý khi tải audio thất bại
-          audio.onerror = () => {
-            currentUrlIndex++;
-            if (currentUrlIndex < audioUrls.length) {
-              console.log(
-                `ChatHeader: Thử tải nhạc chuông từ nguồn ${currentUrlIndex}:`,
-                audioUrls[currentUrlIndex]
-              );
-              audio.src = audioUrls[currentUrlIndex];
-              audio.load();
-              audio.play().catch((e) => {
-                console.error("Không thể phát nhạc chuông:", e);
-                // Tạo thêm một thông báo âm thanh nếu không thể phát nhạc chuông
-                try {
-                  // Thử sử dụng AudioContext API
-                  const audioCtx = new (window.AudioContext ||
-                    (
-                      window as unknown as {
-                        webkitAudioContext: typeof AudioContext;
-                      }
-                    ).webkitAudioContext)();
-                  const oscillator = audioCtx.createOscillator();
-                  oscillator.type = "sine";
-                  oscillator.frequency.setValueAtTime(
-                    440,
-                    audioCtx.currentTime
-                  ); // value in hertz
-                  oscillator.connect(audioCtx.destination);
-                  oscillator.start();
-                  setTimeout(() => oscillator.stop(), 1000);
-                } catch (audioErr) {
-                  console.warn(
-                    "Cả hai phương pháp phát âm thanh đều thất bại:",
-                    audioErr
-                  );
-                }
-              });
-            } else {
-              console.error(
-                "ChatHeader: Đã thử tất cả các nguồn nhạc chuông nhưng không thành công"
-              );
-            }
-          };
+          // Chỉ chọn một file âm thanh để phát
+          const audioFile = "/sounds/phone-calling-sfx-333916.mp3";
 
-          audio.src = audioUrls[0];
+          const audio = new Audio(audioFile);
           audio.loop = true;
           audio.volume = 0.7;
+
+          // Thêm audio element vào danh sách theo dõi
+          window.callAudioElements.push(audio);
+
+          // Thiết lập timeout để tránh phát âm thanh quá lâu
+          const audioTimeout = setTimeout(() => {
+            if (audio && !audio.paused) {
+              console.log("ChatHeader: Dừng âm thanh sau thời gian timeout");
+              try {
+                audio.pause();
+                audio.currentTime = 0;
+                audio.src = "";
+              } catch (error) {
+                console.warn("Không thể dừng audio sau timeout:", error);
+              }
+            }
+          }, 30000); // 30 giây tối đa
+
+          // Cài đặt xử lý lỗi
+          audio.onerror = () => {
+            console.error("ChatHeader: Lỗi phát âm thanh");
+            clearTimeout(audioTimeout);
+
+            // Thử phát âm thanh dự phòng nếu âm thanh chính thất bại
+            try {
+              const fallbackAudio = new Audio("/sounds/phone-call-14472.mp3");
+              fallbackAudio.loop = true;
+              fallbackAudio.volume = 0.7;
+
+              // Tránh AbortError bằng cách thiết lập timeout trước khi play
+              setTimeout(() => {
+                fallbackAudio.play().catch((playError) => {
+                  console.error("Không thể phát âm thanh dự phòng:", playError);
+                });
+              }, 50);
+
+              // Thêm audio element vào danh sách theo dõi
+              window.callAudioElements.push(fallbackAudio);
+
+              // Cập nhật incomingCallAudio để có thể dừng sau này
+              window.incomingCallAudio = fallbackAudio;
+            } catch (fallbackErr) {
+              console.error("Không thể phát âm thanh dự phòng:", fallbackErr);
+            }
+          };
 
           // Cố gắng tải trước để tránh lỗi
           audio.load();
 
-          // Play và xử lý lỗi nếu có
-          const playPromise = audio.play();
-          if (playPromise !== undefined) {
-            playPromise.catch((e) => {
-              console.log(
-                "Không thể phát nhạc chuông (đang thử phương án thay thế):",
-                e
-              );
-
-              // Thử dùng user interaction đã có để kích hoạt âm thanh
-              document.addEventListener(
-                "click",
-                function playAudioOnUserInteraction() {
-                  audio
-                    .play()
-                    .catch((err) =>
-                      console.error(
-                        "Vẫn không thể phát nhạc chuông sau tương tác:",
-                        err
-                      )
-                    );
-                  document.removeEventListener(
-                    "click",
-                    playAudioOnUserInteraction
-                  );
-                },
-                { once: true }
-              );
-
-              // Thử phương án dự phòng
-              currentUrlIndex++;
-              if (currentUrlIndex < audioUrls.length) {
-                audio.src = audioUrls[currentUrlIndex];
-                audio.load();
-                audio
-                  .play()
-                  .catch((e) =>
-                    console.error("Vẫn không thể phát nhạc chuông:", e)
-                  );
+          // Đợi một chút trước khi phát âm thanh để tránh các vấn đề với timing
+          setTimeout(() => {
+            // Play và xử lý lỗi nếu có
+            audio.play().catch((playError) => {
+              console.log("ChatHeader: Không thể phát nhạc chuông:", playError);
+              // Kích hoạt xử lý lỗi thủ công
+              const errorHandler = audio.onerror;
+              if (errorHandler && typeof errorHandler === "function") {
+                errorHandler.call(audio, new Event("error"));
               }
             });
-          }
+          }, 50);
 
           // Lưu để có thể dừng sau này
           window.incomingCallAudio = audio;
         } catch (error) {
-          console.warn("Không thể phát nhạc chuông:", error);
+          console.warn("ChatHeader: Không thể khởi tạo âm thanh:", error);
         }
       }
     };
@@ -540,16 +530,36 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
     const handleEndCall = (data: { conversationId: string }) => {
       console.log("ChatHeader: Nhận được sự kiện kết thúc cuộc gọi:", data);
 
-      // Stop any playing ringtone
-      if (window.incomingCallAudio) {
-        window.incomingCallAudio.pause();
-        window.incomingCallAudio.currentTime = 0;
-        window.incomingCallAudio = undefined;
-      }
+      // Dừng tất cả âm thanh ngay lập tức
+      stopAllCallAudios();
 
-      message.info("Cuộc gọi đã kết thúc.");
-      setIsCallModalVisible(false);
-      setIncomingCall(null);
+      // Thiết lập timeout thứ hai để đảm bảo toàn bộ âm thanh đã dừng
+      setTimeout(() => {
+        // Kiểm tra và dừng lại âm thanh một lần nữa
+        const finalCheck = document.querySelectorAll("audio");
+        finalCheck.forEach((audio) => {
+          try {
+            if (!audio.paused) {
+              audio.pause();
+              audio.src = "";
+            }
+          } catch {
+            // Bỏ qua lỗi
+          }
+        });
+
+        // Thêm thông báo rõ ràng cho người dùng
+        message.info("Cuộc gọi đã kết thúc.", 2);
+
+        // Cập nhật UI
+        setIsCallModalVisible(false);
+        setIncomingCall(null);
+
+        // Log thêm thông tin
+        console.log(
+          "ChatHeader: Đã dọn dẹp âm thanh và UI sau khi kết thúc cuộc gọi"
+        );
+      }, 200);
     };
 
     const handleCallError = (data: { message: string }) => {
@@ -815,6 +825,114 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
       clearInterval(intervalId);
     };
   }, [isGroup, otherUserId, localUserCache]);
+
+  // Nâng cấp hàm stopAllCallAudios để đảm bảo tất cả audio dừng hoàn toàn
+  const stopAllCallAudios = () => {
+    console.log("ChatHeader: TOÀN CỤC - Dừng tất cả âm thanh cuộc gọi");
+
+    try {
+      // Dừng và xóa window.incomingCallAudio
+      if (window.incomingCallAudio) {
+        try {
+          window.incomingCallAudio.pause();
+          window.incomingCallAudio.currentTime = 0;
+          window.incomingCallAudio.src = "";
+          window.incomingCallAudio.load();
+          window.incomingCallAudio.remove?.(); // Xóa khỏi DOM nếu có phương thức này
+          window.incomingCallAudio = undefined;
+        } catch (error) {
+          console.warn("Lỗi khi dừng incomingCallAudio:", error);
+        }
+      }
+
+      // Dừng tất cả audio được theo dõi trong callAudioElements
+      if (window.callAudioElements && Array.isArray(window.callAudioElements)) {
+        console.log(
+          `Đang dừng ${window.callAudioElements.length} audio elements đã được theo dõi`
+        );
+
+        for (let i = 0; i < window.callAudioElements.length; i++) {
+          const audio = window.callAudioElements[i];
+          if (audio) {
+            try {
+              audio.pause();
+              audio.currentTime = 0;
+              audio.src = "";
+              audio.load();
+              audio.remove?.(); // Xóa khỏi DOM nếu có phương thức này
+            } catch (error) {
+              console.warn(`Lỗi khi dừng audio ${i}:`, error);
+            }
+          }
+        }
+
+        // Xóa mảng
+        window.callAudioElements = [];
+      }
+
+      // Vòng lặp cho tất cả audio elements trên trang
+      const allAudios = document.querySelectorAll("audio");
+      console.log(`Đang dừng ${allAudios.length} audio elements trên trang`);
+
+      allAudios.forEach((audio, index) => {
+        try {
+          audio.pause();
+          audio.currentTime = 0;
+          audio.src = "";
+          audio.load();
+          // Không xóa khỏi DOM vì có thể là audio khác không liên quan
+        } catch (error) {
+          console.warn(
+            `Lỗi khi dừng audio element ${index} trên trang:`,
+            error
+          );
+        }
+      });
+
+      // Thực hiện cleanup bổ sung sau một khoảng thời gian ngắn
+      setTimeout(() => {
+        const remainingAudios = document.querySelectorAll("audio");
+        if (remainingAudios.length > 0) {
+          console.log(
+            `Vẫn còn ${remainingAudios.length} audio elements, thực hiện dọn dẹp lại`
+          );
+          remainingAudios.forEach((audio) => {
+            try {
+              audio.pause();
+              audio.src = "";
+              // Không xóa khỏi DOM
+            } catch {
+              // Bỏ qua lỗi
+            }
+          });
+        }
+      }, 200);
+
+      // Thêm vòng lặp cleanup thứ ba sau 500ms để đảm bảo không có ringtone nào bị sót
+      setTimeout(() => {
+        const finalCheck = document.querySelectorAll("audio");
+        if (finalCheck.length > 0) {
+          console.log(`Cleanup cuối cùng: ${finalCheck.length} audio elements`);
+          finalCheck.forEach((audio) => {
+            try {
+              if (!audio.paused) {
+                console.log("Dừng audio element đang phát");
+                audio.pause();
+                audio.src = "";
+              }
+            } catch {
+              // Bỏ qua lỗi
+            }
+          });
+        }
+      }, 500);
+    } catch (error) {
+      console.error("Lỗi nghiêm trọng khi dừng âm thanh:", error);
+    }
+
+    // Đảm bảo incomingCallAudio được xóa hoàn toàn
+    window.incomingCallAudio = undefined;
+  };
 
   return (
     <header className="flex items-center justify-between px-4 py-2 bg-white border-b border-gray-200">
