@@ -1,0 +1,227 @@
+/* Zego Video Call Container */
+.zego-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+  height: 100%;
+  background-color: #000;
+  border-radius: 8px;
+  overflow: hidden;
+  min-height: 400px;
+}
+
+/* Local Video Container */
+.local-video-container {
+  position: relative;
+  width: 100%;
+  height: 300px;
+  border-radius: 8px;
+  overflow: hidden;
+  background-color: #1a1a1a;
+}
+
+/* Video Box for Local and Remote Videos */
+.video-box {
+  width: 100%;
+  height: 100%;
+  background-color: #000;
+  object-fit: cover;
+}
+
+/* Video Information Display */
+.video-info {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  background-color: rgba(0, 0, 0, 0.5);
+  color: white;
+  padding: 5px 10px;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+/* Remote Videos Container */
+.remote-videos-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 10px;
+  width: 100%;
+}
+
+/* Remote Video Item */
+.remote-video-item {
+  position: relative;
+  height: 225px;
+  border-radius: 8px;
+  overflow: hidden;
+  background-color: #1a1a1a;
+}
+
+/* Zego Video Call Wrapper */
+.zego-video-call {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 20px;
+  width: 100%;
+  height: 100%;
+  min-height: 600px;
+}
+
+/* Call Controls */
+.call-controls {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  margin-bottom: 20px;
+  z-index: 10;
+}
+
+/* Call Status Container */
+.call-status-container {
+  margin-bottom: 15px;
+}
+
+/* Status Message */
+.calling-status {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 12px;
+  background-color: #f0f0f0;
+  color: #333;
+  border-radius: 8px;
+  font-weight: 500;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Button Styles */
+.call-controls button {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 50px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.start-call-btn {
+  background-color: #4caf50;
+  color: white;
+}
+
+.start-call-btn:hover {
+  background-color: #45a049;
+}
+
+.end-call-btn {
+  background-color: #f44336;
+  color: white;
+}
+
+.end-call-btn:hover {
+  background-color: #d32f2f;
+}
+
+.toggle-mic-btn,
+.toggle-camera-btn {
+  background-color: #2196f3;
+  color: white;
+}
+
+.toggle-mic-btn:hover,
+.toggle-camera-btn:hover {
+  background-color: #0b7dda;
+}
+
+/* Loading/Connecting animation */
+@keyframes pulse {
+  0% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.5;
+  }
+}
+
+.calling-status {
+  animation: pulse 1.5s infinite;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .remote-videos-container {
+    grid-template-columns: 1fr;
+  }
+
+  .local-video-container {
+    height: 250px;
+  }
+}
+
+/* Thêm CSS cho các thành phần mới */
+
+/* Thông tin người dùng và trạng thái */
+.user-name {
+  font-weight: 500;
+  margin-bottom: 2px;
+}
+
+.stream-status {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 12px;
+}
+
+/* Thông báo khi không có người dùng nào tham gia */
+.no-remote-streams {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 200px;
+  background-color: rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  color: #fff;
+  text-align: center;
+  width: 100%;
+}
+
+/* Nút điều khiển */
+.call-controls .ant-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+  padding: 0 20px;
+  border-radius: 20px;
+  font-weight: 500;
+}
+
+.call-controls .ant-btn-primary.ant-btn-dangerous {
+  background-color: #f44336;
+  border-color: #f44336;
+}
+
+.call-controls .ant-btn-primary.ant-btn-dangerous:hover {
+  background-color: #d32f2f;
+  border-color: #d32f2f;
+}
+
+/* Hiệu ứng cho nút chức năng */
+.toggle-mic-btn,
+.toggle-camera-btn {
+  background-color: rgba(255, 255, 255, 0.2);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.toggle-mic-btn:hover,
+.toggle-camera-btn:hover {
+  background-color: rgba(255, 255, 255, 0.3);
+  color: white;
+}

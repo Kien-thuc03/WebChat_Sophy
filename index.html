@@ -6,6 +6,41 @@
     <title>WebChat Sophy</title>
     <link rel="icon" href="/images/logo.png" />
     <script src="https://www.google.com/recaptcha/api.js?render=6LfBuBMrAAAAAKEtW7E-BdJyvgLTl6ywfO4avdCT"></script>
+    <script>
+      // Hàm load Zego SDK
+      function loadZegoSDK() {
+        if (window.ZegoExpressEngine) return; // Đã tải rồi
+
+        const script = document.createElement("script");
+        script.src =
+          "https://cdn.zegocloud.com/zego-express-engine-webrtc/2.26.0/ZegoExpressWebRTC.js";
+        script.async = true;
+
+        script.onerror = () => {
+          console.warn(
+            "Không thể tải Zego từ CDN chính, thử tải từ CDN dự phòng"
+          );
+          const fallbackScript = document.createElement("script");
+          fallbackScript.src =
+            "https://unpkg.com/zego-express-engine-webrtc@2.26.0/dist/ZegoExpressWebRTC.js";
+          fallbackScript.async = true;
+
+          fallbackScript.onerror = () => {
+            console.error("Không thể tải Zego SDK từ tất cả các nguồn");
+          };
+
+          document.head.appendChild(fallbackScript);
+        };
+
+        document.head.appendChild(script);
+      }
+
+      // Tải ngay khi trang mở
+      loadZegoSDK();
+
+      // Đặt vào window để có thể gọi lại nếu cần
+      window.loadZegoSDK = loadZegoSDK;
+    </script>
     <script src="https://www.google.com/recaptcha/enterprise.js?render=6LfBuBMrAAAAAKEtW7E-BdJyvgLTl6ywfO4avdCT"></script>
   </head>
 

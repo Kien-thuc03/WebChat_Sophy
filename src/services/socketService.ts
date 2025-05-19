@@ -82,6 +82,13 @@ interface CallErrorData {
   message: string;
 }
 
+interface AcceptCallData {
+  conversationId: string;
+  roomID: string;
+  callerId: string;
+  receiverId: string;
+}
+
 class SocketService {
   private socket: Socket | null = null;
   private static instance: SocketService;
@@ -255,6 +262,13 @@ class SocketService {
 
   emit(event: string, data?: any, callback?: (response: any) => void) {
     if (this.socket && this.socket.connected) {
+      if (event === "acceptCall") {
+        console.log(
+          "SocketService: Đang gửi sự kiện acceptCall với dữ liệu:",
+          data
+        );
+      }
+
       if (callback) {
         this.socket.emit(event, data, callback);
       } else {
@@ -265,6 +279,13 @@ class SocketService {
       this.connect();
       setTimeout(() => {
         if (this.socket?.connected) {
+          if (event === "acceptCall") {
+            console.log(
+              "SocketService: Đang gửi sự kiện acceptCall sau khi kết nối lại:",
+              data
+            );
+          }
+
           if (callback) {
             this.socket.emit(event, data, callback);
           } else {
@@ -323,53 +344,33 @@ class SocketService {
     }
   }
 
-  onStartCall(callback: (data: CallData) => void) {
-    if (!this.socket) {
-      this.connect();
-    }
-
-    if (this.socket) {
-      this.socket.off("startCall");
-      this.socket.on("startCall", (data) => {
-        callback(data);
-      });
-    } else {
-      console.warn(
-        "SocketService: Socket not initialized for startCall listener"
-      );
-    }
+  onStartCall(callback: (data: any) => void) {
+    this.on("startCall", callback);
   }
 
-  onEndCall(callback: (data: EndCallData) => void) {
-    if (!this.socket) {
-      this.connect();
-    }
-
-    if (this.socket) {
-      this.socket.off("endCall");
-      this.socket.on("endCall", (data) => {
-        callback(data);
-      });
-    } else {
-      console.warn(
-        "SocketService: Socket not initialized for endCall listener"
-      );
-    }
+  onEndCall(callback: (data: any) => void) {
+    this.on("endCall", callback);
   }
 
-  onCallError(callback: (data: CallErrorData) => void) {
+  onCallError(callback: (data: any) => void) {
+    this.on("callError", callback);
+  }
+
+  onAcceptCall(callback: (data: AcceptCallData) => void) {
     if (!this.socket) {
       this.connect();
     }
 
     if (this.socket) {
-      this.socket.off("callError");
-      this.socket.on("callError", (data) => {
+      // Đảm bảo xóa bỏ bất kỳ listener cũ nào trước khi thêm mới
+      this.socket.off("acceptCall");
+      this.socket.on("acceptCall", (data) => {
+        console.log("SocketService: Nhận được sự kiện acceptCall:", data);
         callback(data);
       });
     } else {
       console.warn(
-        "SocketService: Socket not initialized for callError listener"
+        "SocketService: Socket not initialized for acceptCall listener"
       );
     }
   }
@@ -1063,12 +1064,12 @@ class SocketService {
   }
 
   onGroupNameChanged(
-    callback: (data: { 
-      conversationId: string; 
+    callback: (data: {
+      conversationId: string;
       newName: string;
-      changedBy?: { 
-        userId: string; 
-        fullname: string 
+      changedBy?: {
+        userId: string;
+        fullname: string;
       };
     }) => void
   ) {
@@ -1076,12 +1077,12 @@ class SocketService {
   }
 
   onGroupAvatarChanged(
-    callback: (data: { 
-      conversationId: string; 
+    callback: (data: {
+      conversationId: string;
       newAvatar: string;
-      changedBy?: { 
-        userId: string; 
-        fullname: string 
+      changedBy?: {
+        userId: string;
+        fullname: string;
       };
     }) => void
   ) {
