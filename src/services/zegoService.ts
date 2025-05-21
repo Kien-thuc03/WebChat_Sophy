@@ -57,6 +57,8 @@ class ZegoService {
   private cameraEnabled: boolean = false;
   private eventHandlers: ZegoEventHandlers = {};
   private remoteStreams: Map<string, MediaStream> = new Map();
+  private lastTokenRequestId: number = 0;
+  private activeRooms: Set<string> = new Set();
 
   constructor() {
     // Khởi tạo ZegoService singleton
@@ -64,6 +66,56 @@ class ZegoService {
       // Khởi tạo mảng theo dõi audio elements
       window.callAudioElements = window.callAudioElements || [];
     }
+  }
+
+  // Dọn dẹp trước khi bắt đầu cuộc gọi mới
+  cleanupBeforeCall() {
+    console.log("ZegoService: Dọn dẹp trước khi bắt đầu cuộc gọi mới");
+
+    // Hủy mọi kết nối trước đó
+    if (this.zg) {
+      try {
+        // Dừng phát stream nếu đang phát
+        if (this.publishStreamID) {
+          this.zg.stopPublishingStream(this.publishStreamID);
+          this.publishStreamID = null;
+          this.isPublishing = false;
+        }
+
+        // Đóng tất cả streams
+        if (this.localStream) {
+          try {
+            this.zg.destroyStream(this.localStream);
+          } catch (e) {
+            console.warn("Không thể hủy localStream:", e);
+          }
+          this.localStream = null;
+        }
+
+        // Thoát phòng nếu đang trong phòng
+        if (this.isLoggedInRoom && this.roomID) {
+          try {
+            this.zg.logoutRoom(this.roomID);
+          } catch (e) {
+            console.warn("Không thể đăng xuất khỏi phòng:", e);
+          }
+          this.isLoggedInRoom = false;
+          this.roomID = null;
+        }
+
+        // Reset ZEGO Engine để tránh lỗi token
+        this.zg = null;
+      } catch (error) {
+        console.error("ZegoService: Lỗi khi dọn dẹp:", error);
+      }
+    }
+
+    // Dừng tất cả audio đang phát
+    this.stopAllCallAudios();
+
+    // Reset các trạng thái
+    this.token = null;
+    this.remoteStreams.clear();
   }
 
   // Khởi tạo Zego SDK và đăng nhập vào phòng
@@ -81,6 +133,28 @@ class ZegoService {
     eventHandlers?: ZegoEventHandlers
   ): Promise<boolean> {
     try {
+      // Kiểm tra xem SDK đã được tải chưa
+      if (typeof window === "undefined" || !window.ZegoExpressEngine) {
+        console.error(
+          "ZegoService: ZegoExpressEngine không có sẵn - SDK chưa được tải"
+        );
+        if (window.loadZegoSDK) {
+          console.log("ZegoService: Đang thử tải lại SDK");
+          window.loadZegoSDK();
+
+          // Đợi tối đa 5 giây cho SDK tải
+          let attempts = 0;
+          while (!window.ZegoExpressEngine && attempts < 10) {
+            await new Promise((r) => setTimeout(r, 500));
+            attempts++;
+          }
+        }
+
+        if (!window.ZegoExpressEngine) {
+          throw new Error("SDK chưa được tải đầy đủ - vui lòng thử lại");
+        }
+      }
+
       // Kiểm tra xem trình duyệt có hỗ trợ WebRTC không
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         console.error("ZegoService: Trình duyệt không hỗ trợ WebRTC");
@@ -100,7 +174,10 @@ class ZegoService {
 
       // Lưu trữ các tham số
       this.appID = config.appID;
-      this.server = "wss://webliveroom-api.zego.im";
+
+      // Chỉ sử dụng server được cung cấp, nếu không sẽ dùng mặc định
+      this.server = config.server || "wss://webliveroom-api.zego.im";
+
       this.roomID = config.roomID;
       this.userID = config.userID;
       this.userName = config.userName;
@@ -119,12 +196,6 @@ class ZegoService {
             appID: config.appID,
             server: this.server,
           });
-
-          // Kiểm tra nếu ZegoExpressEngine không khả dụng
-          if (typeof ZegoExpressEngine !== "function") {
-            console.error("ZegoService: ZegoExpressEngine không khả dụng");
-            throw new Error("SDK chưa được tải đầy đủ - vui lòng thử lại");
-          }
 
           // Tạo instance mới của ZegoExpressEngine
           this.zg = new ZegoExpressEngine(config.appID, this.server);
@@ -146,68 +217,103 @@ class ZegoService {
         }
       }
 
-      // Đăng nhập vào phòng
+      // Đăng nhập vào phòng với 3 lần thử lại nếu thất bại
       if (this.zg && !this.isLoggedInRoom) {
-        try {
-          console.log("ZegoService: Đang đăng nhập vào phòng:", config.roomID);
-          console.log("ZegoService: Thông tin đăng nhập:", {
-            roomID: config.roomID,
-            token: config.token
-              ? `${config.token.substring(0, 10)}...`
-              : "token không hợp lệ",
-            userID: config.userID,
-            userName: config.userName,
-          });
+        let attempts = 0;
+        const maxAttempts = 3;
+        let lastError = null;
 
-          const loginResult = await this.zg.loginRoom(
-            config.roomID,
-            config.token,
-            { userID: config.userID, userName: config.userName },
-            { userUpdate: true }
-          );
-
-          this.isLoggedInRoom = loginResult;
-          console.log(
-            "ZegoService: Đăng nhập vào phòng:",
-            config.roomID,
-            "- Kết quả:",
-            loginResult
-          );
-
-          return loginResult;
-        } catch (roomError) {
-          console.error("ZegoService: Lỗi đăng nhập phòng:", roomError);
-          this.isLoggedInRoom = false;
-
-          // Xử lý trường hợp roomError là object
-          let errorMessage = "Không thể đăng nhập vào phòng";
-
+        while (attempts < maxAttempts) {
           try {
-            if (typeof roomError === "object" && roomError !== null) {
-              const errorStr = JSON.stringify(roomError);
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              if ("code" in roomError && (roomError as any).code === 1102016) {
+            console.log(
+              `ZegoService: Đang đăng nhập vào phòng (lần thử ${attempts + 1}):`,
+              config.roomID
+            );
+            console.log("ZegoService: Thông tin đăng nhập:", {
+              roomID: config.roomID,
+              token: config.token
+                ? `${config.token.substring(0, 10)}...`
+                : "token không hợp lệ",
+              userID: config.userID,
+              userName: config.userName,
+            });
+
+            const loginResult = await this.zg.loginRoom(
+              config.roomID,
+              config.token,
+              { userID: config.userID, userName: config.userName },
+              { userUpdate: true }
+            );
+
+            this.isLoggedInRoom = loginResult;
+            console.log(
+              "ZegoService: Đăng nhập vào phòng:",
+              config.roomID,
+              "- Kết quả:",
+              loginResult
+            );
+
+            return loginResult;
+          } catch (roomError) {
+            lastError = roomError;
+            console.error(
+              `ZegoService: Lỗi đăng nhập phòng (lần thử ${attempts + 1}):`,
+              roomError
+            );
+
+            attempts++;
+            if (attempts < maxAttempts) {
+              // Đợi 1 giây trước khi thử lại
+              await new Promise((r) => setTimeout(r, 1000));
+            }
+          }
+        }
+
+        // Xử lý khi đã thử hết số lần thử
+        this.isLoggedInRoom = false;
+
+        // Xử lý trường hợp roomError là object
+        let errorMessage = "Không thể đăng nhập vào phòng sau nhiều lần thử";
+
+        try {
+          if (typeof lastError === "object" && lastError !== null) {
+            const errorStr = JSON.stringify(lastError);
+            if ("code" in lastError && typeof lastError === "object") {
+              const errorWithCode = lastError as {
+                code: number;
+                [key: string]: unknown;
+              };
+              if (errorWithCode.code === 1102016) {
                 errorMessage =
                   "Lỗi xác thực token (1102016) - Token không hợp lệ hoặc không phù hợp với môi trường server. Vui lòng kiểm tra cấu hình.";
                 console.error(
                   "ZegoService: Lỗi liveroom 1102016 - Token không hợp lệ. Chi tiết:",
                   errorStr
                 );
+              } else if (errorWithCode.code === 1002001) {
+                errorMessage =
+                  "Lỗi giới hạn phòng (1002001) - Tài khoản đã vượt quá giới hạn số phòng hoạt động. Vui lòng đóng các phòng khác trước.";
+                console.error(
+                  "ZegoService: Lỗi liveroom 1002001 - Vượt quá giới hạn phòng. Chi tiết:",
+                  errorStr
+                );
               } else {
                 errorMessage += ": " + errorStr;
               }
-            } else if (roomError instanceof Error) {
-              errorMessage += ": " + roomError.message;
             } else {
-              errorMessage += ": " + String(roomError);
+              errorMessage += ": " + errorStr;
             }
-            // eslint-disable-next-line @typescript-eslint/no-unused-vars
-          } catch (_) {
-            errorMessage += ": Lỗi không xác định";
+          } else if (lastError instanceof Error) {
+            errorMessage += ": " + lastError.message;
+          } else {
+            errorMessage += ": " + String(lastError);
           }
-
-          throw new Error(errorMessage);
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        } catch (_) {
+          errorMessage += ": Lỗi không xác định";
         }
+
+        throw new Error(errorMessage);
       }
 
       return this.isLoggedInRoom;
@@ -702,12 +808,37 @@ class ZegoService {
     isVideo: boolean;
   }): Promise<ZegoTokenResponse> {
     try {
-      console.log("ZegoService: Bắt đầu cuộc gọi với thông số:", {
+      // Dọn dẹp trước khi bắt đầu cuộc gọi mới
+      this.cleanupBeforeCall();
+
+      console.log("ZegoService: Bắt đầu cuộc gọi mới với thông số:", {
         room: params.roomID,
         caller: params.callerId,
         receiver: params.receiverId,
         isVideo: params.isVideo,
       });
+
+      // Lưu thông tin cuộc gọi vào localStorage để hỗ trợ refresh token
+      try {
+        localStorage.setItem(
+          "lastCallInfo",
+          JSON.stringify({
+            roomID: params.roomID,
+            callerId: params.callerId,
+            receiverId: params.receiverId,
+            timestamp: Date.now(),
+          })
+        );
+      } catch (e) {
+        console.warn(
+          "ZegoService: Không thể lưu thông tin cuộc gọi vào localStorage",
+          e
+        );
+      }
+
+      // Cơ chế chống trùng lặp token
+      const tokenRequestId = Date.now();
+      this.lastTokenRequestId = tokenRequestId;
 
       // Gửi yêu cầu cuộc gọi đến người nhận
       socketService.sendCallRequest({
@@ -723,11 +854,22 @@ class ZegoService {
       );
 
       // Yêu cầu token từ server
-      return await this.requestZegoToken({
+      const tokenData = await this.requestZegoToken({
         roomID: params.roomID,
         userID: params.callerId,
         userName: params.callerName,
       });
+
+      // Chỉ xử lý token mới nhất
+      if (tokenRequestId !== this.lastTokenRequestId) {
+        console.warn("ZegoService: Bỏ qua token cũ");
+        throw new Error("Token đã bị thay thế bởi yêu cầu mới hơn");
+      }
+
+      // Thêm phòng vào danh sách phòng đang hoạt động
+      this.activeRooms.add(params.roomID);
+
+      return tokenData;
     } catch (error) {
       console.error("ZegoService: Lỗi khi bắt đầu cuộc gọi:", error);
       throw error;
@@ -829,7 +971,97 @@ class ZegoService {
   // Kết thúc cuộc gọi
   async endCall(roomID: string): Promise<void> {
     console.log("ZegoService: Kết thúc cuộc gọi, room:", roomID);
+
+    // Dọn dẹp tài nguyên
+    if (this.zg) {
+      try {
+        // Dừng phát stream nếu đang phát
+        if (this.publishStreamID) {
+          this.zg.stopPublishingStream(this.publishStreamID);
+          this.publishStreamID = null;
+          this.isPublishing = false;
+        }
+
+        // Đóng tất cả streams đang phát
+        for (const [streamID] of this.remoteStreams) {
+          this.stopPlayingStream(streamID);
+        }
+        this.remoteStreams.clear();
+
+        // Hủy localStream nếu có
+        if (this.localStream) {
+          try {
+            this.zg.destroyStream(this.localStream);
+          } catch (e) {
+            console.warn("Không thể hủy localStream:", e);
+          }
+          this.localStream = null;
+        }
+
+        // Đăng xuất khỏi phòng
+        if (this.roomID === roomID || !this.roomID) {
+          try {
+            this.zg.logoutRoom(roomID);
+          } catch (e) {
+            console.warn("Không thể đăng xuất khỏi phòng:", e);
+          }
+          this.isLoggedInRoom = false;
+          this.roomID = null;
+        }
+      } catch (error) {
+        console.error("Lỗi khi kết thúc cuộc gọi:", error);
+      }
+    }
+
+    // Xóa phòng khỏi danh sách phòng đang hoạt động
+    this.activeRooms.delete(roomID);
+
+    // Dừng tất cả audio
+    this.stopAllCallAudios();
+
+    // Gửi thông báo kết thúc cuộc gọi qua socket
     socketService.socketInstance?.emit("endCall", { roomID });
+  }
+
+  // Khởi tạo lại ZEGO với các tham số mới
+  async reinitialize(params: {
+    roomID: string;
+    userID: string;
+    userName: string;
+    token: string;
+    appID: number;
+    video?: boolean;
+    audio?: boolean;
+  }): Promise<boolean> {
+    // Đảm bảo đã dọn dẹp các kết nối cũ
+    this.cleanupBeforeCall();
+
+    // Khởi tạo với các tham số mới
+    return this.initialize({
+      appID: params.appID,
+      server: "wss://webliveroom-api.zego.im",
+      userID: params.userID,
+      userName: params.userName,
+      token: params.token,
+      roomID: params.roomID,
+      video: params.video,
+      audio: params.audio,
+    });
+  }
+
+  // Reset toàn bộ kết nối
+  resetAllConnections() {
+    console.log("ZegoService: Reset toàn bộ kết nối");
+    this.cleanupBeforeCall();
+
+    // Xóa tất cả phòng đang hoạt động
+    this.activeRooms.clear();
+
+    // Reset các biến trạng thái
+    this.appID = null;
+    this.server = null;
+    this.userID = null;
+    this.userName = null;
   }
 }
 

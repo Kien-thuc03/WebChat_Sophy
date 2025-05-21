@@ -82,6 +82,27 @@ export const ZegoVideoCallWithService: React.FC<{
           }
         );
 
+        // Kiểm tra xem đã tải SDK chưa
+        if (!window.ZegoExpressEngine) {
+          console.warn(
+            "ZegoVideoCallWithService: SDK chưa được tải, đang tải lại..."
+          );
+          window.loadZegoSDK?.();
+
+          // Đợi SDK tải trong 5 giây
+          let attempts = 0;
+          while (!window.ZegoExpressEngine && attempts < 10) {
+            await new Promise((resolve) => setTimeout(resolve, 500));
+            attempts++;
+          }
+
+          if (!window.ZegoExpressEngine) {
+            throw new Error(
+              "Không thể tải ZEGO SDK. Vui lòng làm mới trang và thử lại."
+            );
+          }
+        }
+
         // Yêu cầu quyền truy cập media trước khi khởi tạo Zego
         try {
           // Yêu cầu quyền truy cập vào mic và camera
@@ -110,12 +131,15 @@ export const ZegoVideoCallWithService: React.FC<{
           }
         }
 
-        // Khởi tạo Zego service với token và event handlers
+        // Đặt lại tất cả kết nối cũ trước khi bắt đầu mới
+        zegoService.resetAllConnections();
+
+        // Khởi tạo Zego service với token và event handlers - Sử dụng server chuẩn thay vì test
         try {
           const initResult = await zegoService.initialize(
             {
               appID: Number(zegoToken.appID),
-              server: "wss://webliveroom-test.zego.im/ws", // Sử dụng server thích hợp
+              server: "wss://webliveroom-api.zego.im", // Thay đổi từ test tới production url
               userID: userID,
               userName: userName,
               token: zegoToken.token,
@@ -125,10 +149,29 @@ export const ZegoVideoCallWithService: React.FC<{
             },
             // Register event handlers during initialization
             {
-              onRoomStateUpdate: (state: string) => {
+              onRoomStateUpdate: (state: string, errorCode: number) => {
                 console.log(
-                  `ZegoVideoCallWithService: Cập nhật trạng thái phòng: ${state}`
+                  `ZegoVideoCallWithService: Cập nhật trạng thái phòng: ${state}, errorCode: ${errorCode}`
                 );
+
+                if (errorCode !== 0) {
+                  // Xử lý các lỗi phổ biến
+                  if (errorCode === 1102016) {
+                    setHasError(true);
+                    setErrorMessage(
+                      "Lỗi xác thực token (1102016) - Token không hợp lệ"
+                    );
+                    message.error("Lỗi xác thực token");
+                  } else if (errorCode === 1002001) {
+                    setHasError(true);
+                    setErrorMessage(
+                      "Vượt quá giới hạn phòng (1002001) - Tài khoản đã hết giới hạn số phòng"
+                    );
+                    message.error("Vượt quá giới hạn phòng");
+                  }
+                  return;
+                }
+
                 if (state === "CONNECTED") {
                   setIsConnectionEstablished(true);
                   setCallStatus("Cuộc gọi đang diễn ra");
@@ -269,6 +312,11 @@ export const ZegoVideoCallWithService: React.FC<{
             errorMsg = "Không tìm thấy thiết bị mic/camera.";
           } else if (error.message.includes("SSL")) {
             errorMsg = "Yêu cầu kết nối HTTPS để sử dụng tính năng gọi điện.";
+          } else if (error.message.includes("1102016")) {
+            errorMsg =
+              "Lỗi xác thực token - Token không hợp lệ hoặc không phù hợp với môi trường server.";
+          } else if (error.message.includes("1002001")) {
+            errorMsg = "Tài khoản đã vượt quá giới hạn số phòng. Thử lại sau.";
           } else {
             errorMsg = `Lỗi kết nối: ${error.message}`;
           }

@@ -213,7 +213,7 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
     };
   }, [conversation.conversationId, currentUserId]);
 
-  // Xử lý sự kiện gọi bằng Zego Service trực tiếp (phương pháp mới)
+  // Xử lý bằng Zego Service trực tiếp (phương pháp mới)
   const handleCallWithZegoService = async (isVideo: boolean) => {
     if (isGroup) {
       message.warning("Gọi nhóm hiện chưa được hỗ trợ.");
@@ -244,11 +244,36 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
     console.log("ChatHeader: Bắt đầu cuộc gọi với roomID:", consistentRoomID);
 
     try {
+      // Reset kết nối trước khi bắt đầu cuộc gọi mới
+      zegoService.resetAllConnections();
+
       // Hiển thị thông báo cho người dùng
       message.loading({
         content: "Đang khởi tạo cuộc gọi...",
         key: "call-init",
       });
+
+      // Kiểm tra SDK đã được tải chưa
+      if (!window.ZegoExpressEngine) {
+        console.log("ChatHeader: ZegoExpressEngine chưa được tải, đang tải...");
+        window.loadZegoSDK?.();
+
+        let attempts = 0;
+        while (!window.ZegoExpressEngine && attempts < 10) {
+          await new Promise((resolve) => setTimeout(resolve, 500));
+          attempts++;
+        }
+
+        if (!window.ZegoExpressEngine) {
+          message.error({
+            content:
+              "Không thể tải SDK cho cuộc gọi. Vui lòng làm mới trang và thử lại.",
+            key: "call-init",
+            duration: 3,
+          });
+          return;
+        }
+      }
 
       // Sử dụng zegoService để bắt đầu cuộc gọi và lấy token
       const tokenData = await zegoService.startCall({
@@ -287,7 +312,34 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
       }
     } catch (error) {
       console.error("Lỗi khi khởi tạo cuộc gọi:", error);
-      message.error("Không thể khởi tạo cuộc gọi. Vui lòng thử lại sau.");
+      let errorMsg = "Không thể khởi tạo cuộc gọi.";
+
+      // Xử lý các loại lỗi cụ thể
+      if (error instanceof Error) {
+        if (error.message.includes("1102016")) {
+          errorMsg = "Lỗi xác thực - Vui lòng thử lại sau.";
+        } else if (error.message.includes("1002001")) {
+          errorMsg = "Vượt quá giới hạn số phòng. Vui lòng đợi và thử lại sau.";
+        } else if (error.message.includes("token")) {
+          errorMsg = "Lỗi xác thực token. Vui lòng thử lại sau.";
+        }
+      }
+
+      message.error({
+        content: errorMsg,
+        key: "call-init",
+        duration: 3,
+      });
+
+      // Trong trường hợp lỗi 1002001 (quá giới hạn phòng), thử dọn dẹp
+      try {
+        if (error instanceof Error && error.message.includes("1002001")) {
+          console.log("ChatHeader: Đang thử làm sạch các phòng cũ...");
+          zegoService.resetAllConnections();
+        }
+      } catch (cleanupError) {
+        console.error("Lỗi khi dọn dẹp:", cleanupError);
+      }
     }
   };
 

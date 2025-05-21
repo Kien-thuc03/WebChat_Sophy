@@ -1167,18 +1167,47 @@ class SocketService {
   }
 
   // Token refresh
-  refreshZegoToken() {
-    if (!this.socket || !this.socket.connected) {
-      this.connect();
-      setTimeout(() => {
-        if (this.socket?.connected) {
-          this.socket.emit("refreshZegoToken");
-        }
-      }, 1000);
+  refreshZegoToken(): void {
+    // Lấy thông tin user hiện tại
+    const userId = localStorage.getItem("userId");
+    const userName = localStorage.getItem("username") || "User";
+
+    if (!userId) {
+      console.error(
+        "SocketService: Không thể refresh token ZEGO - không có userId"
+      );
       return;
     }
 
-    this.socket.emit("refreshZegoToken");
+    // Kiểm tra xem có thông tin cuộc gọi cuối trong local storage không
+    const lastCallInfo = localStorage.getItem("lastCallInfo");
+    if (!lastCallInfo) {
+      console.error(
+        "SocketService: Không có thông tin cuộc gọi cuối để refresh token"
+      );
+      return;
+    }
+
+    try {
+      const lastCall = JSON.parse(lastCallInfo);
+      if (lastCall && lastCall.roomID) {
+        console.log(
+          "SocketService: Refresh token ZEGO với thông tin cuộc gọi cuối:",
+          lastCall
+        );
+
+        this.requestZegoToken({
+          roomID: lastCall.roomID,
+          userID: userId,
+          userName: userName,
+        });
+      }
+    } catch (error) {
+      console.error(
+        "SocketService: Lỗi khi đọc thông tin cuộc gọi cuối:",
+        error
+      );
+    }
   }
 
   // Request Zego Token
@@ -1186,26 +1215,9 @@ class SocketService {
     roomID: string;
     userID: string;
     userName: string;
-  }) {
+  }): void {
     console.log("SocketService: Gửi yêu cầu token với params:", params);
-
-    if (!this.socket || !this.socket.connected) {
-      console.warn("SocketService: Socket không kết nối, đang kết nối lại...");
-      this.connect();
-      setTimeout(() => {
-        if (this.socket?.connected) {
-          console.log("SocketService: Đã kết nối lại, gửi yêu cầu token");
-          this.socket.emit("requestZegoToken", params);
-        } else {
-          console.error(
-            "SocketService: Không thể kết nối socket để gửi yêu cầu token"
-          );
-        }
-      }, 1000);
-      return;
-    }
-
-    this.socket.emit("requestZegoToken", params);
+    this.socketInstance?.emit("requestZegoToken", params);
   }
 
   // Send call request
