@@ -66,29 +66,6 @@ interface FileAttachment {
   mimeType?: string;
 }
 
-interface CallData {
-  conversationId: string;
-  roomID: string;
-  callerId: string;
-  receiverId: string;
-  isVideo: boolean;
-}
-
-interface EndCallData {
-  conversationId: string;
-}
-
-interface CallErrorData {
-  message: string;
-}
-
-interface AcceptCallData {
-  conversationId: string;
-  roomID: string;
-  callerId: string;
-  receiverId: string;
-}
-
 class SocketService {
   private socket: Socket | null = null;
   private static instance: SocketService;
@@ -260,49 +237,6 @@ class SocketService {
     }
   }
 
-  emit(event: string, data?: any, callback?: (response: any) => void) {
-    if (this.socket && this.socket.connected) {
-      if (event === "acceptCall") {
-        console.log(
-          "SocketService: Đang gửi sự kiện acceptCall với dữ liệu:",
-          data
-        );
-      }
-
-      if (callback) {
-        this.socket.emit(event, data, callback);
-      } else {
-        this.socket.emit(event, data);
-      }
-    } else {
-      console.warn(`Socket not connected for event ${event}, reconnecting...`);
-      this.connect();
-      setTimeout(() => {
-        if (this.socket?.connected) {
-          if (event === "acceptCall") {
-            console.log(
-              "SocketService: Đang gửi sự kiện acceptCall sau khi kết nối lại:",
-              data
-            );
-          }
-
-          if (callback) {
-            this.socket.emit(event, data, callback);
-          } else {
-            this.socket.emit(event, data);
-          }
-        } else {
-          console.error(`Failed to emit event ${event}: Socket not connected`);
-          if (callback) {
-            callback({
-              error: "Socket not connected. Please check if server is running.",
-            });
-          }
-        }
-      }, 1000);
-    }
-  }
-
   on(eventName: string, callback: (data: any) => void) {
     if (!this.socket) {
       this.connect();
@@ -340,37 +274,6 @@ class SocketService {
     } else {
       console.warn(
         "SocketService: Socket not initialized for zegoToken listener"
-      );
-    }
-  }
-
-  onStartCall(callback: (data: any) => void) {
-    this.on("startCall", callback);
-  }
-
-  onEndCall(callback: (data: any) => void) {
-    this.on("endCall", callback);
-  }
-
-  onCallError(callback: (data: any) => void) {
-    this.on("callError", callback);
-  }
-
-  onAcceptCall(callback: (data: AcceptCallData) => void) {
-    if (!this.socket) {
-      this.connect();
-    }
-
-    if (this.socket) {
-      // Đảm bảo xóa bỏ bất kỳ listener cũ nào trước khi thêm mới
-      this.socket.off("acceptCall");
-      this.socket.on("acceptCall", (data) => {
-        console.log("SocketService: Nhận được sự kiện acceptCall:", data);
-        callback(data);
-      });
-    } else {
-      console.warn(
-        "SocketService: Socket not initialized for acceptCall listener"
       );
     }
   }
@@ -1276,6 +1179,89 @@ class SocketService {
     }
 
     this.socket.emit("refreshZegoToken");
+  }
+
+  // Request Zego Token
+  requestZegoToken(params: {
+    roomID: string;
+    userID: string;
+    userName: string;
+  }) {
+    console.log("SocketService: Gửi yêu cầu token với params:", params);
+
+    if (!this.socket || !this.socket.connected) {
+      console.warn("SocketService: Socket không kết nối, đang kết nối lại...");
+      this.connect();
+      setTimeout(() => {
+        if (this.socket?.connected) {
+          console.log("SocketService: Đã kết nối lại, gửi yêu cầu token");
+          this.socket.emit("requestZegoToken", params);
+        } else {
+          console.error(
+            "SocketService: Không thể kết nối socket để gửi yêu cầu token"
+          );
+        }
+      }, 1000);
+      return;
+    }
+
+    this.socket.emit("requestZegoToken", params);
+  }
+
+  // Send call request
+  sendCallRequest(params: {
+    receiverId: string;
+    callerId: string;
+    callerName: string;
+    roomID: string;
+    isVideo: boolean;
+  }) {
+    console.log("SocketService: Gửi yêu cầu gọi đến:", params.receiverId);
+
+    if (!this.socket || !this.socket.connected) {
+      console.warn("SocketService: Socket không kết nối, đang kết nối lại...");
+      this.connect();
+      setTimeout(() => {
+        if (this.socket?.connected) {
+          console.log("SocketService: Đã kết nối lại, gửi yêu cầu gọi");
+          this.socket.emit("callRequest", params);
+        } else {
+          console.error(
+            "SocketService: Không thể kết nối socket để gửi yêu cầu gọi"
+          );
+        }
+      }, 1000);
+      return;
+    }
+
+    this.socket.emit("callRequest", params);
+  }
+
+  // Listen for incoming calls
+  onIncomingCall(
+    callback: (data: {
+      roomID: string;
+      callerId: string;
+      callerName: string;
+      isVideo: boolean;
+    }) => void
+  ) {
+    console.log("SocketService: Thiết lập lắng nghe cuộc gọi đến");
+    this.on("incomingCall", callback);
+  }
+
+  private emit(eventName: string, data: any) {
+    if (!this.socket || !this.socket.connected) {
+      this.connect();
+      setTimeout(() => {
+        if (this.socket?.connected) {
+          this.socket.emit(eventName, data);
+        }
+      }, 1000);
+      return;
+    }
+
+    this.socket.emit(eventName, data);
   }
 }
 
