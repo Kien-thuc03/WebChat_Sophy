@@ -13,19 +13,26 @@ export interface UserProfile {
 
 // Định nghĩa kiểu dữ liệu cho cài đặt người dùng
 export interface UserSettings {
-  block_msg_from_stranger: boolean;
+  hidden_profile_from_strangers: boolean;
+  block_msg_from_strangers: boolean;
 }
 
 // Định nghĩa kiểu dữ liệu cho người dùng
 export interface User {
   _id: ObjectId;
-  full_name: string;
-  phone_number: string;
+  userId: string;
+  fullname: string;
+  isMale: boolean;
+  phone: string;
   hash_password: string;
-  profile: UserProfile;
-  friendList: ObjectId[]; // Danh sách bạn bè
-  blockList: ObjectId[]; // Danh sách chặn
+  birthday: string;
+  urlavatar: string;
   settings: UserSettings;
+  friendList: string[];
+  blockList: string[];
+  createdAt: string;
+  lastActive: string;
+  deviceTokens: string[];
   created_at: ISODate;
   updated_at: ISODate;
 }
@@ -33,7 +40,7 @@ export interface User {
 // Định nghĩa kiểu dữ liệu cho payload đăng ký
 export interface RegisterPayload {
   full_name: string;
-  phone_number: string;
+  phone: string;
   password: string;
   profile: {
     gender: "male" | "female" | "other";
@@ -92,7 +99,8 @@ export interface RefreshTokenFunction {
 // Định nghĩa kiểu dữ liệu cho context xác thực
 export interface AuthContextType {
   user: User | null;
-  login: (form: LoginPayload) => Promise<void>; // Đảm bảo đồng bộ với LoginPayload
+  setUser: React.Dispatch<React.SetStateAction<User | null>>; // Thêm setUser
+  login: (form: { phone: string; password: string }) => Promise<void>;
   logout: () => void;
+  changePassword: (oldPassword: string, newPassword: string) => Promise<void>;
 }
-
