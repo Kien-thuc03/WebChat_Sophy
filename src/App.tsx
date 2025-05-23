@@ -17,6 +17,8 @@ import ResetPassword from "./components/auth/ResetPassword";
 import { ThemeProvider } from "./features/auth/context/ThemeContext";
 import { ConversationProvider } from "./features/chat/context/ConversationContext";
 import { App as AntApp, ConfigProvider } from "antd";
+import ZegoTokenTest from "./components/zego/ZegoTokenTest";
+import ZegoDebug from "./components/zego/ZegoDebug";
 
 const App = () => {
   return (
@@ -49,6 +51,16 @@ const App = () => {
                     />
                     <Route path="/verify-otp" element={<VerifyOTP />} />
                     <Route path="/reset-password" element={<ResetPassword />} />
+                    <Route
+                      path="/zego-test"
+                      element={
+                        <PrivateRoute>
+                          <ZegoTokenTest />
+                        </PrivateRoute>
+                      }
+                    />
+                    <Route path="/zego-debug" element={<ZegoDebug />} />
+                    <Route path="*" element={<Navigate to="/" />} />
                   </Routes>
                 </Router>
               </SocketProvider>
