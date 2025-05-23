@@ -1,5 +1,6 @@
 import io, { Socket } from "socket.io-client";
 import cloudinaryService from "./cloudinaryService";
+import modalService from "./modalService";
 
 // const IP_ADDRESS = "172.28.43.19";
 
@@ -766,6 +767,30 @@ class SocketService {
 
     this.socket.on("error", (error: Error) => {
       console.error("Socket error:", error);
+    });
+
+    // Xử lý sự kiện forceLogout khi tài khoản được đăng nhập ở thiết bị khác
+    this.socket.on("forceLogout", (data: { deviceType: string, message?: string }) => {
+      if (data.deviceType === "browser") {
+        // Hiển thị thông báo bằng modal thay vì alert
+        modalService.showModal({
+          title: "Phiên đăng nhập hết hạn",
+          message: data.message || "Tài khoản đang được đăng nhập ở một thiết bị khác",
+          type: "error",
+          showClose: false,
+          redirectUrl: "/",
+          autoClose: true,
+          autoCloseDelay: 3000
+        });
+        
+        // Thực hiện đăng xuất
+        this.isAuthenticated = false;
+        this.userId = null;
+        
+        // Xóa thông tin đăng nhập
+        localStorage.clear();
+        sessionStorage.clear();
+      }
     });
   }
 

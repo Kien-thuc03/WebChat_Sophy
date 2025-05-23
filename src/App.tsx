@@ -17,6 +17,7 @@ import ResetPassword from "./components/auth/ResetPassword";
 import { ThemeProvider } from "./features/auth/context/ThemeContext";
 import { ConversationProvider } from "./features/chat/context/ConversationContext";
 import { App as AntApp, ConfigProvider } from 'antd';
+import ModalDialog from "./components/common/ModalDialog";
 
 const App = () => {
   return (
@@ -48,6 +49,8 @@ const App = () => {
                     <Route path="/reset-password" element={<ResetPassword />} />
                   </Routes>
                 </Router>
+                {/* Global Modal for displaying notifications like forceLogout */}
+                <ModalDialog />
               </SocketProvider>
             </ConversationProvider>
           </LanguageProvider>
