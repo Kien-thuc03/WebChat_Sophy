@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useLocation, useNavigate, Link } from "react-router-dom";
 import { sendOTPForgotPassword, verifyOTPForgotPassword } from "../../api/API";
 
@@ -11,6 +11,11 @@ const VerifyOTP: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isResending, setIsResending] = useState(false);
   const [isRateLimited, setIsRateLimited] = useState(false);
+  const [backendOTP, setBackendOTP] = useState("");
+
+  // Kiểm tra môi trường development
+  const isDevelopment = window.location.hostname === 'localhost' || 
+                        window.location.hostname === '127.0.0.1';
 
   const location = useLocation();
   const navigate = useNavigate();
@@ -18,6 +23,15 @@ const VerifyOTP: React.FC = () => {
     location.state || {};
   const [phoneNumber] = useState(initialPhoneNumber); // Giữ nguyên phoneNumber
   const [otpId, setOtpId] = useState(initialOtpId); // Cập nhật otpId khi gửi lại mã
+
+  // Hiển thị mã OTP trong môi trường development nếu có
+  useEffect(() => {
+    if (isDevelopment && location.state && location.state.backendOTP) {
+      setBackendOTP(location.state.backendOTP);
+      setMessage(`Dev mode: Sử dụng mã OTP ${location.state.backendOTP}`);
+      setMessageType("success");
+    }
+  }, [location.state]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,17 +55,12 @@ const VerifyOTP: React.FC = () => {
 
     try {
       await verifyOTPForgotPassword(phoneNumber, otp, otpId);
-      setMessage("Xác thực OTP thành công!");
-      setMessageType("success");
-
-      setTimeout(() => {
-        navigate("/reset-password", {
-          state: {
-            phoneNumber,
-            verified: true,
-          },
-        });
-      }, 2000);
+      navigate("/reset-password", {
+        state: {
+          phoneNumber,
+          verified: true,
+        },
+      });
     } catch (error: unknown) {
       let errorMessage = "Có lỗi xảy ra. Vui lòng thử lại.";
       if (error instanceof Error) {
@@ -97,7 +106,15 @@ const VerifyOTP: React.FC = () => {
     try {
       const response = await sendOTPForgotPassword(phoneNumber);
       setOtpId(response.otpId);
-      setMessage("Đã gửi lại mã OTP!");
+      
+      // Hiển thị mã OTP trong môi trường development nếu có
+      if (isDevelopment && response.otp) {
+        setBackendOTP(response.otp);
+        setMessage(`Đã gửi lại mã OTP! Dev mode: Sử dụng mã OTP ${response.otp}`);
+      } else {
+        setMessage("Đã gửi lại mã OTP!");
+      }
+      
       setMessageType("success");
       setIsRateLimited(false);
     } catch (error: unknown) {

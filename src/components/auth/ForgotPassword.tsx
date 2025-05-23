@@ -12,6 +12,10 @@ const ForgotPassword: React.FC = () => {
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const navigate = useNavigate();
+  
+  // Kiểm tra môi trường development
+  const isDevelopment = window.location.hostname === 'localhost' || 
+                      window.location.hostname === '127.0.0.1';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -54,17 +58,22 @@ const ForgotPassword: React.FC = () => {
 
     try {
       const response = await sendOTPForgotPassword(formattedPhone);
-      setMessage("Đã gửi mã OTP!");
+      
+      // Hiển thị thông báo phù hợp với môi trường
+      if (isDevelopment && response.otp) {
+        setMessage(`Đã gửi mã OTP! Dev mode: Sử dụng mã OTP ${response.otp}`);
+      } else {
+        setMessage("Đã gửi mã OTP!");
+      }
+      
       setMessageType("success");
-
-      setTimeout(() => {
-        navigate("/verify-otp", {
-          state: {
-            phoneNumber: formattedPhone,
-            otpId: response.otpId,
-          },
-        });
-      }, 1500);
+      navigate("/verify-otp", {
+        state: {
+          phoneNumber: formattedPhone,
+          otpId: response.otpId,
+          backendOTP: isDevelopment ? response.otp : undefined
+        },
+      });
     } catch (error) {
       if (error instanceof Error) {
         setMessage(error.message);

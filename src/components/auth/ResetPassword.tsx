@@ -49,9 +49,9 @@ const ResetPassword: React.FC = () => {
       await forgotPassword(phoneNumber, newPassword);
       setMessage("Đặt lại mật khẩu thành công!");
       setMessageType("success");
-      setTimeout(() => {
-        navigate("/");
-      }, 2000);
+
+      navigate("/");
+
     } catch (error: unknown) {
       if (error instanceof Error) {
         setMessage(error.message || "Có lỗi xảy ra. Vui lòng thử lại.");
@@ -73,6 +73,17 @@ const ResetPassword: React.FC = () => {
         </p>
 
         <form onSubmit={handleSubmit} className="mt-6 space-y-6">
+          {/* Trường số điện thoại ẩn để hỗ trợ trình quản lý mật khẩu */}
+          <input 
+            type="text" 
+            name="username" 
+            autoComplete="username" 
+            value={phoneNumber || ""} 
+            readOnly 
+            style={{ display: 'none' }} 
+            aria-hidden="true"
+          />
+          
           <div>
             <label className="block text-sm font-medium text-gray-900">
               Mật khẩu mới
@@ -86,6 +97,7 @@ const ResetPassword: React.FC = () => {
               iconRender={(visible) =>
                 visible ? <EyeTwoTone /> : <EyeInvisibleOutlined />
               }
+              autoComplete="new-password"
             />
             <div className="mt-2 text-xs text-gray-500 space-y-1">
               <p>Yêu cầu về mật khẩu:</p>
@@ -119,6 +131,7 @@ const ResetPassword: React.FC = () => {
               iconRender={(visible) =>
                 visible ? <EyeTwoTone /> : <EyeInvisibleOutlined />
               }
+              autoComplete="new-password"
             />
           </div>
 
