@@ -1,6 +1,5 @@
 import { ZegoExpressEngine as ZegoExpressEngineBase } from "zego-express-engine-webrtc";
 import socketService from "./socketService";
-import { ZEGO_SERVER } from "./zegoHelper";
 
 // Định nghĩa interface cho ZegoToken
 export interface ZegoTokenResponse {
@@ -98,6 +97,14 @@ interface ZegoExpressEngine extends ZegoExpressEngineBase {
   createEngine?: (config: { appID: number; server: string }) => Promise<void>;
   setPlayVolume?: (streamID: string, volume: number) => Promise<void>;
   // Add any other missing methods here
+}
+
+// Using more flexible type definitions for SDK callbacks
+// Note: This interface is used internally by the SDK for type casting
+interface ZegoUser {
+  userID: string;
+  userName?: string;
+  [key: string]: unknown; // Use unknown instead of any
 }
 
 class ZegoService {
@@ -224,7 +231,10 @@ class ZegoService {
         // Sử dụng instance đã có nếu tồn tại
         if (!this.zg) {
           console.log("ZegoService: Khởi tạo ZegoExpressEngine");
-          this.zg = new window.ZegoExpressEngine();
+          // Fix: Pass required appID and server arguments
+          const appID = 1; // Default placeholder value
+          const server = "wss://webliveroom-alpha.zego.im/ws"; // Default server
+          this.zg = new window.ZegoExpressEngine(appID, server);
           console.log("ZegoService: Khởi tạo ZegoExpressEngine thành công");
         } else {
           console.log(
@@ -359,7 +369,7 @@ class ZegoService {
       const serverUrl =
         this.server ||
         (typeof window !== "undefined" && window.ZEGO_SERVER) ||
-        "wss://webliveroom-alpha.zego.im/ws";
+        "wss://webliveroom-alpha.zego.im/ws"; // Default server
 
       // Khởi tạo Zego
       try {
@@ -420,62 +430,94 @@ class ZegoService {
     if (!this.zg) return;
 
     // Room state update
-    this.zg.on(
-      "roomStateUpdate",
-      (roomID, state, errorCode, /* unused parameter */ _) => {
-        console.log(
-          `ZegoService: Room state update - room: ${roomID}, state: ${state}, code: ${errorCode}`
-        );
-        this.roomState = state;
-        if (this.eventHandlers?.onRoomStateUpdate) {
-          this.eventHandlers.onRoomStateUpdate(state, errorCode);
-        }
+    this.zg.on("roomStateUpdate", (roomID, state, errorCode) => {
+      console.log(
+        `ZegoService: Room state update - room: ${roomID}, state: ${state}, code: ${errorCode}`
+      );
+      this.roomState = state;
+      if (this.eventHandlers?.onRoomStateUpdate) {
+        this.eventHandlers.onRoomStateUpdate(state, errorCode);
       }
-    );
+    });
 
-    // User update
+    // User update with proper casting
     this.zg.on("roomUserUpdate", (roomID, updateType, userList) => {
       console.log(
-        `ZegoService: User update - ${updateType}, count: ${userList.length}`
+        `ZegoService: User update - ${updateType}, count: ${userList.length}, users: ${JSON.stringify(userList)}`
       );
+
       if (this.eventHandlers?.onUserUpdate) {
+        // Cast to the expected type
+        const typedUserList = userList as unknown as ZegoUserUpdateData[];
         this.eventHandlers.onUserUpdate(
           updateType as "ADD" | "DELETE",
-          userList
+          typedUserList
         );
       }
     });
 
-    // Stream update
+    // Stream update with proper casting
     this.zg.on("roomStreamUpdate", (roomID, updateType, streamList) => {
       console.log(
-        `ZegoService: Stream update - ${updateType}, count: ${streamList.length}`
+        `ZegoService: Stream update - ${updateType}, count: ${streamList.length}, streams: ${JSON.stringify(streamList)}`
       );
 
       // Xử lý streams từ người dùng khác
       if (updateType === "ADD") {
+        console.log(
+          "ZegoService: Processing remote stream ADD event:",
+          streamList
+        );
         streamList.forEach((stream) => {
           if (
             stream.streamID &&
-            stream.user &&
-            stream.user.userID !== this.userID
+            (!stream.user ||
+              (stream.user && stream.user.userID !== this.userID))
           ) {
-            this.playStream(stream.streamID);
+            console.log(
+              `ZegoService: Playing remote stream ${stream.streamID} from user ${stream.user?.userID || "unknown"}`
+            );
+            // Wait a short time before playing to ensure the stream is ready
+            setTimeout(() => {
+              this.playStream(stream.streamID).then((remoteStream) => {
+                if (remoteStream) {
+                  console.log(
+                    `ZegoService: Successfully started playing remote stream ${stream.streamID}`
+                  );
+                } else {
+                  console.error(
+                    `ZegoService: Failed to play remote stream ${stream.streamID}`
+                  );
+                }
+              });
+            }, 500); // Give some time for the stream to be ready
+          } else {
+            console.log(`ZegoService: Ignoring own stream ${stream.streamID}`);
           }
         });
       } else if (updateType === "DELETE") {
+        console.log(
+          "ZegoService: Processing remote stream DELETE event:",
+          streamList
+        );
         streamList.forEach((stream) => {
           if (stream.streamID) {
+            console.log(
+              `ZegoService: Stopping remote stream ${stream.streamID}`
+            );
             this.remoteStreams.delete(stream.streamID);
+            this.stopPlayingStream(stream.streamID);
           }
         });
       }
 
       // Gọi callback nếu có
       if (this.eventHandlers?.onStreamUpdate) {
+        // Cast to the expected type
+        const typedStreamList = streamList as unknown as ZegoStreamUpdateData[];
         this.eventHandlers.onStreamUpdate(
           updateType as "ADD" | "DELETE",
-          streamList
+          typedStreamList
         );
       }
     });
@@ -491,7 +533,9 @@ class ZegoService {
       }
 
       if (this.eventHandlers?.onPublisherStateUpdate) {
-        this.eventHandlers.onPublisherStateUpdate(state);
+        // Cast to the expected type
+        const typedState = state as unknown as ZegoStateUpdateData;
+        this.eventHandlers.onPublisherStateUpdate(typedState);
       }
     });
 
@@ -499,7 +543,9 @@ class ZegoService {
     this.zg.on("playerStateUpdate", (state) => {
       console.log(`ZegoService: Player state update: ${state.state}`);
       if (this.eventHandlers?.onPlayerStateUpdate) {
-        this.eventHandlers.onPlayerStateUpdate(state);
+        // Cast to the expected type
+        const typedState = state as unknown as ZegoStateUpdateData;
+        this.eventHandlers.onPlayerStateUpdate(typedState);
       }
     });
 
@@ -510,11 +556,10 @@ class ZegoService {
       }
     });
 
-    // Camera state update
-    // @ts-expect-error - We're handling the type mismatch within the function
+    // Camera state update - handle type mismatch safely
     this.zg.on("remoteCameraStatusUpdate", (streamID, status) => {
       // Convert to compatible format for our interface
-      const info = {
+      const info: ZegoDeviceUpdateData = {
         userID: streamID,
         status: status || "unknown",
       };
@@ -527,11 +572,10 @@ class ZegoService {
       }
     });
 
-    // Microphone state update
-    // @ts-expect-error - We're handling the type mismatch within the function
+    // Microphone state update - handle type mismatch safely
     this.zg.on("remoteMicStatusUpdate", (streamID, status) => {
       // Convert to compatible format for our interface
-      const info = {
+      const info: ZegoDeviceUpdateData = {
         userID: streamID,
         status: status || "unknown",
       };
@@ -669,6 +713,15 @@ class ZegoService {
       if (remoteStream) {
         this.remoteStreams.set(streamID, remoteStream);
         console.log(`ZegoService: Đã play stream ${streamID} thành công`);
+
+        // Emit a custom event to notify that a remote stream is ready to be attached
+        if (typeof window !== "undefined") {
+          const event = new CustomEvent("zegoRemoteStreamReady", {
+            detail: { streamID, stream: remoteStream },
+          });
+          window.dispatchEvent(event);
+        }
+
         return remoteStream;
       }
 
@@ -678,6 +731,12 @@ class ZegoService {
       console.error(`ZegoService: Lỗi khi play stream ${streamID}`, error);
       return null;
     }
+  }
+
+  // Alias for playStream to maintain compatibility with components expecting startPlayingStream
+  async startPlayingStream(streamID: string): Promise<MediaStream | null> {
+    console.log("ZegoService: startPlayingStream alias called");
+    return this.playStream(streamID);
   }
 
   // Dừng play stream
@@ -771,7 +830,9 @@ class ZegoService {
 
     try {
       // Use alternative API or safe access pattern for incompatible types
-      const zg = this.zg as unknown as { setPlayVolume?: Function };
+      const zg = this.zg as unknown as {
+        setPlayVolume?: (streamID: string, volume: number) => Promise<void>;
+      };
       if (typeof zg.setPlayVolume === "function") {
         await zg.setPlayVolume(streamID, volume);
         console.log(
@@ -1029,29 +1090,19 @@ class ZegoService {
   }): Promise<ZegoTokenResponse> {
     console.log("ZegoService: Chấp nhận cuộc gọi:", params);
 
-    try {
-      // Thông báo cho server rằng cuộc gọi đã được chấp nhận
-      if (
-        !socketService.socketInstance ||
-        !socketService.socketInstance.connected
-      ) {
-        throw new Error("Kết nối socket không khả dụng");
-      }
+    // Dừng phát nhạc chuông cuộc gọi đến
+    this.stopAllCallAudios();
 
-      socketService.socketInstance.emit("acceptCall", params);
-      console.log(
-        "ZegoService: Đã gửi thông báo chấp nhận, đang yêu cầu token..."
-      );
+    // Thông báo cho người gọi là đã chấp nhận cuộc gọi
+    console.log(
+      "ZegoService: Đã gửi thông báo chấp nhận, đang yêu cầu token..."
+    );
 
-      // Yêu cầu token từ server
-      return this.requestToken(params.roomID, params.receiverId);
-    } catch (error) {
-      console.error("ZegoService: Lỗi khi chấp nhận cuộc gọi:", error);
-      throw new Error(
-        "Không thể chấp nhận cuộc gọi: " +
-          (error instanceof Error ? error.message : "Lỗi không xác định")
-      );
-    }
+    // Use the new sendAcceptCall method instead of directly emitting the event
+    await socketService.sendAcceptCall(params);
+
+    // Yêu cầu token để tham gia phòng
+    return await this.requestToken(params.roomID, params.receiverId);
   }
 
   // Lấy token và bắt đầu cuộc gọi
@@ -1119,6 +1170,49 @@ class ZegoService {
     this.reset();
   }
 
+  // This is the endCall method called by ChatHeader.tsx when ending a call
+  async endCall(roomID?: string): Promise<void> {
+    console.log("ZegoService: Ending call for room:", roomID || this.roomID);
+
+    // Stop publishing stream
+    await this.stopPublishingStream();
+
+    // Stop all remote streams
+    for (const streamID of this.remoteStreams.keys()) {
+      this.stopPlayingStream(streamID);
+    }
+
+    // Clean up local stream
+    if (this.localStream) {
+      const tracks = this.localStream.getTracks();
+      tracks.forEach((track) => track.stop());
+      this.localStream = null;
+    }
+
+    // Logout from room
+    if (this.roomID || roomID) {
+      const targetRoomID = roomID || this.roomID;
+      if (this.zg && targetRoomID) {
+        await this.zg.logoutRoom(targetRoomID);
+        console.log(`ZegoService: Left room ${targetRoomID}`);
+      }
+    }
+
+    // Emit socket event to notify other user
+    if (roomID) {
+      socketService.socketInstance?.emit("endCall", { roomID });
+    }
+
+    // Reset room state
+    this.roomID = null;
+    this.roomState = "DISCONNECTED";
+
+    // Stop all audio playing
+    this.stopAllCallAudios();
+
+    console.log("ZegoService: Call ended");
+  }
+
   // This is the destroy method called by ZegoVideoCallWithService.tsx
   destroy(): void {
     console.log("ZegoService: Destroy called");
@@ -1126,7 +1220,7 @@ class ZegoService {
   }
 }
 
-// Declare global Window interface for audio elements
+// Define the extended Window interface
 declare global {
   interface Window {
     ZegoExpressEngine?: typeof ZegoExpressEngineBase;

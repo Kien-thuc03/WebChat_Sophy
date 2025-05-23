@@ -7,13 +7,13 @@
     <link rel="icon" href="/images/logo.png" />
     <script src="https://www.google.com/recaptcha/api.js?render=6LfBuBMrAAAAAKEtW7E-BdJyvgLTl6ywfO4avdCT"></script>
 
-    <!-- Script để tải Zego SDK từ local -->
+    <!-- Script để tải Zego SDK chính thức từ CDN -->
     <script>
       // Biến để theo dõi trạng thái tải SDK
       window.zegoSDKLoading = false;
       window.zegoSDKLoaded = false;
 
-      // Hàm load Zego SDK từ local
+      // Hàm load Zego SDK từ CDN chính thức
       function loadZegoSDK() {
         // Kiểm tra xem SDK đã được tải hoặc đang tải hay chưa
         if (window.ZegoExpressEngine) {
@@ -33,15 +33,17 @@
 
         // Đánh dấu đang tải SDK
         window.zegoSDKLoading = true;
-        console.log("Bắt đầu tải Zego SDK từ local...");
+        console.log("Bắt đầu tải Zego SDK chính thức từ CDN...");
 
-        // Thử tải từ thư mục /zego (file chính thức)
+        // Tải SDK từ CDN chính thức
         const script = document.createElement("script");
-        script.src = "/zego/ZegoExpressWebRTC.min.js";
+        script.src =
+          "https://cdn.jsdelivr.net/npm/zego-express-engine-webrtc@2.24.5/ZegoExpressWebRTC.min.js";
         script.async = true;
+        script.crossOrigin = "anonymous";
 
         script.onload = () => {
-          console.log("✅ Đã tải SDK ZEGO từ local thành công.");
+          console.log("✅ Đã tải SDK ZEGO chính thức thành công.");
           window.zegoSDKLoaded = true;
           window.zegoSDKLoading = false;
 
@@ -51,36 +53,17 @@
         };
 
         script.onerror = () => {
-          console.warn(
-            "❌ Không thể tải SDK ZEGO từ /zego. Thử tải từ thư mục /lib (bản dự phòng)."
-          );
+          console.error("❌ Không thể tải SDK ZEGO từ CDN.");
 
-          // Thử tải từ file dự phòng
-          const fallbackScript = document.createElement("script");
-          fallbackScript.src = "/lib/ZegoExpressWebRTC.min.js";
-          fallbackScript.async = true;
+          window.zegoSDKLoading = false;
+          window.zegoSDKLoadError = true;
 
-          fallbackScript.onload = () => {
-            console.log("✅ Đã tải SDK ZEGO dự phòng từ /lib thành công.");
-            window.zegoSDKLoaded = true;
-            window.zegoSDKLoading = false;
+          // Thông báo lỗi
+          alert("Không thể tải thư viện cuộc gọi. Vui lòng làm mới trang.");
 
-            // Thông báo cho các component đang chờ SDK
-            const zegoLoadedEvent = new Event("zegoSDKLoaded");
-            window.dispatchEvent(zegoLoadedEvent);
-          };
-
-          fallbackScript.onerror = () => {
-            console.error(
-              "❌ Không thể tải SDK ZEGO từ cả hai nguồn local. Vui lòng kiểm tra thư mục."
-            );
-            window.zegoSDKLoading = false;
-
-            // Thông báo lỗi
-            alert("Không thể tải thư viện cuộc gọi. Vui lòng làm mới trang.");
-          };
-
-          document.head.appendChild(fallbackScript);
+          // Phát sự kiện lỗi
+          const zegoErrorEvent = new Event("zegoSDKLoadError");
+          window.dispatchEvent(zegoErrorEvent);
         };
 
         document.head.appendChild(script);

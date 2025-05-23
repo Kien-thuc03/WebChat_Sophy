@@ -1,9 +1,18 @@
 import { v4 as uuidv4 } from "uuid";
 import CryptoJS from "crypto-js";
 
-// Thông tin ZEGO từ dashboard
+// Thông tin ZEGO từ dashboard - sử dụng ZEGO AppID thật
 export const ZEGO_APP_ID = 1206754025;
 export const ZEGO_SERVER_SECRET = "79fd02b6cc05f2e44bfeea5af8629f2c";
+
+// Cấu hình server ZEGO - sử dụng server Singapore cho khu vực Châu Á
+export const ZEGO_SERVER = "wss://webliveroom-ap-singapore.zegocloud.com/ws";
+
+// Cấu hình toàn cục cho ZEGO SDK
+export const ZEGO_SDK_CONFIG = {
+  useRealSDK: true, // Luôn sử dụng SDK thật, không sử dụng mock
+  logLevel: "debug", // Thiết lập mức độ log: debug, info, warning, error, none
+};
 
 // Hàm tạo token ZEGO - dùng trong trường hợp server không trả về token
 export const generateZegoToken = (
@@ -124,13 +133,11 @@ export const ZEGO_CONFIG = {
   },
 };
 
-// Cấu hình server ZEGO
-export const ZEGO_SERVER = "wss://webliveroom-alpha.zego.im/ws";
-
 export default {
   generateZegoToken,
   checkMediaPermissions,
   ZEGO_CONFIG,
   ZEGO_APP_ID,
   ZEGO_SERVER,
+  ZEGO_SDK_CONFIG,
 };

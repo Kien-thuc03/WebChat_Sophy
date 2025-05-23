@@ -672,6 +672,28 @@ class SocketService {
   }
 
   private setupListeners(): void {
+    console.log("SocketService: Setting up core socket listeners");
+
+    // Add debug logs for call-related events
+    if (this.socket) {
+      // Debug listeners for call-related events
+      this.socket.on("callAccepted", (data) => {
+        console.log("SocketService: DEBUG: Received callAccepted event", data);
+      });
+
+      this.socket.on("callRejected", (data) => {
+        console.log("SocketService: DEBUG: Received callRejected event", data);
+      });
+
+      this.socket.on("callEnded", (data) => {
+        console.log("SocketService: DEBUG: Received callEnded event", data);
+      });
+
+      this.socket.on("incomingCall", (data) => {
+        console.log("SocketService: DEBUG: Received incomingCall event", data);
+      });
+    }
+
     if (!this.socket) return;
 
     this.socket.on("error", (error: Error) => {
@@ -1392,6 +1414,53 @@ class SocketService {
   ) {
     console.log("SocketService: Thiết lập lắng nghe cuộc gọi đến");
     this.on("incomingCall", callback);
+  }
+
+  // Send accept call notification
+  sendAcceptCall(params: {
+    roomID: string;
+    callerId: string;
+    receiverId: string;
+  }): Promise<void> {
+    console.log(`SocketService: Sending call acceptance:`, params);
+
+    return new Promise((resolve, reject) => {
+      if (!this.socket || !this.socket.connected) {
+        console.warn(
+          "SocketService: Socket not connected, attempting reconnect..."
+        );
+        this.connect();
+
+        setTimeout(() => {
+          if (this.socket?.connected) {
+            console.log("SocketService: Reconnected, sending call acceptance");
+            this.socket.emit("acceptCall", params);
+            resolve();
+          } else {
+            console.error(
+              "SocketService: Cannot connect socket to send call acceptance"
+            );
+            reject(new Error("Cannot connect socket"));
+          }
+        }, 1000);
+        return;
+      }
+
+      this.socket.emit("acceptCall", params);
+      resolve();
+    });
+  }
+
+  // Listen for call accepted notifications
+  onAcceptCall(
+    callback: (data: {
+      roomID: string;
+      callerId: string;
+      receiverId: string;
+    }) => void
+  ) {
+    console.log("SocketService: Setting up listener for call acceptance");
+    this.on("callAccepted", callback);
   }
 
   private emit(eventName: string, data: any) {

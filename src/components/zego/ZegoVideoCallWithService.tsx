@@ -10,6 +10,14 @@ import {
 import { zegoService } from "../../services/zegoService";
 import "./zego.css";
 
+// Add custom event interface
+interface ZegoRemoteStreamEvent extends CustomEvent {
+  detail: {
+    streamID: string;
+    stream: MediaStream;
+  };
+}
+
 export const ZegoVideoCallWithService: React.FC<{
   roomID: string;
   userID: string;
@@ -389,52 +397,123 @@ export const ZegoVideoCallWithService: React.FC<{
     };
   }, [callTimerActive]);
 
-  // Effect to play remote streams when container refs are available
+  // NEW: Listen for the custom event for remote streams
   useEffect(() => {
-    if (!hasRemoteStream || remoteStreamIDs.length === 0) return;
+    const handleRemoteStreamReady = (event: Event) => {
+      const customEvent = event as ZegoRemoteStreamEvent;
+      const { streamID, stream } = customEvent.detail;
 
-    // For each remote stream ID, try to play it if the container is available
-    remoteStreamIDs.forEach(async (streamID) => {
-      if (remoteVideoRefs.current[streamID]) {
-        try {
-          // Try to play the stream in its container
-          await zegoService.startPlayingStream(streamID);
-        } catch (error) {
-          console.error(`Error playing remote stream ${streamID}:`, error);
+      console.log(
+        `ZegoVideoCallWithService: Remote stream ready event received for ${streamID}`
+      );
+
+      // Add to remote stream IDs
+      setRemoteStreamIDs((prev) => {
+        if (!prev.includes(streamID)) {
+          return [...prev, streamID];
         }
+        return prev;
+      });
+
+      setHasRemoteStream(true);
+
+      // Update connection status
+      if (!isConnectionEstablished) {
+        setIsConnectionEstablished(true);
+        setCallStatus("Cuộc gọi đang diễn ra");
+        setCallTimerActive(true);
       }
-    });
-  }, [hasRemoteStream, remoteStreamIDs]);
+
+      // Attach the stream to video element after a short delay to ensure DOM is ready
+      setTimeout(() => {
+        if (remoteVideoRefs.current[streamID]) {
+          try {
+            console.log(`Attaching remote stream ${streamID} to video element`);
+
+            const container = remoteVideoRefs.current[streamID];
+            if (container) {
+              // Clear the container first
+              while (container.firstChild) {
+                container.removeChild(container.firstChild);
+              }
+
+              // Create video element
+              const videoElement = document.createElement("video");
+              videoElement.srcObject = stream;
+              videoElement.autoplay = true;
+              videoElement.playsInline = true;
+              videoElement.muted = false;
+              videoElement.style.width = "100%";
+              videoElement.style.height = "100%";
+              container.appendChild(videoElement);
+
+              console.log(
+                `Successfully attached stream ${streamID} to video element`
+              );
+            }
+          } catch (error) {
+            console.error(`Error attaching stream ${streamID}:`, error);
+          }
+        } else {
+          console.warn(`Container for stream ${streamID} not available yet`);
+        }
+      }, 200);
+    };
+
+    // Register event listener
+    window.addEventListener(
+      "zegoRemoteStreamReady",
+      handleRemoteStreamReady as EventListener
+    );
+
+    // Clean up
+    return () => {
+      window.removeEventListener(
+        "zegoRemoteStreamReady",
+        handleRemoteStreamReady as EventListener
+      );
+    };
+  }, [isConnectionEstablished]);
 
   // Xử lý bật/tắt mic
-  const handleToggleMicrophone = () => {
-    const newState = zegoService.toggleMicrophone();
-    setMicEnabled(newState);
+  const handleToggleMicrophone = async () => {
+    try {
+      const result = await zegoService.toggleMicrophone();
+      // Only update if we get a definite result
+      if (typeof result === "boolean") {
+        setMicEnabled(result);
+      }
+    } catch (error) {
+      console.error("Error toggling microphone:", error);
+    }
   };
 
   // Xử lý bật/tắt camera
-  const handleToggleCamera = () => {
-    const newState = zegoService.toggleCamera();
-    setCameraEnabled(newState);
+  const handleToggleCamera = async () => {
+    try {
+      const result = await zegoService.toggleCamera();
+      // Only update if we get a definite result
+      if (typeof result === "boolean") {
+        setCameraEnabled(result);
+      }
+    } catch (error) {
+      console.error("Error toggling camera:", error);
+    }
   };
 
   // Xử lý kết thúc cuộc gọi
   const endCall = () => {
     console.log("ZegoVideoCallWithService: Kết thúc cuộc gọi");
 
-    // Dọn dẹp và kết thúc cuộc gọi
-    zegoService.destroy();
-
-    // Thông báo kết thúc cho server
-    if (roomID) {
-      zegoService.endCall(roomID).catch((err) => {
-        console.error("Lỗi khi gửi thông báo kết thúc cuộc gọi:", err);
-      });
-    }
+    // Use proper endCall method with roomID
+    zegoService.endCall(roomID).catch((err) => {
+      console.error("Lỗi khi gửi thông báo kết thúc cuộc gọi:", err);
+    });
 
     // Cập nhật UI
     setCallActive(false);
     setIsConnectionEstablished(false);
+    setHasRemoteStream(false);
 
     // Callback để component cha xử lý
     if (onEndCall) onEndCall();
