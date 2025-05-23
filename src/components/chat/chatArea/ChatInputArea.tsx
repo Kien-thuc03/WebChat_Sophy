@@ -4,6 +4,7 @@ import { SendOutlined, SmileOutlined, PictureOutlined, FileOutlined, FileImageOu
 import Picker from '@emoji-mart/react';
 import data from '@emoji-mart/data';
 import FileUploader from './FileUploader';
+import VoiceRecorderButton from './VoiceRecorderButton';
 import { DisplayMessage } from '../../../features/chat/types/chatTypes';
 import { User } from '../../../features/auth/types/authTypes';
 
@@ -55,6 +56,10 @@ interface ChatInputAreaProps {
 
 export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
   conversationId,
+  currentUserId,
+  userCache,
+  updateConversationWithNewMessage,
+  scrollToBottomSmooth,
   isValidConversation,
   attachments,
   pastedImage,
@@ -63,6 +68,7 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
   setReplyingToMessage,
   inputValue,
   isUploading,
+  setIsUploading,
   emojiPickerVisible,
   inputRef,
   fileInputRef,
@@ -177,6 +183,7 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
           ))}
         </div>
       )}
+      
       {/* Main input area */}
       <div className="flex items-center p-2">
         {/* Input field */}
@@ -220,6 +227,19 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
             />
           </Tooltip>
         </div>
+        
+        {/* Voice recorder button */}
+        <VoiceRecorderButton 
+          conversationId={conversationId}
+          currentUserId={currentUserId}
+          userCache={userCache}
+          updateConversationWithNewMessage={updateConversationWithNewMessage}
+          scrollToBottomSmooth={scrollToBottomSmooth}
+          isValidConversation={isValidConversation}
+          isUploading={isUploading}
+          setIsUploading={setIsUploading}
+        />
+        
         {/* Emoji picker button */}
         <div className="emoji-picker-container flex-shrink-0 relative mr-2">
           <Button 

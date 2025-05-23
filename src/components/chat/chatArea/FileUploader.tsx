@@ -48,9 +48,14 @@ const FileUploader: React.FC<FileUploaderProps> = ({
     if (type.startsWith('image/')) {
       return <FileImageOutlined />;
     } else if (type.startsWith('video/')) {
+      // Check if it's actually an audio webm file
+      if (type === 'video/webm' && 
+          (name.includes('voice_message_') || name.includes('audio') || file.size < 1024 * 1024)) {
+        return <AudioOutlined className="text-green-500" />;
+      }
       return <VideoCameraOutlined />;
-    } else if (type.startsWith('audio/')) {
-      return <AudioOutlined />;
+    } else if (type.startsWith('audio/') || name.endsWith('.webm')) {
+      return <AudioOutlined className="text-green-500" />;
     } else if (type === 'application/pdf') {
       return <FilePdfOutlined />;
     } else if (type.includes('word') || name.endsWith('.doc') || name.endsWith('.docx')) {

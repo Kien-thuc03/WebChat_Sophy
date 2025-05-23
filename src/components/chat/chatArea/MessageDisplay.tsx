@@ -1,5 +1,5 @@
-import React from 'react';
-import { Button, Tooltip, Dropdown } from 'antd';
+import React, { useState, useRef } from 'react';
+import { Button } from 'antd';
 import { formatMessageTime } from "../../../utils/dateUtils";
 import { Avatar } from '../../common/Avatar';
 import { DisplayMessage } from '../../../features/chat/types/chatTypes';
@@ -9,9 +9,6 @@ import { ReplyPreview } from './PreviewReply';
 import NotificationMessage from './NotificationMessage';
 import ReactPlayer from 'react-player';
 import {
-  CommentOutlined,
-  ShareAltOutlined,
-  MoreOutlined,
   DownloadOutlined,
   FileImageOutlined,
   AudioOutlined,
@@ -19,7 +16,168 @@ import {
   FileOutlined,
   CheckOutlined,
   CheckCircleOutlined,
+  PlayCircleOutlined,
+  PauseCircleOutlined,
 } from '@ant-design/icons';
+import voiceMessageService from '../../../services/voiceMessageService';
+
+// Helper function to check if a message is a notification type
+const isNotificationMessage = (message: DisplayMessage): boolean => {
+  return message.type === 'notification';
+};
+
+// Helper function to check if a message is a webm audio file
+const isWebmAudioFile = (message: DisplayMessage): boolean => {
+  // Kiểm tra tên file có chứa "voice_message" hoặc "audio" và có đuôi .webm
+  const hasAudioNamePattern = Boolean(
+    (message.fileName?.match(/voice_message_|audio|tin_nhắn_thoại|voice|ghi_âm/i) && message.fileName?.match(/\.webm$/i)) ||
+    (message.attachment?.name?.match(/voice_message_|audio|tin_nhắn_thoại|voice|ghi_âm/i) && message.attachment?.name?.match(/\.webm$/i))
+  );
+  
+  // Kiểm tra type của attachment là audio
+  const hasAudioType = Boolean(
+    message.attachment?.type?.startsWith('audio/') ||
+    (message.type === 'audio')
+  );
+  
+  // Kiểm tra attachment type là video/webm nhưng kích thước nhỏ (thường là audio)
+  const isSmallWebmVideo = Boolean(
+    message.attachment?.type === 'video/webm' && 
+    message.fileSize && message.fileSize < 1024 * 1024
+  );
+  
+  // Kiểm tra kích thước file nhỏ (thường là audio) và có đuôi .webm
+  const isSmallWebmFile = Boolean(
+    message.fileSize && message.fileSize < 1024 * 1024 && 
+    (Boolean(message.fileName?.match(/\.webm$/i)) || Boolean(message.attachment?.name?.match(/\.webm$/i)))
+  );
+  
+  // Kiểm tra nếu có audioDuration (thường chỉ có ở voice messages)
+  const hasAudioDuration = Boolean(message.audioDuration);
+  
+  // Kiểm tra nếu file có đuôi .webm và được gửi từ recorder
+  const isWebmFromRecorder = Boolean(
+    (message.fileName?.match(/\.webm$/i) || message.attachment?.name?.match(/\.webm$/i)) &&
+    (message.content?.includes('voice message') || message.content?.includes('tin nhắn thoại'))
+  );
+  
+  return hasAudioNamePattern || hasAudioType || isSmallWebmFile || isSmallWebmVideo || hasAudioDuration || isWebmFromRecorder;
+};
+
+// Custom Audio Player component for voice messages
+export const AudioPlayer = ({ url, duration }: { url: string, duration?: number }) => {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const audioRef = useRef<HTMLAudioElement>(null);
+  
+  // Use useMemo to generate wave heights only once
+  const waveHeights = React.useMemo(() => {
+    const heights = [];
+    const totalBars = 30;
+    
+    for (let i = 0; i < totalBars; i++) {
+      // Generate random height for each bar between 3px and 15px
+      heights.push(3 + Math.random() * 12);
+    }
+    
+    return heights;
+  }, []);
+  
+  const togglePlay = () => {
+    if (audioRef.current) {
+      if (isPlaying) {
+        audioRef.current.pause();
+      } else {
+        audioRef.current.play();
+      }
+      setIsPlaying(!isPlaying);
+    }
+  };
+  
+  const handleTimeUpdate = () => {
+    if (audioRef.current) {
+      setCurrentTime(audioRef.current.currentTime);
+    }
+  };
+  
+  const handleEnded = () => {
+    setIsPlaying(false);
+    setCurrentTime(0);
+    if (audioRef.current) {
+      audioRef.current.currentTime = 0;
+    }
+  };
+  
+  const formatTime = (time: number) => {
+    const minutes = Math.floor(time / 60);
+    const seconds = Math.floor(time % 60);
+    return `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+  };
+  
+  const progress = audioRef.current && audioRef.current.duration 
+    ? (currentTime / audioRef.current.duration) * 100 
+    : 0;
+    
+  // Generate wave bars for visualization using the memoized heights
+  const renderWaveBars = () => {
+    const bars = [];
+    const totalBars = waveHeights.length;
+    
+    for (let i = 0; i < totalBars; i++) {
+      // Calculate if this bar should be highlighted based on progress
+      const isActive = (i / totalBars) * 100 <= progress;
+      
+      // Add animation class for active bars when playing
+      const animationClass = isPlaying && isActive ? 'animate-pulse' : '';
+      
+      bars.push(
+        <div 
+          key={i}
+          className={`wave-bar ${isActive ? 'bg-blue-500' : 'bg-gray-300'} rounded-full mx-px transition-colors ${animationClass}`}
+          style={{ 
+            height: `${waveHeights[i]}px`, 
+            width: '2px',
+          }}
+        />
+      );
+    }
+    
+    return bars;
+  };
+    
+  return (
+    <div className="flex items-center gap-3 w-full py-1">
+      <button 
+        onClick={togglePlay}
+        className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full bg-blue-500 text-white hover:bg-blue-600 transition-colors"
+      >
+        {isPlaying ? 
+          <PauseCircleOutlined style={{ fontSize: '16px' }} /> : 
+          <PlayCircleOutlined style={{ fontSize: '16px' }} />
+        }
+      </button>
+      
+      <div className="flex-grow">
+        <div className="h-5 flex items-center">
+          {renderWaveBars()}
+        </div>
+        <div className="flex justify-between text-xs text-gray-500 mt-1">
+          <span>{formatTime(currentTime)}</span>
+          <span>{duration ? voiceMessageService.formatAudioDuration(duration) : formatTime(audioRef.current?.duration || 0)}</span>
+        </div>
+      </div>
+      
+      <audio 
+        ref={audioRef}
+        src={url}
+        onTimeUpdate={handleTimeUpdate}
+        onEnded={handleEnded}
+        style={{ display: 'none' }}
+        preload="metadata"
+      />
+    </div>
+  );
+};
 
 interface MessageDisplayProps {
   messages: DisplayMessage[];
@@ -127,6 +285,33 @@ const renderMessageStatus = (message: DisplayMessage, isOwn: boolean) => {
   }
 };
 
+// Helper function to render audio message
+const renderAudioMessage = (message: DisplayMessage, handleDownloadFile: (url: string | undefined, name: string) => void) => {
+  return (
+    <div className="flex flex-col gap-1 rounded-lg">
+      <div className="text-xs text-gray-500 ml-10 mb-1">Tin nhắn thoại</div>
+      <div className="flex items-center">
+        <AudioPlayer 
+          url={message.fileUrl || message.attachment?.url || ''} 
+          duration={message.audioDuration} 
+        />
+        <Button
+          type="text"
+          size="small"
+          icon={<DownloadOutlined className="text-gray-500" />}
+          onClick={() =>
+            handleDownloadFile(
+              message.fileUrl || message.attachment?.downloadUrl || message.attachment?.url,
+              message.fileName || message.attachment?.name || 'audio.webm'
+            )
+          }
+          className="ml-2 flex items-center justify-center h-8 w-8 hover:bg-gray-100 rounded-full"
+        />
+      </div>
+    </div>
+  );
+};
+
 const MessageDisplay: React.FC<MessageDisplayProps> = ({
   messages,
   currentUserId,
@@ -166,7 +351,7 @@ const MessageDisplay: React.FC<MessageDisplayProps> = ({
           shouldShowTimestampSeparator(nextMessage, message);
         const isLastMessageFromUser =
           isOwn && messages.findIndex((msg, i) => i > index && msg.sender.id === currentUserId) === -1;
-        if (message.type === 'notification') {
+        if (isNotificationMessage(message)) {
           return (
             <React.Fragment key={`${message.id}-${index}`}>
               {showTimestamp && (
@@ -216,117 +401,16 @@ const MessageDisplay: React.FC<MessageDisplayProps> = ({
                   />
                 </div>
               )}
-              <div className="flex flex-col relative group" style={{ maxWidth: 'min(80%)' }}
-                onMouseEnter={() => {
-                  if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
-                  setHoveredMessageId(message.id);
-                }}
-                onMouseLeave={() => {
-                  hoverTimeoutRef.current = setTimeout(() => setHoveredMessageId(null), 300);
-                }}
-              >
-                <div
-                  className={`absolute right-0 top-0 -mt-8 ${
-                    activeMessageMenu === message.id || hoveredMessageId === message.id ? 'flex' : 'hidden group-hover:flex'
-                  } items-center space-x-1 bg-white rounded-lg shadow-md px-1 py-0.5 z-10 message-hover-controls ${
-                    activeMessageMenu === message.id ? 'active' : ''
-                  }`}
-                  onMouseEnter={() => {
-                    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
-                    setHoveredMessageId(message.id);
-                  }}
-                  onMouseLeave={() => {
-                    hoverTimeoutRef.current = setTimeout(() => setHoveredMessageId(null), 300);
-                  }}
-                >
-                  <Tooltip title="Trả lời">
-                    <Button
-                      type="text"
-                      size="small"
-                      icon={<CommentOutlined />}
-                      className="text-gray-500 hover:text-blue-500"
-                      onClick={e => {
-                        e.stopPropagation();
-                        e.preventDefault();
-                        setActiveMessageMenu(message.id);
-                        handleReplyMessage(message);
-                      }}
-                    />
-                  </Tooltip>
-                  <Tooltip title="Chia sẻ">
-                    <Button
-                      type="text"
-                      size="small"
-                      icon={<ShareAltOutlined />}
-                      className="text-gray-500 hover:text-blue-500"
-                      onClick={e => {
-                        e.stopPropagation();
-                        e.preventDefault();
-                        setActiveMessageMenu(message.id);
-                        handleForwardMessage(message);
-                      }}
-                    />
-                  </Tooltip>
-                  <Tooltip title="Tùy chọn khác">
-                    <Dropdown
-                      overlay={getMessageMenu(message)}
-                      trigger={['click']}
-                      placement="bottomRight"
-                      overlayClassName="message-dropdown-overlay"
-                      visible={dropdownVisible[message.id] || false}
-                      onVisibleChange={visible => {
-                        setDropdownVisible({ ...dropdownVisible, [message.id]: visible });
-                        if (visible) {
-                          setActiveMessageMenu(message.id);
-                        } else {
-                          setTimeout(() => {
-                            if (activeMessageMenu === message.id) {
-                              setActiveMessageMenu(null);
-                            }
-                          }, 200);
-                        }
-                      }}
-                    >
-                      <Button
-                        type="text"
-                        size="small"
-                        icon={<MoreOutlined />}
-                        className="text-gray-500 hover:text-blue-500"
-                        loading={messageActionLoading === message.id}
-                        onClick={e => {
-                          e.stopPropagation();
-                        }}
-                        onMouseEnter={() => {
-                          if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
-                          setHoveredMessageId(message.id);
-                        }}
-                        onMouseLeave={() => {
-                          hoverTimeoutRef.current = setTimeout(() => setHoveredMessageId(null), 300);
-                        }}
-                      />
-                    </Dropdown>
-                  </Tooltip>
-                </div>
-                {showSender && !isOwn && (
-                  <div className="text-xs mb-1 ml-1 text-gray-600 truncate">
-                    {message.sender.name}
-                  </div>
-                )}
+              <div className={`message-bubble ${isOwn ? 'own-message' : 'other-message'}`}>
                 {message.isReply && message.replyData && (
-                  <div className="mb-1 rounded-t-md overflow-hidden">
-                    <div className={`${isOwn ? 'bg-blue-400' : 'bg-gray-200'} bg-opacity-60 rounded-t-md`}>
-                      <ReplyPreview
-                        replyData={message.replyData}
-                        isOwnMessage={isOwn}
-                        messageReplyId={message.messageReplyId}
-                        onReplyClick={(msgId: string) => {
-                          setTimeout(() => scrollToPinnedMessage(msgId), 0);
-                        }}
-                      />
-                    </div>
-                  </div>
+                  <ReplyPreview
+                    replyData={message.replyData}
+                    isOwnMessage={isOwn}
+                    messageReplyId={message.messageReplyId}
+                    onReplyClick={(msgId) => scrollToPinnedMessage(msgId)}
+                  />
                 )}
-                <div
+                <div 
                   className={`px-3 py-2 rounded-2xl ${
                     isOwn
                       ? message.isError
@@ -339,18 +423,32 @@ const MessageDisplay: React.FC<MessageDisplayProps> = ({
                 >
                   {message.isRecall ? (
                     <div className={`text-xs italic ${isOwn ? 'text-blue-200' : 'text-gray-500'}`}>
-                      Tin nhắn đã bị thu hồi
+                      Tin nhắn đã thu hồi
                     </div>
+                  ) : isNotificationMessage(message) ? (
+                    <NotificationMessage 
+                      message={message}
+                      onViewClick={() => {
+                        if (message.messageReplyId) {
+                          scrollToPinnedMessage(message.messageReplyId);
+                        }
+                      }} 
+                    />
                   ) : message.type === 'image' ? (
                     <div className="relative">
                       <img
-                        src={message.fileUrl || message.content}
-                        alt="Hình ảnh"
-                        className="max-w-full max-h-60 rounded-lg cursor-pointer"
-                        onClick={() => handleImagePreview(message.fileUrl || message.content)}
-                        onError={e => {
-                          (e.currentTarget as HTMLImageElement).onerror = null;
-                          (e.currentTarget as HTMLImageElement).src = '/images/image-placeholder.png';
+                        src={message.fileUrl || (message.attachment && message.attachment.url) || ''}
+                        alt="Attachment"
+                        className="rounded max-w-full cursor-pointer"
+                        style={{ maxHeight: '200px' }}
+                        onClick={() => handleImagePreview(message.fileUrl || (message.attachment && message.attachment.url) || '')}
+                        onLoad={() => {
+                          if (index === messages.length - 1) {
+                            setTimeout(() => {
+                              const element = document.getElementById(`message-${message.id}`);
+                              element?.scrollIntoView({ behavior: 'smooth' });
+                            }, 100);
+                          }
                         }}
                       />
                       <div className="text-right mt-1">
@@ -358,57 +456,23 @@ const MessageDisplay: React.FC<MessageDisplayProps> = ({
                           type="primary"
                           size="small"
                           icon={<DownloadOutlined />}
-                          onClick={() => handleDownloadFile(message.fileUrl || message.content, 'image')}
+                          onClick={() =>
+                            handleDownloadFile(
+                              message.fileUrl ||
+                                (message.attachments && message.attachments.length > 0
+                                  ? message.attachments[0].downloadUrl || message.attachments[0].url
+                                  : message.attachment?.downloadUrl || message.attachment?.url),
+                              message.fileName || message.attachment?.name || 'image'
+                            )
+                          }
                           className="inline-flex items-center text-xs shadow-sm"
                         ></Button>
                       </div>
                     </div>
-                  ) : message.type === 'text-with-image' ? (
-                    <div className="flex flex-col">
-                      <p className="text-sm whitespace-pre-wrap break-words mb-2">{message.content}</p>
-                      <div className="relative">
-                        <img
-                          src={
-                            message.fileUrl ||
-                            (message.attachments && message.attachments.length > 0
-                              ? message.attachments[0].url
-                              : message.attachment?.url || undefined)
-                          }
-                          alt="Hình ảnh đính kèm"
-                          className="max-w-full max-h-60 rounded-lg cursor-pointer"
-                          onClick={() =>
-                            handleImagePreview(
-                              message.fileUrl ||
-                                (message.attachments && message.attachments.length > 0
-                                  ? message.attachments[0].url
-                                  : message.attachment?.url || '')
-                            )
-                          }
-                          onError={e => {
-                            (e.currentTarget as HTMLImageElement).onerror = null;
-                            (e.currentTarget as HTMLImageElement).src = '/images/image-placeholder.png';
-                          }}
-                        />
-                        <div className="text-right mt-1">
-                          <Button
-                            type="primary"
-                            size="small"
-                            icon={<DownloadOutlined />}
-                            onClick={() =>
-                              handleDownloadFile(
-                                message.fileUrl ||
-                                  (message.attachments && message.attachments.length > 0
-                                    ? message.attachments[0].downloadUrl || message.attachments[0].url
-                                    : message.attachment?.downloadUrl || message.attachment?.url),
-                                message.fileName || message.attachment?.name || 'image'
-                              )
-                            }
-                            className="inline-flex items-center text-xs shadow-sm"
-                          ></Button>
-                        </div>
-                      </div>
-                    </div>
                   ) : message.type === 'file' ? (
+                    isWebmAudioFile(message) ? 
+                      renderAudioMessage(message, handleDownloadFile)
+                    : (
                     <div className="flex items-center gap-2 bg-gray-50 p-2 rounded-lg">
                       <div className="text-xl mr-2">
                         {message.attachment?.type?.startsWith('image/') ? (
@@ -446,27 +510,34 @@ const MessageDisplay: React.FC<MessageDisplayProps> = ({
                         className="inline-flex items-center text-xs shadow-sm ml-2"
                       ></Button>
                     </div>
+                    )
+                  ) : message.type === 'audio' || isWebmAudioFile(message) ? (
+                    renderAudioMessage(message, handleDownloadFile)
                   ) : message.type === 'video' ? (
                     <div className="relative">
                       <div className="video-player-container rounded-lg overflow-hidden" style={{ maxWidth: '300px' }}>
-                        <ReactPlayer
-                          url={message.fileUrl || (message.attachment && message.attachment.url) || ''}
-                          width="100%"
-                          height="auto"
-                          controls={true}
-                          light={message.attachment && message.attachment.thumbnail ? message.attachment.thumbnail : true}
-                          pip={false}
-                          playing={false}
-                          className="video-player"
-                          config={{
-                            file: {
-                              attributes: {
-                                controlsList: 'nodownload',
-                                onContextMenu: (e: React.MouseEvent) => e.preventDefault(),
+                        {isWebmAudioFile(message) ? 
+                          renderAudioMessage(message, handleDownloadFile)
+                        : (
+                          <ReactPlayer
+                            url={message.fileUrl || (message.attachment && message.attachment.url) || ''}
+                            width="100%"
+                            height="auto"
+                            controls={true}
+                            light={message.attachment && message.attachment.thumbnail ? message.attachment.thumbnail : true}
+                            pip={false}
+                            playing={false}
+                            className="video-player"
+                            config={{
+                              file: {
+                                attributes: {
+                                  controlsList: 'nodownload',
+                                  onContextMenu: (e: React.MouseEvent) => e.preventDefault(),
+                                },
                               },
-                            },
-                          }}
-                        />
+                            }}
+                          />
+                        )}
                       </div>
                       <div className="text-right mt-1">
                         <Button
@@ -476,7 +547,7 @@ const MessageDisplay: React.FC<MessageDisplayProps> = ({
                           onClick={() =>
                             handleDownloadFile(
                               message.fileUrl || message.attachment?.downloadUrl || message.attachment?.url,
-                              message.fileName || message.attachment?.name || 'video'
+                              message.fileName || message.attachment?.name || (isWebmAudioFile(message) ? 'audio.webm' : 'video')
                             )
                           }
                           className="inline-flex items-center text-xs shadow-sm"
@@ -520,4 +591,4 @@ const MessageDisplay: React.FC<MessageDisplayProps> = ({
   );
 };
 
-export default MessageDisplay; 
+export default MessageDisplay;
