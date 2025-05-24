@@ -1895,7 +1895,7 @@ export const recallMessage = async (messageId: string): Promise<void> => {
       throw new Error("User not authenticated");
     }
 
-    const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+    const API_URL = import.meta.env.VITE_API_URL;
     const response = await axios.put(
       `${API_URL}/api/messages/recall/${messageId}`,
       {},
@@ -2545,4 +2545,3 @@ export const removeUserFromGroup = async (
     );
   }
 };
-

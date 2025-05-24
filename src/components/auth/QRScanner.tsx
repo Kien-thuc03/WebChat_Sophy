@@ -4,7 +4,8 @@ import { useNavigate } from "react-router-dom";
 import { generateQRToken, checkQRStatus } from "../../api/API";
 import io from "socket.io-client";
 
-const SOCKET_SERVER_URL = "http://localhost:3000";
+const SOCKET_SERVER_URL =
+  import.meta.env.VITE_SOCKET_URL;
 
 const QRScanner: React.FC = () => {
   const navigate = useNavigate();
@@ -28,6 +29,7 @@ const QRScanner: React.FC = () => {
         setIsLoading(true);
         const response = await generateQRToken();
         setQRToken(response.qrToken);
+        console.log("Generated QR Token:", response.qrToken); // Debug log
         const expiresAtDate = new Date(response.expiresAt);
         setExpiresAt(expiresAtDate);
         // Tính toán thời gian còn lại ngay lập tức
@@ -86,13 +88,20 @@ const QRScanner: React.FC = () => {
   useEffect(() => {
     if (!qrToken || status !== "waiting") return;
 
+    console.log("Connecting to socket with qrToken:", qrToken); // Debug log
+
     const socketIo = io(SOCKET_SERVER_URL, {
       query: { qrToken },
     });
 
-    socketIo.emit("initQrLogin", qrToken);
+    socketIo.on("connect", () => {
+      console.log("Socket connected!"); // Debug log
+      socketIo.emit("initQrLogin", qrToken);
+      console.log("Emitted 'initQrLogin' with qrToken:", qrToken); // Debug log
+    });
 
     socketIo.on("qrScanned", (data) => {
+      console.log("Received 'qrScanned' event:", data); // Debug log
       setStatus("scanned");
       setUserInfo({
         fullname: data.fullname,
@@ -129,15 +138,11 @@ const QRScanner: React.FC = () => {
       setStatus("error");
     });
 
-    socketIo.on("connect", () => {
-    });
-
     socketIo.on("disconnect", (reason) => {
+      console.log("Socket disconnected:", reason); // Debug log
     });
 
-    return () => {
-      socketIo.disconnect();
-    };
+    
   }, [qrToken, status]);
 
   const handleRegenerateQR = async () => {
@@ -229,7 +234,8 @@ const QRScanner: React.FC = () => {
               <p
                 className={`font-bold text-xl text-center mt-2 ${
                   isNearExpiration ? "text-red-500" : "text-black"
-                }`}>
+                }`}
+              >
                 {Math.ceil(timeLeft / 1000)} giây còn lại
               </p>
             </div>
@@ -240,7 +246,8 @@ const QRScanner: React.FC = () => {
           <button
             type="button"
             onClick={() => navigate("/")}
-            className="text-sm text-blue-500 transition-colors duration-200 hover:text-blue-600 underline hover:no-underline">
+            className="text-sm text-blue-500 transition-colors duration-200 hover:text-blue-600 underline hover:no-underline"
+          >
             Đăng nhập bằng mật khẩu
           </button>
         </div>

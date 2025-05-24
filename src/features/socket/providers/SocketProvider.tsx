@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, ReactNode } from "react";
 import socketService from "../../../services/socketService";
 import { useConversationContext } from "../../chat/context/ConversationContext";
+import { message } from "antd";
 
 interface SocketProviderProps {
   children: ReactNode;
@@ -10,6 +11,7 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
   const initialized = useRef(false);
   const authenticated = useRef(false);
   const { addNewConversation } = useConversationContext();
+  const tokenRetries = useRef<Record<string, number>>({});
 
   useEffect(() => {
     if (!initialized.current) {
@@ -66,37 +68,50 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
 
         // Register listener for ZEGOCLOUD token
         socketService.onZegoToken((data) => {
+          if (!data.token) {
+            console.error(
+              "SocketProvider: Nhận được token ZEGO không hợp lệ:",
+              data
+            );
+
+            // Xử lý retry nếu token không hợp lệ
+            const requestId = `${data.userId || "unknown"}_${Date.now()}`;
+            const retryCount = tokenRetries.current[requestId] || 0;
+
+            if (retryCount < 2) {
+              console.log(
+                `SocketProvider: Thử lại yêu cầu token lần ${retryCount + 1}`
+              );
+              tokenRetries.current[requestId] = retryCount + 1;
+
+              // Gửi lại yêu cầu token sau 1 giây
+              setTimeout(() => {
+                socketService.refreshZegoToken();
+              }, 1000);
+            } else {
+              console.error(
+                "SocketProvider: Đã thử lại nhiều lần nhưng không thành công"
+              );
+              message.error(
+                "Không thể lấy token cho cuộc gọi. Vui lòng thử lại sau."
+              );
+            }
+            return;
+          }
+
           console.log("SocketProvider: Received ZEGOCLOUD token:", {
             token: data.token.slice(0, 20) + "...",
             appID: data.appID,
             userId: data.userId,
             effectiveTimeInSeconds: data.effectiveTimeInSeconds,
           });
-        });
 
-        // Register listener for call events (for debugging purposes)
-        socketService.onStartCall((data) => {
-          console.log(
-            "SocketProvider: Received startCall event at provider level:",
-            data
-          );
-          // Logic xử lý ở đây nếu cần, nhưng hiện tại ChatHeader.tsx đã xử lý
-        });
-
-        socketService.onEndCall((data) => {
-          console.log(
-            "SocketProvider: Received endCall event at provider level:",
-            data
-          );
-          // Logic xử lý ở đây nếu cần, nhưng hiện tại ChatHeader.tsx đã xử lý
-        });
-
-        socketService.onCallError((data) => {
-          console.log(
-            "SocketProvider: Received callError event at provider level:",
-            data
-          );
-          // Logic xử lý ở đây nếu cần, nhưng hiện tại ChatHeader.tsx đã xử lý
+          // Xóa các retry cũ
+          for (const key in tokenRetries.current) {
+            if (Date.now() - parseInt(key.split("_")[1]) > 60000) {
+              delete tokenRetries.current[key];
+            }
+          }
         });
 
         // Get any conversation IDs from localStorage and join their rooms
@@ -133,33 +148,11 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
             console.log(
               "SocketProvider: Re-registered ZEGOCLOUD token listener:",
               {
-                token: data.token.slice(0, 20) + "...",
+                token: data.token?.slice(0, 20) + "..." || "null",
                 appID: data.appID,
                 userId: data.userId,
                 effectiveTimeInSeconds: data.effectiveTimeInSeconds,
               }
-            );
-          });
-
-          // Re-register call event listeners
-          socketService.onStartCall((data) => {
-            console.log(
-              "SocketProvider: Re-registered startCall event listener:",
-              data
-            );
-          });
-
-          socketService.onEndCall((data) => {
-            console.log(
-              "SocketProvider: Re-registered endCall event listener:",
-              data
-            );
-          });
-
-          socketService.onCallError((data) => {
-            console.log(
-              "SocketProvider: Re-registered callError event listener:",
-              data
             );
           });
         }
@@ -263,7 +256,7 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
             new CustomEvent("refreshConversationDetail", {
               detail: {
                 conversationId: data.conversationId,
-                fromUserId: data.fromUserId,
+                changedBy: data.changedBy,
               },
             })
           );
