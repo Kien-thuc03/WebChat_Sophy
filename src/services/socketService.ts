@@ -80,6 +80,7 @@ class SocketService {
   private activeUsers: Record<string, string[]> = {};
   private onlineUsers: Set<string> = new Set();
   private userId: string | null = null;
+  private tokenRequests: Map<string, boolean> = new Map(); // Track token requests in progress
 
   private constructor() {}
 
@@ -1306,9 +1307,47 @@ class SocketService {
   ): Promise<any> {
     console.log("SocketService: Gửi yêu cầu token với params:", params);
 
+    // Create a unique request ID for tracking this request
+    const requestId = `${params.roomID}_${params.userID}_${Date.now()}`;
+    
+    // Check if we're already processing a request for this room and user
+    const existingRequestKey = `${params.roomID}_${params.userID}`;
+    if (this.tokenRequests.has(existingRequestKey)) {
+      console.log("SocketService: Đã có yêu cầu token đang xử lý, đợi kết quả...");
+      // Wait a bit to let the existing request complete
+      return new Promise(resolve => {
+        setTimeout(() => {
+          // Use cached token if available
+          const cachedToken = sessionStorage.getItem("zegoServerToken");
+          if (cachedToken) {
+            const tokenData = {
+              token: cachedToken,
+              appID: zegoHelper.ZEGO_APP_ID,
+              userId: params.userID,
+              effectiveTimeInSeconds: params.effectiveTimeInSeconds || 3600,
+              fromCache: true
+            };
+            
+            if (callback) callback(tokenData);
+            resolve(tokenData);
+          } else {
+            // Try again but bypass the check
+            this.tokenRequests.delete(existingRequestKey);
+            resolve(this.requestZegoToken(params, callback));
+          }
+        }, 1000);
+      });
+    }
+    
+    // Mark that we're processing this request
+    this.tokenRequests.set(existingRequestKey, true);
+
     return new Promise((resolve) => {
-      // Tạo một ID duy nhất cho yêu cầu này
-      const requestId = Date.now();
+      // Ensure we're connected to the socket
+      if (!this.socket?.connected) {
+        console.log("SocketService: Socket disconnected, reconnecting...");
+        this.connect();
+      }
 
       // Đăng ký lắng nghe sự kiện zegoToken một lần
       const handleToken = (tokenData: any) => {
@@ -1316,6 +1355,11 @@ class SocketService {
           hasToken: !!tokenData.token,
           appID: tokenData.appID,
         });
+
+        // Cache the token
+        if (tokenData.token) {
+          sessionStorage.setItem("zegoServerToken", tokenData.token);
+        }
 
         // Gọi callback nếu được cung cấp
         if (callback) {
@@ -1327,6 +1371,9 @@ class SocketService {
 
         // Hủy đăng ký lắng nghe
         this.socket?.off("zegoToken", handleToken);
+        
+        // Mark request as completed
+        this.tokenRequests.delete(existingRequestKey);
       };
 
       // Đăng ký lắng nghe
@@ -1345,29 +1392,49 @@ class SocketService {
         this.socket?.off("zegoToken", handleToken);
 
         try {
-          // Tạo token phía client
-          const fallbackToken = zegoHelper.generateZegoToken(
-            params.userID,
-            params.roomID
-          );
+          // Check if we've received a token through another mechanism
+          const cachedToken = sessionStorage.getItem("zegoServerToken");
+          if (cachedToken) {
+            console.log("SocketService: Sử dụng token đã cache do server không phản hồi kịp thời");
+            const cachedResponse = {
+              token: cachedToken,
+              appID: zegoHelper.ZEGO_APP_ID,
+              userId: params.userID,
+              effectiveTimeInSeconds: params.effectiveTimeInSeconds || 3600,
+              fromCache: true
+            };
+            
+            if (callback) callback(cachedResponse);
+            resolve(cachedResponse);
+          } else {
+            // Tạo token phía client
+            const fallbackToken = zegoHelper.generateZegoToken(
+              params.userID,
+              params.roomID
+            );
 
-          const fallbackResponse = {
-            token: fallbackToken,
-            appID: zegoHelper.ZEGO_APP_ID,
-            userId: params.userID,
-            effectiveTimeInSeconds: params.effectiveTimeInSeconds || 3600,
-            error: "Server timeout, using client-generated token",
-          };
+            const fallbackResponse = {
+              token: fallbackToken,
+              appID: zegoHelper.ZEGO_APP_ID,
+              userId: params.userID,
+              effectiveTimeInSeconds: params.effectiveTimeInSeconds || 3600,
+              error: "Server timeout, using client-generated token",
+              fallback: true
+            };
 
-          console.log(
-            "SocketService: Sử dụng token dự phòng do server không phản hồi"
-          );
+            console.log(
+              "SocketService: Sử dụng token dự phòng do server không phản hồi"
+            );
+            
+            // Cache the fallback token too
+            sessionStorage.setItem("zegoServerToken", fallbackToken);
 
-          if (callback) {
-            callback(fallbackResponse);
+            if (callback) {
+              callback(fallbackResponse);
+            }
+
+            resolve(fallbackResponse);
           }
-
-          resolve(fallbackResponse);
         } catch (error) {
           console.error("SocketService: Lỗi khi tạo token dự phòng:", error);
 
@@ -1387,6 +1454,9 @@ class SocketService {
 
           resolve(errorResponse);
         }
+        
+        // Mark request as completed
+        this.tokenRequests.delete(existingRequestKey);
       }, 10000);
     });
   }

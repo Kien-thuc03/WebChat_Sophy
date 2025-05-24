@@ -129,6 +129,7 @@ class ZegoService {
   private sdkLoadingPromise: Promise<boolean> | null = null;
   private maxSDKLoadRetries = 5;
   private currentSDKLoadRetry = 0;
+  private hasRegisteredSDKLoadedListener = false; // Add flag to track listener registration
 
   constructor() {
     // Khởi tạo ZegoService singleton
@@ -138,8 +139,9 @@ class ZegoService {
     }
 
     // Lắng nghe sự kiện khi SDK được tải từ index.html
-    if (typeof window !== "undefined") {
+    if (typeof window !== "undefined" && !this.hasRegisteredSDKLoadedListener) {
       window.addEventListener("zegoSDKLoaded", this.handleSDKLoaded.bind(this));
+      this.hasRegisteredSDKLoadedListener = true;
     }
   }
 
@@ -197,8 +199,9 @@ class ZegoService {
           }
         };
 
-        // Đăng ký lắng nghe sự kiện SDK được tải
-        window.addEventListener("zegoSDKLoaded", handleLoadEvent);
+        // Đăng ký lắng nghe sự kiện SDK được tải - chỉ khi chưa đăng ký trước đó
+        window.removeEventListener("zegoSDKLoaded", handleLoadEvent); // Xóa listener cũ nếu có
+        window.addEventListener("zegoSDKLoaded", handleLoadEvent, { once: true }); // Sử dụng once: true để tự động xóa sau khi xử lý
 
         // Tải SDK nếu có hàm loadZegoSDK
         if (window.loadZegoSDK) {
@@ -246,15 +249,12 @@ class ZegoService {
         console.warn("ZegoService: ZegoExpressEngine chưa sẵn sàng");
 
         // Nếu có hàm initializeZegoEngine từ index.html mới thì sử dụng
-        if (typeof window !== "undefined" && window.loadZegoSDK) {
+        if (typeof window !== "undefined" && window.loadZegoSDK && !this.hasRegisteredSDKLoadedListener) {
           console.log("ZegoService: Đang yêu cầu tải SDK từ local...");
           window.loadZegoSDK();
 
-          // Đăng ký lắng nghe sự kiện SDK được tải
-          window.addEventListener(
-            "zegoSDKLoaded",
-            this.handleSDKLoaded.bind(this)
-          );
+          // Do NOT register event listener again here - we already have it in the constructor
+          // This was causing infinite event listener registration loop
         }
 
         return false;
