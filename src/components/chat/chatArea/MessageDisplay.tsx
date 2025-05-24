@@ -1,5 +1,5 @@
-import React, { useState, useRef } from 'react';
-import { Button } from 'antd';
+import React, { useState, useRef, useEffect } from 'react';
+import { Button, Dropdown, Tooltip } from 'antd';
 import { formatMessageTime } from "../../../utils/dateUtils";
 import { Avatar } from '../../common/Avatar';
 import { DisplayMessage } from '../../../features/chat/types/chatTypes';
@@ -9,6 +9,9 @@ import { ReplyPreview } from './PreviewReply';
 import NotificationMessage from './NotificationMessage';
 import ReactPlayer from 'react-player';
 import {
+  CommentOutlined,
+  ShareAltOutlined,
+  MoreOutlined,
   DownloadOutlined,
   FileImageOutlined,
   AudioOutlined,
@@ -26,12 +29,14 @@ const isNotificationMessage = (message: DisplayMessage): boolean => {
   return message.type === 'notification';
 };
 
-// Helper function to check if a message is a webm audio file
-const isWebmAudioFile = (message: DisplayMessage): boolean => {
-  // Kiểm tra tên file có chứa "voice_message" hoặc "audio" và có đuôi .webm
+// Helper function to check if a message is an audio file (expanded to support more formats)
+const isAudioFile = (message: DisplayMessage): boolean => {
+  // Kiểm tra tên file có chứa "voice_message" hoặc "audio" và có đuôi audio phổ biến
   const hasAudioNamePattern = Boolean(
-    (message.fileName?.match(/voice_message_|audio|tin_nhắn_thoại|voice|ghi_âm/i) && message.fileName?.match(/\.webm$/i)) ||
-    (message.attachment?.name?.match(/voice_message_|audio|tin_nhắn_thoại|voice|ghi_âm/i) && message.attachment?.name?.match(/\.webm$/i))
+    (message.fileName?.match(/voice_message_|audio|tin_nhắn_thoại|voice|ghi_âm/i) && 
+     message.fileName?.match(/\.(webm|mp3|m4a|3gp|wav|aac|ogg)$/i)) ||
+    (message.attachment?.name?.match(/voice_message_|audio|tin_nhắn_thoại|voice|ghi_âm/i) && 
+     message.attachment?.name?.match(/\.(webm|mp3|m4a|3gp|wav|aac|ogg)$/i))
   );
   
   // Kiểm tra type của attachment là audio
@@ -46,51 +51,91 @@ const isWebmAudioFile = (message: DisplayMessage): boolean => {
     message.fileSize && message.fileSize < 1024 * 1024
   );
   
-  // Kiểm tra kích thước file nhỏ (thường là audio) và có đuôi .webm
-  const isSmallWebmFile = Boolean(
-    message.fileSize && message.fileSize < 1024 * 1024 && 
-    (Boolean(message.fileName?.match(/\.webm$/i)) || Boolean(message.attachment?.name?.match(/\.webm$/i)))
+  // Kiểm tra kích thước file nhỏ và có định dạng audio phổ biến
+  const isSmallAudioFile = Boolean(
+    message.fileSize && message.fileSize < 2 * 1024 * 1024 && 
+    (Boolean(message.fileName?.match(/\.(webm|mp3|m4a|3gp|wav|aac|ogg)$/i)) || 
+     Boolean(message.attachment?.name?.match(/\.(webm|mp3|m4a|3gp|wav|aac|ogg)$/i)))
   );
   
   // Kiểm tra nếu có audioDuration (thường chỉ có ở voice messages)
   const hasAudioDuration = Boolean(message.audioDuration);
   
-  // Kiểm tra nếu file có đuôi .webm và được gửi từ recorder
-  const isWebmFromRecorder = Boolean(
-    (message.fileName?.match(/\.webm$/i) || message.attachment?.name?.match(/\.webm$/i)) &&
+  // Kiểm tra một số định dạng video nhỏ có thể là audio (như 3gp)
+  const isSmallVideoFile = Boolean(
+    message.attachment?.type?.startsWith('video/') && 
+    message.fileSize && message.fileSize < 2 * 1024 * 1024 &&
+    (message.fileName?.match(/\.3gp$/i) || message.attachment?.name?.match(/\.3gp$/i))
+  );
+  
+  // Kiểm tra nếu file có định dạng audio và được gửi từ recorder
+  const isAudioFromRecorder = Boolean(
+    (message.fileName?.match(/\.(webm|mp3|m4a|3gp|wav|aac|ogg)$/i) || 
+     message.attachment?.name?.match(/\.(webm|mp3|m4a|3gp|wav|aac|ogg)$/i)) &&
     (message.content?.includes('voice message') || message.content?.includes('tin nhắn thoại'))
   );
   
-  return hasAudioNamePattern || hasAudioType || isSmallWebmFile || isSmallWebmVideo || hasAudioDuration || isWebmFromRecorder;
+  return hasAudioNamePattern || hasAudioType || isSmallWebmVideo || isSmallAudioFile || hasAudioDuration || isSmallVideoFile || isAudioFromRecorder;
+};
+
+// Helper function to check if browser supports a specific audio format
+const canBrowserPlayFormat = (url: string): boolean => {
+  if (!url) return true; // Nếu không có URL, không thể kiểm tra
+  
+  const audio = document.createElement('audio');
+  const fileExtension = url.split('.').pop()?.toLowerCase();
+  
+  switch(fileExtension) {
+    case '3gp': return audio.canPlayType('audio/3gpp') !== '';
+    case 'm4a': return audio.canPlayType('audio/mp4') !== '';
+    case 'webm': return audio.canPlayType('audio/webm') !== '';
+    case 'mp3': return audio.canPlayType('audio/mpeg') !== '';
+    case 'wav': return audio.canPlayType('audio/wav') !== '';
+    case 'ogg': return audio.canPlayType('audio/ogg') !== '';
+    case 'aac': return audio.canPlayType('audio/aac') !== '';
+    default: return true; // Mặc định cho phép thử phát
+  }
 };
 
 // Custom Audio Player component for voice messages
 export const AudioPlayer = ({ url, duration }: { url: string, duration?: number }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
+  const [isError, setIsError] = useState(false);
+  const [formatSupported, setFormatSupported] = useState(true);
   const audioRef = useRef<HTMLAudioElement>(null);
   
-  // Use useMemo to generate wave heights only once
-  const waveHeights = React.useMemo(() => {
-    const heights = [];
-    const totalBars = 30;
+  // Kiểm tra định dạng file khi component mount
+  useEffect(() => {
+    setFormatSupported(canBrowserPlayFormat(url));
     
-    for (let i = 0; i < totalBars; i++) {
-      // Generate random height for each bar between 3px and 15px
-      heights.push(3 + Math.random() * 12);
-    }
-    
-    return heights;
-  }, []);
+    return () => {
+      // Cleanup khi component unmount
+      if (audioRef.current && !audioRef.current.paused) {
+        audioRef.current.pause();
+      }
+    };
+  }, [url]);
   
   const togglePlay = () => {
+    if (!formatSupported) {
+      // Nếu không hỗ trợ, không làm gì cả
+      return;
+    }
+    
     if (audioRef.current) {
       if (isPlaying) {
         audioRef.current.pause();
+        setIsPlaying(false);
       } else {
-        audioRef.current.play();
+        // Thêm xử lý lỗi khi phát
+        audioRef.current.play().catch(err => {
+          console.error("Lỗi phát audio:", err);
+          setIsError(true);
+          setIsPlaying(false);
+        });
+        setIsPlaying(true);
       }
-      setIsPlaying(!isPlaying);
     }
   };
   
@@ -108,6 +153,12 @@ export const AudioPlayer = ({ url, duration }: { url: string, duration?: number 
     }
   };
   
+  const handleError = () => {
+    setIsError(true);
+    setIsPlaying(false);
+    setFormatSupported(false);
+  };
+  
   const formatTime = (time: number) => {
     const minutes = Math.floor(time / 60);
     const seconds = Math.floor(time % 60);
@@ -119,6 +170,18 @@ export const AudioPlayer = ({ url, duration }: { url: string, duration?: number 
     : 0;
     
   // Generate wave bars for visualization using the memoized heights
+  const waveHeights = React.useMemo(() => {
+    const heights = [];
+    const totalBars = 30;
+    
+    for (let i = 0; i < totalBars; i++) {
+      // Generate random height for each bar between 3px and 15px
+      heights.push(3 + Math.random() * 12);
+    }
+    
+    return heights;
+  }, []);
+  
   const renderWaveBars = () => {
     const bars = [];
     const totalBars = waveHeights.length;
@@ -137,6 +200,7 @@ export const AudioPlayer = ({ url, duration }: { url: string, duration?: number 
           style={{ 
             height: `${waveHeights[i]}px`, 
             width: '2px',
+            opacity: formatSupported ? 1 : 0.5
           }}
         />
       );
@@ -149,7 +213,10 @@ export const AudioPlayer = ({ url, duration }: { url: string, duration?: number 
     <div className="flex items-center gap-3 w-full py-1">
       <button 
         onClick={togglePlay}
-        className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full bg-blue-500 text-white hover:bg-blue-600 transition-colors"
+        className={`flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full ${
+          formatSupported && !isError ? 'bg-blue-500 text-white hover:bg-blue-600' : 'bg-gray-400 text-white cursor-not-allowed'
+        } transition-colors`}
+        disabled={!formatSupported || isError}
       >
         {isPlaying ? 
           <PauseCircleOutlined style={{ fontSize: '16px' }} /> : 
@@ -158,6 +225,17 @@ export const AudioPlayer = ({ url, duration }: { url: string, duration?: number 
       </button>
       
       <div className="flex-grow">
+        {!formatSupported && (
+          <div className="text-xs text-red-500 mb-1">
+            Định dạng không được hỗ trợ phát trực tiếp
+          </div>
+        )}
+        {isError && formatSupported && (
+          <div className="text-xs text-red-500 mb-1">
+            Không thể phát file này
+          </div>
+        )}
+        
         <div className="h-5 flex items-center">
           {renderWaveBars()}
         </div>
@@ -172,6 +250,7 @@ export const AudioPlayer = ({ url, duration }: { url: string, duration?: number 
         src={url}
         onTimeUpdate={handleTimeUpdate}
         onEnded={handleEnded}
+        onError={handleError}
         style={{ display: 'none' }}
         preload="metadata"
       />
@@ -287,26 +366,35 @@ const renderMessageStatus = (message: DisplayMessage, isOwn: boolean) => {
 
 // Helper function to render audio message
 const renderAudioMessage = (message: DisplayMessage, handleDownloadFile: (url: string | undefined, name: string) => void) => {
+  const fileUrl = message.fileUrl || message.attachment?.url || '';
+  const fileName = message.fileName || message.attachment?.name || 'audio';
+  const fileExtension = fileName.split('.').pop()?.toLowerCase();
+  const isFormatSupported = canBrowserPlayFormat(fileUrl);
+
   return (
     <div className="flex flex-col gap-1 rounded-lg">
-      <div className="text-xs text-gray-500 ml-10 mb-1">Tin nhắn thoại</div>
+      <div className="text-xs text-gray-500 ml-10 mb-1">
+        Tin nhắn thoại {!isFormatSupported ? `(${fileExtension})` : ''}
+      </div>
       <div className="flex items-center">
         <AudioPlayer 
-          url={message.fileUrl || message.attachment?.url || ''} 
+          url={fileUrl} 
           duration={message.audioDuration} 
         />
         <Button
-          type="text"
+          type={!isFormatSupported ? "primary" : "text"}
           size="small"
-          icon={<DownloadOutlined className="text-gray-500" />}
+          icon={<DownloadOutlined className={isFormatSupported ? "text-gray-500" : ""} />}
           onClick={() =>
             handleDownloadFile(
               message.fileUrl || message.attachment?.downloadUrl || message.attachment?.url,
-              message.fileName || message.attachment?.name || 'audio.webm'
+              fileName
             )
           }
-          className="ml-2 flex items-center justify-center h-8 w-8 hover:bg-gray-100 rounded-full"
-        />
+          className={`ml-2 flex items-center justify-center ${isFormatSupported ? "h-8 w-8 hover:bg-gray-100 rounded-full" : ""}`}
+        >
+          {!isFormatSupported && "Tải xuống"}
+        </Button>
       </div>
     </div>
   );
@@ -401,13 +489,109 @@ const MessageDisplay: React.FC<MessageDisplayProps> = ({
                   />
                 </div>
               )}
-              <div className={`message-bubble ${isOwn ? 'own-message' : 'other-message'}`}>
+              <div className="flex flex-col relative group" style={{ maxWidth: 'min(80%)' }}
+                onMouseEnter={() => {
+                  if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+                  setHoveredMessageId(message.id);
+                }}
+                onMouseLeave={() => {
+                  hoverTimeoutRef.current = setTimeout(() => setHoveredMessageId(null), 300);
+                }}
+              >
+                <div
+                  className={`absolute right-0 top-0 -mt-8 ${
+                    activeMessageMenu === message.id || hoveredMessageId === message.id ? 'flex' : 'hidden group-hover:flex'
+                  } items-center space-x-1 bg-white rounded-lg shadow-md px-1 py-0.5 z-10 message-hover-controls ${
+                    activeMessageMenu === message.id ? 'active' : ''
+                  }`}
+                  onMouseEnter={() => {
+                    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+                    setHoveredMessageId(message.id);
+                  }}
+                  onMouseLeave={() => {
+                    hoverTimeoutRef.current = setTimeout(() => setHoveredMessageId(null), 300);
+                  }}
+                >
+                  <Tooltip title="Trả lời">
+                    <Button
+                      type="text"
+                      size="small"
+                      icon={<CommentOutlined />}
+                      className="text-gray-500 hover:text-blue-500"
+                      onClick={e => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        setActiveMessageMenu(message.id);
+                        handleReplyMessage(message);
+                      }}
+                    />
+                  </Tooltip>
+                  <Tooltip title="Chia sẻ">
+                    <Button
+                      type="text"
+                      size="small"
+                      icon={<ShareAltOutlined />}
+                      className="text-gray-500 hover:text-blue-500"
+                      onClick={e => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        setActiveMessageMenu(message.id);
+                        handleForwardMessage(message);
+                      }}
+                    />
+                  </Tooltip>
+                  <Tooltip title="Tùy chọn khác">
+                    <Dropdown
+                      overlay={getMessageMenu(message)}
+                      trigger={['click']}
+                      placement="bottomRight"
+                      overlayClassName="message-dropdown-overlay"
+                      visible={dropdownVisible[message.id] || false}
+                      onVisibleChange={visible => {
+                        setDropdownVisible({ ...dropdownVisible, [message.id]: visible });
+                        if (visible) {
+                          setActiveMessageMenu(message.id);
+                        } else {
+                          setTimeout(() => {
+                            if (activeMessageMenu === message.id) {
+                              setActiveMessageMenu(null);
+                            }
+                          }, 200);
+                        }
+                      }}
+                    >
+                      <Button
+                        type="text"
+                        size="small"
+                        icon={<MoreOutlined />}
+                        className="text-gray-500 hover:text-blue-500"
+                        loading={messageActionLoading === message.id}
+                        onClick={e => {
+                          e.stopPropagation();
+                        }}
+                        onMouseEnter={() => {
+                          if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+                          setHoveredMessageId(message.id);
+                        }}
+                        onMouseLeave={() => {
+                          hoverTimeoutRef.current = setTimeout(() => setHoveredMessageId(null), 300);
+                        }}
+                      />
+                    </Dropdown>
+                  </Tooltip>
+                </div>
+                {showSender && !isOwn && (
+                  <div className="text-xs mb-1 ml-1 text-gray-600 truncate">
+                    {message.sender.name}
+                  </div>
+                )}
                 {message.isReply && message.replyData && (
                   <ReplyPreview
                     replyData={message.replyData}
                     isOwnMessage={isOwn}
                     messageReplyId={message.messageReplyId}
                     onReplyClick={(msgId) => scrollToPinnedMessage(msgId)}
+                    userCache={userCache}
                   />
                 )}
                 <div 
@@ -434,6 +618,39 @@ const MessageDisplay: React.FC<MessageDisplayProps> = ({
                         }
                       }} 
                     />
+                  ) : message.type === 'text-with-image' ? (
+                    <div className="relative">
+                      <p className="text-sm whitespace-pre-wrap break-words mb-2">{message.content}</p>
+                      <img
+                        src={message.fileUrl || (message.attachment && message.attachment.url) || ''}
+                        alt="Attachment"
+                        className="rounded max-w-full cursor-pointer"
+                        style={{ maxHeight: '200px' }}
+                        onClick={() => handleImagePreview(message.fileUrl || (message.attachment && message.attachment.url) || '')}
+                        onLoad={() => {
+                          if (index === messages.length - 1) {
+                            setTimeout(() => {
+                              const element = document.getElementById(`message-${message.id}`);
+                              element?.scrollIntoView({ behavior: 'smooth' });
+                            }, 100);
+                          }
+                        }}
+                      />
+                      <div className="text-right mt-1">
+                        <Button
+                          type="primary"
+                          size="small"
+                          icon={<DownloadOutlined />}
+                          onClick={() =>
+                            handleDownloadFile(
+                              message.fileUrl || message.attachment?.downloadUrl || message.attachment?.url,
+                              message.fileName || message.attachment?.name || 'image'
+                            )
+                          }
+                          className="inline-flex items-center text-xs shadow-sm"
+                        ></Button>
+                      </div>
+                    </div>
                   ) : message.type === 'image' ? (
                     <div className="relative">
                       <img
@@ -470,26 +687,26 @@ const MessageDisplay: React.FC<MessageDisplayProps> = ({
                       </div>
                     </div>
                   ) : message.type === 'file' ? (
-                    isWebmAudioFile(message) ? 
+                    isAudioFile(message) ? 
                       renderAudioMessage(message, handleDownloadFile)
                     : (
-                    <div className="flex items-center gap-2 bg-gray-50 p-2 rounded-lg">
+                    <div className={`flex items-center gap-2 ${isOwn ? 'bg-blue-400' : 'bg-gray-50'} p-2 rounded-lg`}>
                       <div className="text-xl mr-2">
                         {message.attachment?.type?.startsWith('image/') ? (
-                          <FileImageOutlined className="text-blue-500" />
+                          <FileImageOutlined className={`${isOwn ? 'text-white' : 'text-blue-500'}`} />
                         ) : message.attachment?.type?.startsWith('audio/') ? (
-                          <AudioOutlined className="text-green-500" />
+                          <AudioOutlined className={`${isOwn ? 'text-white' : 'text-green-500'}`} />
                         ) : message.attachment?.type?.startsWith('video/') ? (
-                          <VideoCameraOutlined className="text-purple-500" />
+                          <VideoCameraOutlined className={`${isOwn ? 'text-white' : 'text-purple-500'}`} />
                         ) : (
-                          <FileOutlined className="text-gray-500" />
+                          <FileOutlined className={`${isOwn ? 'text-white' : 'text-gray-500'}`} />
                         )}
                       </div>
                       <div className="flex-grow">
                         <div className="text-sm font-medium truncate">
                           {message.fileName || message.attachment?.name || message.content}
                         </div>
-                        <div className="text-xs text-gray-500">
+                        <div className={`text-xs ${isOwn ? 'text-blue-100' : 'text-gray-500'}`}>
                           {message.fileSize
                             ? `${Math.round(message.fileSize / 1024)} KB`
                             : message.attachment?.size
@@ -511,12 +728,12 @@ const MessageDisplay: React.FC<MessageDisplayProps> = ({
                       ></Button>
                     </div>
                     )
-                  ) : message.type === 'audio' || isWebmAudioFile(message) ? (
+                  ) : message.type === 'audio' || isAudioFile(message) ? (
                     renderAudioMessage(message, handleDownloadFile)
                   ) : message.type === 'video' ? (
                     <div className="relative">
                       <div className="video-player-container rounded-lg overflow-hidden" style={{ maxWidth: '300px' }}>
-                        {isWebmAudioFile(message) ? 
+                        {isAudioFile(message) ? 
                           renderAudioMessage(message, handleDownloadFile)
                         : (
                           <ReactPlayer
@@ -547,7 +764,7 @@ const MessageDisplay: React.FC<MessageDisplayProps> = ({
                           onClick={() =>
                             handleDownloadFile(
                               message.fileUrl || message.attachment?.downloadUrl || message.attachment?.url,
-                              message.fileName || message.attachment?.name || (isWebmAudioFile(message) ? 'audio.webm' : 'video')
+                              message.fileName || message.attachment?.name || (isAudioFile(message) ? 'audio' : 'video')
                             )
                           }
                           className="inline-flex items-center text-xs shadow-sm"
