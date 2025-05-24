@@ -27,11 +27,11 @@ const isNotificationMessage = (message: DisplayMessage): boolean => {
 };
 
 // Helper function to check if a message is a webm audio file
-const isWebmAudioFile = (message: DisplayMessage): boolean => {
-  // Kiểm tra tên file có chứa "voice_message" hoặc "audio" và có đuôi .webm
-  const hasAudioNamePattern = Boolean(
-    (message.fileName?.match(/voice_message_|audio|tin_nhắn_thoại|voice|ghi_âm/i) && message.fileName?.match(/\.webm$/i)) ||
-    (message.attachment?.name?.match(/voice_message_|audio|tin_nhắn_thoại|voice|ghi_âm/i) && message.attachment?.name?.match(/\.webm$/i))
+const isAudioFile = (message: DisplayMessage): boolean => {
+  // Kiểm tra tên file có đuôi audio phổ biến (.webm, .mp3, .m4a, .3gp, .wav, .aac, .ogg)
+  const hasAudioExtension = Boolean(
+    message.fileName?.match(/\.(webm|mp3|m4a|3gp|wav|aac|ogg)$/i) ||
+    message.attachment?.name?.match(/\.(webm|mp3|m4a|3gp|wav|aac|ogg)$/i)
   );
   
   // Kiểm tra type của attachment là audio
@@ -40,28 +40,23 @@ const isWebmAudioFile = (message: DisplayMessage): boolean => {
     (message.type === 'audio')
   );
   
-  // Kiểm tra attachment type là video/webm nhưng kích thước nhỏ (thường là audio)
-  const isSmallWebmVideo = Boolean(
-    message.attachment?.type === 'video/webm' && 
-    message.fileSize && message.fileSize < 1024 * 1024
-  );
-  
-  // Kiểm tra kích thước file nhỏ (thường là audio) và có đuôi .webm
-  const isSmallWebmFile = Boolean(
-    message.fileSize && message.fileSize < 1024 * 1024 && 
-    (Boolean(message.fileName?.match(/\.webm$/i)) || Boolean(message.attachment?.name?.match(/\.webm$/i)))
-  );
-  
   // Kiểm tra nếu có audioDuration (thường chỉ có ở voice messages)
   const hasAudioDuration = Boolean(message.audioDuration);
   
-  // Kiểm tra nếu file có đuôi .webm và được gửi từ recorder
-  const isWebmFromRecorder = Boolean(
-    (message.fileName?.match(/\.webm$/i) || message.attachment?.name?.match(/\.webm$/i)) &&
-    (message.content?.includes('voice message') || message.content?.includes('tin nhắn thoại'))
+  // Kiểm tra kích thước file nhỏ (thường là audio) 
+  const isSmallAudioFile = Boolean(
+    message.fileSize && message.fileSize < 1024 * 1024 && 
+    hasAudioExtension
   );
   
-  return hasAudioNamePattern || hasAudioType || isSmallWebmFile || isSmallWebmVideo || hasAudioDuration || isWebmFromRecorder;
+  // Kiểm tra một số định dạng video nhỏ có thể là audio (như 3gp)
+  const isSmallVideoFile = Boolean(
+    message.attachment?.type?.startsWith('video/') && 
+    message.fileSize && message.fileSize < 2 * 1024 * 1024 &&
+    (message.fileName?.match(/\.3gp$/i) || message.attachment?.name?.match(/\.3gp$/i))
+  );
+  
+  return hasAudioExtension || hasAudioType || hasAudioDuration || isSmallAudioFile || isSmallVideoFile;
 };
 
 // Custom Audio Player component for voice messages
@@ -503,7 +498,7 @@ const MessageDisplay: React.FC<MessageDisplayProps> = ({
                       </div>
                     </div>
                   ) : message.type === 'file' ? (
-                    isWebmAudioFile(message) ? 
+                    isAudioFile(message) ? 
                       renderAudioMessage(message, handleDownloadFile)
                     : (
                     <div className="flex items-center gap-2 bg-gray-50 p-2 rounded-lg">
@@ -544,12 +539,12 @@ const MessageDisplay: React.FC<MessageDisplayProps> = ({
                       ></Button>
                     </div>
                     )
-                  ) : message.type === 'audio' || isWebmAudioFile(message) ? (
+                  ) : message.type === 'audio' || isAudioFile(message) ? (
                     renderAudioMessage(message, handleDownloadFile)
                   ) : message.type === 'video' ? (
                     <div className="relative">
                       <div className="video-player-container rounded-lg overflow-hidden" style={{ maxWidth: '300px' }}>
-                        {isWebmAudioFile(message) ? 
+                        {isAudioFile(message) ? 
                           renderAudioMessage(message, handleDownloadFile)
                         : (
                           <ReactPlayer
@@ -580,7 +575,7 @@ const MessageDisplay: React.FC<MessageDisplayProps> = ({
                           onClick={() =>
                             handleDownloadFile(
                               message.fileUrl || message.attachment?.downloadUrl || message.attachment?.url,
-                              message.fileName || message.attachment?.name || (isWebmAudioFile(message) ? 'audio.webm' : 'video')
+                              message.fileName || message.attachment?.name || (isAudioFile(message) ? 'audio.webm' : 'video')
                             )
                           }
                           className="inline-flex items-center text-xs shadow-sm"
