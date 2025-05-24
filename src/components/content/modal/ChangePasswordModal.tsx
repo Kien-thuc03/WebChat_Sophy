@@ -22,6 +22,22 @@ const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
   const [loading, setLoading] = useState(false);
   const { changePassword } = useContext(AuthContext);
   const { t } = useLanguage();
+  const [username, setUsername] = useState<string>("");
+  
+  // Lấy thông tin username từ localStorage khi khởi tạo
+  useEffect(() => {
+    // Lấy ra thông tin user từ localStorage
+    const userStr = localStorage.getItem("user");
+    if (userStr) {
+      try {
+        const userObj = JSON.parse(userStr);
+        // Sử dụng phone hoặc phoneNumber từ đối tượng user
+        setUsername(userObj.phone || userObj.phoneNumber || "");
+      } catch (e) {
+        console.error("Error parsing user data:", e);
+      }
+    }
+  }, []);
 
   // Reset form khi modal mở
   useEffect(() => {
@@ -77,6 +93,17 @@ const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
         onFinish={handleSubmit}
         className="mt-4"
       >
+        {/* Trường username ẩn để cải thiện khả năng truy cập */}
+        <input
+          type="text"
+          name="username"
+          autoComplete="username"
+          value={username}
+          readOnly
+          style={{ display: 'none' }}
+          aria-hidden="true"
+        />
+        
         <Form.Item
           name="currentPassword"
           label={t.current_password || "Mật khẩu hiện tại"}
@@ -90,6 +117,7 @@ const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
         >
           <Input.Password
             placeholder={t.enter_current_password || "Nhập mật khẩu hiện tại"}
+            autoComplete="current-password"
           />
         </Form.Item>
         <Form.Item
@@ -109,6 +137,7 @@ const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
         >
           <Input.Password
             placeholder={t.enter_new_password || "Nhập mật khẩu mới"}
+            autoComplete="new-password"
           />
         </Form.Item>
         <Form.Item
@@ -130,6 +159,7 @@ const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
         >
           <Input.Password
             placeholder={t.confirm_new_password || "Nhập lại mật khẩu mới"}
+            autoComplete="new-password"
           />
         </Form.Item>
         <div className="flex justify-end gap-2">

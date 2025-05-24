@@ -949,7 +949,7 @@ export const checkUsedPhone = async (
 // Gửi mã Xác thực OTP
 export const sendOTPForgotPassword = async (
   phone: string
-): Promise<{ otpId: string }> => {
+): Promise<{ otpId: string; otp?: string }> => {
   try {
     if (!phone) {
       throw new Error("Thiếu số điện thoại. Vui lòng kiểm tra lại.");
@@ -972,8 +972,15 @@ export const sendOTPForgotPassword = async (
       throw new Error("Không nhận được mã OTP từ server");
     }
 
+    // Kiểm tra nếu môi trường là development và server trả về mã OTP
+    const isDevelopment = window.location.hostname === 'localhost' || 
+                          window.location.hostname === '127.0.0.1';
+    
+    // Trả về đầy đủ dữ liệu bao gồm mã OTP nếu ở môi trường development
     return {
       otpId: response.data.otpId,
+      // Chỉ trả về otp nếu server có trả về và đang ở môi trường development
+      ...(isDevelopment && response.data.otp ? { otp: response.data.otp } : {})
     };
   } catch (error: unknown) {
     if (error instanceof AxiosError && error.response) {

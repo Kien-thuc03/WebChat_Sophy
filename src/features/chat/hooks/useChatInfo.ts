@@ -371,16 +371,26 @@ export const useChatInfo = () => {
         const videoFiles = conversationData.listFile
           .filter((item: string | FileListItem) => {
             if (typeof item === 'string') {
-              return item.match(/\.(mp4|mov|avi|wmv|flv|mkv|webm)($|\?)/i);
+              // Check if it's a video file but not an audio webm file
+              return item.match(/\.(mp4|mov|avi|wmv|flv|mkv)($|\?)/i) || 
+                     (item.match(/\.webm($|\?)/i) && !item.match(/voice_message_|audio/i));
             }
             
             const itemName = (item as FileListItem).name || '';
             const itemUrl = (item as FileListItem).url || (item as FileListItem).downloadUrl || '';
             const itemType = (item as FileListItem).type || '';
+            const itemSize = (item as FileListItem).size || 0;
             
-            return itemType.startsWith('video') || 
-                   itemName.match(/\.(mp4|mov|avi|wmv|flv|mkv|webm)$/i) ||
-                   itemUrl.match(/\.(mp4|mov|avi|wmv|flv|mkv|webm)($|\?)/i);
+            // Check if it's a video file but exclude audio webm files
+            const isWebmAudio = (itemName.match(/voice_message_|audio/i) && itemName.match(/\.webm$/i)) || 
+                               (itemType.startsWith('audio/') && itemName.match(/\.webm$/i)) ||
+                               (itemName.match(/\.webm$/i) && itemSize < 1024 * 1024); // Files smaller than 1MB are likely audio
+            
+            return (itemType.startsWith('video/') || 
+                   itemName.match(/\.(mp4|mov|avi|wmv|flv|mkv)$/i) ||
+                   itemUrl.match(/\.(mp4|mov|avi|wmv|flv|mkv)($|\?)/i) ||
+                   (itemName.match(/\.webm$/i) && !isWebmAudio) ||
+                   (itemUrl.match(/\.webm($|\?)/i) && !isWebmAudio));
           })
           .map((item: string | FileListItem) => {
             if (typeof item === 'string') {
