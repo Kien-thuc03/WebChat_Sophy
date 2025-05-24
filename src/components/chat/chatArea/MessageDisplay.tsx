@@ -434,6 +434,39 @@ const MessageDisplay: React.FC<MessageDisplayProps> = ({
                         }
                       }} 
                     />
+                  ) : message.type === 'text-with-image' ? (
+                    <div className="relative">
+                      <p className="text-sm whitespace-pre-wrap break-words mb-2">{message.content}</p>
+                      <img
+                        src={message.fileUrl || (message.attachment && message.attachment.url) || ''}
+                        alt="Attachment"
+                        className="rounded max-w-full cursor-pointer"
+                        style={{ maxHeight: '200px' }}
+                        onClick={() => handleImagePreview(message.fileUrl || (message.attachment && message.attachment.url) || '')}
+                        onLoad={() => {
+                          if (index === messages.length - 1) {
+                            setTimeout(() => {
+                              const element = document.getElementById(`message-${message.id}`);
+                              element?.scrollIntoView({ behavior: 'smooth' });
+                            }, 100);
+                          }
+                        }}
+                      />
+                      <div className="text-right mt-1">
+                        <Button
+                          type="primary"
+                          size="small"
+                          icon={<DownloadOutlined />}
+                          onClick={() =>
+                            handleDownloadFile(
+                              message.fileUrl || message.attachment?.downloadUrl || message.attachment?.url,
+                              message.fileName || message.attachment?.name || 'image'
+                            )
+                          }
+                          className="inline-flex items-center text-xs shadow-sm"
+                        ></Button>
+                      </div>
+                    </div>
                   ) : message.type === 'image' ? (
                     <div className="relative">
                       <img
