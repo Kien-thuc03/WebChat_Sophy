@@ -135,7 +135,7 @@ export const ReplyPreview: React.FC<{
       ></div>
       <div className="reply-preview-content flex-1 text-xs py-1">
         <div className="reply-sender font-medium text-gray-700">{replySender}</div>
-        <div className="reply-content truncate">{renderReplyTypeContent()}</div>
+        <div className="reply-content truncate text-gray-600">{renderReplyTypeContent()}</div>
       </div>
     </div>
   );

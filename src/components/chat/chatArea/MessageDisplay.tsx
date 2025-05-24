@@ -690,23 +690,23 @@ const MessageDisplay: React.FC<MessageDisplayProps> = ({
                     isAudioFile(message) ? 
                       renderAudioMessage(message, handleDownloadFile)
                     : (
-                    <div className="flex items-center gap-2 bg-gray-50 p-2 rounded-lg">
+                    <div className={`flex items-center gap-2 ${isOwn ? 'bg-blue-400' : 'bg-gray-50'} p-2 rounded-lg`}>
                       <div className="text-xl mr-2">
                         {message.attachment?.type?.startsWith('image/') ? (
-                          <FileImageOutlined className="text-blue-500" />
+                          <FileImageOutlined className={`${isOwn ? 'text-white' : 'text-blue-500'}`} />
                         ) : message.attachment?.type?.startsWith('audio/') ? (
-                          <AudioOutlined className="text-green-500" />
+                          <AudioOutlined className={`${isOwn ? 'text-white' : 'text-green-500'}`} />
                         ) : message.attachment?.type?.startsWith('video/') ? (
-                          <VideoCameraOutlined className="text-purple-500" />
+                          <VideoCameraOutlined className={`${isOwn ? 'text-white' : 'text-purple-500'}`} />
                         ) : (
-                          <FileOutlined className="text-gray-500" />
+                          <FileOutlined className={`${isOwn ? 'text-white' : 'text-gray-500'}`} />
                         )}
                       </div>
                       <div className="flex-grow">
                         <div className="text-sm font-medium truncate">
                           {message.fileName || message.attachment?.name || message.content}
                         </div>
-                        <div className="text-xs text-gray-500">
+                        <div className={`text-xs ${isOwn ? 'text-blue-100' : 'text-gray-500'}`}>
                           {message.fileSize
                             ? `${Math.round(message.fileSize / 1024)} KB`
                             : message.attachment?.size
