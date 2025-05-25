@@ -128,8 +128,8 @@ export function ChatArea({ conversation }: ChatAreaProps) {
     conversation.conversationId.startsWith("conv");
 
   // Add state for the image modal
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const [isImageModalOpen, setIsImageModalOpen] = useState(false);
+  const [, setSelectedImage] = useState<string | null>(null);
+  const [, setIsImageModalOpen] = useState(false);
 
   // Add state for message actions
   const [messageActionLoading, setMessageActionLoading] = useState<string | null>(null);
