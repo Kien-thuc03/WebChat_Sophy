@@ -2755,7 +2755,29 @@ export function ChatArea({ conversation }: ChatAreaProps) {
         )
       );
       
-      // Refresh pinned messages
+      // Cập nhật trực tiếp danh sách pinnedMessages và hiển thị panel ngay
+      if (pinnedMessage) {
+        const updatedPinnedMessage = {
+          ...pinnedMessage,
+          isPinned: true, 
+          pinnedAt: new Date().toISOString()
+        };
+        
+        // Cập nhật danh sách tin nhắn ghim
+        setPinnedMessages(prevPinnedMessages => {
+          // Kiểm tra nếu tin nhắn đã tồn tại trong danh sách ghim
+          const messageExists = prevPinnedMessages.some(msg => msg.id === messageId);
+          if (messageExists) {
+            return prevPinnedMessages;
+          }
+          return [...prevPinnedMessages, updatedPinnedMessage];
+        });
+        
+        // Hiển thị panel ghim nếu đây là tin nhắn ghim đầu tiên
+        setShowPinnedMessagesPanel(true);
+      }
+      
+      // Refresh pinned messages từ API (vẫn giữ để đồng bộ với server)
       await fetchPinnedMessages();
       
       // Add a notification message about pinning
@@ -2821,7 +2843,16 @@ export function ChatArea({ conversation }: ChatAreaProps) {
         )
       );
       
-      // Refresh pinned messages
+      // Cập nhật trực tiếp danh sách pin và kiểm tra nếu cần ẩn panel
+      setPinnedMessages(prevPinnedMessages => {
+        const filtered = prevPinnedMessages.filter(msg => msg.id !== messageId);
+        if (filtered.length === 0) {
+          setShowPinnedMessagesPanel(false);
+        }
+        return filtered;
+      });
+      
+      // Refresh pinned messages từ API (vẫn giữ để đồng bộ với server)
       await fetchPinnedMessages();
       
       message.success("Đã bỏ ghim tin nhắn");
@@ -2843,15 +2874,7 @@ export function ChatArea({ conversation }: ChatAreaProps) {
     try {
       setLoadingPinnedMessages(true);
 
-      // Get pinned message IDs from conversation
-      const pinnedMessageIds = conversation.pinnedMessages || [];
-
-      if (pinnedMessageIds.length === 0) {
-        setPinnedMessages([]);
-        setLoadingPinnedMessages(false);
-        return;
-      }
-
+      // Luôn gọi API để lấy danh sách ghim mới nhất từ server
       try {
         // Use the API to get all pinned messages for this conversation
         const fetchedPinnedMessages = await getPinnedMessages(conversation.conversationId);
@@ -2933,6 +2956,9 @@ export function ChatArea({ conversation }: ChatAreaProps) {
 
           // If we have pinned messages from the API, use those
           setPinnedMessages(sortedPinnedMessages);
+        } else {
+          // Nếu API trả về mảng rỗng thì cập nhật pinnedMessages
+          setPinnedMessages([]);
         }
       } catch (apiError) {
         console.error("Error fetching pinned messages from API:", apiError);
