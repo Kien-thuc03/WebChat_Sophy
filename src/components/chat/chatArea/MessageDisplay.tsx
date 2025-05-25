@@ -34,6 +34,12 @@ const isNotificationMessage = (message: DisplayMessage): boolean => {
   return message.type === 'notification';
 };
 
+const isLikeMessage = (message: DisplayMessage): boolean => {
+  const urlRegex =
+    /\b(https?:\/\/[^\s]+|www\.[^\s]+|[^\s]+\.(com|net|org|io|gov|edu|vn|co))\b/gi;
+  return urlRegex.test(message.content || '');
+};
+
 // Helper function to check if a message is an audio file (expanded to support more formats)
 const isAudioFile = (message: DisplayMessage): boolean => {
   // Kiểm tra tên file có chứa "voice_message" hoặc "audio" và có đuôi audio phổ biến
@@ -482,6 +488,59 @@ const renderAudioMessage = (message: DisplayMessage, handleDownloadFile: (url: s
   );
 };
 
+// Helper function to convert text with URLs to clickable links
+const convertLinksToAnchors = (text: string, isOwn: boolean): React.ReactNode[] => {
+  const urlRegex = /\b(https?:\/\/[^\s]+|www\.[^\s]+|[^\s]+\.(com|net|org|io|gov|edu|vn|co))\b/gi;
+  
+  if (!text) return [<span key="empty"></span>];
+  
+  const segments: React.ReactNode[] = [];
+  let lastIndex = 0;
+  let match;
+  
+  while ((match = urlRegex.exec(text)) !== null) {
+    // Add text before the match
+    if (match.index > lastIndex) {
+      segments.push(<span key={`text-${lastIndex}`}>{text.substring(lastIndex, match.index)}</span>);
+    }
+    
+    // Process the URL
+    let url = match[0];
+    // Add https protocol if www. is found but no protocol
+    if (url.startsWith('www.') && !url.startsWith('http')) {
+      url = 'https://' + url;
+    }
+    // Add https protocol if domain name only without protocol
+    if (!url.startsWith('http') && !url.startsWith('www.')) {
+      url = 'https://' + url;
+    }
+    
+    segments.push(
+      <a 
+        key={`link-${match.index}`} 
+        href={url} 
+        target="_blank" 
+        rel="noopener noreferrer" 
+        className={isOwn ? "!text-blue-50 hover:underline font-medium" : "!text-blue-600 hover:underline"}
+        onClick={(e) => {
+          e.stopPropagation(); // Prevent message selection
+        }}
+      >
+        {match[0]}
+      </a>
+    );
+    
+    lastIndex = match.index + match[0].length;
+  }
+  
+  // Add remaining text
+  if (lastIndex < text.length) {
+    segments.push(<span key={`text-${lastIndex}`}>{text.substring(lastIndex)}</span>);
+  }
+  
+  return segments;
+};
+
 const MessageDisplay: React.FC<MessageDisplayProps> = ({
   messages,
   currentUserId,
@@ -851,7 +910,11 @@ const MessageDisplay: React.FC<MessageDisplayProps> = ({
                     </div>
                   ) : (
                     <div className="relative">
-                      <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
+                      <p className="text-sm whitespace-pre-wrap break-words">
+                        {isLikeMessage(message) ? 
+                          convertLinksToAnchors(message.content || '', isOwn) : 
+                          message.content}
+                      </p>
                     </div>
                   )}
                 </div>
