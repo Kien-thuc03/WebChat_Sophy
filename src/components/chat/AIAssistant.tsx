@@ -21,18 +21,12 @@ interface AIAssistantProps {
   inChatMode?: boolean;
 }
 
-// Định nghĩa kiểu trả về của API
-interface APIResponse {
-  response: string;
-  conversationId: string;
-}
-
 const AIAssistant: React.FC<AIAssistantProps> = ({ onClose, onSendToChat, inChatMode = false }) => {
   const [input, setInput] = useState('');
   const [conversations, setConversations] = useState<AIConversation[]>([]);
   const [currentConversation, setCurrentConversation] = useState<AIConversation | null>(null);
   const [isTyping, setIsTyping] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  // const [isLoading, setIsLoading] = useState(false);
   const [loadingConversations, setLoadingConversations] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);

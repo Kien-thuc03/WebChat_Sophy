@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { checkUsedPhone, registerWithAvatar } from '../../api/API';
+import { checkUsedPhone } from '../../api/API';
 import { useAuth } from '../../features/auth/hooks/useAuth';
 import PhoneInput from "react-phone-number-input";
 import "react-phone-number-input/style.css";
-import { auth, sendOtpToPhone } from '../../utils/firebase-config';
+import { sendOtpToPhone } from '../../utils/firebase-config';
 import RecaptchaContainer from './RecaptchaContainer';
-import { ConfirmationResult, RecaptchaVerifier } from 'firebase/auth';
+import { RecaptchaVerifier } from 'firebase/auth';
 
 // Định nghĩa interface cho kết quả xác thực
 interface IConfirmationResult {
@@ -15,13 +15,13 @@ interface IConfirmationResult {
 }
 
 // Helper function to safely check if grecaptcha is ready
-function isGrecaptchaReady(): boolean {
-  return (
-    typeof window !== 'undefined' &&
-    window.grecaptcha !== undefined &&
-    typeof window.grecaptcha.ready === 'function'
-  );
-}
+// function isGrecaptchaReady(): boolean {
+//   return (
+//     typeof window !== 'undefined' &&
+//     window.grecaptcha !== undefined &&
+//     typeof window.grecaptcha.ready === 'function'
+//   );
+// }
 
 const Register: React.FC = () => {
   const navigate = useNavigate();
@@ -308,14 +308,14 @@ const Register: React.FC = () => {
       }
 
       // Sử dụng hàm registerWithAvatar thay vì register để hỗ trợ tải lên avatar
-      const result = await registerWithAvatar(
-        formattedPhone, 
-        password, 
-        fullname, 
-        isMale, 
-        birthday,
-        avatarFile
-      );
+      // const result = await registerWithAvatar(
+      //   formattedPhone, 
+      //   password, 
+      //   fullname, 
+      //   isMale, 
+      //   birthday,
+      //   avatarFile
+      // );
       
       
       // Hiển thị thông báo thành công
