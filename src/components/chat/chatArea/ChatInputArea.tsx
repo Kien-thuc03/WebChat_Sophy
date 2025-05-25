@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from 'react';
-import { Input, Button, Tooltip, message } from 'antd';
-import { SendOutlined, SmileOutlined, PictureOutlined, FileOutlined, FileImageOutlined, LoadingOutlined, WarningOutlined } from '@ant-design/icons';
+import { Input, Button, Tooltip, message, Modal } from 'antd';
+import { SendOutlined, SmileOutlined, PictureOutlined, FileOutlined, FileImageOutlined, LoadingOutlined, WarningOutlined, RobotOutlined, HistoryOutlined } from '@ant-design/icons';
 import Picker from '@emoji-mart/react';
 import data from '@emoji-mart/data';
 import FileUploader from './FileUploader';
 import VoiceRecorderButton from './VoiceRecorderButton';
 import { DisplayMessage } from '../../../features/chat/types/chatTypes';
 import { User } from '../../../features/auth/types/authTypes';
+import AIAssistant from '../AIAssistant';
+import './ChatInputArea.css';
 
 // Define constants for file limits
 const MAX_FILE_SIZE_MB = 10;
@@ -71,9 +73,11 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
   replyingToMessage,
   setReplyingToMessage,
   inputValue,
+  setInputValue,
   isUploading,
   setIsUploading,
   emojiPickerVisible,
+  setEmojiPickerVisible,
   inputRef,
   fileInputRef,
   imageInputRef,
@@ -99,6 +103,10 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
   const [isSending, setIsSending] = useState<boolean>(false);
   const [fileObjectUrls, setFileObjectUrls] = useState<string[]>([]);
   const [failedUploads, setFailedUploads] = useState<{id: string, file: File}[]>([]);
+  
+  // AI Assistant state
+  const [showAiAssistant, setShowAiAssistant] = useState<boolean>(false);
+  const [showAiHistory, setShowAiHistory] = useState<boolean>(false);
 
   // Monitor network status
   useEffect(() => {
@@ -254,6 +262,28 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
       }
     }
   };
+  
+  // Handle AI response for adding to chat
+  const handleAiResponseToChat = (content: string) => {
+    setInputValue(content);
+    
+    // Focus the input field with the AI response
+    if (inputRef.current) {
+      setTimeout(() => {
+        inputRef.current.focus();
+      }, 100);
+    }
+  };
+
+  // Toggle AI Assistant visibility
+  const toggleAiAssistant = () => {
+    setShowAiAssistant(prev => !prev);
+  };
+  
+  // Toggle AI History visibility
+  const toggleAiHistory = () => {
+    setShowAiHistory(prev => !prev);
+  };
 
   return (
     <div className="chat-input-container bg-white border-t border-gray-200">
@@ -261,6 +291,20 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
       {!isOnline && (
         <div className="network-status-banner p-1 bg-red-100 text-red-700 text-xs text-center">
           <WarningOutlined className="mr-1" /> Bạn đang offline. Tin nhắn sẽ được gửi khi có kết nối.
+        </div>
+      )}
+      
+      {/* AI Assistant component */}
+      {showAiAssistant && (
+        <div className="ai-assistant-container border-b border-gray-200 flex flex-col" style={{ height: '400px' }}>
+          {/* AI Assistant body */}
+          <div className="flex-grow overflow-hidden">
+            <AIAssistant 
+              onClose={toggleAiAssistant} 
+              onSendToChat={handleAiResponseToChat} 
+              inChatMode={true}
+            />
+          </div>
         </div>
       )}
       
@@ -404,6 +448,19 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
             autoFocus={true}
           />
         </div>
+        
+        {/* AI Assistant button - using RobotOutlined icon instead of image */}
+        <div className="flex-shrink-0 mr-2">
+          <Tooltip title={showAiAssistant ? "Ẩn AI Assistant" : "Hiện AI Assistant"}>
+            <Button
+              type={showAiAssistant ? "primary" : "text"}
+              icon={<RobotOutlined />}
+              onClick={toggleAiAssistant}
+              className="ai-assistant-btn"
+            />
+          </Tooltip>
+        </div>
+        
         {/* File attachment button */}
         <div className="flex-shrink-0 mr-2">
           {isValidConversation && (

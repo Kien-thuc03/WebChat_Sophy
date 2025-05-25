@@ -2533,3 +2533,57 @@ export const removeUserFromGroup = async (
     );
   }
 };
+
+
+// AI Assistant
+// Get all AI conversations for the current user
+export const getAllAIConversations = async () => {
+  try {
+    const token = getAuthToken();
+    if (!token) {
+      throw new Error("Không có token xác thực");
+    }
+
+    const response = await apiClient.get("/api/ai");
+    return response.data;
+  } catch (error: any) {
+    if (error.response?.status === 401) {
+      throw new Error("Phiên đăng nhập hết hạn, vui lòng đăng nhập lại");
+    }
+    throw new Error(
+      error.response?.data?.message || "Không thể lấy danh sách cuộc trò chuyện với AI"
+    );
+  }
+};
+
+// Send message to AI assistant and get a response
+export const processAIRequest = async (message: string, conversationId?: string) => {
+  try {
+    const token = getAuthToken();
+    if (!token) {
+      throw new Error("Không có token xác thực");
+    }
+
+    const response = await apiClient.post("/api/ai/ai-assistant", {
+      message,
+      conversationId,
+    });
+
+    return {
+      response: response.data.response,
+      conversationId: response.data.conversationId
+    };
+  } catch (error: any) {
+    if (error.response?.status === 401) {
+      throw new Error("Phiên đăng nhập hết hạn, vui lòng đăng nhập lại");
+    }
+    if (error.response?.status === 429) {
+      throw new Error("Đã vượt quá giới hạn yêu cầu. Vui lòng thử lại sau");
+    }
+    throw new Error(
+      error.response?.data?.message || "Không thể xử lý yêu cầu AI"
+    );
+  }
+};
+
+
