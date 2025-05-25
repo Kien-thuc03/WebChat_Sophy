@@ -1901,17 +1901,7 @@ export const recallMessage = async (messageId: string): Promise<void> => {
     if (!token) {
       throw new Error("User not authenticated");
     }
-
-    const API_URL = import.meta.env.VITE_API_URL;
-    const response = await axios.put(
-      `${API_URL}/api/messages/recall/${messageId}`,
-      {},
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      }
-    );
+    const response = await apiClient.put(`/api/messages/recall/${messageId}`);
 
     if (response.status !== 200) {
       throw new Error(response.data.message || "Error recalling message");
@@ -1931,16 +1921,7 @@ export const deleteMessage = async (messageId: string): Promise<void> => {
       throw new Error("User not authenticated");
     }
 
-    const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
-    const response = await axios.put(
-      `${API_URL}/api/messages/delete/${messageId}`,
-      {},
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      }
-    );
+    const response = await apiClient.put(`/api/messages/delete/${messageId}`);
 
     if (response.status !== 200) {
       throw new Error(response.data.message || "Error deleting message");
