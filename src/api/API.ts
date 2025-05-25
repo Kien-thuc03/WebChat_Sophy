@@ -940,6 +940,10 @@ export const checkUsedPhone = async (
       } else {
         throw new Error("Lỗi hệ thống. Vui lòng thử lại sau.");
       }
+    } else if (error.response?.status === 429) {
+      if (error.response.data?.message === "Request too many verification code, please try again later") {
+        throw new Error("Quá nhiều yêu cầu. Vui lòng thử lại sau.");
+      }
     }
     throw new Error(
       error.response?.data?.message || "Không thể kiểm tra số điện thoại"

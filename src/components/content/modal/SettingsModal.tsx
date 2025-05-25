@@ -31,7 +31,7 @@ const SettingsModal: React.FC<{ visible: boolean; onClose: () => void }> = ({
     useState(false);
   const [themeMode, setThemeMode] = useState<"light" | "dark" | "system">(
     (localStorage.getItem("themeMode") as "light" | "dark" | "system") ||
-      "system"
+      "light"
   );
   const [useAvatarAsBackground, setUseAvatarAsBackground] = useState(
     localStorage.getItem("useAvatarAsBackground") === "true" || false
@@ -48,19 +48,9 @@ const SettingsModal: React.FC<{ visible: boolean; onClose: () => void }> = ({
         },
       };
     }
-    if (themeMode === "light") {
-      return {
-        algorithm: theme.defaultAlgorithm,
-        token: {
-          colorPrimary: "#1890ff",
-        },
-      };
-    }
-    const prefersDark = window.matchMedia(
-      "(prefers-color-scheme: dark)"
-    ).matches;
+    // For both "light" and "system", use light theme
     return {
-      algorithm: prefersDark ? theme.darkAlgorithm : theme.defaultAlgorithm,
+      algorithm: theme.defaultAlgorithm,
       token: {
         colorPrimary: "#1890ff",
       },
