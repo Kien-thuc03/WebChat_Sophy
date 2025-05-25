@@ -7,7 +7,6 @@ import { Conversation } from '../../../features/chat/types/conversationTypes';
 import { User } from '../../../features/auth/types/authTypes';
 import { ReplyPreview } from './PreviewReply';
 import NotificationMessage from './NotificationMessage';
-import ReactPlayer from 'react-player';
 import {
   CommentOutlined,
   ShareAltOutlined,
@@ -17,6 +16,12 @@ import {
   AudioOutlined,
   VideoCameraOutlined,
   FileOutlined,
+  FileWordOutlined,
+  FilePdfOutlined,
+  FileExcelOutlined,
+  FilePptOutlined,
+  FileZipOutlined,
+  FileUnknownOutlined,
   CheckOutlined,
   CheckCircleOutlined,
   PlayCircleOutlined,
@@ -27,6 +32,12 @@ import voiceMessageService from '../../../services/voiceMessageService';
 // Helper function to check if a message is a notification type
 const isNotificationMessage = (message: DisplayMessage): boolean => {
   return message.type === 'notification';
+};
+
+const isLikeMessage = (message: DisplayMessage): boolean => {
+  const urlRegex =
+    /\b(https?:\/\/[^\s]+|www\.[^\s]+|[^\s]+\.(com|net|org|io|gov|edu|vn|co))\b/gi;
+  return urlRegex.test(message.content || '');
 };
 
 // Helper function to check if a message is an audio file (expanded to support more formats)
@@ -258,6 +269,83 @@ export const AudioPlayer = ({ url, duration }: { url: string, duration?: number 
   );
 };
 
+// Custom Video Player component
+const VideoPlayer = ({ url, thumbnail }: { url: string, thumbnail?: string }) => {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  const togglePlay = () => {
+    if (videoRef.current) {
+      if (isPlaying) {
+        videoRef.current.pause();
+      } else {
+        videoRef.current.play().catch(err => {
+          console.error("Error playing video:", err);
+        });
+      }
+      setIsPlaying(!isPlaying);
+    }
+  };
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    const handlePlay = () => setIsPlaying(true);
+    const handlePause = () => setIsPlaying(false);
+    const handleEnded = () => setIsPlaying(false);
+
+    video.addEventListener('play', handlePlay);
+    video.addEventListener('pause', handlePause);
+    video.addEventListener('ended', handleEnded);
+
+    return () => {
+      video.removeEventListener('play', handlePlay);
+      video.removeEventListener('pause', handlePause);
+      video.removeEventListener('ended', handleEnded);
+    };
+  }, []);
+
+  return (
+    <div className="relative w-full">
+      {thumbnail && !isPlaying && (
+        <div 
+          className="absolute inset-0 flex items-center justify-center cursor-pointer"
+          onClick={togglePlay}
+          style={{
+            backgroundImage: `url(${thumbnail})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center'
+          }}
+        >
+          <div className="bg-black bg-opacity-50 rounded-full p-3">
+            <PlayCircleOutlined style={{ fontSize: '32px', color: 'white' }} />
+          </div>
+        </div>
+      )}
+      <video
+        ref={videoRef}
+        src={url}
+        className="w-full rounded"
+        controls={isPlaying}
+        controlsList="nodownload"
+        onContextMenu={(e) => e.preventDefault()}
+        poster={!isPlaying ? thumbnail : undefined}
+      />
+      {!isPlaying && !thumbnail && (
+        <div 
+          className="absolute inset-0 flex items-center justify-center cursor-pointer"
+          onClick={togglePlay}
+        >
+          <div className="bg-black bg-opacity-50 rounded-full p-3">
+            <PlayCircleOutlined style={{ fontSize: '32px', color: 'white' }} />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 interface MessageDisplayProps {
   messages: DisplayMessage[];
   currentUserId: string;
@@ -398,6 +486,59 @@ const renderAudioMessage = (message: DisplayMessage, handleDownloadFile: (url: s
       </div>
     </div>
   );
+};
+
+// Helper function to convert text with URLs to clickable links
+const convertLinksToAnchors = (text: string, isOwn: boolean): React.ReactNode[] => {
+  const urlRegex = /\b(https?:\/\/[^\s]+|www\.[^\s]+|[^\s]+\.(com|net|org|io|gov|edu|vn|co))\b/gi;
+  
+  if (!text) return [<span key="empty"></span>];
+  
+  const segments: React.ReactNode[] = [];
+  let lastIndex = 0;
+  let match;
+  
+  while ((match = urlRegex.exec(text)) !== null) {
+    // Add text before the match
+    if (match.index > lastIndex) {
+      segments.push(<span key={`text-${lastIndex}`}>{text.substring(lastIndex, match.index)}</span>);
+    }
+    
+    // Process the URL
+    let url = match[0];
+    // Add https protocol if www. is found but no protocol
+    if (url.startsWith('www.') && !url.startsWith('http')) {
+      url = 'https://' + url;
+    }
+    // Add https protocol if domain name only without protocol
+    if (!url.startsWith('http') && !url.startsWith('www.')) {
+      url = 'https://' + url;
+    }
+    
+    segments.push(
+      <a 
+        key={`link-${match.index}`} 
+        href={url} 
+        target="_blank" 
+        rel="noopener noreferrer" 
+        className={isOwn ? "!text-blue-50 hover:underline font-medium" : "!text-blue-600 hover:underline"}
+        onClick={(e) => {
+          e.stopPropagation(); // Prevent message selection
+        }}
+      >
+        {match[0]}
+      </a>
+    );
+    
+    lastIndex = match.index + match[0].length;
+  }
+  
+  // Add remaining text
+  if (lastIndex < text.length) {
+    segments.push(<span key={`text-${lastIndex}`}>{text.substring(lastIndex)}</span>);
+  }
+  
+  return segments;
 };
 
 const MessageDisplay: React.FC<MessageDisplayProps> = ({
@@ -698,6 +839,16 @@ const MessageDisplay: React.FC<MessageDisplayProps> = ({
                           <AudioOutlined className={`${isOwn ? 'text-white' : 'text-green-500'}`} />
                         ) : message.attachment?.type?.startsWith('video/') ? (
                           <VideoCameraOutlined className={`${isOwn ? 'text-white' : 'text-purple-500'}`} />
+                        ) : message.attachment?.type?.includes('word') || message.attachment?.name?.endsWith('.doc') || message.attachment?.name?.endsWith('.docx') ? (
+                          <FileWordOutlined className={`${isOwn ? 'text-white' : 'text-blue-500'}`} />
+                        ) : message.attachment?.type?.includes('excel') || message.attachment?.name?.endsWith('.xls') || message.attachment?.name?.endsWith('.xlsx') ? (
+                          <FileExcelOutlined className={`${isOwn ? 'text-white' : 'text-green-500'}`} />
+                        ) : message.attachment?.type?.includes('powerpoint') || message.attachment?.name?.endsWith('.ppt') || message.attachment?.name?.endsWith('.pptx') ? (
+                          <FilePptOutlined className={`${isOwn ? 'text-white' : 'text-red-500'}`} />
+                        ) : message.attachment?.type?.includes('zip') || message.attachment?.name?.endsWith('.zip') || message.attachment?.name?.endsWith('.rar') || message.attachment?.name?.endsWith('.7z') ? (
+                          <FileZipOutlined className={`${isOwn ? 'text-white' : 'text-orange-500'}`} />
+                        ) : message.attachment?.type?.startsWith('application/pdf') ? (
+                          <FilePdfOutlined className={`${isOwn ? 'text-white' : 'text-red-500'}`} />
                         ) : (
                           <FileOutlined className={`${isOwn ? 'text-white' : 'text-gray-500'}`} />
                         )}
@@ -736,23 +887,9 @@ const MessageDisplay: React.FC<MessageDisplayProps> = ({
                         {isAudioFile(message) ? 
                           renderAudioMessage(message, handleDownloadFile)
                         : (
-                          <ReactPlayer
+                          <VideoPlayer
                             url={message.fileUrl || (message.attachment && message.attachment.url) || ''}
-                            width="100%"
-                            height="auto"
-                            controls={true}
-                            light={message.attachment && message.attachment.thumbnail ? message.attachment.thumbnail : true}
-                            pip={false}
-                            playing={false}
-                            className="video-player"
-                            config={{
-                              file: {
-                                attributes: {
-                                  controlsList: 'nodownload',
-                                  onContextMenu: (e: React.MouseEvent) => e.preventDefault(),
-                                },
-                              },
-                            }}
+                            thumbnail={message.attachment?.thumbnail}
                           />
                         )}
                       </div>
@@ -773,7 +910,11 @@ const MessageDisplay: React.FC<MessageDisplayProps> = ({
                     </div>
                   ) : (
                     <div className="relative">
-                      <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
+                      <p className="text-sm whitespace-pre-wrap break-words">
+                        {isLikeMessage(message) ? 
+                          convertLinksToAnchors(message.content || '', isOwn) : 
+                          message.content}
+                      </p>
                     </div>
                   )}
                 </div>

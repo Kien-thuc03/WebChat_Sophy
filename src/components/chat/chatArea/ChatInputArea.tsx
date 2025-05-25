@@ -1,12 +1,18 @@
-import React from 'react';
-import { Input, Button, Tooltip } from 'antd';
-import { SendOutlined, SmileOutlined, PictureOutlined, FileOutlined, FileImageOutlined } from '@ant-design/icons';
+import React, { useEffect, useState } from 'react';
+import { Input, Button, Tooltip, message, Modal } from 'antd';
+import { SendOutlined, SmileOutlined, PictureOutlined, FileOutlined, FileImageOutlined, LoadingOutlined, WarningOutlined, RobotOutlined, HistoryOutlined } from '@ant-design/icons';
 import Picker from '@emoji-mart/react';
 import data from '@emoji-mart/data';
 import FileUploader from './FileUploader';
 import VoiceRecorderButton from './VoiceRecorderButton';
 import { DisplayMessage } from '../../../features/chat/types/chatTypes';
 import { User } from '../../../features/auth/types/authTypes';
+import AIAssistant from '../AIAssistant';
+import './ChatInputArea.css';
+
+// Define constants for file limits
+const MAX_FILE_SIZE_MB = 10;
+const MAX_ATTACHMENTS = 5;
 
 interface ChatInputAreaProps {
   conversationId: string;
@@ -67,9 +73,11 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
   replyingToMessage,
   setReplyingToMessage,
   inputValue,
+  setInputValue,
   isUploading,
   setIsUploading,
   emojiPickerVisible,
+  setEmojiPickerVisible,
   inputRef,
   fileInputRef,
   imageInputRef,
@@ -90,8 +98,216 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
   onUploadError,
   handleInputChange
 }) => {
+  // State for network status and sending state
+  const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
+  const [isSending, setIsSending] = useState<boolean>(false);
+  const [fileObjectUrls, setFileObjectUrls] = useState<string[]>([]);
+  const [failedUploads, setFailedUploads] = useState<{id: string, file: File}[]>([]);
+  
+  // AI Assistant state
+  const [showAiAssistant, setShowAiAssistant] = useState<boolean>(false);
+  const [showAiHistory, setShowAiHistory] = useState<boolean>(false);
+
+  // Monitor network status
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  // Clean up object URLs when attachments change
+  useEffect(() => {
+    // Clean up previous object URLs
+    fileObjectUrls.forEach(url => URL.revokeObjectURL(url));
+    
+    // Create new object URLs for current attachments
+    const newUrls = attachments.map(file => URL.createObjectURL(file));
+    setFileObjectUrls(newUrls);
+    
+    return () => {
+      // Clean up when component unmounts
+      newUrls.forEach(url => URL.revokeObjectURL(url));
+    };
+  }, [attachments]);
+
+  // Clean up pasted image preview
+  useEffect(() => {
+    return () => {
+      if (pastedImagePreview) {
+        URL.revokeObjectURL(pastedImagePreview);
+      }
+    };
+  }, [pastedImagePreview]);
+
+  // Enhanced file change handler with validation
+  const enhancedFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      // Check if adding files would exceed the limit
+      if (attachments.length + e.target.files.length > MAX_ATTACHMENTS) {
+        message.error(`Chỉ được đính kèm tối đa ${MAX_ATTACHMENTS} tập tin.`);
+        return;
+      }
+      
+      // Validate file sizes
+      const filesToAdd: File[] = [];
+      let hasError = false;
+      
+      Array.from(e.target.files).forEach(file => {
+        if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
+          message.error(`File "${file.name}" vượt quá kích thước tối đa ${MAX_FILE_SIZE_MB}MB.`);
+          hasError = true;
+        } else {
+          filesToAdd.push(file);
+        }
+      });
+      
+      if (!hasError && filesToAdd.length > 0) {
+        handleFileChange(e);
+      }
+    }
+  };
+
+  // Enhanced message sending with error handling
+  const safeSendMessage = async () => {
+    if (!isOnline) {
+      message.error('Không thể gửi tin nhắn khi không có kết nối mạng.');
+      return;
+    }
+    
+    try {
+      setIsSending(true);
+      await handleSendMessage();
+    } catch (error) {
+      console.error('Failed to send message:', error);
+      message.error('Không thể gửi tin nhắn. Vui lòng thử lại.');
+    } finally {
+      setIsSending(false);
+      // Focus the input field after message is sent
+      if (inputRef.current) {
+        setTimeout(() => inputRef.current.focus(), 0);
+      }
+    }
+  };
+
+  // Enhanced reply sending with error handling
+  const safeSendReplyMessage = async () => {
+    if (!isOnline) {
+      message.error('Không thể gửi tin nhắn khi không có kết nối mạng.');
+      return;
+    }
+    
+    try {
+      setIsSending(true);
+      await handleSendReplyMessage();
+    } catch (error) {
+      console.error('Failed to send reply message:', error);
+      message.error('Không thể gửi trả lời. Vui lòng thử lại.');
+    } finally {
+      setIsSending(false);
+      // Focus the input field after reply is sent
+      if (inputRef.current) {
+        setTimeout(() => inputRef.current.focus(), 0);
+      }
+    }
+  };
+
+  // Enhanced like sending with error handling
+  const safeSendLike = async () => {
+    if (!isOnline) {
+      message.error('Không thể gửi tin nhắn khi không có kết nối mạng.');
+      return;
+    }
+    
+    try {
+      setIsSending(true);
+      await handleSendLike();
+    } catch (error) {
+      console.error('Failed to send like:', error);
+      message.error('Không thể gửi tin nhắn. Vui lòng thử lại.');
+    } finally {
+      setIsSending(false);
+      // Focus the input field after like is sent
+      if (inputRef.current) {
+        setTimeout(() => inputRef.current.focus(), 0);
+      }
+    }
+  };
+
+  // Enhanced file upload with retry mechanism
+  const enhancedOnUploadError = (error: Error, tempId?: string) => {
+    if (tempId && attachments.length > 0) {
+      const failedFile = attachments.find((_, index) => `temp-${index}` === tempId);
+      if (failedFile) {
+        setFailedUploads(prev => [...prev, { id: tempId, file: failedFile }]);
+      }
+    }
+    onUploadError(error, tempId);
+  };
+
+  // Retry failed upload
+  const retryUpload = (tempId: string) => {
+    const failedUploadItem = failedUploads.find(item => item.id === tempId);
+    if (failedUploadItem) {
+      const uploadResult = onBeforeUpload(failedUploadItem.file);
+      if (!uploadResult) {
+        // Remove from failed uploads
+        setFailedUploads(prev => prev.filter(item => item.id !== tempId));
+      }
+    }
+  };
+  
+  // Handle AI response for adding to chat
+  const handleAiResponseToChat = (content: string) => {
+    setInputValue(content);
+    
+    // Focus the input field with the AI response
+    if (inputRef.current) {
+      setTimeout(() => {
+        inputRef.current.focus();
+      }, 100);
+    }
+  };
+
+  // Toggle AI Assistant visibility
+  const toggleAiAssistant = () => {
+    setShowAiAssistant(prev => !prev);
+  };
+  
+  // Toggle AI History visibility
+  const toggleAiHistory = () => {
+    setShowAiHistory(prev => !prev);
+  };
+
   return (
     <div className="chat-input-container bg-white border-t border-gray-200">
+      {/* Network status indicator */}
+      {!isOnline && (
+        <div className="network-status-banner p-1 bg-red-100 text-red-700 text-xs text-center">
+          <WarningOutlined className="mr-1" /> Bạn đang offline. Tin nhắn sẽ được gửi khi có kết nối.
+        </div>
+      )}
+      
+      {/* AI Assistant component */}
+      {showAiAssistant && (
+        <div className="ai-assistant-container border-b border-gray-200 flex flex-col" style={{ height: '400px' }}>
+          {/* AI Assistant body */}
+          <div className="flex-grow overflow-hidden">
+            <AIAssistant 
+              onClose={toggleAiAssistant} 
+              onSendToChat={handleAiResponseToChat} 
+              inChatMode={true}
+            />
+          </div>
+        </div>
+      )}
+      
       {/* Display pasted image if any */}
       {pastedImage && pastedImagePreview && (
         <div className="pasted-image-preview p-2 border-b border-gray-100 flex items-center">
@@ -110,6 +326,7 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
           </div>
         </div>
       )}
+      
       {/* Reply indicator */}
       {replyingToMessage && (
         <div className="reply-indicator p-2 border-b border-gray-100 flex items-center">
@@ -155,32 +372,55 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
           </button>
         </div>
       )}
+      
       {/* File attachments preview */}
       {attachments.length > 0 && (
         <div className="flex flex-wrap gap-2 p-2 border-b border-gray-100">
-          {attachments.map((file, index) => (
-            <div
-              key={index}
-              className="flex items-center gap-1 bg-gray-100 rounded px-2 py-1"
-            >
-              {file.type.startsWith('image/') ? (
-                <img
-                  src={URL.createObjectURL(file)}
-                  alt={file.name}
-                  className="w-10 h-10 object-cover rounded"
-                />
-              ) : (
-                <i className="fas fa-file text-gray-500"></i>
-              )}
-              <span className="text-xs truncate max-w-32">{file.name}</span>
-              <button
-                onClick={() => handleRemoveAttachment(index)}
-                className="text-gray-500 hover:text-red-500"
+          <div className="w-full text-xs text-gray-500 mb-1">
+            {attachments.length}/{MAX_ATTACHMENTS} tập tin đã đính kèm
+          </div>
+          {attachments.map((file, index) => {
+            const tempId = `temp-${index}`;
+            const hasFailedUpload = failedUploads.some(item => item.id === tempId);
+            
+            return (
+              <div
+                key={index}
+                className={`flex items-center gap-1 ${hasFailedUpload ? 'bg-red-50' : 'bg-gray-100'} rounded px-2 py-1`}
               >
-                ×
-              </button>
-            </div>
-          ))}
+                {file.type.startsWith('image/') ? (
+                  <img
+                    src={fileObjectUrls[index] || URL.createObjectURL(file)}
+                    alt={file.name}
+                    className="w-10 h-10 object-cover rounded"
+                  />
+                ) : (
+                  <i className="fas fa-file text-gray-500"></i>
+                )}
+                <span className="text-xs truncate max-w-32" title={file.name}>
+                  {file.name.length > 15 ? file.name.substring(0, 12) + '...' : file.name}
+                </span>
+                <span className="text-xs text-gray-500">
+                  {(file.size / 1024 / 1024).toFixed(1)} MB
+                </span>
+                {hasFailedUpload && (
+                  <Button 
+                    size="small"
+                    type="text"
+                    // icon={<RetryOutlined />}
+                    onClick={() => retryUpload(tempId)}
+                    className="text-red-500 hover:text-red-700"
+                  />
+                )}
+                <button
+                  onClick={() => handleRemoveAttachment(index)}
+                  className="text-gray-500 hover:text-red-500"
+                >
+                  ×
+                </button>
+              </div>
+            );
+          })}
         </div>
       )}
       
@@ -190,10 +430,12 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
         <div className="flex-grow">
           <Input
             ref={inputRef}
-            className="w-full py-2 px-2 bg-gray-100 rounded-2xl border-none focus:shadow-none"
+            className={`w-full py-2 px-2 ${!isOnline ? 'bg-gray-200' : 'bg-gray-100'} rounded-2xl border-none focus:shadow-none`}
             placeholder={
               isUploading
                 ? "Đang tải lên..."
+                : !isOnline
+                ? "Đang offline..."
                 : replyingToMessage
                 ? `Trả lời ${replyingToMessage.sender.name}`
                 : `Nhắn @, tin nhắn...`
@@ -203,27 +445,44 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
             value={inputValue}
             onChange={handleInputChange}
             onPressEnter={handleKeyPress}
+            autoFocus={true}
           />
         </div>
+        
+        {/* AI Assistant button - using RobotOutlined icon instead of image */}
+        <div className="flex-shrink-0 mr-2">
+          <Tooltip title={showAiAssistant ? "Ẩn AI Assistant" : "Hiện AI Assistant"}>
+            <Button
+              type={showAiAssistant ? "primary" : "text"}
+              icon={<RobotOutlined />}
+              onClick={toggleAiAssistant}
+              className="ai-assistant-btn"
+            />
+          </Tooltip>
+        </div>
+        
         {/* File attachment button */}
         <div className="flex-shrink-0 mr-2">
           {isValidConversation && (
-            <FileUploader 
-              conversationId={conversationId}
-              onBeforeUpload={onBeforeUpload}
-              onUploadComplete={onUploadComplete}
-              onUploadError={onUploadError}
-            />
+            <Tooltip title={attachments.length >= MAX_ATTACHMENTS ? `Đã đạt giới hạn ${MAX_ATTACHMENTS} tập tin` : "Đính kèm tập tin"}>
+              <FileUploader 
+                conversationId={conversationId}
+                onBeforeUpload={onBeforeUpload}
+                onUploadComplete={onUploadComplete}
+                onUploadError={enhancedOnUploadError}
+                // disabled={!isOnline || attachments.length >= MAX_ATTACHMENTS}
+              />
+            </Tooltip>
           )}
         </div>
         {/* Image button */}
         <div className="flex-shrink-0 mr-2">
-          <Tooltip title="Gửi hình ảnh">
+          <Tooltip title={attachments.length >= MAX_ATTACHMENTS ? `Đã đạt giới hạn ${MAX_ATTACHMENTS} tập tin` : "Gửi hình ảnh"}>
             <Button
               type="text"
               icon={<PictureOutlined />}
               onClick={handleImageClick}
-              disabled={!isValidConversation}
+              disabled={!isValidConversation || !isOnline || attachments.length >= MAX_ATTACHMENTS}
             />
           </Tooltip>
         </div>
@@ -247,11 +506,12 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
             icon={<SmileOutlined />} 
             onClick={toggleEmojiPicker} 
             className="emoji-button"
+            disabled={!isOnline}
           />
           {emojiPickerVisible && (
-            <div className="emoji-picker absolute bottom-12 left-0 z-10 shadow-lg rounded-lg bg-white emoji-picker-container" style={{ width: '320px', height: '350px', zIndex: 5050,left: 'auto', right: '10px' }}>
+            <div className="emoji-picker absolute bottom-12 left-0 z-10 shadow-lg rounded-lg bg-white emoji-picker-container" style={{ width: '320px', height: '350px', zIndex: 5050, left: 'auto', right: '10px', maxHeight: '60vh', overflowY: 'auto' }}>
               <Picker 
-                data={data} // Truyền data emoji-mart nếu cần
+                data={data}
                 onEmojiSelect={handleEmojiSelect} 
                 theme="light"
                 previewPosition="none"
@@ -265,17 +525,17 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
             <Button
               type="primary"
               shape="circle"
-              icon={<SendOutlined />}
-              onClick={replyingToMessage ? handleSendReplyMessage : handleSendMessage}
-              disabled={!isValidConversation}
+              icon={isSending || isUploading ? <LoadingOutlined /> : <SendOutlined />}
+              onClick={replyingToMessage ? safeSendReplyMessage : safeSendMessage}
+              disabled={!isValidConversation || isSending || (isUploading && !isOnline)}
             />
           ) : (
             <Button
               type="primary" 
               shape="circle"
-              icon={<svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" strokeWidth="2" fill="none"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"></path></svg>}
-              onClick={handleSendLike}
-              disabled={!isValidConversation}
+              icon={isSending ? <LoadingOutlined /> : <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" strokeWidth="2" fill="none"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"></path></svg>}
+              onClick={safeSendLike}
+              disabled={!isValidConversation || isSending || !isOnline}
             />
           )}
         </div>
@@ -284,7 +544,7 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
       <input
         type="file"
         ref={fileInputRef}
-        onChange={handleFileChange}
+        onChange={enhancedFileChange}
         className="hidden"
         multiple
         accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
@@ -293,7 +553,7 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
       <input
         type="file"
         ref={imageInputRef}
-        onChange={handleFileChange}
+        onChange={enhancedFileChange}
         className="hidden"
         accept="image/*"
         aria-label="Tải lên hình ảnh"
@@ -301,7 +561,7 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
       <input
         type="file"
         ref={videoInputRef}
-        onChange={handleFileChange}
+        onChange={enhancedFileChange}
         className="hidden"
         accept="video/*"
         aria-label="Tải lên video"
@@ -309,7 +569,7 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
       <input
         type="file"
         ref={audioInputRef}
-        onChange={handleFileChange}
+        onChange={enhancedFileChange}
         className="hidden"
         accept="audio/*"
         aria-label="Tải lên ghi âm"
