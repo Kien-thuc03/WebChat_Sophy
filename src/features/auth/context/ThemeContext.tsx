@@ -10,15 +10,15 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [themeMode, setThemeMode] = useState<"light" | "dark" | "system">(
-    (localStorage.getItem("themeMode") as "light" | "dark" | "system") || "system"
+    (localStorage.getItem("themeMode") as "light" | "dark" | "system") || "light"
   );
 
   useEffect(() => {
     localStorage.setItem("themeMode", themeMode);
 
     const applyTheme = () => {
-      const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-      const isDark = themeMode === "dark" || (themeMode === "system" && prefersDark);
+      // const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+      const isDark = themeMode === "dark";
       if (isDark) {
         document.documentElement.classList.add("dark");
       } else {
@@ -39,8 +39,8 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, [themeMode]);
 
   const getThemeConfig = () => {
-    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-    const isDark = themeMode === "dark" || (themeMode === "system" && prefersDark);
+    // const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    const isDark = themeMode === "dark";
     return {
       algorithm: isDark ? theme.darkAlgorithm : theme.defaultAlgorithm,
       token: {
