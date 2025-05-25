@@ -79,7 +79,6 @@ class SocketService {
   private activeUsers: Record<string, string[]> = {};
   private onlineUsers: Set<string> = new Set();
   private userId: string | null = null;
-  private tokenRequests: Map<string, boolean> = new Map(); // Track token requests in progress
 
   private constructor() {}
 
@@ -255,7 +254,6 @@ class SocketService {
       );
     }
   }
-
 
   onReconnect(callback: () => void) {
     if (this.socket) {
@@ -647,26 +645,6 @@ class SocketService {
   private setupListeners(): void {
     console.log("SocketService: Setting up core socket listeners");
 
-    // Add debug logs for call-related events
-    if (this.socket) {
-      // Debug listeners for call-related events
-      this.socket.on("callAccepted", (data) => {
-        console.log("SocketService: DEBUG: Received callAccepted event", data);
-      });
-
-      this.socket.on("callRejected", (data) => {
-        console.log("SocketService: DEBUG: Received callRejected event", data);
-      });
-
-      this.socket.on("callEnded", (data) => {
-        console.log("SocketService: DEBUG: Received callEnded event", data);
-      });
-
-      this.socket.on("incomingCall", (data) => {
-        console.log("SocketService: DEBUG: Received incomingCall event", data);
-      });
-    }
-
     if (!this.socket) return;
 
     this.socket.on("error", (error: Error) => {
@@ -674,28 +652,33 @@ class SocketService {
     });
 
     // Xử lý sự kiện forceLogout khi tài khoản được đăng nhập ở thiết bị khác
-    this.socket.on("forceLogout", (data: { deviceType: string, message?: string }) => {
-      if (data.deviceType === "browser") {
-        // Hiển thị thông báo bằng modal thay vì alert
-        modalService.showModal({
-          title: "Phiên đăng nhập hết hạn",
-          message: data.message || "Tài khoản đang được đăng nhập ở một thiết bị khác",
-          type: "error",
-          showClose: false,
-          redirectUrl: "/",
-          autoClose: true,
-          autoCloseDelay: 3000
-        });
-        
-        // Thực hiện đăng xuất
-        this.isAuthenticated = false;
-        this.userId = null;
-        
-        // Xóa thông tin đăng nhập
-        localStorage.clear();
-        sessionStorage.clear();
+    this.socket.on(
+      "forceLogout",
+      (data: { deviceType: string; message?: string }) => {
+        if (data.deviceType === "browser") {
+          // Hiển thị thông báo bằng modal thay vì alert
+          modalService.showModal({
+            title: "Phiên đăng nhập hết hạn",
+            message:
+              data.message ||
+              "Tài khoản đang được đăng nhập ở một thiết bị khác",
+            type: "error",
+            showClose: false,
+            redirectUrl: "/",
+            autoClose: true,
+            autoCloseDelay: 3000,
+          });
+
+          // Thực hiện đăng xuất
+          this.isAuthenticated = false;
+          this.userId = null;
+
+          // Xóa thông tin đăng nhập
+          localStorage.clear();
+          sessionStorage.clear();
+        }
       }
-    });
+    );
   }
 
   userEnterConversation(conversationId: string) {
@@ -1189,6 +1172,21 @@ class SocketService {
         "SocketService: Socket not initialized for newNotification listener"
       );
     }
+  }
+
+  // Method to emit custom events
+  emit(eventName: string, data: any) {
+    if (!this.socket || !this.socket.connected) {
+      this.connect();
+      setTimeout(() => {
+        if (this.socket?.connected) {
+          this.socket.emit(eventName, data);
+        }
+      }, 500);
+      return;
+    }
+
+    this.socket.emit(eventName, data);
   }
 }
 
