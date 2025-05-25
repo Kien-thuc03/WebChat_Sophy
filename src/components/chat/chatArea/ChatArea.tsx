@@ -1841,12 +1841,6 @@ export function ChatArea({ conversation }: ChatAreaProps) {
   // Kiểm tra xem tin nhắn có phải của người dùng hiện tại không
   const isOwnMessage = (senderId: string) => senderId === currentUserId;
 
-  // Kiểm tra xem có nên hiển thị avatar cho tin nhắn này không
-  const shouldShowAvatar = () => {
-    // Luôn hiển thị avatar cho người gửi không phải là mình
-    return true;
-  };
-
   // Hàm làm mới danh sách cuộc trò chuyện
   const handleRefreshConversations = async () => {
     try {
@@ -2051,12 +2045,6 @@ export function ChatArea({ conversation }: ChatAreaProps) {
     setIsImageModalOpen(true);
   };
   
-  // Close the image modal
-  const closeImageModal = () => {
-    setIsImageModalOpen(false);
-    setSelectedImage(null);
-  };
-
   // Handle file download image in text-with-image function
   const handleDownloadFile = (url?: string, fileName?: string) => {
     if (!url) {
@@ -3259,11 +3247,6 @@ export function ChatArea({ conversation }: ChatAreaProps) {
     
     setReplyingToMessage(enhancedMessage);
     inputRef.current?.focus();
-  };
-
-  // Handle cancel reply
-  const handleCancelReply = () => {
-    setReplyingToMessage(null);
   };
 
   // Handle sending reply message

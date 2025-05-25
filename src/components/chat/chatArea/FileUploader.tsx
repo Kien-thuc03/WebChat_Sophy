@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Button, message, Upload, Space, Progress, Tooltip } from 'antd';
+import { Button, message, Progress, Tooltip } from 'antd';
 import { 
   PaperClipOutlined, 
   DeleteOutlined, 
@@ -37,7 +37,7 @@ const FileUploader: React.FC<FileUploaderProps> = ({
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploading, setUploading] = useState(false);
-  const [tempId, setTempId] = useState<string | undefined>(undefined);
+  const [, setTempId] = useState<string | undefined>(undefined);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // File type icons mapping

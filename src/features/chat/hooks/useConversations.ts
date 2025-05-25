@@ -170,7 +170,7 @@ export const useConversations = () => {
       case "unread":
         return conversations.filter(conv => conv.unreadCount.length > 0);
       case "label":
-        const selectedLabels = labels.filter(label => label.selected).map(label => label.id);
+        // const selectedLabels = labels.filter(label => label.selected).map(label => label.id);
         // TODO: Implement label filtering when BE adds label support
         return conversations;
       default:

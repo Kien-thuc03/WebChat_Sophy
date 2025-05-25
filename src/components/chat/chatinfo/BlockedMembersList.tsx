@@ -8,7 +8,6 @@ import { Avatar } from '../../common/Avatar';
 import { User } from "../../../features/auth/types/authTypes";
 import { Conversation } from '../../../features/chat/types/conversationTypes';
 import { getUserById, getConversationDetail } from "../../../api/API";
-import { useNavigate } from 'react-router-dom';
 import { useConversationContext } from '../../../features/chat/context/ConversationContext';
 import socketService from "../../../services/socketService";
 
@@ -152,7 +151,6 @@ const BlockedMembersList: React.FC<BlockedMembersListProps> = ({
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isBlockModalVisible, setIsBlockModalVisible] = useState(false);
   const { message, modal } = App.useApp();
-  const navigate = useNavigate();
   
   // Access the ConversationContext to update conversation data
   const { refreshConversations } = useConversationContext();

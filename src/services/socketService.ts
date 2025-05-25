@@ -156,6 +156,7 @@ class SocketService {
 
       this.socket.on("reconnect_attempt", (attemptNumber: number) => {
         // Connection attempt logic
+        console.log("attemptNumber", attemptNumber);
       });
 
       this.socket.on("reconnect", () => {

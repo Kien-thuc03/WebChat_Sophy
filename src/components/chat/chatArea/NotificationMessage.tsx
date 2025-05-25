@@ -1,4 +1,3 @@
-import React from 'react';
 import { DisplayMessage } from '../../../features/chat/types/chatTypes';
 
 const NotificationMessage = ({ message, onViewClick }: { message: DisplayMessage, onViewClick: () => void }) => {

@@ -4,7 +4,6 @@ import { GroupAvatarProps } from "../types/groupTypes";
 
 export const useGroupAvatar = ({
   members,
-  userAvatars,
   size = 40,
   groupAvatarUrl,
 }: GroupAvatarProps) => {

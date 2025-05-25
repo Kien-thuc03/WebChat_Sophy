@@ -142,9 +142,9 @@ class ZegoService {
       stream.getTracks().forEach((track) => track.stop());
     } catch (err) {
       console.warn("Chưa cấp quyền truy cập camera hoặc microphone:", err);
-      message.warning(
-        "Vui lòng cấp quyền truy cập camera và microphone để sử dụng tính năng gọi điện"
-      );
+      // message.warning(
+      //   "Vui lòng cấp quyền truy cập camera và microphone để sử dụng tính năng gọi điện"
+      // );
     }
   }
 
