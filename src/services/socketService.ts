@@ -1,7 +1,6 @@
 import io, { Socket } from "socket.io-client";
 import cloudinaryService from "./cloudinaryService";
 import modalService from "./modalService";
-import zegoHelper from "./zegoHelper";
 
 // const IP_ADDRESS = "172.28.43.19";
 
@@ -80,7 +79,6 @@ class SocketService {
   private activeUsers: Record<string, string[]> = {};
   private onlineUsers: Set<string> = new Set();
   private userId: string | null = null;
-  private tokenRequests: Map<string, boolean> = new Map(); // Track token requests in progress
 
   private constructor() {}
 
@@ -253,35 +251,6 @@ class SocketService {
     } else {
       console.warn(
         `SocketService: Socket not initialized for ${eventName} listener`
-      );
-    }
-  }
-
-  onZegoToken(
-    callback: (data: {
-      token: string;
-      appID: number;
-      userId: string;
-      effectiveTimeInSeconds: number;
-    }) => void
-  ) {
-    if (!this.socket) {
-      this.connect();
-    }
-
-    if (this.socket) {
-      this.socket.off("zegoToken");
-      this.socket.on("zegoToken", (data) => {
-        // Nếu nhận được token hợp lệ từ server, lưu lại
-        if (data && data.token) {
-          sessionStorage.setItem("zegoServerToken", data.token);
-          console.log("SocketService: Đã lưu token ZEGO từ server");
-        }
-        callback(data);
-      });
-    } else {
-      console.warn(
-        "SocketService: Socket not initialized for zegoToken listener"
       );
     }
   }
@@ -676,26 +645,6 @@ class SocketService {
   private setupListeners(): void {
     console.log("SocketService: Setting up core socket listeners");
 
-    // Add debug logs for call-related events
-    if (this.socket) {
-      // Debug listeners for call-related events
-      this.socket.on("callAccepted", (data) => {
-        console.log("SocketService: DEBUG: Received callAccepted event", data);
-      });
-
-      this.socket.on("callRejected", (data) => {
-        console.log("SocketService: DEBUG: Received callRejected event", data);
-      });
-
-      this.socket.on("callEnded", (data) => {
-        console.log("SocketService: DEBUG: Received callEnded event", data);
-      });
-
-      this.socket.on("incomingCall", (data) => {
-        console.log("SocketService: DEBUG: Received incomingCall event", data);
-      });
-    }
-
     if (!this.socket) return;
 
     this.socket.on("error", (error: Error) => {
@@ -703,49 +652,31 @@ class SocketService {
     });
 
     // Xử lý sự kiện forceLogout khi tài khoản được đăng nhập ở thiết bị khác
-    this.socket.on("forceLogout", (data: { deviceType: string, message?: string }) => {
-      if (data.deviceType === "browser") {
-        // Hiển thị thông báo bằng modal thay vì alert
-        modalService.showModal({
-          title: "Phiên đăng nhập hết hạn",
-          message: data.message || "Tài khoản đang được đăng nhập ở một thiết bị khác",
-          type: "error",
-          showClose: false,
-          redirectUrl: "/",
-          autoClose: true,
-          autoCloseDelay: 3000
-        });
-        
-        // Thực hiện đăng xuất
-        this.isAuthenticated = false;
-        this.userId = null;
-        
-        // Xóa thông tin đăng nhập
-        localStorage.clear();
-        sessionStorage.clear();
-      }
-    });
-//conflicts 
-    // Lắng nghe sự kiện zegoToken từ server
     this.socket.on(
-      "zegoToken",
-      (data: {
-        token: string;
-        appID: number;
-        userId: string;
-        effectiveTimeInSeconds: number;
-      }) => {
-        console.log("SocketService: Nhận được token từ server:", {
-          hasToken: !!data.token,
-          appID: data.appID,
-          userId: data.userId,
-        });
+      "forceLogout",
+      (data: { deviceType: string; message?: string }) => {
+        if (data.deviceType === "browser") {
+          // Hiển thị thông báo bằng modal thay vì alert
+          modalService.showModal({
+            title: "Phiên đăng nhập hết hạn",
+            message:
+              data.message ||
+              "Tài khoản đang được đăng nhập ở một thiết bị khác",
+            type: "error",
+            showClose: false,
+            redirectUrl: "/",
+            autoClose: true,
+            autoCloseDelay: 3000,
+          });
 
-        // Lưu token vào session storage để kiểm tra sau này
-        sessionStorage.setItem("zegoServerToken", data.token);
+          // Thực hiện đăng xuất
+          this.isAuthenticated = false;
+          this.userId = null;
 
-        // Phát sự kiện để các component có thể lắng nghe
-        this.socket?.emit("zegoTokenReceived", data);
+          // Xóa thông tin đăng nhập
+          localStorage.clear();
+          sessionStorage.clear();
+        }
       }
     );
   }
@@ -1243,329 +1174,15 @@ class SocketService {
     }
   }
 
-  // Token refresh
-  refreshZegoToken(): void {
-    // Lấy thông tin user hiện tại
-    const userId = localStorage.getItem("userId");
-
-    if (!userId) {
-      console.error(
-        "SocketService: Không thể refresh token ZEGO - không có userId"
-      );
-      return;
-    }
-
-    // Kiểm tra xem có thông tin cuộc gọi cuối trong local storage không
-    const lastCallInfo = localStorage.getItem("lastCallInfo");
-    if (!lastCallInfo) {
-      console.error(
-        "SocketService: Không có thông tin cuộc gọi cuối để refresh token"
-      );
-      return;
-    }
-
-    try {
-      const lastCall = JSON.parse(lastCallInfo);
-      if (lastCall && lastCall.roomID) {
-        console.log(
-          "SocketService: Refresh token ZEGO với thông tin cuộc gọi cuối:",
-          lastCall
-        );
-
-        // Gửi yêu cầu token đến server
-        this.requestZegoToken({
-          roomID: lastCall.roomID,
-          userID: userId,
-          effectiveTimeInSeconds: 3600 * 24, // 24 giờ
-        })
-          .then((tokenData) => {
-            console.log("SocketService: Đã nhận được token mới:", {
-              hasToken: !!tokenData.token,
-              appID: tokenData.appID,
-            });
-          })
-          .catch((error) => {
-            console.error("SocketService: Lỗi khi refresh token:", error);
-          });
-      }
-    } catch (error) {
-      console.error(
-        "SocketService: Lỗi khi đọc thông tin cuộc gọi cuối:",
-        error
-      );
-    }
-  }
-
-  // Request Zego Token
-  requestZegoToken(
-    params: {
-      roomID: string;
-      userID: string;
-      effectiveTimeInSeconds?: number;
-    },
-    callback?: (response: any) => void
-  ): Promise<any> {
-    console.log("SocketService: Gửi yêu cầu token với params:", params);
-
-    // Create a unique request ID for tracking this request
-    const requestId = `${params.roomID}_${params.userID}_${Date.now()}`;
-    
-    // Check if we're already processing a request for this room and user
-    const existingRequestKey = `${params.roomID}_${params.userID}`;
-    if (this.tokenRequests.has(existingRequestKey)) {
-      console.log("SocketService: Đã có yêu cầu token đang xử lý, đợi kết quả...");
-      // Wait a bit to let the existing request complete
-      return new Promise(resolve => {
-        setTimeout(() => {
-          // Use cached token if available
-          const cachedToken = sessionStorage.getItem("zegoServerToken");
-          if (cachedToken) {
-            const tokenData = {
-              token: cachedToken,
-              appID: zegoHelper.ZEGO_APP_ID,
-              userId: params.userID,
-              effectiveTimeInSeconds: params.effectiveTimeInSeconds || 3600,
-              fromCache: true
-            };
-            
-            if (callback) callback(tokenData);
-            resolve(tokenData);
-          } else {
-            // Try again but bypass the check
-            this.tokenRequests.delete(existingRequestKey);
-            resolve(this.requestZegoToken(params, callback));
-          }
-        }, 1000);
-      });
-    }
-    
-    // Mark that we're processing this request
-    this.tokenRequests.set(existingRequestKey, true);
-
-    return new Promise((resolve) => {
-      // Ensure we're connected to the socket
-      if (!this.socket?.connected) {
-        console.log("SocketService: Socket disconnected, reconnecting...");
-        this.connect();
-      }
-
-      // Đăng ký lắng nghe sự kiện zegoToken một lần
-      const handleToken = (tokenData: any) => {
-        console.log("SocketService: Nhận được token từ server:", {
-          hasToken: !!tokenData.token,
-          appID: tokenData.appID,
-        });
-
-        // Cache the token
-        if (tokenData.token) {
-          sessionStorage.setItem("zegoServerToken", tokenData.token);
-        }
-
-        // Gọi callback nếu được cung cấp
-        if (callback) {
-          callback(tokenData);
-        }
-
-        // Giải quyết promise
-        resolve(tokenData);
-
-        // Hủy đăng ký lắng nghe
-        this.socket?.off("zegoToken", handleToken);
-        
-        // Mark request as completed
-        this.tokenRequests.delete(existingRequestKey);
-      };
-
-      // Đăng ký lắng nghe
-      this.socket?.on("zegoToken", handleToken);
-
-      // Gửi yêu cầu
-      this.socketInstance?.emit("requestZegoToken", {
-        ...params,
-        requestId,
-        effectiveTimeInSeconds: params.effectiveTimeInSeconds || 3600,
-      });
-
-      // Đặt timeout để tránh chờ vô hạn
-      setTimeout(() => {
-        // Nếu chưa nhận được phản hồi sau 10 giây, tạo token phía client
-        this.socket?.off("zegoToken", handleToken);
-
-        try {
-          // Check if we've received a token through another mechanism
-          const cachedToken = sessionStorage.getItem("zegoServerToken");
-          if (cachedToken) {
-            console.log("SocketService: Sử dụng token đã cache do server không phản hồi kịp thời");
-            const cachedResponse = {
-              token: cachedToken,
-              appID: zegoHelper.ZEGO_APP_ID,
-              userId: params.userID,
-              effectiveTimeInSeconds: params.effectiveTimeInSeconds || 3600,
-              fromCache: true
-            };
-            
-            if (callback) callback(cachedResponse);
-            resolve(cachedResponse);
-          } else {
-            // Tạo token phía client
-            const fallbackToken = zegoHelper.generateZegoToken(
-              params.userID,
-              params.roomID
-            );
-
-            const fallbackResponse = {
-              token: fallbackToken,
-              appID: zegoHelper.ZEGO_APP_ID,
-              userId: params.userID,
-              effectiveTimeInSeconds: params.effectiveTimeInSeconds || 3600,
-              error: "Server timeout, using client-generated token",
-              fallback: true
-            };
-
-            console.log(
-              "SocketService: Sử dụng token dự phòng do server không phản hồi"
-            );
-            
-            // Cache the fallback token too
-            sessionStorage.setItem("zegoServerToken", fallbackToken);
-
-            if (callback) {
-              callback(fallbackResponse);
-            }
-
-            resolve(fallbackResponse);
-          }
-        } catch (error) {
-          console.error("SocketService: Lỗi khi tạo token dự phòng:", error);
-
-          const errorResponse = {
-            token: "",
-            appID: zegoHelper.ZEGO_APP_ID,
-            userId: params.userID,
-            effectiveTimeInSeconds: 0,
-            error:
-              "Failed to generate token: " +
-              (error instanceof Error ? error.message : String(error)),
-          };
-
-          if (callback) {
-            callback(errorResponse);
-          }
-
-          resolve(errorResponse);
-        }
-        
-        // Mark request as completed
-        this.tokenRequests.delete(existingRequestKey);
-      }, 10000);
-    });
-  }
-
-  // Send call request
-  sendCallRequest(params: {
-    receiverId: string;
-    callerId: string;
-    callerName: string;
-    roomID: string;
-    isVideo: boolean;
-  }): Promise<void> {
-    console.log("SocketService: Gửi yêu cầu gọi đến:", params.receiverId);
-
-    return new Promise((resolve, reject) => {
-      if (!this.socket || !this.socket.connected) {
-        console.warn(
-          "SocketService: Socket không kết nối, đang kết nối lại..."
-        );
-        this.connect();
-
-        setTimeout(() => {
-          if (this.socket?.connected) {
-            console.log("SocketService: Đã kết nối lại, gửi yêu cầu gọi");
-            this.socket.emit("callRequest", params);
-            resolve();
-          } else {
-            console.error(
-              "SocketService: Không thể kết nối socket để gửi yêu cầu gọi"
-            );
-            reject(new Error("Không thể kết nối socket"));
-          }
-        }, 1000);
-        return;
-      }
-
-      this.socket.emit("callRequest", params);
-      resolve();
-    });
-  }
-
-  // Listen for incoming calls
-  onIncomingCall(
-    callback: (data: {
-      roomID: string;
-      callerId: string;
-      callerName: string;
-      isVideo: boolean;
-    }) => void
-  ) {
-    console.log("SocketService: Thiết lập lắng nghe cuộc gọi đến");
-    this.on("incomingCall", callback);
-  }
-
-  // Send accept call notification
-  sendAcceptCall(params: {
-    roomID: string;
-    callerId: string;
-    receiverId: string;
-  }): Promise<void> {
-    console.log(`SocketService: Sending call acceptance:`, params);
-
-    return new Promise((resolve, reject) => {
-      if (!this.socket || !this.socket.connected) {
-        console.warn(
-          "SocketService: Socket not connected, attempting reconnect..."
-        );
-        this.connect();
-
-        setTimeout(() => {
-          if (this.socket?.connected) {
-            console.log("SocketService: Reconnected, sending call acceptance");
-            this.socket.emit("acceptCall", params);
-            resolve();
-          } else {
-            console.error(
-              "SocketService: Cannot connect socket to send call acceptance"
-            );
-            reject(new Error("Cannot connect socket"));
-          }
-        }, 1000);
-        return;
-      }
-
-      this.socket.emit("acceptCall", params);
-      resolve();
-    });
-  }
-
-  // Listen for call accepted notifications
-  onAcceptCall(
-    callback: (data: {
-      roomID: string;
-      callerId: string;
-      receiverId: string;
-    }) => void
-  ) {
-    console.log("SocketService: Setting up listener for call acceptance");
-    this.on("callAccepted", callback);
-  }
-
-  private emit(eventName: string, data: any) {
+  // Method to emit custom events
+  emit(eventName: string, data: any) {
     if (!this.socket || !this.socket.connected) {
       this.connect();
       setTimeout(() => {
         if (this.socket?.connected) {
           this.socket.emit(eventName, data);
         }
-      }, 1000);
+      }, 500);
       return;
     }
 
