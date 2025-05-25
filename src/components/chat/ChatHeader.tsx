@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo } from "react";
 import {
+  VideoCameraOutlined,
   UserAddOutlined,
   InfoCircleOutlined,
-  UserOutlined,
+  PhoneOutlined,
 } from "@ant-design/icons";
 import { ChatHeaderProps } from "../../features/chat/types/chatTypes";
 import { Conversation } from "../../features/chat/types/conversationTypes";
@@ -21,6 +22,19 @@ interface ExtendedChatHeaderProps extends ChatHeaderProps {
   conversation: Conversation;
   onInfoClick?: () => void;
   showInfo?: boolean;
+}
+
+// Mở rộng interface Window ở đầu file
+declare global {
+  interface Window {
+    incomingCallAudio?: HTMLAudioElement;
+    callAudioElements: HTMLAudioElement[]; // Không còn undefined
+  }
+}
+
+// Khởi tạo callAudioElements nếu chưa tồn tại
+if (typeof window !== "undefined") {
+  window.callAudioElements = window.callAudioElements || [];
 }
 
 const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
@@ -61,8 +75,8 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
   );
   const [activityStatus, setActivityStatus] = useState<string>("Offline");
   const [isOnline, setIsOnline] = useState<boolean>(false);
-  const currentUserId = localStorage.getItem("userId") || "";
   const [isAddMemberModalVisible, setIsAddMemberModalVisible] = useState(false);
+  const currentUserId = localStorage.getItem("userId") || "";
 
   // Khai báo hàm getOtherUserId trước
   const getOtherUserId = (conversation: Conversation): string => {
@@ -81,9 +95,6 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
   const otherUserId = useMemo(() => {
     return getOtherUserId(conversation);
   }, [conversation, currentUserId]);
-
-  // Lấy tên người dùng hiện tại
-  const currentUserName = localStorage.getItem("username") || "User";
 
   const otherUserInfo = userCache[otherUserId] || localUserCache[otherUserId];
 
@@ -172,154 +183,185 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
     };
   }, [conversation.conversationId, currentUserId]);
 
-  // Xử lý sự kiện thêm và xóa thành viên từ group
+  // Lắng nghe sự kiện thay đổi thành viên nhóm
   useEffect(() => {
     const handleMemberRemoved = (data: {
       conversationId: string;
       userId: string;
     }) => {
-      if (
-        data.conversationId === conversation.conversationId &&
-        data.userId === currentUserId
-      ) {
-        // Người dùng hiện tại đã bị xóa khỏi nhóm
-        message.info("Bạn đã bị xóa khỏi cuộc trò chuyện này");
-        // Cập nhật danh sách cuộc trò chuyện
-        updateConversationMembers({
-          conversationId: data.conversationId,
-          members: (conversation.groupMembers || []).filter(
-            (member) => member.userId !== data.userId
-          ),
-          action: "remove",
-          userId: data.userId,
-        });
-      } else if (data.conversationId === conversation.conversationId) {
-        // Một thành viên khác đã bị xóa khỏi nhóm
-        updateConversationMembers({
-          conversationId: data.conversationId,
-          members: (conversation.groupMembers || []).filter(
-            (member) => member.userId !== data.userId
-          ),
-          action: "remove",
-          userId: data.userId,
-        });
+      if (data.conversationId === conversation.conversationId) {
+        // Cập nhật lại conversation từ context
+        const updatedConversation = conversations.find(
+          (conv) => conv.conversationId === conversation.conversationId
+        );
+        if (updatedConversation) {
+          // Cập nhật lại conversation trong component
+          setConversation({
+            ...updatedConversation,
+            groupMembers: updatedConversation.groupMembers.filter(
+              (id) => id !== data.userId
+            ),
+          });
+          // Cập nhật lại conversation trong context
+          updateConversationMembers(data.conversationId, data.userId);
+          // Cập nhật số lượng thành viên
+          setMemberCount((prev) => Math.max(0, prev - 1));
+          // Thêm tin nhắn hệ thống
+          updateConversationWithNewMessage(data.conversationId, {
+            type: "system",
+            content: `Thành viên đã bị xóa khỏi nhóm`,
+            senderId: data.userId,
+            createdAt: new Date().toISOString(),
+          });
+        }
       }
     };
 
+    // Xử lý khi có thành viên bị xóa khỏi nhóm bởi admin
     const handleUserRemovedFromGroup = (data: {
       conversationId: string;
       kickedUser: { userId: string; fullname: string };
       kickedByUser: { userId: string; fullname: string };
     }) => {
       if (data.conversationId === conversation.conversationId) {
-        const notification = `${data.kickedByUser.fullname} đã xóa ${data.kickedUser.fullname} khỏi cuộc trò chuyện`;
-        message.info(notification);
+        // Cập nhật số lượng thành viên
         setMemberCount((prev) => Math.max(0, prev - 1));
+
+        // Cập nhật danh sách thành viên trong conversation
+        setConversation((prev) => ({
+          ...prev,
+          groupMembers: prev.groupMembers.filter(
+            (id) => id !== data.kickedUser.userId
+          ),
+        }));
       }
     };
 
+    // Xử lý khi có thành viên mới được thêm vào nhóm
     const handleUserAddedToGroup = (data: {
       conversationId: string;
       addedUser: { userId: string; fullname: string };
       addedByUser: { userId: string; fullname: string };
     }) => {
       if (data.conversationId === conversation.conversationId) {
-        const notification = `${data.addedByUser.fullname} đã thêm ${data.addedUser.fullname} vào cuộc trò chuyện`;
-        message.info(notification);
+        // Cập nhật số lượng thành viên và state local trước cho UI phản hồi nhanh
         setMemberCount((prev) => prev + 1);
+
+        // Cập nhật danh sách thành viên trong conversation
+        setConversation((prev) => ({
+          ...prev,
+          groupMembers: [...prev.groupMembers, data.addedUser.userId],
+        }));
+
+        // Gọi API để lấy thông tin nhóm mới nhất (bao gồm thông tin user mới)
+        refreshConversationData();
       }
     };
 
-    socketService.on("memberRemoved", handleMemberRemoved);
     socketService.on("userRemovedFromGroup", handleUserRemovedFromGroup);
+    socketService.on("userLeftGroup", handleMemberRemoved);
     socketService.on("userAddedToGroup", handleUserAddedToGroup);
 
     return () => {
-      socketService.off("memberRemoved", handleMemberRemoved);
       socketService.off("userRemovedFromGroup", handleUserRemovedFromGroup);
+      socketService.off("userLeftGroup", handleMemberRemoved);
       socketService.off("userAddedToGroup", handleUserAddedToGroup);
     };
-  }, [conversation, currentUserId, updateConversationMembers]);
+  }, [
+    conversation.conversationId,
+    conversation.groupMembers,
+    conversations,
+    updateConversationWithNewMessage,
+    updateConversationMembers,
+  ]);
 
+  // Show add member modal
   const showAddMemberModal = () => {
+    if (!conversation.isGroup) {
+      message.warning("Tính năng chỉ áp dụng cho nhóm chat");
+      return;
+    }
     setIsAddMemberModalVisible(true);
   };
 
-  // Hàm để làm mới dữ liệu của cuộc trò chuyện từ server
+  // Hàm refreshConversationData để gọi API lấy thông tin conversation mới nhất
   const refreshConversationData = async () => {
-    if (!conversation.conversationId) return;
-
     try {
-      const conversationData = await getConversationDetail(
+      const updatedConversation = await getConversationDetail(
         conversation.conversationId
       );
-      if (conversationData) {
-        setConversation(conversationData);
-        // Cập nhật trong context
-        updateConversationMembers({
-          conversationId: conversationData.conversationId,
-          members: conversationData.groupMembers || [],
-          action: "update",
-        });
+      if (updatedConversation) {
+        setConversation(updatedConversation);
+        setMemberCount(updatedConversation.groupMembers?.length || 0);
       }
     } catch (error) {
-      console.error("ChatHeader: Failed to refresh conversation data:", error);
+      console.error("Error refreshing conversation data:", error);
     }
   };
 
-  useEffect(() => {
-    // Đăng ký lắng nghe các sự kiện liên quan đến thay đổi thành viên trong nhóm
-    socketService.on("conversationUpdated", refreshConversationData);
-    socketService.on("memberAdded", refreshConversationData);
-    socketService.on("memberRemoved", refreshConversationData);
-
-    return () => {
-      socketService.off("conversationUpdated", refreshConversationData);
-      socketService.off("memberAdded", refreshConversationData);
-      socketService.off("memberRemoved", refreshConversationData);
-    };
-  }, [conversation.conversationId]);
-
-  const title = isGroup
-    ? groupName || `Group (${memberCount})`
-    : otherUserInfo?.fullname || "Unknown User";
+  // Xử lý khi người dùng nhấn nút gọi
+  const handleCallClick = () => {
+    message.info("Chức năng gọi điện đang được bảo trì.");
+  };
 
   return (
-    <div className="border-b border-gray-200 bg-white px-4 py-3 flex items-center justify-between w-full">
-      <div className="flex items-center space-x-3">
-        {isGroup ? (
-          <GroupAvatar
-            groupMembers={groupMembers || []}
-            size={40}
-            avatarUrl={groupAvatarUrl}
-            groupName={groupName}
-            userCache={userCache}
-            userAvatars={userAvatars}
-          />
-        ) : (
-          <Avatar
-            size={40}
-            username={otherUserInfo?.fullname || ""}
-            src={otherUserInfo?.avatarUrl || ""}
-            icon={<UserOutlined />}
-            status={isOnline ? "online" : "offline"}
-          />
-        )}
-        <div>
-          <h2 className="text-lg font-medium">{title}</h2>
-          {!isGroup && (
-            <p className="text-xs text-gray-500 break-all max-w-[200px] md:max-w-[300px]">
-              {activityStatus}
-            </p>
-          )}
-          {isGroup && (
-            <p className="text-xs text-gray-500">
-              {t.members}: {memberCount}
-            </p>
+    <header className="flex items-center justify-between px-4 py-2 bg-white border-b border-gray-200">
+      <div className="flex items-center flex-1 group">
+        <div className="relative cursor-pointer mr-3">
+          {isGroup ? (
+            <GroupAvatar
+              members={groupMembers}
+              userAvatars={userAvatars}
+              size={40}
+              className="border-2 border-white"
+              groupAvatarUrl={groupAvatarUrl || undefined}
+            />
+          ) : (
+            <div className="relative">
+              <Avatar
+                name={otherUserInfo?.fullname || "User"}
+                avatarUrl={otherUserInfo?.urlavatar}
+                size={40}
+                className="rounded-lg"
+              />
+              {isOnline && (
+                <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white"></div>
+              )}
+            </div>
           )}
         </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center">
+            <h2 className="text-lg font-semibold truncate">
+              {isGroup
+                ? groupName
+                : otherUserInfo?.fullname || t.loading || "Đang tải..."}
+            </h2>
+            <button
+              className="ml-2 p-1 rounded-full hover:bg-gray-100"
+              title={t.edit || "Chỉnh sửa"}>
+              <i className="fas fa-edit text-gray-500 text-sm" />
+            </button>
+          </div>
+          <div className="flex items-center text-sm text-gray-500">
+            {isGroup ? (
+              <div className="flex items-center cursor-pointer hover:text-blue-500">
+                <i className="far fa-user mr-1" />
+                <span>
+                  {memberCount} {t.members || "thành viên"}
+                </span>
+              </div>
+            ) : (
+              <div className="flex items-center">
+                {isOnline && (
+                  <div className="w-2 h-2 bg-green-500 rounded-full mr-1"></div>
+                )}
+                <span className="text-gray-500">{activityStatus}</span>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
-
       <div className="flex items-center space-x-2">
         <button
           className="p-2 rounded-lg hover:bg-gray-100"
@@ -327,6 +369,24 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
           onClick={showAddMemberModal}>
           <UserAddOutlined className="text-xl text-gray-600" />
         </button>
+        <Tooltip title={t.calls || "Gọi thoại"}>
+          <Button
+            type="text"
+            icon={<PhoneOutlined />}
+            className="flex items-center justify-center w-10 h-10"
+            onClick={handleCallClick}
+            disabled={true}
+          />
+        </Tooltip>
+        <Tooltip title={t.video_call || "Gọi video"}>
+          <Button
+            type="text"
+            icon={<VideoCameraOutlined />}
+            className="flex items-center justify-center w-10 h-10"
+            onClick={handleCallClick}
+            disabled={true}
+          />
+        </Tooltip>
         <Tooltip title={t.conversation_info || "Thông tin hội thoại"}>
           <Button
             type="text"
@@ -338,21 +398,66 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
           />
         </Tooltip>
       </div>
-
-      {isAddMemberModalVisible && (
-        <AddMemberModal
-          visible={isAddMemberModalVisible}
-          onCancel={() => setIsAddMemberModalVisible(false)}
-          conversation={conversation}
-          currentMembers={conversation.groupMembers || []}
-          onAddSuccess={() => {
-            refreshConversationData();
-            setIsAddMemberModalVisible(false);
-          }}
-        />
-      )}
-    </div>
+      {/* Use the AddMemberModal component with refreshConversationData callback */}
+      <AddMemberModal
+        visible={isAddMemberModalVisible}
+        onClose={() => setIsAddMemberModalVisible(false)}
+        conversationId={conversation.conversationId}
+        groupMembers={conversation.groupMembers || []}
+        refreshConversationData={refreshConversationData}
+      />
+    </header>
   );
 };
 
 export default ChatHeader;
+
+<style
+  dangerouslySetInnerHTML={{
+    __html: `
+  .incoming-call-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 350px;
+    text-align: center;
+  }
+  .incoming-call-avatar {
+    margin-bottom: 20px;
+    animation: pulse 1.5s infinite;
+  }
+  .incoming-call-info {
+    margin-top: 20px;
+  }
+  .incoming-call-info h2 {
+    margin-bottom: 10px;
+    font-size: 1.5rem;
+  }
+  .incoming-call-info h3 {
+    font-size: 1.2rem;
+    margin-bottom: 10px;
+  }
+  .incoming-call-info p {
+    color: #666;
+    margin-top: 10px;
+  }
+  @keyframes pulse {
+    0% {
+      transform: scale(0.95);
+      box-shadow: 0 0 0 0 rgba(0, 144, 237, 0.7);
+    }
+    
+    70% {
+      transform: scale(1);
+      box-shadow: 0 0 0 10px rgba(0, 144, 237, 0);
+    }
+    
+    100% {
+      transform: scale(0.95);
+      box-shadow: 0 0 0 0 rgba(0, 144, 237, 0);
+    }
+  }
+`,
+  }}
+/>;
