@@ -11,7 +11,7 @@ const VerifyOTP: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isResending, setIsResending] = useState(false);
   const [isRateLimited, setIsRateLimited] = useState(false);
-  const [backendOTP, setBackendOTP] = useState("");
+  const [, setBackendOTP] = useState("");
 
   // Kiểm tra môi trường development
   const isDevelopment = window.location.hostname === 'localhost' || 

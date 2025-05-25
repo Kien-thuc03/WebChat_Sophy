@@ -116,7 +116,7 @@ const determineUserRole = (conversationData: Conversation): UserRole => {
 
 // Tối ưu socket event handling với useCallback
 const useSocketEvents = (conversationId: string, dispatch: React.Dispatch<Action>, conversation: Conversation) => {
-  const currentUserId = localStorage.getItem("userId") || "";
+  // const currentUserId = localStorage.getItem("userId") || "";
   const handleGroupCoOwnerAdded = useCallback((data: { conversationId: string, newCoOwnerIds: string[], byUserId?: string }) => {
     if (data.conversationId !== conversationId) return;
     // Nếu event không gửi đủ conversation, gọi lại API để lấy conversation mới nhất
@@ -172,8 +172,8 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
   onAfterTransferOwner
 }) => {
   // Thêm state cho loading
-  const [isUpdatingRole, setIsUpdatingRole] = useState(false);
-  const [updatingMemberId, setUpdatingMemberId] = useState<string | null>(null);
+  const [, setIsUpdatingRole] = useState(false);
+  const [, setUpdatingMemberId] = useState<string | null>(null);
 
   // Thay thế các useState bằng useReducer
   const [state, dispatch] = useReducer(reducer, {
@@ -226,11 +226,11 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
   const { loading, error, addCoOwner, removeCoOwnerDirectly, transferOwnership, deleteGroupConversation, blockGroupMember, unblockGroupMember } = useChatInfo();
   const { userCache, userAvatars } = useConversations();
 
-  // Function to get user name from cache or default value
-  const getUserName = useCallback((userId: string): string => {
-    const user = userCache[userId] || localUserCache[userId];
-    return user ? user.fullname : 'Một thành viên';
-  }, [userCache, localUserCache]);
+  // // Function to get user name from cache or default value
+  // const getUserName = useCallback((userId: string): string => {
+  //   const user = userCache[userId] || localUserCache[userId];
+  //   return user ? user.fullname : 'Một thành viên';
+  // }, [userCache, localUserCache]);
   
   // Sử dụng custom hook cho socket events
   useSocketEvents(conversation.conversationId, dispatch, conversation);
@@ -653,43 +653,43 @@ const GroupManagement: React.FC<GroupManagementProps> = ({
   }, [regularMembers, conversation.rules?.coOwnerIds, searchQuery, getUserDetails]);
 
   // Thêm loading indicator vào UI
-  const renderLoadingIndicator = (memberId: string) => {
-    if (isUpdatingRole && updatingMemberId === memberId) {
-      return (
-        <div className="ml-2 text-xs text-gray-500">
-          Đang cập nhật...
-        </div>
-      );
-    }
-    return null;
-  };
+  // const renderLoadingIndicator = (memberId: string) => {
+  //   if (isUpdatingRole && updatingMemberId === memberId) {
+  //     return (
+  //       <div className="ml-2 text-xs text-gray-500">
+  //         Đang cập nhật...
+  //       </div>
+  //     );
+  //   }
+  //   return null;
+  // };
 
   // Sửa phần render member để thêm loading indicator
-  const renderMember = (memberId: string) => {
-    const memberDetails = getUserDetails(memberId);
-    const isOwner = conversation.rules?.ownerId === memberId;
-    const isCoOwner = conversation.rules?.coOwnerIds?.includes(memberId);
+  // const renderMember = (memberId: string) => {
+  //   const memberDetails = getUserDetails(memberId);
+  //   const isOwner = conversation.rules?.ownerId === memberId;
+  //   const isCoOwner = conversation.rules?.coOwnerIds?.includes(memberId);
     
-    return (
-      <div className="flex items-center justify-between">
-        <div className="flex items-center">
-          <Avatar 
-            name={memberDetails?.fullname || ''}
-            avatarUrl={memberDetails?.urlavatar}
-            size={40}
-          />
-          <div className="ml-3">
-            <div className="font-semibold">{memberDetails?.fullname}</div>
-            <div className="text-sm text-gray-500">
-              {isOwner ? 'Trưởng nhóm' : isCoOwner ? 'Phó nhóm' : 'Thành viên'}
-              {renderLoadingIndicator(memberId)}
-            </div>
-          </div>
-        </div>
-        {/* ... existing buttons ... */}
-      </div>
-    );
-  };
+  //   return (
+  //     <div className="flex items-center justify-between">
+  //       <div className="flex items-center">
+  //         <Avatar 
+  //           name={memberDetails?.fullname || ''}
+  //           avatarUrl={memberDetails?.urlavatar}
+  //           size={40}
+  //         />
+  //         <div className="ml-3">
+  //           <div className="font-semibold">{memberDetails?.fullname}</div>
+  //           <div className="text-sm text-gray-500">
+  //             {isOwner ? 'Trưởng nhóm' : isCoOwner ? 'Phó nhóm' : 'Thành viên'}
+  //             {renderLoadingIndicator(memberId)}
+  //           </div>
+  //         </div>
+  //       </div>
+  //       {/* ... existing buttons ... */}
+  //     </div>
+  //   );
+  // };
 
   const renderOwnerCoOwnerView = () => {
     const ownerData = getUserDetails(owner);

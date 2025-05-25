@@ -248,6 +248,7 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
 
         // Join conversation for new members và refresh dữ liệu
         for (const userId of successes) {
+          console.log("userId", userId);
           socketService.joinConversation(conversationId);
         }
         

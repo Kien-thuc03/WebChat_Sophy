@@ -37,7 +37,6 @@ import GroupManagement from "./GroupManagement";
 import MediaGallery from "./MediaGallery";
 import MembersList from "./MembersList";
 import { useChatInfo } from "../../../features/chat/hooks/useChatInfo";
-import { useNavigate } from "react-router-dom";
 import GroupModal from "../modals/GroupModal";
 import { useConversationContext } from "../../../features/chat/context/ConversationContext";
 import AddMemberModal from "../modals/AddMemberModal";
@@ -65,15 +64,6 @@ interface DetailedConversation extends Conversation {
   sharedLinks?: any[];
 }
 
-// Define a simplified user interface for the selected member
-interface MemberInfo {
-  userId: string;
-  fullname: string;
-  phone?: string;
-  urlavatar?: string;
-  isMale?: boolean;
-  birthday?: string;
-}
 
 const ChatInfo: React.FC<ChatInfoProps> = ({
   conversation,
@@ -97,7 +87,6 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
   const [loading, setLoading] = useState(true);
   const [showGroupManagement, setShowGroupManagement] = useState(false);
   const [showMediaGallery, setShowMediaGallery] = useState(false);
-  const [showFileGallery, setShowFileGallery] = useState(false);
   const [mediaGalleryType, setMediaGalleryType] = useState<
     "media" | "files" | null
   >(null);
@@ -126,14 +115,9 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
   >(null);
   const [isMediaModalOpen, setIsMediaModalOpen] = useState<boolean>(false);
   const [currentMediaIndex, setCurrentMediaIndex] = useState<number>(0);
-  const navigate = useNavigate();
   const [showMembersList, setShowMembersList] = useState(false);
-  const [hoveredMemberId, setHoveredMemberId] = useState<string | null>(null);
   const [showOwnershipTransfer, setShowOwnershipTransfer] = useState(false);
   const [newOwnerSelected, setNewOwnerSelected] = useState<string | null>(null);
-  const [selectedMember, setSelectedMember] = useState<MemberInfo | null>(null);
-  const [isUserInfoModalVisible, setIsUserInfoModalVisible] = useState(false);
-  const [friendList, setFriendList] = useState<string[]>([]);
   const [showGroupModal, setShowGroupModal] = useState(false);
   const [showAddGroupModal, setShowAddGroupModal] = useState(false);
   const { conversations } = useConversationContext();
@@ -193,7 +177,6 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
   }, [currentConversation]);
 
   // Determine if user can manage the group
-  const canManageGroup = userRole === "owner" || userRole === "co-owner";
 
   /**
    * Gets the ID of the other user in a one-on-one conversation
@@ -296,10 +279,6 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
     updatedConversation?.groupName,
     updatedConversation?.groupMembers?.length,
   ]);
-
-  const handlePanelChange = (keys: string | string[]) => {
-    setActiveKeys(Array.isArray(keys) ? keys : [keys]);
-  };
 
   const handleToggleMute = () => {
     setIsMuted(!isMuted);
@@ -828,7 +807,7 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
           {groupMembers.map((memberId) => {
             const memberInfo = userCache[memberId] || localUserCache[memberId];
             const isCurrentUser = memberId === localStorage.getItem("userId");
-            const isOwner = currentConversation.rules?.ownerId === memberId;
+            // const isOwner = currentConversation.rules?.ownerId === memberId;
             const isCoOwner =
               currentConversation.rules?.coOwnerIds?.includes(memberId) ||
               false;
@@ -1326,7 +1305,7 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
                       <div className="space-y-3">
                         {sharedFiles.map((file, index) => {
                           // Determine file type icon and background color
-                          let FileIcon = FileOutlined;
+                          // let FileIcon = FileOutlined;
                           let bgColor = "bg-blue-500";
 
                           if (file.name) {
@@ -1341,7 +1320,7 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
                             } else if (
                               ["jpg", "png", "gif", "jpeg"].includes(ext || "")
                             ) {
-                              FileIcon = FileImageOutlined;
+                              // FileIcon = FileImageOutlined;
                               bgColor = "bg-purple-400";
                             } else if (
                               ["mp4", "avi", "mov"].includes(ext || "")
