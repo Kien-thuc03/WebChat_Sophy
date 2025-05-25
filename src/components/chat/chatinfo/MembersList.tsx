@@ -76,10 +76,7 @@ const MembersList: React.FC<MembersListProps> = ({
     {}
   );
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [activityLog, setActivityLog] = useState<
-    Array<{ title: string; description: string; timestamp: number }>
-  >([]);
-  const [memberCount, setMemberCount] = useState<number>(
+  const [, setMemberCount] = useState<number>(
     initialConversation.groupMembers?.length || 0
   );
   const { message, modal } = App.useApp();
@@ -595,6 +592,7 @@ const MembersList: React.FC<MembersListProps> = ({
   // Handle messaging a user
   const handleMessage = async (userId: string, conversation: Conversation) => {
     // Navigate to conversation
+    console.log("userId", userId);
     if (conversation?.conversationId) {
       navigate(`/chat/${conversation.conversationId}`);
     }
@@ -603,6 +601,7 @@ const MembersList: React.FC<MembersListProps> = ({
   // Handle send friend request from modal
   const handleSendFriendRequest = (userId: string) => {
     // This is handled by the UserInfoHeaderModal
+    console.log("handleSendFriendRequest userId", userId);
   };
 
   // Function to add a co-owner

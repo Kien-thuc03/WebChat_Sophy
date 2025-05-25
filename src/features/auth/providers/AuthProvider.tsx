@@ -102,7 +102,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setUser(null);
     localStorage.removeItem("token");
     // Disconnect socket on logout
-    socketService.disconnect();
+    // socketService.disconnect();
   }, []);
 
   const changePassword = useCallback(

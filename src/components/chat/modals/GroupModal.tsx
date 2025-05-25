@@ -46,7 +46,6 @@ const GroupModal: React.FC<GroupModalProps> = ({
   conversation: initialConversation,
   userAvatars = {},
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  members,
   onLeaveGroup,
   onUpdateGroupAvatar,
   onUpdateGroupName,

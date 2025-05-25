@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Input, Button, Tooltip, message, Modal } from 'antd';
-import { SendOutlined, SmileOutlined, PictureOutlined, FileOutlined, FileImageOutlined, LoadingOutlined, WarningOutlined, RobotOutlined, HistoryOutlined } from '@ant-design/icons';
+import { Input, Button, Tooltip, message } from 'antd';
+import { SendOutlined, SmileOutlined, PictureOutlined, FileOutlined, FileImageOutlined, LoadingOutlined, WarningOutlined, RobotOutlined } from '@ant-design/icons';
 import Picker from '@emoji-mart/react';
 import data from '@emoji-mart/data';
 import FileUploader from './FileUploader';
@@ -77,7 +77,6 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
   isUploading,
   setIsUploading,
   emojiPickerVisible,
-  setEmojiPickerVisible,
   inputRef,
   fileInputRef,
   imageInputRef,
@@ -106,7 +105,6 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
   
   // AI Assistant state
   const [showAiAssistant, setShowAiAssistant] = useState<boolean>(false);
-  const [showAiHistory, setShowAiHistory] = useState<boolean>(false);
 
   // Monitor network status
   useEffect(() => {
@@ -280,10 +278,6 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
     setShowAiAssistant(prev => !prev);
   };
   
-  // Toggle AI History visibility
-  const toggleAiHistory = () => {
-    setShowAiHistory(prev => !prev);
-  };
 
   return (
     <div className="chat-input-container bg-white border-t border-gray-200">

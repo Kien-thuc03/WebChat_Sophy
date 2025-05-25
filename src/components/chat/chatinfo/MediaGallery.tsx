@@ -37,7 +37,6 @@ interface MediaGalleryProps {
 const MediaGallery: React.FC<MediaGalleryProps> = ({ 
   type, 
   items, 
-  conversationId, 
   onPreviewMedia, 
   onDownload 
 }) => {
@@ -45,8 +44,8 @@ const MediaGallery: React.FC<MediaGalleryProps> = ({
   const [loading, setLoading] = useState<boolean>(false);
   
   // Filter states
-  const [senderFilter, setSenderFilter] = useState<string>('Tất cả');
-  const [dateFilter, setDateFilter] = useState<string>('Mới nhất');
+  const [senderFilter, ] = useState<string>('Tất cả');
+  const [dateFilter, ] = useState<string>('Mới nhất');
 
   useEffect(() => {
     setLoading(true);
