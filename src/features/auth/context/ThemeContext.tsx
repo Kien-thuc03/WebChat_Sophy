@@ -39,7 +39,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, [themeMode]);
 
   const getThemeConfig = () => {
-    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    // const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
     const isDark = themeMode === "dark";
     return {
       algorithm: isDark ? theme.darkAlgorithm : theme.defaultAlgorithm,
