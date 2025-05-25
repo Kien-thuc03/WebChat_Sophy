@@ -181,6 +181,10 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
       message.error('Không thể gửi tin nhắn. Vui lòng thử lại.');
     } finally {
       setIsSending(false);
+      // Focus the input field after message is sent
+      if (inputRef.current) {
+        setTimeout(() => inputRef.current.focus(), 0);
+      }
     }
   };
 
@@ -199,6 +203,10 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
       message.error('Không thể gửi trả lời. Vui lòng thử lại.');
     } finally {
       setIsSending(false);
+      // Focus the input field after reply is sent
+      if (inputRef.current) {
+        setTimeout(() => inputRef.current.focus(), 0);
+      }
     }
   };
 
@@ -217,6 +225,10 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
       message.error('Không thể gửi tin nhắn. Vui lòng thử lại.');
     } finally {
       setIsSending(false);
+      // Focus the input field after like is sent
+      if (inputRef.current) {
+        setTimeout(() => inputRef.current.focus(), 0);
+      }
     }
   };
 
@@ -389,6 +401,7 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
             value={inputValue}
             onChange={handleInputChange}
             onPressEnter={handleKeyPress}
+            autoFocus={true}
           />
         </div>
         {/* File attachment button */}

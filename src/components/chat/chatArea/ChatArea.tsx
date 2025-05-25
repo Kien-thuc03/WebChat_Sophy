@@ -1705,6 +1705,10 @@ export function ChatArea({ conversation }: ChatAreaProps) {
       message.error(error.message || "Không thể gửi tin nhắn");
     } finally {
       setIsUploading(false);
+      // Focus the input field after message is sent
+      if (inputRef.current) {
+        setTimeout(() => inputRef.current.focus(), 0);
+      }
     }
   };
 
@@ -2701,6 +2705,11 @@ export function ChatArea({ conversation }: ChatAreaProps) {
         )
       );
       message.error("Không thể gửi tin nhắn. Vui lòng thử lại.");
+    } finally {
+      // Focus the input field after like is sent
+      if (inputRef.current) {
+        setTimeout(() => inputRef.current.focus(), 0);
+      }
     }
   };
 
@@ -3358,6 +3367,10 @@ export function ChatArea({ conversation }: ChatAreaProps) {
       );
     } finally {
       setIsSending(false);
+      // Focus the input field after reply is sent
+      if (inputRef.current) {
+        setTimeout(() => inputRef.current.focus(), 0);
+      }
     }
   };
 
