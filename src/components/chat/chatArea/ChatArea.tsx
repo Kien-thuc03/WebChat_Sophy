@@ -4036,8 +4036,31 @@ export function ChatArea({ conversation }: ChatAreaProps) {
             </div>
             
             <div className="border rounded p-3 bg-gray-50">
-              <div className="text-sm text-gray-500 mb-1">Tin nhắn gốc:</div>
-              {forwardingMessage?.type === 'image' && forwardingMessage.attachment && (
+              <div className="text-sm text-gray-500 mb-1">
+                {forwardingMessage?.type === 'image' && 'Hình ảnh gốc:'}
+                {forwardingMessage?.type === 'file' && 'Tập tin gốc:'}
+                {forwardingMessage?.type === 'text-with-image' && 'Tin nhắn có hình ảnh:'}
+                {forwardingMessage?.type === 'video' && 'Video gốc:'}
+                {forwardingMessage?.type === 'audio' && 'Audio gốc:'}
+                {forwardingMessage?.type === 'text' && 'Tin nhắn gốc:'}
+                {!forwardingMessage?.type && 'Tin nhắn gốc:'}
+              </div>
+              
+              {/* Hiển thị tên file nếu có */}
+              {forwardingMessage?.fileName && (
+                <div className="mb-2 font-medium text-blue-600">
+                  <span className="mr-2">📎</span>
+                  {forwardingMessage.fileName}
+                  {forwardingMessage.fileSize && (
+                    <span className="ml-2 text-xs text-gray-500">
+                      ({(forwardingMessage.fileSize / 1024).toFixed(2)} KB)
+                    </span>
+                  )}
+                </div>
+              )}
+              
+              {/* Hiển thị ảnh nếu có */}
+              {(forwardingMessage?.type === 'image' || forwardingMessage?.type === 'text-with-image') && forwardingMessage.attachment && (
                 <div className="mb-2">
                   <img 
                     src={forwardingMessage.attachment.url} 
@@ -4046,8 +4069,46 @@ export function ChatArea({ conversation }: ChatAreaProps) {
                   />
                 </div>
               )}
+              
+              {/* Hiển thị video thumbnail nếu có */}
+              {forwardingMessage?.type === 'video' && forwardingMessage.attachment && (
+                <div className="mb-2 relative">
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="bg-black bg-opacity-50 rounded-full p-2">
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" className="h-6 w-6 text-white">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                  </div>
+                  <div className="bg-gray-200 h-24 w-full flex items-center justify-center rounded">
+                    <span className="text-gray-500">Video</span>
+                  </div>
+                </div>
+              )}
+              
+              {/* Hiển thị audio player nếu có */}
+              {forwardingMessage?.type === 'audio' && forwardingMessage.attachment && (
+                <div className="mb-2 bg-gray-200 p-2 rounded flex items-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" className="h-6 w-6 text-gray-600 mr-2">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15.536a5 5 0 01-1.414-2.536m-1.414 5.36a9 9 0 01-2.828-7.9" />
+                  </svg>
+                  <span className="text-gray-600">Audio file</span>
+                </div>
+              )}
+              
+              {/* Hiển thị nội dung text */}
               {forwardingMessage?.content && (
-                <div className="text-sm">{forwardingMessage.content}</div>
+                <div className={`text-sm ${forwardingMessage?.type === 'text' ? 'font-medium' : ''}`}>
+                  {forwardingMessage.content}
+                </div>
+              )}
+              
+              {/* Hiển thị thông báo nếu tin nhắn không có nội dung */}
+              {!forwardingMessage?.content && !forwardingMessage?.attachment && !forwardingMessage?.fileName && (
+                <div className="text-sm text-gray-500 italic">
+                  Không có nội dung để hiển thị
+                </div>
               )}
             </div>
           </Modal>
