@@ -32,7 +32,6 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
   const {
     conversations,
     userCache,
-    displayNames,
     userAvatars,
     isLoading,
     updateConversationWithNewMessage,
@@ -53,7 +52,7 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
   );
   const menuRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
-  const [currentTime, setCurrentTime] = useState(new Date());
+  const [, setCurrentTime] = useState(new Date());
   const [newMessageHighlight, setNewMessageHighlight] = useState<
     Record<string, boolean>
   >({});
@@ -192,7 +191,7 @@ const ChatList: React.FC<ChatListProps> = ({ onSelectConversation }) => {
   useEffect(() => {
     const loadUserData = async () => {
       // Get current user ID
-      const currentUserId = localStorage.getItem("userId") || "";
+      // const currentUserId = localStorage.getItem("userId") || "";
 
       // Process each conversation
       for (const conversation of conversations) {

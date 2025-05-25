@@ -1,5 +1,6 @@
 import io, { Socket } from "socket.io-client";
 import cloudinaryService from "./cloudinaryService";
+import modalService from "./modalService";
 
 // const IP_ADDRESS = "172.28.43.19";
 
@@ -64,22 +65,6 @@ interface FileAttachment {
   publicId?: string;
   format?: string;
   mimeType?: string;
-}
-
-interface CallData {
-  conversationId: string;
-  roomID: string;
-  callerId: string;
-  receiverId: string;
-  isVideo: boolean;
-}
-
-interface EndCallData {
-  conversationId: string;
-}
-
-interface CallErrorData {
-  message: string;
 }
 
 class SocketService {
@@ -253,35 +238,6 @@ class SocketService {
     }
   }
 
-  emit(event: string, data?: any, callback?: (response: any) => void) {
-    if (this.socket && this.socket.connected) {
-      if (callback) {
-        this.socket.emit(event, data, callback);
-      } else {
-        this.socket.emit(event, data);
-      }
-    } else {
-      console.warn(`Socket not connected for event ${event}, reconnecting...`);
-      this.connect();
-      setTimeout(() => {
-        if (this.socket?.connected) {
-          if (callback) {
-            this.socket.emit(event, data, callback);
-          } else {
-            this.socket.emit(event, data);
-          }
-        } else {
-          console.error(`Failed to emit event ${event}: Socket not connected`);
-          if (callback) {
-            callback({
-              error: "Socket not connected. Please check if server is running.",
-            });
-          }
-        }
-      }, 1000);
-    }
-  }
-
   on(eventName: string, callback: (data: any) => void) {
     if (!this.socket) {
       this.connect();
@@ -295,81 +251,6 @@ class SocketService {
     } else {
       console.warn(
         `SocketService: Socket not initialized for ${eventName} listener`
-      );
-    }
-  }
-
-  onZegoToken(
-    callback: (data: {
-      token: string;
-      appID: number;
-      userId: string;
-      effectiveTimeInSeconds: number;
-    }) => void
-  ) {
-    if (!this.socket) {
-      this.connect();
-    }
-
-    if (this.socket) {
-      this.socket.off("zegoToken");
-      this.socket.on("zegoToken", (data) => {
-        callback(data);
-      });
-    } else {
-      console.warn(
-        "SocketService: Socket not initialized for zegoToken listener"
-      );
-    }
-  }
-
-  onStartCall(callback: (data: CallData) => void) {
-    if (!this.socket) {
-      this.connect();
-    }
-
-    if (this.socket) {
-      this.socket.off("startCall");
-      this.socket.on("startCall", (data) => {
-        callback(data);
-      });
-    } else {
-      console.warn(
-        "SocketService: Socket not initialized for startCall listener"
-      );
-    }
-  }
-
-  onEndCall(callback: (data: EndCallData) => void) {
-    if (!this.socket) {
-      this.connect();
-    }
-
-    if (this.socket) {
-      this.socket.off("endCall");
-      this.socket.on("endCall", (data) => {
-        callback(data);
-      });
-    } else {
-      console.warn(
-        "SocketService: Socket not initialized for endCall listener"
-      );
-    }
-  }
-
-  onCallError(callback: (data: CallErrorData) => void) {
-    if (!this.socket) {
-      this.connect();
-    }
-
-    if (this.socket) {
-      this.socket.off("callError");
-      this.socket.on("callError", (data) => {
-        callback(data);
-      });
-    } else {
-      console.warn(
-        "SocketService: Socket not initialized for callError listener"
       );
     }
   }
@@ -762,11 +643,42 @@ class SocketService {
   }
 
   private setupListeners(): void {
+    console.log("SocketService: Setting up core socket listeners");
+
     if (!this.socket) return;
 
     this.socket.on("error", (error: Error) => {
       console.error("Socket error:", error);
     });
+
+    // Xử lý sự kiện forceLogout khi tài khoản được đăng nhập ở thiết bị khác
+    this.socket.on(
+      "forceLogout",
+      (data: { deviceType: string; message?: string }) => {
+        if (data.deviceType === "browser") {
+          // Hiển thị thông báo bằng modal thay vì alert
+          modalService.showModal({
+            title: "Phiên đăng nhập hết hạn",
+            message:
+              data.message ||
+              "Tài khoản đang được đăng nhập ở một thiết bị khác",
+            type: "error",
+            showClose: false,
+            redirectUrl: "/",
+            autoClose: true,
+            autoCloseDelay: 3000,
+          });
+
+          // Thực hiện đăng xuất
+          this.isAuthenticated = false;
+          this.userId = null;
+
+          // Xóa thông tin đăng nhập
+          localStorage.clear();
+          sessionStorage.clear();
+        }
+      }
+    );
   }
 
   userEnterConversation(conversationId: string) {
@@ -1063,12 +975,12 @@ class SocketService {
   }
 
   onGroupNameChanged(
-    callback: (data: { 
-      conversationId: string; 
+    callback: (data: {
+      conversationId: string;
       newName: string;
-      changedBy?: { 
-        userId: string; 
-        fullname: string 
+      changedBy?: {
+        userId: string;
+        fullname: string;
       };
     }) => void
   ) {
@@ -1076,12 +988,12 @@ class SocketService {
   }
 
   onGroupAvatarChanged(
-    callback: (data: { 
-      conversationId: string; 
+    callback: (data: {
+      conversationId: string;
       newAvatar: string;
-      changedBy?: { 
-        userId: string; 
-        fullname: string 
+      changedBy?: {
+        userId: string;
+        fullname: string;
       };
     }) => void
   ) {
@@ -1262,19 +1174,19 @@ class SocketService {
     }
   }
 
-  // Token refresh
-  refreshZegoToken() {
+  // Method to emit custom events
+  emit(eventName: string, data: any) {
     if (!this.socket || !this.socket.connected) {
       this.connect();
       setTimeout(() => {
         if (this.socket?.connected) {
-          this.socket.emit("refreshZegoToken");
+          this.socket.emit(eventName, data);
         }
-      }, 1000);
+      }, 500);
       return;
     }
 
-    this.socket.emit("refreshZegoToken");
+    this.socket.emit(eventName, data);
   }
 }
 

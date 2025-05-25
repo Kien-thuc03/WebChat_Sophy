@@ -2,9 +2,7 @@ import axios from 'axios';
 
 // Cloudinary configuration
 const CLOUDINARY_CLOUD_NAME = 'dyd5381vx';
-const CLOUDINARY_API_KEY = '624578189739292';
-const CLOUDINARY_API_SECRET = 'FKRVIJAReWhBG-QRmmoFBUpn9eA';
-const CLOUDINARY_UPLOAD_URL = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/auto/upload`;
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 // Helper function to convert File to base64
 export const fileToBase64 = (file: File): Promise<string> => {
@@ -120,7 +118,7 @@ export const sendFileMessage = async (file: File, conversationId: string): Promi
     }
     
     const response = await axios.post(
-      'http://localhost:3000/api/messages/send-file',
+      `${API_BASE_URL}/api/messages/send-file`,
       {
         conversationId,
         attachment,

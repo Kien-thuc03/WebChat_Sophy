@@ -1,0 +1,140 @@
+/* Chat Input Area Styles */
+
+.chat-input-container {
+    display: flex;
+    flex-direction: column;
+}
+
+
+/* AI Assistant Container */
+
+.ai-assistant-container {
+    display: flex;
+    flex-direction: column;
+    height: 400px;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+
+/* AI Chat Content - Layout cho khu vực hiển thị chat và lịch sử */
+
+.ai-chat-content {
+    display: flex;
+    flex-direction: row;
+    height: 100%;
+    overflow: hidden;
+}
+
+
+/* AI Chat Main - Phần chính hiển thị tin nhắn */
+
+.ai-chat-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    transition: width 0.3s ease;
+}
+
+.ai-chat-main.with-history {
+    width: 70%;
+    border-left: 1px solid #e5e7eb;
+}
+
+
+/* AI History Sidebar - Phần lịch sử trò chuyện */
+
+.ai-history-sidebar {
+    width: 30%;
+    min-width: 200px;
+    height: 100%;
+    overflow-y: auto;
+    background-color: #f9fafb;
+}
+
+.ai-history-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.ai-history-loading,
+.ai-history-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    color: #6b7280;
+    font-size: 14px;
+}
+
+
+/* Custom style cho List trong history */
+
+.ai-history-list {
+    padding: 0;
+}
+
+.ai-conversation-item {
+    padding: 8px;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.ai-conversation-item:hover {
+    background-color: #f0f7ff;
+}
+
+.ai-selected-conversation {
+    background-color: #e6f7ff;
+    border-left: 3px solid #1677ff;
+}
+
+.ai-conversation-info {
+    display: flex;
+    align-items: center;
+}
+
+.ai-conversation-icon {
+    margin-right: 8px;
+    color: #1677ff;
+    font-size: 16px;
+}
+
+.ai-conversation-preview {
+    flex: 1;
+    overflow: hidden;
+}
+
+.ai-conversation-text {
+    font-size: 14px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ai-conversation-date {
+    font-size: 12px;
+    color: #6b7280;
+}
+
+
+/* The AI history button active state */
+
+.ai-history-button-active {
+    color: #1677ff;
+    background-color: #e6f7ff;
+}
+
+
+/* Style lại button trong chat input */
+
+.ai-assistant-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}

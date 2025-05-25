@@ -5,7 +5,9 @@ import {
   Alert,
   Empty,
   Spin,
-  Menu
+  Menu,
+  Select,
+  Modal
 } from "antd";
 import {
   ReloadOutlined,
@@ -33,6 +35,7 @@ import {
   getPinnedMessages,
   getSpecificMessage,
   replyMessage,
+  forwardImageMessage,
 } from "../../../api/API";
 import { useLanguage } from "../../../features/auth/context/LanguageContext";
 import { DisplayMessage } from "../../../features/chat/types/chatTypes";
@@ -93,7 +96,8 @@ export function ChatArea({ conversation }: ChatAreaProps) {
     markConversationAsRead, 
     updateConversationWithNewMessage,
     updateUnreadStatus,
-    userCache
+    userCache,
+    conversations
   } = useConversationContext();
   const currentUserId = localStorage.getItem("userId") || "";
   // const [imageInputVisible, setImageInputVisible] = useState(false);
@@ -124,8 +128,8 @@ export function ChatArea({ conversation }: ChatAreaProps) {
     conversation.conversationId.startsWith("conv");
 
   // Add state for the image modal
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const [isImageModalOpen, setIsImageModalOpen] = useState(false);
+  const [, setSelectedImage] = useState<string | null>(null);
+  const [, setIsImageModalOpen] = useState(false);
 
   // Add state for message actions
   const [messageActionLoading, setMessageActionLoading] = useState<string | null>(null);
@@ -1701,7 +1705,113 @@ export function ChatArea({ conversation }: ChatAreaProps) {
       message.error(error.message || "Không thể gửi tin nhắn");
     } finally {
       setIsUploading(false);
+      // Focus the input field after message is sent
+      if (inputRef.current) {
+        setTimeout(() => inputRef.current.focus(), 0);
+      }
     }
+  };
+
+  // Forward message modal
+  const handleSendForwardMessage = async () => {
+    if (!forwardingMessage || !selectedConversationForForward) {
+      message.error("Cannot forward message: missing conversation or message");
+      return;
+    }
+
+    try {
+      // Xử lý theo loại tin nhắn
+      if (forwardingMessage.type === "image" && forwardingMessage.attachment) {
+        // Forward image message with attachment
+        await forwardImageMessage(
+          forwardingMessage.id,
+          selectedConversationForForward,
+          forwardingMessage.attachment
+        );
+      } else if (forwardingMessage.type === "video" && forwardingMessage.attachment) {
+        // Đặc biệt cho video - tải lại video từ URL và gửi
+        try {
+          // Tải file từ URL
+          const videoResponse = await fetch(forwardingMessage.attachment.url);
+          const videoBlob = await videoResponse.blob();
+          const videoFile = new File(
+            [videoBlob], 
+            forwardingMessage.attachment.name || "forwarded-video.mp4", 
+            { type: 'video/mp4' }
+          );
+          
+          // Gửi qua socketService
+          await socketService.sendFileMessage(selectedConversationForForward, videoFile);
+          
+          message.success("Video forwarded successfully");
+        } catch (videoError) {
+          console.error("Error forwarding video:", videoError);
+          message.error("Failed to forward video");
+        }
+      } else if (forwardingMessage.type === "text-with-image" && forwardingMessage.attachment && forwardingMessage.content) {
+        // Forward text with image using sendMessageWithImage
+        const imageFile = await fetch(forwardingMessage.attachment.url)
+          .then(res => res.blob())
+          .then(blob => new File([blob], forwardingMessage.attachment?.name || "forwarded-image.jpg", { type: blob.type }));
+        
+        await sendMessageWithImage(
+          selectedConversationForForward,
+          forwardingMessage.content,
+          imageFile
+        );
+      } else if (forwardingMessage.type === "file" && forwardingMessage.attachment) {
+        // Forward file message - tải lại file từ URL và gửi
+        try {
+          // Tải file từ URL
+          const fileResponse = await fetch(forwardingMessage.attachment.url);
+          const fileBlob = await fileResponse.blob();
+          const fileObject = new File(
+            [fileBlob], 
+            forwardingMessage.attachment.name || "forwarded-file", 
+            { type: fileBlob.type }
+          );
+          
+          // Gửi qua socketService
+          await socketService.sendFileMessage(selectedConversationForForward, fileObject);
+          
+          message.success("File forwarded successfully");
+        } catch (fileError) {
+          console.error("Error forwarding file:", fileError);
+          message.error("Failed to forward file");
+        }
+      } else if (forwardingMessage.content) {
+        // Forward regular text message
+        await sendMessage(
+          selectedConversationForForward,
+          forwardingMessage.content,
+          "text"
+        );
+      } else {
+        message.error("Cannot forward empty message");
+        return;
+      }
+      
+      setShowForwardModal(false);
+      setForwardingMessage(null);
+      setSelectedConversationForForward(null);
+    } catch (error) {
+      console.error("Error forwarding message:", error);
+      message.error("Failed to forward message");
+    }
+  };
+
+  // Helper function to get the name of the other user in a 1-on-1 conversation
+  const getOtherUserName = (conv: Conversation): string => {
+    const currentUserId = localStorage.getItem('userId') || '';
+    
+    if (conv.isGroup) {
+      return conv.groupName || 'Group Chat';
+    }
+    
+    const otherUserId = conv.creatorId === currentUserId ? conv.receiverId : conv.creatorId;
+    const user = userCache[otherUserId || ''];
+    
+    return user?.fullname || 'User';
   };
 
   const scrollToBottom = () => {
@@ -2595,6 +2705,11 @@ export function ChatArea({ conversation }: ChatAreaProps) {
         )
       );
       message.error("Không thể gửi tin nhắn. Vui lòng thử lại.");
+    } finally {
+      // Focus the input field after like is sent
+      if (inputRef.current) {
+        setTimeout(() => inputRef.current.focus(), 0);
+      }
     }
   };
 
@@ -2755,7 +2870,29 @@ export function ChatArea({ conversation }: ChatAreaProps) {
         )
       );
       
-      // Refresh pinned messages
+      // Cập nhật trực tiếp danh sách pinnedMessages và hiển thị panel ngay
+      if (pinnedMessage) {
+        const updatedPinnedMessage = {
+          ...pinnedMessage,
+          isPinned: true, 
+          pinnedAt: new Date().toISOString()
+        };
+        
+        // Cập nhật danh sách tin nhắn ghim
+        setPinnedMessages(prevPinnedMessages => {
+          // Kiểm tra nếu tin nhắn đã tồn tại trong danh sách ghim
+          const messageExists = prevPinnedMessages.some(msg => msg.id === messageId);
+          if (messageExists) {
+            return prevPinnedMessages;
+          }
+          return [...prevPinnedMessages, updatedPinnedMessage];
+        });
+        
+        // Hiển thị panel ghim nếu đây là tin nhắn ghim đầu tiên
+        setShowPinnedMessagesPanel(true);
+      }
+      
+      // Refresh pinned messages từ API (vẫn giữ để đồng bộ với server)
       await fetchPinnedMessages();
       
       // Add a notification message about pinning
@@ -2821,7 +2958,16 @@ export function ChatArea({ conversation }: ChatAreaProps) {
         )
       );
       
-      // Refresh pinned messages
+      // Cập nhật trực tiếp danh sách pin và kiểm tra nếu cần ẩn panel
+      setPinnedMessages(prevPinnedMessages => {
+        const filtered = prevPinnedMessages.filter(msg => msg.id !== messageId);
+        if (filtered.length === 0) {
+          setShowPinnedMessagesPanel(false);
+        }
+        return filtered;
+      });
+      
+      // Refresh pinned messages từ API (vẫn giữ để đồng bộ với server)
       await fetchPinnedMessages();
       
       message.success("Đã bỏ ghim tin nhắn");
@@ -2843,15 +2989,7 @@ export function ChatArea({ conversation }: ChatAreaProps) {
     try {
       setLoadingPinnedMessages(true);
 
-      // Get pinned message IDs from conversation
-      const pinnedMessageIds = conversation.pinnedMessages || [];
-
-      if (pinnedMessageIds.length === 0) {
-        setPinnedMessages([]);
-        setLoadingPinnedMessages(false);
-        return;
-      }
-
+      // Luôn gọi API để lấy danh sách ghim mới nhất từ server
       try {
         // Use the API to get all pinned messages for this conversation
         const fetchedPinnedMessages = await getPinnedMessages(conversation.conversationId);
@@ -2933,6 +3071,9 @@ export function ChatArea({ conversation }: ChatAreaProps) {
 
           // If we have pinned messages from the API, use those
           setPinnedMessages(sortedPinnedMessages);
+        } else {
+          // Nếu API trả về mảng rỗng thì cập nhật pinnedMessages
+          setPinnedMessages([]);
         }
       } catch (apiError) {
         console.error("Error fetching pinned messages from API:", apiError);
@@ -3226,6 +3367,10 @@ export function ChatArea({ conversation }: ChatAreaProps) {
       );
     } finally {
       setIsSending(false);
+      // Focus the input field after reply is sent
+      if (inputRef.current) {
+        setTimeout(() => inputRef.current.focus(), 0);
+      }
     }
   };
 
@@ -3857,6 +4002,129 @@ export function ChatArea({ conversation }: ChatAreaProps) {
             }}
             handleInputChange={handleInputChange}
           />
+        )}
+
+        
+        {/* Forward message modal */}
+        {showForwardModal && (
+          <Modal
+            title="Chuyển tiếp tin nhắn"
+            open={showForwardModal}
+            onCancel={() => setShowForwardModal(false)}
+            footer={[
+              <Button key="cancel" onClick={() => setShowForwardModal(false)}>
+                Hủy
+              </Button>,
+              <Button
+                key="forward"
+                type="primary"
+                onClick={handleSendForwardMessage}
+                disabled={!selectedConversationForForward}
+              >
+                Chuyển tiếp
+              </Button>
+            ]}
+          >
+            <div className="mb-4">
+              <div className="font-semibold mb-2">Chọn cuộc trò chuyện:</div>
+              <Select
+                style={{ width: '100%' }}
+                placeholder="Chọn người nhận"
+                onChange={(value) => setSelectedConversationForForward(value)}
+              >
+                {conversations
+                  .filter((conv: Conversation) => conv.conversationId !== conversation?.conversationId)
+                  .map((conv: Conversation) => {
+                    const name = conv.isGroup 
+                      ? conv.groupName 
+                      : getOtherUserName(conv);
+                    return (
+                      <Select.Option key={conv.conversationId} value={conv.conversationId}>
+                        {name}
+                      </Select.Option>
+                    );
+                  })
+                }
+              </Select>
+            </div>
+            
+            <div className="border rounded p-3 bg-gray-50">
+              <div className="text-sm text-gray-500 mb-1">
+                {forwardingMessage?.type === 'image' && 'Hình ảnh gốc:'}
+                {forwardingMessage?.type === 'file' && 'Tập tin gốc:'}
+                {forwardingMessage?.type === 'text-with-image' && 'Tin nhắn có hình ảnh:'}
+                {forwardingMessage?.type === 'video' && 'Video gốc:'}
+                {forwardingMessage?.type === 'audio' && 'Audio gốc:'}
+                {forwardingMessage?.type === 'text' && 'Tin nhắn gốc:'}
+                {!forwardingMessage?.type && 'Tin nhắn gốc:'}
+              </div>
+              
+              {/* Hiển thị tên file nếu có */}
+              {forwardingMessage?.fileName && (
+                <div className="mb-2 font-medium text-blue-600">
+                  <span className="mr-2">📎</span>
+                  {forwardingMessage.fileName}
+                  {forwardingMessage.fileSize && (
+                    <span className="ml-2 text-xs text-gray-500">
+                      ({(forwardingMessage.fileSize / 1024).toFixed(2)} KB)
+                    </span>
+                  )}
+                </div>
+              )}
+              
+              {/* Hiển thị ảnh nếu có */}
+              {(forwardingMessage?.type === 'image' || forwardingMessage?.type === 'text-with-image') && forwardingMessage.attachment && (
+                <div className="mb-2">
+                  <img 
+                    src={forwardingMessage.attachment.url} 
+                    alt="Forward attachment" 
+                    className="max-h-40 rounded"
+                  />
+                </div>
+              )}
+              
+              {/* Hiển thị video thumbnail nếu có */}
+              {forwardingMessage?.type === 'video' && forwardingMessage.attachment && (
+                <div className="mb-2 relative">
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="bg-black bg-opacity-50 rounded-full p-2">
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" className="h-6 w-6 text-white">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                  </div>
+                  <div className="bg-gray-200 h-24 w-full flex items-center justify-center rounded">
+                    <span className="text-gray-500">Video</span>
+                  </div>
+                </div>
+              )}
+              
+              {/* Hiển thị audio player nếu có */}
+              {forwardingMessage?.type === 'audio' && forwardingMessage.attachment && (
+                <div className="mb-2 bg-gray-200 p-2 rounded flex items-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" className="h-6 w-6 text-gray-600 mr-2">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15.536a5 5 0 01-1.414-2.536m-1.414 5.36a9 9 0 01-2.828-7.9" />
+                  </svg>
+                  <span className="text-gray-600">Audio file</span>
+                </div>
+              )}
+              
+              {/* Hiển thị nội dung text */}
+              {forwardingMessage?.content && (
+                <div className={`text-sm ${forwardingMessage?.type === 'text' ? 'font-medium' : ''}`}>
+                  {forwardingMessage.content}
+                </div>
+              )}
+              
+              {/* Hiển thị thông báo nếu tin nhắn không có nội dung */}
+              {!forwardingMessage?.content && !forwardingMessage?.attachment && !forwardingMessage?.fileName && (
+                <div className="text-sm text-gray-500 italic">
+                  Không có nội dung để hiển thị
+                </div>
+              )}
+            </div>
+          </Modal>
         )}
       </div>
   );

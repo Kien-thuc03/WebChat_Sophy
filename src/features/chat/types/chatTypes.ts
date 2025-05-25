@@ -24,7 +24,7 @@ export interface DisplayMessage {
     name: string;
     avatar?: string;
   };
-  type: "text" | "image" | "file" | "audio" | "video" | "text-with-image"| "notification";
+  type: "text" | "image" | "file" | "audio" | "video" | "text-with-image" | "notification";
   isRead?: boolean;
   isError?: boolean;
   sendStatus?: string;
@@ -44,6 +44,7 @@ export interface DisplayMessage {
   isReply?: boolean;
   messageReplyId?: string | null;
   replyData?: any;
+  audioDuration?: number;
 }
 
 export interface AttachmentInfo {

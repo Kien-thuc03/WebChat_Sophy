@@ -6,6 +6,94 @@
     <title>WebChat Sophy</title>
     <link rel="icon" href="/images/logo.png" />
     <script src="https://www.google.com/recaptcha/api.js?render=6LfBuBMrAAAAAKEtW7E-BdJyvgLTl6ywfO4avdCT"></script>
+
+    <!-- Script để tải Zego SDK chính thức từ CDN -->
+    <script>
+      // Biến để theo dõi trạng thái tải SDK
+      window.zegoSDKLoading = false;
+      window.zegoSDKLoaded = false;
+
+      // Hàm load Zego SDK từ CDN chính thức
+      function loadZegoSDK() {
+        // Kiểm tra xem SDK đã được tải hoặc đang tải hay chưa
+        if (window.ZegoExpressEngine) {
+          console.log("SDK đã được tải.");
+          window.zegoSDKLoaded = true;
+
+          // Kích hoạt sự kiện để thông báo SDK đã tải xong
+          const zegoLoadedEvent = new Event("zegoSDKLoaded");
+          window.dispatchEvent(zegoLoadedEvent);
+          return;
+        }
+
+        if (window.zegoSDKLoading) {
+          console.log("SDK đang được tải...");
+          return;
+        }
+
+        // Đánh dấu đang tải SDK
+        window.zegoSDKLoading = true;
+        console.log("Bắt đầu tải Zego SDK chính thức từ CDN...");
+
+        // Tải SDK từ CDN chính thức
+        const script = document.createElement("script");
+        script.src =
+          "https://cdn.jsdelivr.net/npm/zego-express-engine-webrtc@2.24.5/ZegoExpressWebRTC.min.js";
+        script.async = true;
+        script.crossOrigin = "anonymous";
+
+        script.onload = () => {
+          console.log("✅ Đã tải SDK ZEGO chính thức thành công.");
+          window.zegoSDKLoaded = true;
+          window.zegoSDKLoading = false;
+
+          // Thông báo cho các component đang chờ SDK
+          const zegoLoadedEvent = new Event("zegoSDKLoaded");
+          window.dispatchEvent(zegoLoadedEvent);
+        };
+
+        script.onerror = () => {
+          console.error("❌ Không thể tải SDK ZEGO từ CDN.");
+
+          window.zegoSDKLoading = false;
+          window.zegoSDKLoadError = true;
+
+          // Thông báo lỗi
+          alert("Không thể tải thư viện cuộc gọi. Vui lòng làm mới trang.");
+
+          // Phát sự kiện lỗi
+          const zegoErrorEvent = new Event("zegoSDKLoadError");
+          window.dispatchEvent(zegoErrorEvent);
+        };
+
+        document.head.appendChild(script);
+      }
+
+      // Hàm khởi tạo Zego Engine sau khi tải xong
+      function initializeZegoEngine() {
+        if (!window.ZegoExpressEngine) {
+          console.error("ZegoExpressEngine chưa sẵn sàng");
+          return null;
+        }
+
+        // Không khởi tạo ngay vì cần appID và server từ phía ứng dụng
+        console.log("🚀 ZegoExpressEngine sẵn sàng để khởi tạo");
+        return true;
+      }
+
+      // Tải SDK khi trang vừa tải xong
+      document.addEventListener("DOMContentLoaded", function () {
+        // Trì hoãn 500ms để tránh tranh chấp tài nguyên khi trang đang tải
+        setTimeout(loadZegoSDK, 500);
+      });
+
+      // Đặt các hàm vào window để có thể gọi từ ứng dụng
+      window.loadZegoSDK = loadZegoSDK;
+      window.initializeZegoEngine = initializeZegoEngine;
+
+      // Lấy thông tin Server Zego đề xuất cho khu vực châu Á
+      window.ZEGO_SERVER = "wss://webliveroom-ap-singapore.zegocloud.com/ws";
+    </script>
     <script src="https://www.google.com/recaptcha/enterprise.js?render=6LfBuBMrAAAAAKEtW7E-BdJyvgLTl6ywfO4avdCT"></script>
   </head>
 
