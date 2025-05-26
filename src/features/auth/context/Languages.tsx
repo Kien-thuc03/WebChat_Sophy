@@ -350,22 +350,21 @@ const translations = {
     understood: "Đã hiểu",
 
     // ChatInfo translations
-    group_info: "Thông tin nhóm",
-    conversation_info: "Thông tin hội thoại",
+    
     mute_notifications: "Tắt thông báo",
     pin_chat: "Ghim hội thoại",
-    add_member: "Thêm thành viên",
+    
     manage_group: "Quản lý nhóm",
-    create_group: "Tạo nhóm",
+    
     group_members: "Thành viên nhóm",
     group_invitation_link: "Link tham gia nhóm",
     media: "Ảnh/Video",
     files: "Tệp tin",
     links: "Liên kết",
     privacy_settings: "Thiết lập bảo mật",
-    report: "Báo xấu",
+    
     delete_chat_history: "Xóa lịch sử trò chuyện",
-    leave_group: "Rời nhóm",
+    
     confirm_delete_chat:
       "Bạn có chắc chắn muốn xóa toàn bộ lịch sử trò chuyện? Hành động này không thể hoàn tác.",
     confirm_leave_group: "Bạn có chắc chắn muốn rời khỏi nhóm này?",
@@ -391,6 +390,82 @@ const translations = {
     reminder_list: "Danh sách nhắc hẹn",
     group_chat: "Nhóm chat",
     online: "Trực tuyến",
+
+    // GroupManagement translations
+    allow_group_members: "Cho phép các thành viên trong nhóm:",
+    change_name_avatar: "Thay đổi tên & ảnh đại diện của nhóm",
+    pin_messages: "Ghim tin nhắn, ghi chú, bình chọn lên đầu hội thoại",
+    create_notes: "Tạo mới ghi chú, nhắc hẹn",
+    create_polls: "Tạo mới bình chọn",
+    send_messages: "Gửi tin nhắn",
+    approval_mode: "Chế độ phê duyệt thành viên mới",
+    highlight_admin: "Đánh dấu tin nhắn từ trưởng/phó nhóm",
+    allow_history: "Cho phép thành viên mới đọc tin nhắn gần nhất",
+    allow_invitation_link: "Cho phép dùng link tham gia nhóm",
+    block_from_group: "Chặn khỏi nhóm",
+    owner_deputy: "Trưởng & phó nhóm",
+    disband_group: "Giải tán nhóm",
+
+    // BlockedMembersList translations
+    block_from_group_title: "Chặn khỏi nhóm",
+    block_explanation:
+      "Những người đã bị chặn không thể tham gia lại nhóm, trừ khi được trưởng, phó nhóm bỏ chặn hoặc thêm lại vào nhóm.",
+    add_to_block_list: "Thêm vào danh sách chặn",
+    blocked_members: "Thành viên bị chặn",
+    no_blocked_members: "Không có thành viên nào bị chặn",
+    
+    block: "Chặn",
+    search_members: "Tìm kiếm thành viên...",
+    add_to_block_list_title: "Thêm vào danh sách chặn",
+    no_members_found: "Không tìm thấy thành viên nào",
+
+    // GroupManagement Modal translations
+    disband_group_title: "Giải tán nhóm",
+    disband_group_confirm:
+      "Bạn có chắc chắn muốn giải tán nhóm? Tất cả thành viên sẽ bị xóa khỏi nhóm và không thể hoàn tác hành động này.",
+    disband: "Giải tán",
+    
+    disbanding_group: "Đang giải tán nhóm...",
+    success: "Thành công",
+    group_disbanded_success: "Đã giải tán nhóm thành công.",
+    error: "Lỗi",
+    cannot_disband_group: "Không thể giải tán nhóm. Vui lòng thử lại.",
+
+    // Unblock modal
+    unblock_member_title: "Bỏ chặn thành viên",
+    unblock_member_confirm: "Bạn có chắc chắn muốn bỏ chặn thành viên này?",
+    unblocking: "Đang bỏ chặn thành viên...",
+    member_unblocked: "Đã bỏ chặn thành viên thành công",
+    cannot_unblock: "Không thể bỏ chặn thành viên",
+    unblock_error: "Không thể bỏ chặn thành viên. Vui lòng thử lại sau.",
+    blocking: "Đang thêm vào danh sách chặn...",
+    member_blocked: "Đã chặn thành viên thành công",
+    cannot_block: "Không thể chặn thành viên",
+    block_error: "Không thể chặn thành viên. Vui lòng thử lại sau.",
+    no_permission: "Bạn không có quyền",
+
+    // Owner/Co-owner management
+    
+    delete: "Xóa",
+    no_deputy: "Chưa có phó nhóm",
+    
+    transfer_owner: "Chuyển quyền trưởng nhóm",
+    note: "Lưu ý",
+
+    // Add co-owner modal
+    adjust_deputy: "Điều chỉnh phó nhóm",
+    search_member: "Tìm kiếm thành viên",
+    no_member_found: "Không tìm thấy thành viên",
+    
+
+    // Transfer owner modal
+    transfer_owner_title: "Chuyển quyền trưởng nhóm",
+    transfer_owner_warning:
+      "Sau khi chuyển quyền trưởng nhóm, bạn sẽ trở thành thành viên thường và không thể hoàn tác thao tác này.",
+    transfer_success_title: "Chuyển quyền thành công",
+    transfer_success_message:
+      'Bạn đã chuyển quyền trưởng nhóm thành công và hiện là thành viên thường. Bạn có thể rời nhóm bằng cách nhấn vào "Rời nhóm" ở cuối trang.',
+    
   },
   en: {
     settings: "Settings",
@@ -741,22 +816,21 @@ const translations = {
     understood: "Understood",
 
     // ChatInfo translations
-    group_info: "Group Information",
-    conversation_info: "Conversation Information",
+    
     mute_notifications: "Mute Notifications",
     pin_chat: "Pin Conversation",
-    add_member: "Add Member",
+    
     manage_group: "Manage Group",
-    create_group: "Create Group",
+    
     group_members: "Group Members",
     group_invitation_link: "Group Invitation Link",
     media: "Images/Videos",
     files: "Files",
     links: "Links",
     privacy_settings: "Privacy Settings",
-    report: "Report",
+    
     delete_chat_history: "Delete Chat History",
-    leave_group: "Leave Group",
+    
     confirm_delete_chat:
       "Are you sure you want to delete the entire chat history? This action cannot be undone.",
     confirm_leave_group: "Are you sure you want to leave this group?",
@@ -782,6 +856,82 @@ const translations = {
     reminder_list: "Reminder List",
     group_chat: "Group Chat",
     online: "Online",
+
+    // GroupManagement translations
+    allow_group_members: "Allow group members to:",
+    change_name_avatar: "Change group name & avatar",
+    pin_messages: "Pin messages, notes, and polls to the top",
+    create_notes: "Create notes and reminders",
+    create_polls: "Create polls",
+    send_messages: "Send messages",
+    approval_mode: "New member approval mode",
+    highlight_admin: "Highlight messages from owner/deputies",
+    allow_history: "Allow new members to read recent messages",
+    allow_invitation_link: "Allow invitation links",
+    block_from_group: "Block from group",
+    owner_deputy: "Owner & Deputies",
+    disband_group: "Disband group",
+
+    // BlockedMembersList translations
+    block_from_group_title: "Block from Group",
+    block_explanation:
+      "Blocked people cannot rejoin the group unless unblocked or added back by the owner or deputy.",
+    add_to_block_list: "Add to Block List",
+    blocked_members: "Blocked Members",
+    no_blocked_members: "No blocked members",
+    
+    block: "Block",
+    search_members: "Search members...",
+    add_to_block_list_title: "Add to Block List",
+    no_members_found: "No members found",
+
+    // GroupManagement Modal translations
+    disband_group_title: "Disband Group",
+    disband_group_confirm:
+      "Are you sure you want to disband the group? All members will be removed and this action cannot be undone.",
+    disband: "Disband",
+    
+    disbanding_group: "Disbanding group...",
+    success: "Success",
+    group_disbanded_success: "Group disbanded successfully.",
+    error: "Error",
+    cannot_disband_group: "Cannot disband group. Please try again.",
+
+    // Unblock modal
+    unblock_member_title: "Unblock Member",
+    unblock_member_confirm: "Are you sure you want to unblock this member?",
+    unblocking: "Unblocking member...",
+    member_unblocked: "Member unblocked successfully",
+    cannot_unblock: "Cannot unblock member",
+    unblock_error: "Cannot unblock member. Please try again later.",
+    blocking: "Adding to block list...",
+    member_blocked: "Member blocked successfully",
+    cannot_block: "Cannot block member",
+    block_error: "Cannot block member. Please try again later.",
+    no_permission: "You don't have permission",
+
+    // Owner/Co-owner management
+    
+    delete: "Delete",
+    no_deputy: "No deputies yet",
+    
+    transfer_owner: "Transfer ownership",
+    note: "Note",
+
+    // Add co-owner modal
+    adjust_deputy: "Adjust Deputy",
+    search_member: "Search members",
+    no_member_found: "No members found",
+    
+
+    // Transfer owner modal
+    transfer_owner_title: "Transfer Ownership",
+    transfer_owner_warning:
+      "Note: After transferring ownership, you will become a regular member and cannot undo this action.",
+    transfer_success_title: "Transfer Successful",
+    transfer_success_message:
+      'You have successfully transferred group ownership and are now a regular member. You can leave the group by clicking "Leave Group" at the bottom of the page.',
+    
   },
 };
 
