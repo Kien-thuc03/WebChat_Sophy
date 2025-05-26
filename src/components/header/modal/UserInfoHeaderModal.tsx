@@ -18,6 +18,7 @@ import {
 } from "../../../api/API";
 import socketService from "../../../services/socketService";
 import { Conversation } from "../../../features/chat/types/conversationTypes";
+import { useLanguage } from "../../../features/auth/context/LanguageContext";
 
 interface UnfriendEventData {
   userId?: string;
@@ -105,26 +106,42 @@ const SendFriendRequestModal: React.FC<SendFriendRequestModalProps> = ({
   senderFullname,
   onSendSuccess,
 }) => {
+  const { t, language } = useLanguage();
   const effectiveSenderName = senderFullname || "Người dùng";
-  const defaultMessage = `Xin chào, mình là ${effectiveSenderName}. Kết bạn với mình nhé!`;
+  const defaultMessage = t.friend_request_template
+    ? t.friend_request_template.replace("{0}", effectiveSenderName)
+    : `Xin chào, mình là ${effectiveSenderName}. Kết bạn với mình nhé!`;
   const [messageText, setMessageText] = useState<string>(defaultMessage);
   const [blockDiary, setBlockDiary] = useState<boolean>(false);
   const [isSending, setIsSending] = useState<boolean>(false);
 
   useEffect(() => {
-    setMessageText(defaultMessage);
-  }, [senderFullname]);
+    setMessageText(
+      t.friend_request_template
+        ? t.friend_request_template.replace(
+            "{0}",
+            senderFullname || "Người dùng"
+          )
+        : `Xin chào, mình là ${senderFullname || "Người dùng"}. Kết bạn với mình nhé!`
+    );
+  }, [senderFullname, t, language]);
 
   const handleSend = async () => {
     setIsSending(true);
     try {
       await sendFriendRequest(receiverId, messageText);
-      message.success("Đã gửi yêu cầu kết bạn");
+      message.success(
+        t.friend_request_sent_success || "Đã gửi yêu cầu kết bạn"
+      );
       onSendSuccess();
       onCancel();
     } catch (error: unknown) {
       const err = error as { message?: string };
-      message.error(err.message || "Không thể gửi yêu cầu kết bạn");
+      message.error(
+        err.message ||
+          t.cannot_send_friend_request ||
+          "Không thể gửi yêu cầu kết bạn"
+      );
     } finally {
       setIsSending(false);
     }
@@ -144,13 +161,15 @@ const SendFriendRequestModal: React.FC<SendFriendRequestModalProps> = ({
       title={null}
       footer={
         <div className="flex justify-end gap-2">
-          <Button onClick={onCancel}>Thông tin</Button>
+          <Button onClick={onCancel}>
+            {t.back_to_info_button || "Thông tin"}
+          </Button>
           <Button
             type="primary"
             onClick={handleSend}
             loading={isSending}
             disabled={messageText.trim().length === 0}>
-            Kết bạn
+            {t.add_friend_button || "Kết bạn"}
           </Button>
         </div>
       }
@@ -164,10 +183,12 @@ const SendFriendRequestModal: React.FC<SendFriendRequestModalProps> = ({
           className="mb-2"
         />
         <div className="text-right text-gray-500 mb-4">
-          {messageText.length}/150 ký tự
+          {messageText.length}/150 {t.character_count || "ký tự"}
         </div>
         <div className="flex items-center justify-between">
-          <span>Chặn người này xem nhật ký của tôi</span>
+          <span>
+            {t.block_diary_option || "Chặn người này xem nhật ký của tôi"}
+          </span>
           <Switch checked={blockDiary} onChange={setBlockDiary} />
         </div>
       </div>
@@ -192,6 +213,7 @@ const UserInfoHeaderModal: React.FC<UserInfoHeaderModalProps> = ({
   onReject,
   onCancelRequest,
 }) => {
+  const { t, language } = useLanguage();
   const [randomImageId, setRandomImageId] = useState<number>(1);
   const [hasSentFriendRequest, setHasSentFriendRequest] =
     useState<boolean>(false);
@@ -209,6 +231,11 @@ const UserInfoHeaderModal: React.FC<UserInfoHeaderModalProps> = ({
   const [currentUserFullname, setCurrentUserFullname] =
     useState<string>("Người dùng");
   const [isMessageLoading, setIsMessageLoading] = useState<boolean>(false);
+
+  // Effect for language changes
+  useEffect(() => {
+    // Re-render component when language changes
+  }, [language]);
 
   // Helper function để check trạng thái yêu cầu kết bạn - định nghĩa ngoài useEffect
   const refreshStatus = async () => {
@@ -483,7 +510,9 @@ const UserInfoHeaderModal: React.FC<UserInfoHeaderModalProps> = ({
   // Handle accept friend request
   const handleAcceptFriendRequest = async () => {
     if (!pendingRequestId) {
-      message.error("Không tìm thấy yêu cầu kết bạn");
+      message.error(
+        t.friend_request_id_not_found || "Không tìm thấy yêu cầu kết bạn"
+      );
       return;
     }
 
@@ -491,7 +520,9 @@ const UserInfoHeaderModal: React.FC<UserInfoHeaderModalProps> = ({
       console.log("Accepting friend request ID:", pendingRequestId);
       await acceptFriendRequest(pendingRequestId);
       console.log("Friend request accepted successfully");
-      message.success("Đã chấp nhận lời mời kết bạn");
+      message.success(
+        t.accepted_friend_request || "Đã chấp nhận lời mời kết bạn"
+      );
 
       // ĐỌC KỸ: FORCE cập nhật trạng thái trực tiếp, không dựa vào refreshStatus
       // Đặt trạng thái direct UI, giống như cách RequestList làm
@@ -512,14 +543,20 @@ const UserInfoHeaderModal: React.FC<UserInfoHeaderModalProps> = ({
     } catch (err: unknown) {
       const error = err as Error;
       console.error("Error accepting friend request:", error);
-      message.error(error.message || "Không thể chấp nhận lời mời kết bạn");
+      message.error(
+        error.message ||
+          t.accept_friend_request_error ||
+          "Không thể chấp nhận lời mời kết bạn"
+      );
     }
   };
 
   // Handle reject friend request
   const handleRejectFriendRequest = async () => {
     if (!pendingRequestId) {
-      message.error("Không tìm thấy yêu cầu kết bạn");
+      message.error(
+        t.friend_request_id_not_found || "Không tìm thấy yêu cầu kết bạn"
+      );
       return;
     }
 
@@ -527,7 +564,9 @@ const UserInfoHeaderModal: React.FC<UserInfoHeaderModalProps> = ({
       console.log("Rejecting friend request ID:", pendingRequestId);
       await rejectFriendRequest(pendingRequestId);
       console.log("Friend request rejected successfully");
-      message.success("Đã từ chối lời mời kết bạn");
+      message.success(
+        t.rejected_friend_request || "Đã từ chối lời mời kết bạn"
+      );
 
       // Update state directly
       setHasPendingRequest(false);
@@ -572,14 +611,18 @@ const UserInfoHeaderModal: React.FC<UserInfoHeaderModalProps> = ({
     } catch (err: unknown) {
       const error = err as Error;
       console.error("Error rejecting friend request:", error);
-      message.error(error.message || "Không thể từ chối lời mời kết bạn");
+      message.error(
+        error.message ||
+          t.decline_friend_request_error ||
+          "Không thể từ chối lời mời kết bạn"
+      );
     }
   };
 
   // Handle remove friend
   const handleRemoveFriend = async () => {
     if (!searchResult) {
-      message.error("Không tìm thấy thông tin người dùng");
+      message.error(t.user_not_found || "Không tìm thấy thông tin người dùng");
       return;
     }
 
@@ -587,7 +630,7 @@ const UserInfoHeaderModal: React.FC<UserInfoHeaderModalProps> = ({
       console.log("Removing friend with user ID:", searchResult.userId);
       await removeFriend(searchResult.userId);
       console.log("Friend removed successfully");
-      message.success("Đã xóa bạn thành công");
+      message.success(t.friend_removed || "Đã xóa bạn thành công");
 
       // FORCE cập nhật UI ngay lập tức, không đợi server
       setIsFriendState(false);
@@ -610,14 +653,19 @@ const UserInfoHeaderModal: React.FC<UserInfoHeaderModalProps> = ({
     } catch (error: unknown) {
       const err = error as Error;
       console.error("Error removing friend:", err);
-      message.error(err.message || "Không thể xóa bạn");
+      message.error(
+        err.message || t.remove_friend_error || "Không thể xóa bạn"
+      );
     }
   };
 
   // Handle cancel friend request
   const handleCancelFriendRequest = async () => {
     if (!friendRequestId) {
-      message.error("Không tìm thấy yêu cầu kết bạn để thu hồi");
+      message.error(
+        t.friend_request_id_not_found ||
+          "Không tìm thấy yêu cầu kết bạn để thu hồi"
+      );
       return;
     }
 
@@ -625,7 +673,7 @@ const UserInfoHeaderModal: React.FC<UserInfoHeaderModalProps> = ({
       console.log("Cancelling friend request ID:", friendRequestId);
       await cancelFriendRequest(friendRequestId);
       console.log("Friend request cancelled successfully");
-      message.success("Đã hủy yêu cầu kết bạn");
+      message.success(t.cancelled_friend_request || "Đã hủy yêu cầu kết bạn");
 
       // Update state directly
       setHasSentFriendRequest(false);
@@ -665,7 +713,11 @@ const UserInfoHeaderModal: React.FC<UserInfoHeaderModalProps> = ({
     } catch (error: unknown) {
       const err = error as { message?: string };
       console.error("Error cancelling friend request:", err);
-      message.error(err.message || "Thu hồi yêu cầu kết bạn thất bại");
+      message.error(
+        err.message ||
+          t.cancel_friend_request_error ||
+          "Thu hồi yêu cầu kết bạn thất bại"
+      );
     }
   };
 
@@ -771,7 +823,7 @@ const UserInfoHeaderModal: React.FC<UserInfoHeaderModalProps> = ({
                 className="mr-2 cursor-pointer"
                 onClick={onCancel}
               />
-              <span>Thông tin tài khoản</span>
+              <span>{t.account_info_title || "Thông tin tài khoản"}</span>
             </div>
             <CloseOutlined className="cursor-pointer" onClick={onCancel} />
           </div>
@@ -821,13 +873,17 @@ const UserInfoHeaderModal: React.FC<UserInfoHeaderModalProps> = ({
               )}
             </div>
             <div className="mt-6">
-              <h3 className="text-base font-medium">Thông tin cá nhân</h3>
+              <h3 className="text-base font-medium">
+                {t.personal_info || "Thông tin cá nhân"}
+              </h3>
               <div className="mt-2 grid grid-cols-2 gap-y-2">
-                <div className="text-gray-500">Giới tính</div>
-                <div>{searchResult.isMale ? "Nam" : "Nữ"}</div>
-                <div className="text-gray-500">Ngày sinh</div>
+                <div className="text-gray-500">{t.gender || "Giới tính"}</div>
+                <div>
+                  {searchResult.isMale ? t.male || "Nam" : t.female || "Nữ"}
+                </div>
+                <div className="text-gray-500">{t.birthday || "Ngày sinh"}</div>
                 <div>{searchResult.birthday || "**/**/****"}</div>
-                <div className="text-gray-500">Điện thoại</div>
+                <div className="text-gray-500">{t.phone || "Điện thoại"}</div>
                 <div>{searchResult.phone}</div>
               </div>
             </div>
@@ -836,15 +892,15 @@ const UserInfoHeaderModal: React.FC<UserInfoHeaderModalProps> = ({
             <div className="p-4 grid grid-cols-2 gap-4">
               {isCurrentUserProfile ? (
                 <Button type="primary" block onClick={handleUpdate}>
-                  Cập nhật
+                  {t.update || "Cập nhật"}
                 </Button>
               ) : isFromReceivedTab && requestId ? (
                 <>
                   <Button type="primary" block onClick={handleAcceptFromModal}>
-                    Chấp nhận
+                    {t.accept || "Chấp nhận"}
                   </Button>
                   <Button type="default" block onClick={handleRejectFromModal}>
-                    Từ chối
+                    {t.decline || "Từ chối"}
                   </Button>
                 </>
               ) : isFromSentTab && requestId ? (
@@ -856,27 +912,28 @@ const UserInfoHeaderModal: React.FC<UserInfoHeaderModalProps> = ({
                     onClick={() =>
                       onCancelRequest && requestId && onCancelRequest(requestId)
                     }>
-                    Thu hồi yêu cầu kết bạn
+                    {t.cancel_friend_request_button ||
+                      "Thu hồi yêu cầu kết bạn"}
                   </Button>
                   <Button
                     type="primary"
                     block
                     loading={isMessageLoading}
                     onClick={() => handleMessageClick(searchResult.userId)}>
-                    Nhắn tin
+                    {t.message_button || "Nhắn tin"}
                   </Button>
                 </>
               ) : isFriendState ? (
                 <>
                   <Button type="default" block onClick={handleRemoveFriend}>
-                    Hủy kết bạn
+                    {t.unfriend_button || "Hủy kết bạn"}
                   </Button>
                   <Button
                     type="primary"
                     block
                     loading={isMessageLoading}
                     onClick={() => handleMessageClick(searchResult.userId)}>
-                    Nhắn tin
+                    {t.message_button || "Nhắn tin"}
                   </Button>
                 </>
               ) : hasPendingRequest ? (
@@ -885,13 +942,13 @@ const UserInfoHeaderModal: React.FC<UserInfoHeaderModalProps> = ({
                     type="primary"
                     block
                     onClick={handleAcceptFriendRequest}>
-                    Chấp nhận
+                    {t.accept || "Chấp nhận"}
                   </Button>
                   <Button
                     type="default"
                     block
                     onClick={handleRejectFriendRequest}>
-                    Từ chối
+                    {t.decline || "Từ chối"}
                   </Button>
                 </>
               ) : hasSentFriendRequest ? (
@@ -901,14 +958,15 @@ const UserInfoHeaderModal: React.FC<UserInfoHeaderModalProps> = ({
                     danger
                     block
                     onClick={handleCancelFriendRequest}>
-                    Thu hồi yêu cầu kết bạn
+                    {t.cancel_friend_request_button ||
+                      "Thu hồi yêu cầu kết bạn"}
                   </Button>
                   <Button
                     type="primary"
                     block
                     loading={isMessageLoading}
                     onClick={() => handleMessageClick(searchResult.userId)}>
-                    Nhắn tin
+                    {t.message_button || "Nhắn tin"}
                   </Button>
                 </>
               ) : (
@@ -918,14 +976,14 @@ const UserInfoHeaderModal: React.FC<UserInfoHeaderModalProps> = ({
                     block
                     onClick={handleOpenSendFriendModal}
                     loading={isSending}>
-                    Kết bạn
+                    {t.add_friend_button || "Kết bạn"}
                   </Button>
                   <Button
                     type="primary"
                     block
                     loading={isMessageLoading}
                     onClick={() => handleMessageClick(searchResult.userId)}>
-                    Nhắn tin
+                    {t.message_button || "Nhắn tin"}
                   </Button>
                 </>
               )}
