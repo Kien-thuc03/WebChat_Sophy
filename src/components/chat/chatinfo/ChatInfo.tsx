@@ -839,9 +839,9 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
             const memberInfo = userCache[memberId] || localUserCache[memberId];
             const isCurrentUser = memberId === localStorage.getItem("userId");
             // const isOwner = currentConversation.rules?.ownerId === memberId;
-            const isCoOwner =
-              currentConversation.rules?.coOwnerIds?.includes(memberId) ||
-              false;
+            // const isCoOwner =
+            //   currentConversation.rules?.coOwnerIds?.includes(memberId) ||
+            //   false;
             const isSelected = newOwnerSelected === memberId;
 
             // Skip the current user (owner) from the list

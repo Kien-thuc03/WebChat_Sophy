@@ -65,7 +65,7 @@ const MembersList: React.FC<MembersListProps> = ({
   removeCoOwner,
   onRefreshConversationData,
 }) => {
-  const { t, language } = useLanguage(); // Add language context
+  const { t } = useLanguage(); // Add language context
   // Keep local state of conversation to update it after changes
   const [conversation, setConversation] =
     useState<Conversation>(initialConversation);

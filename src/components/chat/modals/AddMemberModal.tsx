@@ -366,16 +366,20 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
               key={key}
               className={`px-4 py-1 rounded-full text-sm ${
                 activeFilter.toLowerCase() ===
-                (t[key] ? t[key].toLowerCase() : defaultText.toLowerCase())
+                (t[key as keyof typeof t]
+                  ? t[key as keyof typeof t].toLowerCase()
+                  : defaultText.toLowerCase())
                   ? "bg-blue-500 text-white"
                   : "bg-gray-200 text-gray-700"
               }`}
               onClick={() =>
                 setActiveFilter(
-                  t[key] ? t[key].toLowerCase() : defaultText.toLowerCase()
+                  t[key as keyof typeof t]
+                    ? t[key as keyof typeof t].toLowerCase()
+                    : defaultText.toLowerCase()
                 )
               }>
-              {t[key] || defaultText}
+              {t[key as keyof typeof t] || defaultText}
             </button>
           ))}
         </div>
