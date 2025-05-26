@@ -69,7 +69,7 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
     updateConversationWithNewMessage,
     updateConversationMembers,
   } = useConversationContext();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [conversation, setConversation] =
     useState<Conversation>(initialConversation);
   const [memberCount, setMemberCount] = useState<number>(
@@ -132,7 +132,7 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
     if (!otherUserInfo || isGroup) return;
     const lastActive = otherUserInfo.lastActive;
     if (!lastActive) {
-      setActivityStatus("Offline");
+      setActivityStatus(t.offline || "Offline");
       setIsOnline(false);
       return;
     }
@@ -142,17 +142,27 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
       (currentTime - lastActiveTime) / (1000 * 60)
     );
     if (minutesDiff < 5) {
-      setActivityStatus("Vừa mới truy cập");
+      setActivityStatus(t.just_now || "Vừa mới truy cập");
       setIsOnline(true);
     } else if (minutesDiff < 60) {
-      setActivityStatus(`Hoạt động ${minutesDiff} phút trước`);
+      setActivityStatus(
+        (t.minutes_ago || "Hoạt động {0} phút trước").replace(
+          "{0}",
+          minutesDiff.toString()
+        )
+      );
       setIsOnline(false);
     } else if (minutesDiff < 24 * 60) {
       const hours = Math.floor(minutesDiff / 60);
-      setActivityStatus(`Hoạt động ${hours} giờ trước`);
+      setActivityStatus(
+        (t.hours_ago || "Hoạt động {0} giờ trước").replace(
+          "{0}",
+          hours.toString()
+        )
+      );
       setIsOnline(false);
     } else {
-      setActivityStatus("Đang ngoại tuyến");
+      setActivityStatus(t.offline || "Đang ngoại tuyến");
       setIsOnline(false);
     }
   };
@@ -180,6 +190,13 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
 
     loadUserData();
   }, [isGroup, otherUserId, userCache, localUserCache]);
+
+  // Add useEffect to update activity status when language changes
+  useEffect(() => {
+    if (otherUserInfo) {
+      checkActivityStatus();
+    }
+  }, [language, otherUserInfo]);
 
   useEffect(() => {
     checkActivityStatus();
