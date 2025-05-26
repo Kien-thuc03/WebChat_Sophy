@@ -15,12 +15,16 @@ const ContactList: React.FC<ContactListProps> = ({
   onSelectOption,
   onSelectConversation,
 }) => {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [selectedOption, setSelectedOption] = useState<string>("friends");
 
   useEffect(() => {
     handleOptionSelect("friends");
   }, []);
+
+  useEffect(() => {
+    // No specific updates needed here, just re-render with new translations
+  }, [language]);
 
   const handleOptionSelect = (option: string) => {
     setSelectedOption(option);
@@ -65,8 +69,7 @@ const ContactList: React.FC<ContactListProps> = ({
             className={`flex items-center px-2 py-3 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer ${
               selectedOption === option.id ? "bg-blue-50 dark:bg-blue-900" : ""
             }`}
-            onClick={() => handleOptionSelect(option.id)}
-          >
+            onClick={() => handleOptionSelect(option.id)}>
             <div className="flex items-center w-full">
               <div className="flex-shrink-0 w-8 flex justify-center">
                 {option.icon}
