@@ -18,7 +18,7 @@ interface GroupListProps {
 }
 
 const GroupList: React.FC<GroupListProps> = ({ onSelectConversation }) => {
-  const { t } = useLanguage(); // Hook để lấy bản dịch ngôn ngữ
+  const { t, language } = useLanguage(); // Hook để lấy bản dịch ngôn ngữ và theo dõi thay đổi ngôn ngữ
   const [groups, setGroups] = useState<Conversation[]>([]); // State lưu danh sách nhóm
   const [filteredGroups, setFilteredGroups] = useState<Conversation[]>([]); // State lưu danh sách nhóm đã lọc
   const [searchText, setSearchText] = useState<string>(""); // State lưu giá trị tìm kiếm
@@ -73,6 +73,13 @@ const GroupList: React.FC<GroupListProps> = ({ onSelectConversation }) => {
       setFilteredGroups(sortGroups(filtered, sortType));
     }
   }, [searchText, groups, sortType]);
+
+  // Re-translate sorted groups when language changes
+  useEffect(() => {
+    if (groups.length > 0) {
+      setFilteredGroups(sortGroups([...groups], sortType));
+    }
+  }, [language]);
 
   // Toggle sort type
   const toggleSortType = () => {
@@ -155,15 +162,18 @@ const GroupList: React.FC<GroupListProps> = ({ onSelectConversation }) => {
   const handleLeaveGroup = async (group: Conversation) => {
     setSelectedGroup(group);
     Modal.confirm({
-      title: "Rời nhóm",
-      content: `Bạn có chắc chắn muốn rời khỏi nhóm "${group.groupName}" không?`,
-      okText: "Rời nhóm",
-      cancelText: "Hủy",
+      title: t.leave_group || "Rời nhóm",
+      content: (
+        t.leave_group_confirm ||
+        'Bạn có chắc chắn muốn rời khỏi nhóm "{0}" không?'
+      ).replace("{0}", group.groupName || ""),
+      okText: t.leave_group || "Rời nhóm",
+      cancelText: t.cancel || "Hủy",
       onOk: async () => {
         try {
           setLeavingGroup(true);
           await leaveGroup(group.conversationId);
-          message.success("Rời nhóm thành công");
+          message.success(t.leave_group_success || "Rời nhóm thành công");
 
           // Cập nhật danh sách nhóm sau khi rời
           setGroups((prevGroups) =>
@@ -174,7 +184,9 @@ const GroupList: React.FC<GroupListProps> = ({ onSelectConversation }) => {
           if (error instanceof Error) {
             message.error(error.message);
           } else {
-            message.error("Không thể rời nhóm. Vui lòng thử lại sau.");
+            message.error(
+              t.leave_group_error || "Không thể rời nhóm. Vui lòng thử lại sau."
+            );
           }
         } finally {
           setLeavingGroup(false);
@@ -187,7 +199,9 @@ const GroupList: React.FC<GroupListProps> = ({ onSelectConversation }) => {
   const getGroupMenu = (group: Conversation) => (
     <Menu>
       <Menu.Item key="category">
-        <div className="font-medium text-gray-700">Phân loại</div>
+        <div className="font-medium text-gray-700">
+          {t.categorize || "Phân loại"}
+        </div>
       </Menu.Item>
       <Menu.Divider />
       <Menu.Item
@@ -196,7 +210,9 @@ const GroupList: React.FC<GroupListProps> = ({ onSelectConversation }) => {
           e.domEvent.stopPropagation();
           handleLeaveGroup(group);
         }}>
-        <div className="text-red-500">Rời cộng đồng</div>
+        <div className="text-red-500">
+          {t.leave_community || "Rời cộng đồng"}
+        </div>
       </Menu.Item>
     </Menu>
   );
@@ -251,12 +267,15 @@ const GroupList: React.FC<GroupListProps> = ({ onSelectConversation }) => {
               {group.groupName}
               {isLeaving && (
                 <span className="ml-2 text-gray-400 text-xs">
-                  (Đang rời...)
+                  {t.leaving || "(Đang rời...)"}
                 </span>
               )}
             </div>
             <div className="text-gray-500 dark:text-gray-400 text-sm">
-              {memberCount} thành viên
+              {(t.members_count || "{0} thành viên").replace(
+                "{0}",
+                memberCount.toString()
+              )}
             </div>
           </div>
         </div>
@@ -289,13 +308,15 @@ const GroupList: React.FC<GroupListProps> = ({ onSelectConversation }) => {
             <SortAscendingOutlined className="text-blue-600" />
             <span className="text-gray-600 dark:text-gray-300">
               {sortType === "activity"
-                ? "Hoạt động (mới -> cũ)"
-                : "Tên (A -> Z)"}
+                ? t.sort_by_activity || "Hoạt động (mới -> cũ)"
+                : t.sort_by_name || "Tên (A -> Z)"}
             </span>
           </button>
           <div className="flex items-center gap-2">
             <FilterOutlined className="text-blue-600" />
-            <span className="text-gray-600 dark:text-gray-300">Tất cả</span>
+            <span className="text-gray-600 dark:text-gray-300">
+              {t.filter_all || "Tất cả"}
+            </span>
           </div>
         </div>
       </div>
@@ -308,8 +329,8 @@ const GroupList: React.FC<GroupListProps> = ({ onSelectConversation }) => {
         renderItem={renderGroup}
         locale={{
           emptyText: searchText
-            ? "Không tìm thấy nhóm phù hợp"
-            : "Bạn chưa tham gia nhóm nào",
+            ? t.no_groups_found || "Không tìm thấy nhóm phù hợp"
+            : t.no_groups_joined || "Bạn chưa tham gia nhóm nào",
         }}
       />
     </div>

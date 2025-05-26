@@ -4,6 +4,8 @@ import {
   UserAddOutlined,
   InfoCircleOutlined,
   PhoneOutlined,
+  SoundOutlined,
+  AudioMutedOutlined,
 } from "@ant-design/icons";
 import { ChatHeaderProps } from "../../features/chat/types/chatTypes";
 import { Conversation } from "../../features/chat/types/conversationTypes";
@@ -14,7 +16,7 @@ import { Avatar } from "../common/Avatar";
 import { useLanguage } from "../../features/auth/context/LanguageContext";
 import { getUserById, getConversationDetail } from "../../api/API";
 import { User } from "../../features/auth/types/authTypes";
-import { Button, Tooltip, message, Modal } from "antd";
+import { Button, Tooltip, message } from "antd";
 import socketService from "../../services/socketService";
 import AddMemberModal from "./modals/AddMemberModal";
 // Import ZegoUIKitPrebuilt để sử dụng các hằng số và kiểu dữ liệu
@@ -48,6 +50,14 @@ interface ExtendedChatHeaderProps extends ChatHeaderProps {
   showInfo?: boolean;
 }
 
+// Thêm định nghĩa interface BeepSound từ zegoService.ts
+interface BeepSound {
+  oscillator: OscillatorNode;
+  gainNode: GainNode;
+  beepInterval: NodeJS.Timeout;
+  audioCtx: AudioContext;
+}
+
 const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
   conversation: initialConversation,
   onInfoClick,
@@ -59,7 +69,7 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
     updateConversationWithNewMessage,
     updateConversationMembers,
   } = useConversationContext();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [conversation, setConversation] =
     useState<Conversation>(initialConversation);
   const [memberCount, setMemberCount] = useState<number>(
@@ -73,6 +83,7 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
     useState<boolean>(false);
   const [isZIMInitialized, setIsZIMInitialized] = useState<boolean>(false);
   const [observer, setObserver] = useState<MutationObserver | null>(null);
+  const [isSoundEnabled, setIsSoundEnabled] = useState<boolean>(true);
 
   // Get the most up-to-date conversation data from context
   useEffect(() => {
@@ -121,7 +132,7 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
     if (!otherUserInfo || isGroup) return;
     const lastActive = otherUserInfo.lastActive;
     if (!lastActive) {
-      setActivityStatus("Offline");
+      setActivityStatus(t.offline || "Offline");
       setIsOnline(false);
       return;
     }
@@ -131,17 +142,27 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
       (currentTime - lastActiveTime) / (1000 * 60)
     );
     if (minutesDiff < 5) {
-      setActivityStatus("Vừa mới truy cập");
+      setActivityStatus(t.just_now || "Vừa mới truy cập");
       setIsOnline(true);
     } else if (minutesDiff < 60) {
-      setActivityStatus(`Hoạt động ${minutesDiff} phút trước`);
+      setActivityStatus(
+        (t.minutes_ago || "Hoạt động {0} phút trước").replace(
+          "{0}",
+          minutesDiff.toString()
+        )
+      );
       setIsOnline(false);
     } else if (minutesDiff < 24 * 60) {
       const hours = Math.floor(minutesDiff / 60);
-      setActivityStatus(`Hoạt động ${hours} giờ trước`);
+      setActivityStatus(
+        (t.hours_ago || "Hoạt động {0} giờ trước").replace(
+          "{0}",
+          hours.toString()
+        )
+      );
       setIsOnline(false);
     } else {
-      setActivityStatus("Đang ngoại tuyến");
+      setActivityStatus(t.offline || "Đang ngoại tuyến");
       setIsOnline(false);
     }
   };
@@ -169,6 +190,13 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
 
     loadUserData();
   }, [isGroup, otherUserId, userCache, localUserCache]);
+
+  // Add useEffect to update activity status when language changes
+  useEffect(() => {
+    if (otherUserInfo) {
+      checkActivityStatus();
+    }
+  }, [language, otherUserInfo]);
 
   useEffect(() => {
     checkActivityStatus();
@@ -383,13 +411,118 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
     }
   }, [isCallModalVisible]);
 
+  // Thêm useEffect mới để kiểm tra khi giao diện ZEGO biến mất (cuộc gọi kết thúc)
+  useEffect(() => {
+    // Chỉ thiết lập observer khi đang có cuộc gọi
+    if (isCallingInProgress) {
+      const callEndObserver = new MutationObserver(() => {
+        // Kiểm tra xem giao diện ZEGO có còn tồn tại không
+        const zegoElements = document.querySelectorAll('[class*="zego"]');
+
+        // Nếu không còn giao diện ZEGO và trước đó có cuộc gọi đang diễn ra
+        if (zegoElements.length === 0 && isCallingInProgress) {
+          console.log("Phát hiện cuộc gọi đã kết thúc, reset trạng thái");
+          setIsCallingInProgress(false);
+        }
+      });
+
+      // Bắt đầu quan sát thay đổi trên body
+      callEndObserver.observe(document.body, {
+        childList: true,
+        subtree: true,
+      });
+
+      // Thêm timeout để đảm bảo reset trạng thái nếu không có callback nào được gọi
+      const safetyTimeout = setTimeout(() => {
+        // Kiểm tra lại xem cuộc gọi có đang diễn ra không và thiết lập lại trạng thái
+        const zegoElements = document.querySelectorAll('[class*="zego"]');
+        if (zegoElements.length === 0 && isCallingInProgress) {
+          console.log("Safety timeout: Reset trạng thái cuộc gọi");
+          setIsCallingInProgress(false);
+        }
+      }, 60000); // Sau 60 giây, kiểm tra và reset nếu cần
+
+      return () => {
+        callEndObserver.disconnect();
+        clearTimeout(safetyTimeout);
+      };
+    }
+  }, [isCallingInProgress]);
+
+  // Thêm hàm để bật/tắt âm thanh
+  const toggleSound = () => {
+    // Lấy tất cả các phần tử âm thanh
+    const audioElements = [];
+    if (window.incomingCallAudio) audioElements.push(window.incomingCallAudio);
+    if (window.outgoingCallAudio) audioElements.push(window.outgoingCallAudio);
+    if (window.callAudioElements)
+      audioElements.push(...window.callAudioElements);
+
+    // Thiết lập âm lượng dựa trên trạng thái mới
+    const newSoundState = !isSoundEnabled;
+    setIsSoundEnabled(newSoundState);
+
+    // Áp dụng cài đặt âm lượng cho tất cả phần tử âm thanh
+    audioElements.forEach((audio) => {
+      if (audio instanceof HTMLAudioElement) {
+        audio.volume = newSoundState ? 1.0 : 0.0;
+      } else if ((audio as unknown as BeepSound)?.gainNode) {
+        // Xử lý cho BeepSound
+        const beepSound = audio as unknown as BeepSound;
+        beepSound.gainNode.gain.value = newSoundState ? 0.5 : 0.0;
+      }
+    });
+
+    // Lưu cài đặt vào localStorage để duy trì qua các phiên
+    localStorage.setItem("callSoundEnabled", newSoundState.toString());
+
+    // Hiển thị thông báo
+    message.info(
+      newSoundState
+        ? t.unmute_call_sound || "Bật âm thanh cuộc gọi"
+        : t.mute_call_sound || "Tắt âm thanh cuộc gọi"
+    );
+  };
+
+  // Khôi phục cài đặt âm thanh khi component mount
+  useEffect(() => {
+    const savedSoundState = localStorage.getItem("callSoundEnabled");
+    if (savedSoundState !== null) {
+      setIsSoundEnabled(savedSoundState === "true");
+    }
+  }, []);
+
   // Xử lý khi người dùng nhấn nút gọi điện thoại
   const handleVoiceCall = async () => {
     if (!zegoInstance) {
-      message.error(
-        "Không thể kết nối dịch vụ gọi điện. Vui lòng thử lại sau."
-      );
-      return;
+      // Thử lấy instance từ zegoService
+      const userId = localStorage.getItem("userId") || "";
+      const userName = localStorage.getItem("fullname") || "User";
+
+      try {
+        // Thử khởi tạo một zegoInstance mới nếu cần
+        message.loading("Đang kết nối dịch vụ gọi điện...");
+        const zp = await zegoService.initializeZego(userId, userName, {
+          onZIMInitialized: () => setIsZIMInitialized(true),
+          onCallModalVisibilityChange: (visible) =>
+            setIsCallModalVisible(visible),
+          onCallingProgressChange: (inProgress) =>
+            setIsCallingInProgress(inProgress),
+        });
+
+        if (zp) {
+          setZegoInstance(zp);
+          message.success("Kết nối dịch vụ gọi điện thành công");
+        } else {
+          message.error("Không thể kết nối dịch vụ gọi điện.");
+          return;
+        }
+      } catch {
+        message.error(
+          "Không thể kết nối dịch vụ gọi điện. Vui lòng thử lại sau."
+        );
+        return;
+      }
     }
 
     // Kiểm tra nếu đang có cuộc gọi
@@ -398,52 +531,165 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
       return;
     }
 
-    if (isGroup) {
-      message.warning("Hiện tại chỉ hỗ trợ gọi điện 1:1");
-      return;
-    }
-
-    if (!otherUserId || !otherUserInfo) {
-      message.error("Không thể xác định người nhận cuộc gọi");
-      return;
-    }
-
-    // Đảm bảo ZIM đã khởi tạo thành công
-    if (!isZIMInitialized) {
-      message.loading("Đang khởi tạo dịch vụ gọi điện...");
-      // Đợi thêm một chút để ZIM khởi tạo xong
-      await new Promise((resolve) => setTimeout(resolve, 3000));
-    }
-
+    // Trước khi gọi, thử giải phóng các thiết bị audio và video
     try {
-      setIsCallingInProgress(true);
+      // Giải phóng các thiết bị media trước khi bắt đầu cuộc gọi mới
+      await zegoService.releaseMediaDevices();
 
-      // Sử dụng zegoService để gửi lời mời gọi điện
-      await zegoService.sendCallInvitation(
-        zegoInstance,
-        otherUserId,
-        otherUserInfo.fullname || "User",
-        false, // voice call, not video
-        {
-          onCallModalVisibilityChange: (visible) =>
-            setIsCallModalVisible(visible),
-          onCallingProgressChange: (inProgress) =>
-            setIsCallingInProgress(inProgress),
+      // Yêu cầu quyền truy cập vào microphone và camera
+      await zegoService.requestMediaPermissions();
+    } catch (error) {
+      console.warn("Cảnh báo kiểm tra thiết bị:", error);
+      // Tiếp tục mặc dù có lỗi, vì Zego sẽ tự xử lý yêu cầu quyền
+    }
+
+    // Xử lý khác nhau cho cuộc gọi nhóm và cuộc gọi 1:1
+    if (isGroup) {
+      // Xử lý cuộc gọi nhóm
+      const memberIds = conversation.groupMembers || [];
+      if (memberIds.length <= 1) {
+        message.warning("Không có đủ thành viên trong nhóm để gọi.");
+        return;
+      }
+
+      // Lọc ra không bao gồm người dùng hiện tại
+      const otherMemberIds = memberIds.filter((id) => id !== currentUserId);
+      if (otherMemberIds.length === 0) {
+        message.warning("Không có thành viên khác trong nhóm để gọi.");
+        return;
+      }
+
+      // Chỉ gọi tối đa 20 thành viên (giới hạn của Zego Cloud)
+      const limitedMemberIds = otherMemberIds.slice(0, 20);
+
+      // Tạo mảng tên hiển thị cho các thành viên
+      const memberNames = limitedMemberIds.map((id) => {
+        const member = userCache[id] || localUserCache[id];
+        return member?.fullname || "Thành viên";
+      });
+
+      try {
+        setIsCallingInProgress(true);
+
+        // Đảm bảo ZIM đã khởi tạo thành công
+        if (!isZIMInitialized) {
+          message.loading("Đang khởi tạo dịch vụ gọi điện...");
+          // Đợi thêm một chút để ZIM khởi tạo xong
+          await new Promise((resolve) => setTimeout(resolve, 3000));
         }
-      );
-    } catch (err) {
-      console.error("Error making voice call:", err);
-      setIsCallingInProgress(false);
+
+        // Ensure zegoInstance is not null
+        if (!zegoInstance) {
+          message.error(
+            "Không thể kết nối dịch vụ gọi điện. Vui lòng thử lại sau."
+          );
+          setIsCallingInProgress(false);
+          return;
+        }
+
+        // Sử dụng zegoService để gửi lời mời gọi điện nhóm
+        const roomID = `group_${conversation.conversationId}_${Date.now()}`;
+        await zegoService.sendGroupCallInvitation(
+          zegoInstance,
+          limitedMemberIds,
+          memberNames,
+          roomID,
+          false, // voice call, not video
+          {
+            onCallModalVisibilityChange: (visible) =>
+              setIsCallModalVisible(visible),
+            onCallingProgressChange: (inProgress) =>
+              setIsCallingInProgress(inProgress),
+          }
+        );
+
+        message.info(
+          `Đang gọi điện cho ${limitedMemberIds.length} thành viên...`
+        );
+      } catch (err) {
+        console.error("Error making group voice call:", err);
+        setIsCallingInProgress(false);
+        message.error(
+          "Không thể thực hiện cuộc gọi nhóm. Vui lòng thử lại sau."
+        );
+      }
+    } else {
+      // Xử lý cuộc gọi 1:1 (mã hiện tại)
+      if (!otherUserId || !otherUserInfo) {
+        message.error("Không thể xác định người nhận cuộc gọi");
+        return;
+      }
+
+      // Đảm bảo ZIM đã khởi tạo thành công
+      if (!isZIMInitialized) {
+        message.loading("Đang khởi tạo dịch vụ gọi điện...");
+        // Đợi thêm một chút để ZIM khởi tạo xong
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+      }
+
+      try {
+        setIsCallingInProgress(true);
+
+        // Ensure zegoInstance is not null
+        if (!zegoInstance) {
+          message.error(
+            "Không thể kết nối dịch vụ gọi điện. Vui lòng thử lại sau."
+          );
+          setIsCallingInProgress(false);
+          return;
+        }
+
+        // Sử dụng zegoService để gửi lời mời gọi điện
+        await zegoService.sendCallInvitation(
+          zegoInstance,
+          otherUserId,
+          otherUserInfo.fullname || "User",
+          false, // voice call, not video
+          {
+            onCallModalVisibilityChange: (visible) =>
+              setIsCallModalVisible(visible),
+            onCallingProgressChange: (inProgress) =>
+              setIsCallingInProgress(inProgress),
+          }
+        );
+      } catch (err) {
+        console.error("Error making voice call:", err);
+        setIsCallingInProgress(false);
+      }
     }
   };
 
   // Xử lý khi người dùng nhấn nút gọi video
   const handleVideoCall = async () => {
     if (!zegoInstance) {
-      message.error(
-        "Không thể kết nối dịch vụ gọi điện. Vui lòng thử lại sau."
-      );
-      return;
+      // Thử lấy instance từ zegoService
+      const userId = localStorage.getItem("userId") || "";
+      const userName = localStorage.getItem("fullname") || "User";
+
+      try {
+        // Thử khởi tạo một zegoInstance mới nếu cần
+        message.loading("Đang kết nối dịch vụ gọi điện...");
+        const zp = await zegoService.initializeZego(userId, userName, {
+          onZIMInitialized: () => setIsZIMInitialized(true),
+          onCallModalVisibilityChange: (visible) =>
+            setIsCallModalVisible(visible),
+          onCallingProgressChange: (inProgress) =>
+            setIsCallingInProgress(inProgress),
+        });
+
+        if (zp) {
+          setZegoInstance(zp);
+          message.success("Kết nối dịch vụ gọi điện thành công");
+        } else {
+          message.error("Không thể kết nối dịch vụ gọi điện.");
+          return;
+        }
+      } catch {
+        message.error(
+          "Không thể kết nối dịch vụ gọi điện. Vui lòng thử lại sau."
+        );
+        return;
+      }
     }
 
     // Kiểm tra nếu đang có cuộc gọi
@@ -452,50 +698,132 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
       return;
     }
 
-    if (isGroup) {
-      message.warning("Hiện tại chỉ hỗ trợ gọi video 1:1");
-      return;
-    }
-
-    if (!otherUserId || !otherUserInfo) {
-      message.error("Không thể xác định người nhận cuộc gọi");
-      return;
-    }
-
-    // Đảm bảo ZIM đã khởi tạo thành công
-    if (!isZIMInitialized) {
-      message.loading("Đang khởi tạo dịch vụ gọi điện...");
-      // Đợi thêm một chút để ZIM khởi tạo xong
-      await new Promise((resolve) => setTimeout(resolve, 3000));
-    }
-
+    // Trước khi gọi, thử giải phóng các thiết bị audio và video
     try {
-      setIsCallingInProgress(true);
+      // Giải phóng các thiết bị media trước khi bắt đầu cuộc gọi mới
+      await zegoService.releaseMediaDevices();
 
-      // Sử dụng zegoService để gửi lời mời gọi video
-      await zegoService.sendCallInvitation(
-        zegoInstance,
-        otherUserId,
-        otherUserInfo.fullname || "User",
-        true, // video call
-        {
-          onCallModalVisibilityChange: (visible) =>
-            setIsCallModalVisible(visible),
-          onCallingProgressChange: (inProgress) =>
-            setIsCallingInProgress(inProgress),
-        }
-      );
-    } catch (err) {
-      console.error("Error making video call:", err);
-      setIsCallingInProgress(false);
+      // Yêu cầu quyền truy cập vào microphone và camera
+      await zegoService.requestMediaPermissions();
+    } catch (error) {
+      console.warn("Cảnh báo kiểm tra thiết bị:", error);
+      // Tiếp tục mặc dù có lỗi, vì Zego sẽ tự xử lý yêu cầu quyền
     }
-  };
 
-  // Thay đổi hàm kết thúc cuộc gọi trong Modal
-  const endCall = () => {
-    setIsCallModalVisible(false);
-    setIsCallingInProgress(false);
-    zegoService.endCall(zegoInstance);
+    // Xử lý khác nhau cho cuộc gọi nhóm và cuộc gọi 1:1
+    if (isGroup) {
+      // Xử lý cuộc gọi nhóm video
+      const memberIds = conversation.groupMembers || [];
+      if (memberIds.length <= 1) {
+        message.warning("Không có đủ thành viên trong nhóm để gọi.");
+        return;
+      }
+
+      // Lọc ra không bao gồm người dùng hiện tại
+      const otherMemberIds = memberIds.filter((id) => id !== currentUserId);
+      if (otherMemberIds.length === 0) {
+        message.warning("Không có thành viên khác trong nhóm để gọi.");
+        return;
+      }
+
+      // Giới hạn số người tham gia (Zego Cloud hỗ trợ tối đa 20 người)
+      const limitedMemberIds = otherMemberIds.slice(0, 20);
+
+      // Tạo mảng tên hiển thị cho các thành viên
+      const memberNames = limitedMemberIds.map((id) => {
+        const member = userCache[id] || localUserCache[id];
+        return member?.fullname || "Thành viên";
+      });
+
+      try {
+        setIsCallingInProgress(true);
+
+        // Đảm bảo ZIM đã khởi tạo thành công
+        if (!isZIMInitialized) {
+          message.loading("Đang khởi tạo dịch vụ gọi điện...");
+          // Đợi thêm một chút để ZIM khởi tạo xong
+          await new Promise((resolve) => setTimeout(resolve, 3000));
+        }
+
+        // Ensure zegoInstance is not null
+        if (!zegoInstance) {
+          message.error(
+            "Không thể kết nối dịch vụ gọi điện. Vui lòng thử lại sau."
+          );
+          setIsCallingInProgress(false);
+          return;
+        }
+
+        // Sử dụng phương thức gọi nhóm với roomID độc quyền
+        const roomID = `video_group_${conversation.conversationId}_${Date.now()}`;
+        await zegoService.sendGroupCallInvitation(
+          zegoInstance,
+          limitedMemberIds,
+          memberNames,
+          roomID,
+          true, // video call
+          {
+            onCallModalVisibilityChange: (visible) =>
+              setIsCallModalVisible(visible),
+            onCallingProgressChange: (inProgress) =>
+              setIsCallingInProgress(inProgress),
+          }
+        );
+
+        message.info(
+          `Đang gọi video cho ${limitedMemberIds.length} thành viên...`
+        );
+      } catch (err) {
+        console.error("Error making group video call:", err);
+        setIsCallingInProgress(false);
+        message.error(
+          "Không thể thực hiện cuộc gọi video nhóm. Vui lòng thử lại sau."
+        );
+      }
+    } else {
+      // Xử lý cuộc gọi video 1:1 (mã hiện tại)
+      if (!otherUserId || !otherUserInfo) {
+        message.error("Không thể xác định người nhận cuộc gọi");
+        return;
+      }
+
+      // Đảm bảo ZIM đã khởi tạo thành công
+      if (!isZIMInitialized) {
+        message.loading("Đang khởi tạo dịch vụ gọi điện...");
+        // Đợi thêm một chút để ZIM khởi tạo xong
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+      }
+
+      try {
+        setIsCallingInProgress(true);
+
+        // Ensure zegoInstance is not null
+        if (!zegoInstance) {
+          message.error(
+            "Không thể kết nối dịch vụ gọi điện. Vui lòng thử lại sau."
+          );
+          setIsCallingInProgress(false);
+          return;
+        }
+
+        // Sử dụng zegoService để gửi lời mời gọi video
+        await zegoService.sendCallInvitation(
+          zegoInstance,
+          otherUserId,
+          otherUserInfo.fullname || "User",
+          true, // video call
+          {
+            onCallModalVisibilityChange: (visible) =>
+              setIsCallModalVisible(visible),
+            onCallingProgressChange: (inProgress) =>
+              setIsCallingInProgress(inProgress),
+          }
+        );
+      } catch (err) {
+        console.error("Error making video call:", err);
+        setIsCallingInProgress(false);
+      }
+    }
   };
 
   return (
@@ -557,28 +885,49 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
         </div>
       </div>
       <div className="flex items-center space-x-2">
+        <Tooltip
+          title={
+            isSoundEnabled
+              ? t.mute_call_sound || "Tắt âm thanh cuộc gọi"
+              : t.unmute_call_sound || "Bật âm thanh cuộc gọi"
+          }>
+          <Button
+            type="text"
+            icon={isSoundEnabled ? <SoundOutlined /> : <AudioMutedOutlined />}
+            className="flex items-center justify-center w-10 h-10"
+            onClick={toggleSound}
+          />
+        </Tooltip>
         <button
           className="p-2 rounded-lg hover:bg-gray-100"
           title={t.add_to_community || "Thêm bạn vào cộng đồng"}
           onClick={showAddMemberModal}>
           <UserAddOutlined className="text-xl text-gray-600" />
         </button>
-        <Tooltip title={t.calls || "Gọi thoại"}>
+        <Tooltip
+          title={
+            isGroup ? t.group_audio_call || "Gọi nhóm" : t.calls || "Gọi thoại"
+          }>
           <Button
             type="text"
             icon={<PhoneOutlined />}
             className="flex items-center justify-center w-10 h-10"
             onClick={handleVoiceCall}
-            disabled={isGroup || !zegoInstance || isCallingInProgress}
+            disabled={isCallingInProgress}
           />
         </Tooltip>
-        <Tooltip title={t.video_call || "Gọi video"}>
+        <Tooltip
+          title={
+            isGroup
+              ? t.group_video_call || "Gọi video nhóm"
+              : t.video_call || "Gọi video"
+          }>
           <Button
             type="text"
             icon={<VideoCameraOutlined />}
             className="flex items-center justify-center w-10 h-10"
             onClick={handleVideoCall}
-            disabled={isGroup || !zegoInstance || isCallingInProgress}
+            disabled={isCallingInProgress}
           />
         </Tooltip>
         <Tooltip title={t.conversation_info || "Thông tin hội thoại"}>
@@ -600,44 +949,6 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
         groupMembers={conversation.groupMembers || []}
         refreshConversationData={refreshConversationData}
       />
-
-      {/* Modal cho cuộc gọi đang diễn ra */}
-      {isCallModalVisible && (
-        <Modal
-          title="Cuộc gọi đang diễn ra"
-          open={isCallModalVisible}
-          onCancel={() => {
-            endCall();
-          }}
-          footer={null}
-          width={400}
-          centered>
-          <div className="incoming-call-container">
-            <div className="incoming-call-avatar">
-              <Avatar
-                name={otherUserInfo?.fullname || "User"}
-                avatarUrl={otherUserInfo?.urlavatar}
-                size={80}
-                className="rounded-full"
-              />
-            </div>
-            <div className="incoming-call-info">
-              <h2>{otherUserInfo?.fullname || "Người dùng"}</h2>
-              <p>Đang gọi...</p>
-            </div>
-            <div className="flex justify-center mt-6 space-x-4">
-              <Button
-                type="primary"
-                danger
-                shape="circle"
-                icon={<PhoneOutlined className="rotate-135" />}
-                onClick={endCall}
-                size="large"
-              />
-            </div>
-          </div>
-        </Modal>
-      )}
     </header>
   );
 };

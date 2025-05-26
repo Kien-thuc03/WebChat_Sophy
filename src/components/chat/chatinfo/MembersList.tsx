@@ -22,6 +22,7 @@ import { useNavigate } from "react-router-dom";
 import socketService from "../../../services/socketService";
 import { useConversationContext } from "../../../features/chat/context/ConversationContext";
 import AddMemberModal from "../modals/AddMemberModal";
+import { useLanguage } from "../../../features/auth/context/LanguageContext";
 
 // Define interface for simplified member info
 interface MemberInfo {
@@ -64,6 +65,7 @@ const MembersList: React.FC<MembersListProps> = ({
   removeCoOwner,
   onRefreshConversationData,
 }) => {
+  const { t } = useLanguage(); // Add language context
   // Keep local state of conversation to update it after changes
   const [conversation, setConversation] =
     useState<Conversation>(initialConversation);
@@ -136,48 +138,50 @@ const MembersList: React.FC<MembersListProps> = ({
       if (data.conversationId !== conversation.conversationId) {
         return;
       }
-      
+
       const userId = data.kickedUser.userId;
       const removedById = data.kickedByUser.userId;
-      
+
       // If current user is removed, show notification and go back
       if (userId === currentUserId) {
         // Kiểm tra biến cờ để tránh xử lý nhiều lần
         if (hasBeenRemovedRef.current) {
           return; // Đã xử lý rồi, thoát ngay
         }
-        
+
         // Đánh dấu là đã xử lý
         hasBeenRemovedRef.current = true;
-        
+
         // Đánh dấu cuộc trò chuyện là đã bị xóa khỏi danh sách của người dùng
         updateConversationMembers(conversation.conversationId, userId);
-        
+
         // Đóng modal hoặc panel hiện tại
         onBack();
-        
+
         // Huỷ đăng ký sự kiện sau khi đã xử lý để tránh lặp lại
         socketService.off("userRemovedFromGroup", handleUserRemovedFromGroup);
-        
+
         // Lưu thông tin người kick để hiển thị trong modal
         const kickedByName = data.kickedByUser.fullname;
-        
-        // Đặt hẹn giờ để đảm bảo chuyển hướng diễn ra 
+
+        // Đặt hẹn giờ để đảm bảo chuyển hướng diễn ra
         setTimeout(() => {
           // Trực tiếp chuyển hướng ra trang chính
-          window.location.href = '/main';
-          
+          window.location.href = "/main";
+
           // Hiển thị thông báo dạng modal sau khi đã bắt đầu chuyển trang
           setTimeout(() => {
             modal.error({
-              title: 'Bạn đã bị xóa khỏi nhóm',
-              content: `${kickedByName} đã xóa bạn khỏi nhóm chat này`,
-              okText: 'Đã hiểu',
-              centered: true
+              title: t.user_removed_from_group || "Bạn đã bị xóa khỏi nhóm",
+              content:
+                t.user_removed_from_group_by?.replace("{0}", kickedByName) ||
+                `${kickedByName} đã xóa bạn khỏi nhóm chat này`,
+              okText: t.understood || "Đã hiểu",
+              centered: true,
             });
           }, 100);
         }, 100);
-        
+
         return;
       }
 
@@ -190,13 +194,13 @@ const MembersList: React.FC<MembersListProps> = ({
           groupMembers: updatedMembers,
         };
       });
-      
+
       // Update member count
       setMemberCount((prev) => Math.max(0, prev - 1));
-      
+
       // Update the conversation in context
       updateConversationMembers(conversation.conversationId, userId);
-      
+
       // Add system message
       updateConversationWithNewMessage(conversation.conversationId, {
         type: "system",
@@ -258,7 +262,7 @@ const MembersList: React.FC<MembersListProps> = ({
       }
       socketService.off("userRemovedFromGroup", handleUserRemovedFromGroup);
       socketService.off("userAddedToGroup", handleUserAddedToGroup);
-      
+
       // Reset biến cờ khi unmount
       hasBeenRemovedRef.current = false;
     };
@@ -267,21 +271,24 @@ const MembersList: React.FC<MembersListProps> = ({
     updateConversationMembers,
     updateConversationWithNewMessage,
     onBack,
-    navigate
+    navigate,
   ]);
 
   // Add this function to determine user role from conversation data
-  const determineUserRole = useCallback((conversationData: Conversation): 'owner' | 'co-owner' | 'member' => {
-    const currentUserId = localStorage.getItem('userId') || '';
-    
-    if (conversationData.rules?.ownerId === currentUserId) {
-      return 'owner';
-    } else if (conversationData.rules?.coOwnerIds?.includes(currentUserId)) {
-      return 'co-owner';
-    } else {
-      return 'member';
-    }
-  }, []);
+  const determineUserRole = useCallback(
+    (conversationData: Conversation): "owner" | "co-owner" | "member" => {
+      const currentUserId = localStorage.getItem("userId") || "";
+
+      if (conversationData.rules?.ownerId === currentUserId) {
+        return "owner";
+      } else if (conversationData.rules?.coOwnerIds?.includes(currentUserId)) {
+        return "co-owner";
+      } else {
+        return "member";
+      }
+    },
+    []
+  );
 
   // Register socket event handlers in a dedicated useEffect
   useEffect(() => {
@@ -297,7 +304,7 @@ const MembersList: React.FC<MembersListProps> = ({
       if (data.conversationId !== conversation.conversationId) {
         return;
       }
-      
+
       // If current user left, go back
       if (data.userId === currentUserId) {
         onBack();
@@ -313,13 +320,13 @@ const MembersList: React.FC<MembersListProps> = ({
           groupMembers: updatedMembers,
         };
       });
-      
+
       // Update member count
       setMemberCount((prev) => Math.max(0, prev - 1));
-      
+
       // Update the conversation in context
       updateConversationMembers(conversation.conversationId, data.userId);
-      
+
       // Add system message
       updateConversationWithNewMessage(conversation.conversationId, {
         type: "system",
@@ -341,22 +348,24 @@ const MembersList: React.FC<MembersListProps> = ({
         }
         hasBeenRemovedRef.current = true;
         modal.error({
-          title: 'Nhóm đã bị giải tán',
-          content: 'Nhóm chat này đã bị giải tán bởi người quản trị',
-          okText: 'Đã hiểu',
+          title: t.group_disbanded || "Nhóm đã bị giải tán",
+          content:
+            t.group_disbanded_by_admin ||
+            "Nhóm chat này đã bị giải tán bởi người quản trị",
+          okText: t.understood || "Đã hiểu",
           centered: true,
         });
         // Gọi callback để Dashboard xử lý UI (reset selectedConversation, panel, ...)
-        if (typeof onLeaveGroup === 'function') {
+        if (typeof onLeaveGroup === "function") {
           onLeaveGroup();
-        } else if (typeof onBack === 'function') {
+        } else if (typeof onBack === "function") {
           onBack();
         }
       } catch (error) {
         console.error("Error handling group deletion:", error);
-        if (typeof onLeaveGroup === 'function') {
+        if (typeof onLeaveGroup === "function") {
           onLeaveGroup();
-        } else if (typeof onBack === 'function') {
+        } else if (typeof onBack === "function") {
           onBack();
         }
       }
@@ -393,8 +402,8 @@ const MembersList: React.FC<MembersListProps> = ({
     };
 
     // Handler for when a user is blocked
-    const handleUserBlocked = (data: { 
-      conversationId: string; 
+    const handleUserBlocked = (data: {
+      conversationId: string;
       blockedUserId: string;
       fromCurrentUser?: boolean;
     }) => {
@@ -408,8 +417,8 @@ const MembersList: React.FC<MembersListProps> = ({
     };
 
     // Handler for when a user is unblocked
-    const handleUserUnblocked = (data: { 
-      conversationId: string; 
+    const handleUserUnblocked = (data: {
+      conversationId: string;
       unblockedUserId: string;
       fromCurrentUser?: boolean;
     }) => {
@@ -452,16 +461,18 @@ const MembersList: React.FC<MembersListProps> = ({
     userRole,
     determineUserRole,
     getUserName,
-    onRefreshConversationData
+    onRefreshConversationData,
   ]);
 
   // Update the refreshConversationData function to trigger full re-render
   const refreshConversationData = async () => {
     if (isApiError) return; // Nếu đang lỗi, không gọi lại nữa
     try {
-      if (!conversation.conversationId) return; 
+      if (!conversation.conversationId) return;
       setIsRefreshing(true);
-      const updatedConversation = await getConversationDetail(conversation.conversationId);
+      const updatedConversation = await getConversationDetail(
+        conversation.conversationId
+      );
       if (updatedConversation) {
         setConversation(updatedConversation);
         setIsApiError(false); // Reset error flag on success
@@ -479,7 +490,9 @@ const MembersList: React.FC<MembersListProps> = ({
     } catch (err) {
       setIsApiError(true);
       setIsRefreshing(false);
-      message.error("Không thể lấy chi tiết cuộc trò chuyện. Vui lòng thử lại sau.");
+      message.error(
+        "Không thể lấy chi tiết cuộc trò chuyện. Vui lòng thử lại sau."
+      );
     } finally {
       setIsRefreshing(false);
     }
@@ -492,7 +505,7 @@ const MembersList: React.FC<MembersListProps> = ({
       if (friendsData && Array.isArray(friendsData)) {
         // Extract user IDs from friend list
         const friendIds = friendsData
-          .map((friend) => friend.userId|| "")
+          .map((friend) => friend.userId || "")
           .filter((id) => id);
         setFriendList(friendIds);
       }
@@ -611,20 +624,20 @@ const MembersList: React.FC<MembersListProps> = ({
     try {
       setIsUpdatingRole(true);
       setUpdatingMemberId(memberId);
-      
+
       message.loading({
-        content: "Đang thêm phó nhóm...",
+        content: t.adding_deputy || "Đang thêm phó nhóm...",
         key: "add-co-owner",
       });
 
       // Optimistic update
-      setConversation(prev => ({
+      setConversation((prev) => ({
         ...prev,
         rules: {
           ...prev.rules,
-          ownerId: prev.rules?.ownerId || '',
-          coOwnerIds: [...(prev.rules?.coOwnerIds || []), memberId]
-        }
+          ownerId: prev.rules?.ownerId || "",
+          coOwnerIds: [...(prev.rules?.coOwnerIds || []), memberId],
+        },
       }));
 
       const result = await addCoOwner(
@@ -635,18 +648,19 @@ const MembersList: React.FC<MembersListProps> = ({
 
       if (result) {
         message.success({
-          content: "Đã thêm phó nhóm thành công",
+          content: t.deputy_added || "Đã thêm phó nhóm thành công",
           key: "add-co-owner",
           duration: 2,
         });
         setConversation(result);
-        if (typeof setIsAddMemberModalVisible === 'function') setIsAddMemberModalVisible(false);
-        if (typeof setSelectedMember === 'function') setSelectedMember(null);
+        if (typeof setIsAddMemberModalVisible === "function")
+          setIsAddMemberModalVisible(false);
+        if (typeof setSelectedMember === "function") setSelectedMember(null);
       }
     } catch (err) {
       // Revert optimistic update on error
       setConversation(conversation);
-      message.error("Đã xảy ra lỗi. Vui lòng thử lại sau.");
+      message.error(t.update_error || "Đã xảy ra lỗi. Vui lòng thử lại sau.");
     } finally {
       setIsUpdatingRole(false);
       setUpdatingMemberId(null);
@@ -660,26 +674,27 @@ const MembersList: React.FC<MembersListProps> = ({
     try {
       setIsUpdatingRole(true);
       setUpdatingMemberId(memberId);
-      
+
       message.loading({
-        content: "Đang gỡ quyền phó nhóm...",
+        content: t.removing_deputy || "Đang gỡ quyền phó nhóm...",
         key: "remove-co-owner",
       });
 
       // Optimistic update
-      setConversation(prev => ({
+      setConversation((prev) => ({
         ...prev,
         rules: {
           ...prev.rules,
-          ownerId: prev.rules?.ownerId || '',
-          coOwnerIds: prev.rules?.coOwnerIds?.filter(id => id !== memberId) || []
-        }
+          ownerId: prev.rules?.ownerId || "",
+          coOwnerIds:
+            prev.rules?.coOwnerIds?.filter((id) => id !== memberId) || [],
+        },
       }));
 
       const result = await removeCoOwner(conversation.conversationId, memberId);
       if (result) {
         message.success({
-          content: "Đã gỡ quyền phó nhóm thành công",
+          content: t.deputy_removed || "Đã gỡ quyền phó nhóm thành công",
           key: "remove-co-owner",
           duration: 2,
         });
@@ -688,7 +703,7 @@ const MembersList: React.FC<MembersListProps> = ({
     } catch (err) {
       // Revert optimistic update on error
       setConversation(conversation);
-      message.error("Đã xảy ra lỗi. Vui lòng thử lại sau.");
+      message.error(t.update_error || "Đã xảy ra lỗi. Vui lòng thử lại sau.");
     } finally {
       setIsUpdatingRole(false);
       setUpdatingMemberId(null);
@@ -701,15 +716,20 @@ const MembersList: React.FC<MembersListProps> = ({
     if (!conversation.conversationId) return;
 
     modal.confirm({
-      title: "Xóa thành viên",
-      content: "Bạn có chắc chắn muốn xóa thành viên này khỏi nhóm?",
-      okText: "Xóa",
-      cancelText: "Hủy",
+      title: t.remove_member_title || "Xóa thành viên",
+      content:
+        t.remove_member_confirm ||
+        "Bạn có chắc chắn muốn xóa thành viên này khỏi nhóm?",
+      okText: t.confirm || "Xóa",
+      cancelText: t.cancel || "Hủy",
       okButtonProps: { danger: true },
       onOk: async () => {
         try {
           const key = "remove-member";
-          message.loading({ content: "Đang xóa thành viên...", key });
+          message.loading({
+            content: t.removing_member || "Đang xóa thành viên...",
+            key,
+          });
 
           // Đảm bảo socket đã kết nối
           if (!socketService.isConnected) {
@@ -720,7 +740,7 @@ const MembersList: React.FC<MembersListProps> = ({
           await removeUserFromGroup(conversation.conversationId, memberId);
 
           message.success({
-            content: "Đã xóa thành viên khỏi nhóm",
+            content: t.member_removed || "Đã xóa thành viên khỏi nhóm",
             key,
             duration: 2,
           });
@@ -745,10 +765,15 @@ const MembersList: React.FC<MembersListProps> = ({
         } catch (error: unknown) {
           if (error instanceof Error) {
             message.error(
-              error.message || "Không thể xóa thành viên. Vui lòng thử lại sau."
+              error.message ||
+                t.cannot_remove_member ||
+                "Không thể xóa thành viên. Vui lòng thử lại sau."
             );
           } else {
-            message.error("Không thể xóa thành viên. Vui lòng thử lại sau.");
+            message.error(
+              t.cannot_remove_member ||
+                "Không thể xóa thành viên. Vui lòng thử lại sau."
+            );
           }
         }
       },
@@ -756,26 +781,30 @@ const MembersList: React.FC<MembersListProps> = ({
   };
 
   // Update how canShowMenu is calculated in the render function - extract it to a function
-  const calculateCanShowMenu = useCallback((memberId: string, currentUserRole: string): boolean => {
-    const isOwner = conversation.rules?.ownerId === memberId;
-    const isCoOwner = conversation.rules?.coOwnerIds?.includes(memberId) || false;
-    const isCurrentUser = memberId === localStorage.getItem("userId");
-    
-    // Always show menu for the current user to allow leaving the group
-    if (isCurrentUser) {
-      return true;
-    }
-    
-    if (currentUserRole === 'owner') {
-      // Owner can see menu for everyone
-      return true;
-    } else if (currentUserRole === 'co-owner') {
-      // Co-owner can see menu for regular members only
-      return !isOwner && !isCoOwner;
-    }
-    
-    return false;
-  }, [conversation.rules]);
+  const calculateCanShowMenu = useCallback(
+    (memberId: string, currentUserRole: string): boolean => {
+      const isOwner = conversation.rules?.ownerId === memberId;
+      const isCoOwner =
+        conversation.rules?.coOwnerIds?.includes(memberId) || false;
+      const isCurrentUser = memberId === localStorage.getItem("userId");
+
+      // Always show menu for the current user to allow leaving the group
+      if (isCurrentUser) {
+        return true;
+      }
+
+      if (currentUserRole === "owner") {
+        // Owner can see menu for everyone
+        return true;
+      } else if (currentUserRole === "co-owner") {
+        // Co-owner can see menu for regular members only
+        return !isOwner && !isCoOwner;
+      }
+
+      return false;
+    },
+    [conversation.rules]
+  );
 
   // Update the handler for new message to force a re-render
   const handleNewMessage = (data: any) => {
@@ -790,13 +819,13 @@ const MembersList: React.FC<MembersListProps> = ({
   // Add back the useEffect to listen for new messages
   useEffect(() => {
     if (!conversation.conversationId) return;
-    
+
     // Listen for new message events
-    socketService.on('newMessage', handleNewMessage);
-    
+    socketService.on("newMessage", handleNewMessage);
+
     // Cleanup function
     return () => {
-      socketService.off('newMessage', handleNewMessage);
+      socketService.off("newMessage", handleNewMessage);
     };
   }, [conversation.conversationId]);
 
@@ -813,11 +842,7 @@ const MembersList: React.FC<MembersListProps> = ({
   // Thêm loading indicator vào UI
   const renderLoadingIndicator = (memberId: string) => {
     if (isUpdatingRole && updatingMemberId === memberId) {
-      return (
-        <div className="ml-2 text-xs text-gray-500">
-          Đang cập nhật...
-        </div>
-      );
+      return <div className="ml-2 text-xs text-gray-500">Đang cập nhật...</div>;
     }
     return null;
   };
@@ -848,11 +873,15 @@ const MembersList: React.FC<MembersListProps> = ({
             <div className="font-medium flex items-center">
               {memberInfo?.fullname || `User-${memberId.substring(0, 6)}`}
               {isCurrentUserMember && (
-                <span className="text-gray-500 ml-2">(Bạn)</span>
+                <span className="text-gray-500 ml-2">({t.you || "Bạn"})</span>
               )}
             </div>
             <div className="text-sm text-gray-500">
-              {isOwner ? "Trưởng nhóm" : isCoOwner ? "Phó nhóm" : ""}
+              {isOwner
+                ? t.group_leader || "Trưởng nhóm"
+                : isCoOwner
+                  ? t.deputy || "Phó nhóm"
+                  : ""}
               {renderLoadingIndicator(memberId)}
             </div>
           </div>
@@ -868,14 +897,14 @@ const MembersList: React.FC<MembersListProps> = ({
                   type="link"
                   className="text-blue-500"
                   onClick={() => handleFriendRequest(memberId)}>
-                  Kết bạn
+                  {t.add_friend_button || "Kết bạn"}
                 </Button>
               ) : (
                 <Button
                   type="link"
                   className="text-blue-500"
                   onClick={() => handleFriendRequest(memberId)}>
-                  Nhắn tin
+                  {t.message_button || "Nhắn tin"}
                 </Button>
               )}
             </>
@@ -891,18 +920,21 @@ const MembersList: React.FC<MembersListProps> = ({
                       key="leave"
                       onClick={() => {
                         // Thêm thông báo rời nhóm vào conversation
-                        updateConversationWithNewMessage(conversation.conversationId, {
-                          type: "system",
-                          content: `${getUserName(currentUserId)} đã rời khỏi nhóm`,
-                          senderId: currentUserId,
-                          createdAt: new Date().toISOString(),
-                        });
-                        
+                        updateConversationWithNewMessage(
+                          conversation.conversationId,
+                          {
+                            type: "system",
+                            content: `${getUserName(currentUserId)} đã rời khỏi nhóm`,
+                            senderId: currentUserId,
+                            createdAt: new Date().toISOString(),
+                          }
+                        );
+
                         // Sau đó gọi hàm rời nhóm
                         onLeaveGroup();
                       }}
                       icon={<LogoutOutlined />}>
-                      Rời nhóm
+                      {t.leave_group || "Rời nhóm"}
                     </Menu.Item>
                   ) : userRole === "owner" && isCoOwner ? (
                     <>
@@ -910,13 +942,13 @@ const MembersList: React.FC<MembersListProps> = ({
                         key="remove-co-owner"
                         onClick={() => handleRemoveCoOwner(memberId)}
                         icon={<LockOutlined />}>
-                        Gỡ quyền phó nhóm
+                        {t.remove_deputy || "Gỡ quyền phó nhóm"}
                       </Menu.Item>
                       <Menu.Item
                         key="remove-member"
                         onClick={() => handleRemoveMember(memberId)}
                         icon={<UserDeleteOutlined />}>
-                        Xóa khỏi nhóm
+                        {t.remove_from_group || "Xóa khỏi nhóm"}
                       </Menu.Item>
                     </>
                   ) : userRole === "owner" && !isOwner && !isCoOwner ? (
@@ -925,13 +957,13 @@ const MembersList: React.FC<MembersListProps> = ({
                         key="add-co-owner"
                         onClick={() => handleAddCoOwner(memberId)}
                         icon={<LockOutlined />}>
-                        Thêm phó nhóm
+                        {t.add_deputy || "Thêm phó nhóm"}
                       </Menu.Item>
                       <Menu.Item
                         key="remove-member"
                         onClick={() => handleRemoveMember(memberId)}
                         icon={<UserDeleteOutlined />}>
-                        Xóa khỏi nhóm
+                        {t.remove_from_group || "Xóa khỏi nhóm"}
                       </Menu.Item>
                     </>
                   ) : userRole === "co-owner" && !isOwner && !isCoOwner ? (
@@ -939,7 +971,7 @@ const MembersList: React.FC<MembersListProps> = ({
                       key="remove-member"
                       onClick={() => handleRemoveMember(memberId)}
                       icon={<UserDeleteOutlined />}>
-                      Xóa khỏi nhóm
+                      {t.remove_from_group || "Xóa khỏi nhóm"}
                     </Menu.Item>
                   ) : null}
                 </Menu>
@@ -975,9 +1007,13 @@ const MembersList: React.FC<MembersListProps> = ({
           icon={<LeftOutlined />}
           onClick={onBack}
         />
-        <h2 className="text-lg font-semibold">Thành viên</h2>
+        <h2 className="text-lg font-semibold">
+          {t.member_list || "Thành viên"}
+        </h2>
         {isRefreshing && (
-          <div className="ml-2 text-xs text-gray-500">Đang cập nhật...</div>
+          <div className="ml-2 text-xs text-gray-500">
+            {t.loading_contacts || "Đang cập nhật..."}
+          </div>
         )}
       </div>
 
@@ -987,13 +1023,15 @@ const MembersList: React.FC<MembersListProps> = ({
           icon={<UserAddOutlined />}
           className="flex items-center justify-center bg-gray-100 hover:bg-gray-200 border-gray-200"
           onClick={handleShowAddMemberModal}>
-          <span>Thêm thành viên</span>
+          <span>{t.add_member || "Thêm thành viên"}</span>
         </Button>
       </div>
 
       <div className="px-4">
         <div className="flex justify-between items-center mb-2">
-          <span>Danh sách thành viên ({groupMembers.length})</span>
+          <span>
+            {t.members_list || "Danh sách thành viên"} ({groupMembers.length})
+          </span>
           <MoreOutlined className="text-gray-500" />
         </div>
       </div>

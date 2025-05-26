@@ -164,7 +164,7 @@ const translations = {
     allow_strangers_connect_desc:
       "Cho phép người lạ kết bạn qua các phương thức",
     qr_code: "Mã QR của tôi",
-    common_groups: "Nhóm chung",
+    common_groups: "nhóm chung",
     zalo_card: "Danh thiếp Zalo",
     suggested_friends: "Gợi ý 'Có thể bạn quen'",
     invalid_age: "Tuổi phải từ 13 đến 123!",
@@ -192,6 +192,311 @@ const translations = {
     no_group_invites: "Không có lời mời vào nhóm và cộng đồng",
     when_to_receive_group_invites: "Khi nào tôi nhận được lời mời?",
     no_avatar: "Chưa có ảnh",
+    // Call UI elements
+    calling: "Đang gọi...",
+    end_call: "Kết thúc cuộc gọi",
+    leave_room: "Rời khỏi phòng",
+    leave_room_confirm: "Bạn có chắc chắn muốn rời khỏi phòng chat?",
+    accept: "Chấp nhận",
+    decline: "Từ chối",
+    incoming_call: "Cuộc gọi đến",
+    incoming_video_call: "Cuộc gọi video đến",
+    is_calling_you: "đang gọi cho bạn",
+    call_connecting: "Đang kết nối cuộc gọi...",
+    call_ended: "Cuộc gọi kết thúc",
+    missed_call: "Cuộc gọi nhỡ",
+
+    // Friend activity status
+    offline: "Đang ngoại tuyến",
+    just_now: "Vừa mới truy cập",
+    minutes_ago: "Hoạt động {0} phút trước",
+    hours_ago: "Hoạt động {0} giờ trước",
+    view_info: "Xem thông tin",
+    categorize: "Phân loại",
+    set_nickname: "Đặt tên gợi nhớ",
+    block_user: "Chặn người này",
+    remove_friend: "Xóa bạn",
+
+    // GroupList translations
+    leave_group: "Rời nhóm",
+    leave_group_confirm: 'Bạn có chắc chắn muốn rời khỏi nhóm "{0}" không?',
+    leave_group_success: "Rời nhóm thành công",
+    leave_group_error: "Không thể rời nhóm. Vui lòng thử lại sau.",
+    leave_community: "Rời cộng đồng",
+    members_count: "{0} thành viên",
+    leaving: "Đang rời...",
+    sort_by_activity: "Hoạt động (mới -> cũ)",
+    sort_by_name: "Tên (A -> Z)",
+    filter_all: "Tất cả",
+    no_groups_found: "Không tìm thấy nhóm phù hợp",
+    no_groups_joined: "Bạn chưa tham gia nhóm nào",
+
+    // RequestList translations
+    friend_request_received: "Lời mời đã nhận",
+    friend_request_sent: "Lời mời đã gửi",
+    no_requests: "Không có lời mời nào",
+    processing: "Đang xử lý...",
+    revoke_friend_request_success: "Đã thu hồi lời mời kết bạn",
+    revoke_friend_request_error: "Không thể thu hồi lời mời kết bạn",
+    opening_conversation: "Đang mở cuộc trò chuyện...",
+    create_conversation_error: "Không thể tạo cuộc trò chuyện",
+    accepted_friend_request: "Đã chấp nhận lời mời kết bạn",
+    rejected_friend_request: "Đã từ chối lời mời kết bạn",
+    accept_friend_request_error: "Không thể chấp nhận lời mời kết bạn",
+    reject_friend_request_error: "Không thể từ chối lời mời kết bạn",
+    unknown_user: "Unknown",
+    retrieve_friend_requests_error: "Không thể tải lời mời kết bạn",
+
+    // AddFriendModal translations
+    add_friend_title: "Thêm bạn",
+    enter_phone_to_search: "Nhập số điện thoại để tìm kiếm bạn bè.",
+    enter_phone: "Nhập số điện thoại",
+    user_not_found: "Không tìm thấy người dùng",
+    invalid_user_id: "ID người dùng không hợp lệ",
+    friend_request_sent_success: "Đã gửi lời mời kết bạn thành công",
+    cannot_send_friend_request: "Không thể gửi lời mời kết bạn",
+    open_conversation: "Đang mở cuộc trò chuyện...",
+    cannot_create_conversation: "Không thể tạo cuộc trò chuyện",
+    update_profile_developing:
+      "Chức năng cập nhật thông tin đang được phát triển!",
+
+    // AddGroupModal translations
+    create_group_title: "Tạo nhóm",
+    enter_group_name: "Nhập tên nhóm...",
+    enter_name_phone: "Nhập tên, số điện thoại, hoặc danh sách số điện thoại",
+    customers_tab: "Khách hàng",
+    family_tab: "Gia đình",
+    work_tab: "Công việc",
+    friends_tab: "Bạn bè",
+    reply_later_tab: "Trả lời sau",
+    selected_count: "Đã chọn",
+    contacts_label: "Danh bạ",
+    search_results_label: "Kết quả tìm kiếm",
+    loading_contacts: "Đang tải...",
+    no_friends_yet: "Bạn chưa có bạn bè nào",
+    no_search_results_found: "Không tìm thấy kết quả phù hợp",
+    create_group_error_msg: "Không thể tạo nhóm. Vui lòng thử lại.",
+    please_select_members_error: "Vui lòng chọn ít nhất một thành viên",
+
+    // UserInfoHeaderModal translations
+    account_info_title: "Thông tin tài khoản",
+    unfriend_button: "Hủy kết bạn",
+    message_button: "Nhắn tin",
+    add_friend_button: "Kết bạn",
+    friend_request_template: "Xin chào, mình là {0}. Kết bạn với mình nhé!",
+    block_diary_option: "Chặn người này xem nhật ký của tôi",
+    character_count: "ký tự",
+    back_to_info_button: "Thông tin",
+    cancel_friend_request_button: "Thu hồi yêu cầu kết bạn",
+
+    // Additional UserInfoHeaderModal translations
+    friend_request_id_not_found: "Không tìm thấy yêu cầu kết bạn",
+    friend_removed: "Đã xóa bạn thành công",
+    remove_friend_error: "Không thể xóa bạn",
+    cancelled_friend_request: "Đã hủy yêu cầu kết bạn",
+    cancel_friend_request_error: "Thu hồi yêu cầu kết bạn thất bại",
+    decline_friend_request_error: "Không thể từ chối lời mời kết bạn",
+
+    // GroupModal translations
+    group_info: "Thông tin nhóm",
+    message: "Nhắn tin",
+    copy_link_success: "Đã sao chép liên kết",
+    group_link: "Link tham gia nhóm",
+    group_management: "Quản lý nhóm",
+    add_deputy: "Thêm phó nhóm",
+    remove_deputy: "Gỡ quyền phó nhóm",
+    remove_from_group: "Xóa khỏi nhóm",
+    group_name_min_length: "Tên nhóm phải có ít nhất 3 ký tự",
+    group_name_max_length: "Tên nhóm không được vượt quá 50 ký tự",
+    updating_avatar: "Đang cập nhật ảnh đại diện...",
+    cannot_update_avatar: "Không thể cập nhật ảnh đại diện",
+    join_group: "Tham gia nhóm",
+    group_images: "Ảnh/Video",
+    no_shared_images: "Chưa có ảnh nào được chia sẻ trong nhóm này",
+
+    // AddMemberModal translations
+    add_member: "Thêm thành viên",
+    select_at_least_one: "Vui lòng chọn ít nhất một người dùng",
+    cannot_add_member: "Không thể thêm",
+    adding_members: "Đang thêm thành viên...",
+    all_category: "Tất cả",
+    customers_category: "Khách hàng",
+    family_category: "Gia đình",
+    work_category: "Công việc",
+    friends_category: "Bạn bè",
+    reply_later_category: "Trả lời sau",
+    selected_members: "Đã chọn",
+
+    // MembersList translations
+    member_list: "Thành viên",
+    members_list: "Danh sách thành viên",
+    you: "Bạn",
+    group_leader: "Trưởng nhóm",
+    deputy: "Phó nhóm",
+    adding_deputy: "Đang thêm phó nhóm...",
+    deputy_added: "Đã thêm phó nhóm thành công",
+    removing_deputy: "Đang gỡ quyền phó nhóm...",
+    deputy_removed: "Đã gỡ quyền phó nhóm thành công",
+    removing_member: "Đang xóa thành viên...",
+    remove_member_title: "Xóa thành viên",
+    remove_member_confirm:
+      "Bạn có chắc chắn muốn xóa thành viên này khỏi nhóm?",
+    member_removed: "Đã xóa thành viên khỏi nhóm",
+    cannot_remove_member: "Không thể xóa thành viên. Vui lòng thử lại sau.",
+    user_removed_from_group: "Bạn đã bị xóa khỏi nhóm",
+    user_removed_from_group_by: "{0} đã xóa bạn khỏi nhóm chat này",
+    group_disbanded: "Nhóm đã bị giải tán",
+    group_disbanded_by_admin: "Nhóm chat này đã bị giải tán bởi người quản trị",
+    understood: "Đã hiểu",
+
+    // ChatInfo translations
+
+    mute_notifications: "Tắt thông báo",
+    pin_chat: "Ghim hội thoại",
+
+    manage_group: "Quản lý nhóm",
+
+    group_members: "Thành viên nhóm",
+    group_invitation_link: "Link tham gia nhóm",
+    media: "Ảnh/Video",
+    files: "Tệp tin",
+    links: "Liên kết",
+    privacy_settings: "Thiết lập bảo mật",
+
+    delete_chat_history: "Xóa lịch sử trò chuyện",
+
+    confirm_delete_chat:
+      "Bạn có chắc chắn muốn xóa toàn bộ lịch sử trò chuyện? Hành động này không thể hoàn tác.",
+    confirm_leave_group: "Bạn có chắc chắn muốn rời khỏi nhóm này?",
+    transfer_ownership: "Chuyển quyền trưởng nhóm",
+    transfer_ownership_note:
+      "Lưu ý: Sau khi chuyển quyền trưởng nhóm, bạn sẽ trở thành thành viên thường và không thể hoàn tác thao tác này.",
+    select_new_owner: "Chọn trưởng nhóm mới",
+    no_images: "Chưa có ảnh/video nào",
+    no_files: "Chưa có file nào",
+    no_links: "Chưa có link nào",
+    download: "Tải xuống",
+    view_all: "Xem tất cả",
+    stay: "Ở lại",
+    member: "Thành viên",
+    require_password: "Yêu cầu mật khẩu để xem",
+    edit_nickname: "Đổi tên gợi nhớ",
+    save: "Lưu",
+    enter_nickname: "Nhập tên gợi nhớ",
+    transfer: "Chuyển quyền",
+    ownership_transferred: "Đã chuyển quyền trưởng nhóm thành công",
+    // Additional ChatInfo translations
+    group_board: "Bảng tin nhóm",
+    reminder_list: "Danh sách nhắc hẹn",
+    group_chat: "Nhóm chat",
+    online: "Trực tuyến",
+
+    // GroupManagement translations
+    allow_group_members: "Cho phép các thành viên trong nhóm:",
+    change_name_avatar: "Thay đổi tên & ảnh đại diện của nhóm",
+    pin_messages: "Ghim tin nhắn, ghi chú, bình chọn lên đầu hội thoại",
+    create_notes: "Tạo mới ghi chú, nhắc hẹn",
+    create_polls: "Tạo mới bình chọn",
+    send_messages: "Gửi tin nhắn",
+    approval_mode: "Chế độ phê duyệt thành viên mới",
+    highlight_admin: "Đánh dấu tin nhắn từ trưởng/phó nhóm",
+    allow_history: "Cho phép thành viên mới đọc tin nhắn gần nhất",
+    allow_invitation_link: "Cho phép dùng link tham gia nhóm",
+    block_from_group: "Chặn khỏi nhóm",
+    owner_deputy: "Trưởng & phó nhóm",
+    disband_group: "Giải tán nhóm",
+
+    // BlockedMembersList translations
+    block_from_group_title: "Chặn khỏi nhóm",
+    block_explanation:
+      "Những người đã bị chặn không thể tham gia lại nhóm, trừ khi được trưởng, phó nhóm bỏ chặn hoặc thêm lại vào nhóm.",
+    add_to_block_list: "Thêm vào danh sách chặn",
+    blocked_members: "Thành viên bị chặn",
+    no_blocked_members: "Không có thành viên nào bị chặn",
+
+    block: "Chặn",
+    search_members: "Tìm kiếm thành viên...",
+    add_to_block_list_title: "Thêm vào danh sách chặn",
+    no_members_found: "Không tìm thấy thành viên nào",
+
+    // GroupManagement Modal translations
+    disband_group_title: "Giải tán nhóm",
+    disband_group_confirm:
+      "Bạn có chắc chắn muốn giải tán nhóm? Tất cả thành viên sẽ bị xóa khỏi nhóm và không thể hoàn tác hành động này.",
+    disband: "Giải tán",
+
+    disbanding_group: "Đang giải tán nhóm...",
+    success: "Thành công",
+    group_disbanded_success: "Đã giải tán nhóm thành công.",
+    error: "Lỗi",
+    cannot_disband_group: "Không thể giải tán nhóm. Vui lòng thử lại.",
+
+    // Unblock modal
+    unblock_member_title: "Bỏ chặn thành viên",
+    unblock_member_confirm: "Bạn có chắc chắn muốn bỏ chặn thành viên này?",
+    unblocking: "Đang bỏ chặn thành viên...",
+    member_unblocked: "Đã bỏ chặn thành viên thành công",
+    cannot_unblock: "Không thể bỏ chặn thành viên",
+    unblock_error: "Không thể bỏ chặn thành viên. Vui lòng thử lại sau.",
+    blocking: "Đang thêm vào danh sách chặn...",
+    member_blocked: "Đã chặn thành viên thành công",
+    cannot_block: "Không thể chặn thành viên",
+    block_error: "Không thể chặn thành viên. Vui lòng thử lại sau.",
+    no_permission: "Bạn không có quyền",
+
+    // Owner/Co-owner management
+
+    delete: "Xóa",
+    no_deputy: "Chưa có phó nhóm",
+
+    transfer_owner: "Chuyển quyền trưởng nhóm",
+    note: "Lưu ý",
+
+    // Add co-owner modal
+    adjust_deputy: "Điều chỉnh phó nhóm",
+    search_member: "Tìm kiếm thành viên",
+    no_member_found: "Không tìm thấy thành viên",
+
+    // Transfer owner modal
+    transfer_owner_title: "Chuyển quyền trưởng nhóm",
+    transfer_owner_warning:
+      "Sau khi chuyển quyền trưởng nhóm, bạn sẽ trở thành thành viên thường và không thể hoàn tác thao tác này.",
+    transfer_success_title: "Chuyển quyền thành công",
+    transfer_success_message:
+      'Bạn đã chuyển quyền trưởng nhóm thành công và hiện là thành viên thường. Bạn có thể rời nhóm bằng cách nhấn vào "Rời nhóm" ở cuối trang.',
+
+    // Call related translations
+    group_audio_call: "Gọi nhóm",
+    group_video_call: "Gọi video nhóm",
+
+    // Call sound toggle
+    mute_call_sound: "Tắt âm thanh cuộc gọi",
+    unmute_call_sound: "Bật âm thanh cuộc gọi",
+
+    // GroupAvatar translations
+    group_avatar: "Ảnh nhóm",
+    group_initial: "N",
+
+    // AIAssistant translations
+    ai_assistant: "Trợ lý AI",
+    failed_to_load_ai_conversations: "Không thể tải lịch sử trò chuyện AI",
+    no_response_from_ai: "Không nhận được phản hồi từ AI",
+    failed_to_process_ai_request: "Không thể xử lý yêu cầu AI",
+    conversation_history: "Lịch sử trò chuyện",
+    create_new: "Tạo mới",
+    loading_history: "Đang tải lịch sử...",
+
+    new_conversation: "Cuộc trò chuyện mới",
+    hide: "Ẩn",
+    ai_welcome_title: "Xin chào! Tôi là trợ lý AI",
+    ai_welcome_message:
+      "Bạn có thể hỏi tôi bất cứ điều gì. Tôi sẽ cố gắng giúp đỡ!",
+    send_to_conversation: "Gửi vào cuộc trò chuyện",
+    ai_thinking: "AI đang suy nghĩ...",
+    enter_ai_message: "Nhập tin nhắn cho AI...",
+    loading_conversations: "Đang tải cuộc trò chuyện...",
+    no_conversations_yet: "Chưa có cuộc trò chuyện nào",
+    start_by_asking: "Hãy bắt đầu bằng cách hỏi AI trợ giúp!",
   },
   en: {
     settings: "Settings",
@@ -219,7 +524,7 @@ const translations = {
     lock_screen_desc: "Lock the screen when not in use",
     two_factor: "Two-Factor Authentication",
     two_factor_desc:
-      "When enabled, you’ll be required to enter an OTP or authenticate from a mobile device after logging in",
+      "When enabled, you'll be required to enter an OTP or authenticate from a mobile device after logging in",
     // MainContent
     welcome: "Welcome to",
     welcome_desc:
@@ -322,7 +627,7 @@ const translations = {
     add_to_community: "Add to Community",
     video_call: "Video Call",
     search_messages: "Search Messages",
-    conversation_info: "Conversation Info",
+    conversation_info: "Conversation Information",
     // ChatList
     private_chat: "Private Chat",
     more: "More",
@@ -356,7 +661,7 @@ const translations = {
     allow_strangers_connect_desc:
       "Allow strangers to connect via various methods",
     qr_code: "My QR Code",
-    common_groups: "Common Groups",
+    common_groups: "common groups",
     zalo_card: "Zalo Card",
     suggested_friends: "Suggested 'You May Know'",
     invalid_age: "Age must be between 13 and 123!",
@@ -369,11 +674,12 @@ const translations = {
     chat_background: "Chat Background",
     use_avatar_as_background: "Use Avatar as Chat Background",
     same_password_error: "New password cannot be the same as current password",
+
     friend_list: "Friends List",
     group_community_list: "Groups and Communities List",
     friend_requests: "Friend Requests",
     group_invites: "Group and Community Invites",
-    cancel_request: "Cancel Request", // 
+    cancel_request: "Cancel Request",
     unblock: "Unblock",
     no_blocked_users: "No users have been blocked",
     update_group_avatar_success: "Group avatar updated successfully!",
@@ -383,6 +689,310 @@ const translations = {
     no_group_invites: "No group invites yet",
     when_to_receive_group_invites: "When will I receive group invites?",
     no_avatar: "No Avatar",
+    // Call UI elements
+    calling: "Calling...",
+    end_call: "End call",
+    leave_room: "Leave the room",
+    leave_room_confirm: "Are you sure to leave the room?",
+    accept: "Accept",
+    decline: "Decline",
+    incoming_call: "Incoming call",
+    incoming_video_call: "Incoming video call",
+    is_calling_you: "is calling you",
+    call_connecting: "Call connecting...",
+    call_ended: "Call ended",
+    missed_call: "Missed call",
+
+    // Friend activity status
+    offline: "Offline",
+    just_now: "Just now",
+    minutes_ago: "Active {0} minutes ago",
+    hours_ago: "Active {0} hours ago",
+    view_info: "View info",
+    categorize: "Categorize",
+    set_nickname: "Set nickname",
+    block_user: "Block this user",
+    remove_friend: "Remove friend",
+
+    // GroupList translations
+    leave_group: "Leave Group",
+    leave_group_confirm: 'Are you sure you want to leave the group "{0}"?',
+    leave_group_success: "Left group successfully",
+    leave_group_error: "Unable to leave group. Please try again later.",
+    leave_community: "Leave Community",
+    members_count: "{0} members",
+    leaving: "Leaving...",
+    sort_by_activity: "Activity (new -> old)",
+    sort_by_name: "Name (A -> Z)",
+    filter_all: "All",
+    no_groups_found: "No matching groups found",
+    no_groups_joined: "You haven't joined any groups yet",
+
+    // RequestList translations
+    friend_request_received: "Received Requests",
+    friend_request_sent: "Sent Requests",
+    no_requests: "No requests",
+    processing: "Processing...",
+    revoke_friend_request_success: "Friend request revoked",
+    revoke_friend_request_error: "Unable to revoke friend request",
+    opening_conversation: "Opening conversation...",
+    create_conversation_error: "Unable to create conversation",
+    accepted_friend_request: "Friend request accepted",
+    rejected_friend_request: "Friend request rejected",
+    accept_friend_request_error: "Unable to accept friend request",
+    reject_friend_request_error: "Unable to reject friend request",
+    unknown_user: "Unknown",
+    retrieve_friend_requests_error: "Unable to retrieve friend requests",
+
+    // AddFriendModal translations
+    add_friend_title: "Add Friend",
+    enter_phone_to_search: "Enter a phone number to search for friends.",
+    enter_phone: "Enter phone number",
+    user_not_found: "User not found",
+    invalid_user_id: "Invalid user ID",
+    friend_request_sent_success: "Friend request sent successfully",
+    cannot_send_friend_request: "Cannot send friend request",
+    open_conversation: "Opening conversation...",
+    cannot_create_conversation: "Cannot create conversation",
+    update_profile_developing: "Profile update feature is under development!",
+
+    // AddGroupModal translations
+    create_group_title: "Create Group",
+    enter_group_name: "Enter group name...",
+    enter_name_phone: "Enter name, phone number, or list of phone numbers",
+    customers_tab: "Customers",
+    family_tab: "Family",
+    work_tab: "Work",
+    friends_tab: "Friends",
+    reply_later_tab: "Reply Later",
+    selected_count: "Selected",
+    contacts_label: "Contacts",
+    search_results_label: "Search Results",
+    loading_contacts: "Loading...",
+    no_friends_yet: "You don't have any friends yet",
+    no_search_results_found: "No matching results found",
+    create_group_error_msg: "Cannot create group. Please try again.",
+    please_select_members_error: "Please select at least one member",
+
+    // UserInfoHeaderModal translations
+    account_info_title: "Account Information",
+    unfriend_button: "Unfriend",
+    message_button: "Message",
+    add_friend_button: "Add Friend",
+    friend_request_template: "Hello, I'm {0}. Let's be friends!",
+    block_diary_option: "Block this person from viewing my diary",
+    character_count: "characters",
+    back_to_info_button: "Information",
+    cancel_friend_request_button: "Cancel Friend Request",
+
+    // Additional UserInfoHeaderModal translations
+    friend_request_id_not_found: "Friend request not found",
+    friend_removed: "Friend removed successfully",
+    remove_friend_error: "Unable to remove friend",
+    cancelled_friend_request: "Friend request cancelled",
+    cancel_friend_request_error: "Unable to cancel friend request",
+    decline_friend_request_error: "Unable to decline friend request",
+
+    // GroupModal translations
+    group_info: "Group Information",
+    message: "Message",
+    copy_link_success: "Link copied",
+    group_link: "Group invitation link",
+    group_management: "Group Management",
+    add_deputy: "Add deputy",
+    remove_deputy: "Remove deputy role",
+    remove_from_group: "Remove from group",
+    group_name_min_length: "Group name must have at least 3 characters",
+    group_name_max_length: "Group name must not exceed 50 characters",
+    updating_avatar: "Updating group avatar...",
+    cannot_update_avatar: "Cannot update group avatar",
+    join_group: "Join group",
+    group_images: "Images/Videos",
+    no_shared_images: "No images have been shared in this group yet",
+
+    // AddMemberModal translations
+    add_member: "Add Member",
+    select_at_least_one: "Please select at least one user",
+    cannot_add_member: "Cannot add",
+    adding_members: "Adding members...",
+    all_category: "All",
+    customers_category: "Customers",
+    family_category: "Family",
+    work_category: "Work",
+    friends_category: "Friends",
+    reply_later_category: "Reply Later",
+    selected_members: "Selected",
+
+    // MembersList translations
+    member_list: "Members",
+    members_list: "Members List",
+    you: "You",
+    group_leader: "Group Leader",
+    deputy: "Deputy",
+    adding_deputy: "Adding deputy...",
+    deputy_added: "Deputy added successfully",
+    removing_deputy: "Removing deputy role...",
+    deputy_removed: "Deputy role removed successfully",
+    removing_member: "Removing member...",
+    remove_member_title: "Remove Member",
+    remove_member_confirm:
+      "Are you sure you want to remove this member from the group?",
+    member_removed: "Member removed from group",
+    cannot_remove_member: "Cannot remove member. Please try again later.",
+    user_removed_from_group: "You have been removed from the group",
+    user_removed_from_group_by: "{0} has removed you from this chat group",
+    group_disbanded: "Group has been disbanded",
+    group_disbanded_by_admin:
+      "This chat group has been disbanded by the administrator",
+    understood: "Understood",
+
+    // ChatInfo translations
+
+    mute_notifications: "Mute Notifications",
+    pin_chat: "Pin Conversation",
+
+    manage_group: "Manage Group",
+
+    group_members: "Group Members",
+    group_invitation_link: "Group Invitation Link",
+    media: "Images/Videos",
+    files: "Files",
+    links: "Links",
+    privacy_settings: "Privacy Settings",
+
+    delete_chat_history: "Delete Chat History",
+
+    confirm_delete_chat:
+      "Are you sure you want to delete the entire chat history? This action cannot be undone.",
+    confirm_leave_group: "Are you sure you want to leave this group?",
+    transfer_ownership: "Transfer Ownership",
+    transfer_ownership_note:
+      "Note: After transferring ownership, you will become a regular member and cannot undo this action.",
+    select_new_owner: "Select New Owner",
+    no_images: "No images or videos yet",
+    no_files: "No files yet",
+    no_links: "No links yet",
+    download: "Download",
+    view_all: "View All",
+    stay: "Stay",
+    member: "Member",
+    require_password: "Require password to view",
+    edit_nickname: "Change Nickname",
+    save: "Save",
+    enter_nickname: "Enter nickname",
+    transfer: "Transfer",
+    ownership_transferred: "Group ownership transferred successfully",
+    // Additional ChatInfo translations
+    group_board: "Group Board",
+    reminder_list: "Reminder List",
+    group_chat: "Group Chat",
+    online: "Online",
+
+    // GroupManagement translations
+    allow_group_members: "Allow group members to:",
+    change_name_avatar: "Change group name & avatar",
+    pin_messages: "Pin messages, notes, and polls to the top",
+    create_notes: "Create notes and reminders",
+    create_polls: "Create polls",
+    send_messages: "Send messages",
+    approval_mode: "New member approval mode",
+    highlight_admin: "Highlight messages from owner/deputies",
+    allow_history: "Allow new members to read recent messages",
+    allow_invitation_link: "Allow invitation links",
+    block_from_group: "Block from group",
+    owner_deputy: "Owner & Deputies",
+    disband_group: "Disband group",
+
+    // BlockedMembersList translations
+    block_from_group_title: "Block from Group",
+    block_explanation:
+      "Blocked people cannot rejoin the group unless unblocked or added back by the owner or deputy.",
+    add_to_block_list: "Add to Block List",
+    blocked_members: "Blocked Members",
+    no_blocked_members: "No blocked members",
+
+    block: "Block",
+    search_members: "Search members...",
+    add_to_block_list_title: "Add to Block List",
+    no_members_found: "No members found",
+
+    // GroupManagement Modal translations
+    disband_group_title: "Disband Group",
+    disband_group_confirm:
+      "Are you sure you want to disband the group? All members will be removed and this action cannot be undone.",
+    disband: "Disband",
+
+    disbanding_group: "Disbanding group...",
+    success: "Success",
+    group_disbanded_success: "Group disbanded successfully.",
+    error: "Error",
+    cannot_disband_group: "Cannot disband group. Please try again.",
+
+    // Unblock modal
+    unblock_member_title: "Unblock Member",
+    unblock_member_confirm: "Are you sure you want to unblock this member?",
+    unblocking: "Unblocking member...",
+    member_unblocked: "Member unblocked successfully",
+    cannot_unblock: "Cannot unblock member",
+    unblock_error: "Cannot unblock member. Please try again later.",
+    blocking: "Adding to block list...",
+    member_blocked: "Member blocked successfully",
+    cannot_block: "Cannot block member",
+    block_error: "Cannot block member. Please try again later.",
+    no_permission: "You don't have permission",
+
+    // Owner/Co-owner management
+
+    delete: "Delete",
+    no_deputy: "No deputies yet",
+
+    transfer_owner: "Transfer ownership",
+    note: "Note",
+
+    // Add co-owner modal
+    adjust_deputy: "Adjust Deputy",
+    search_member: "Search members",
+    no_member_found: "No members found",
+
+    // Transfer owner modal
+    transfer_owner_title: "Transfer Ownership",
+    transfer_owner_warning:
+      "Note: After transferring ownership, you will become a regular member and cannot undo this action.",
+    transfer_success_title: "Transfer Successful",
+    transfer_success_message:
+      'You have successfully transferred group ownership and are now a regular member. You can leave the group by clicking "Leave Group" at the bottom of the page.',
+
+    // Call related translations
+    group_audio_call: "Group Call",
+    group_video_call: "Group Video Call",
+
+    // Call sound toggle
+    mute_call_sound: "Mute Call Sound",
+    unmute_call_sound: "Unmute Call Sound",
+
+    // GroupAvatar translations
+    group_avatar: "Group Avatar",
+    group_initial: "G",
+
+    // AIAssistant translations
+    ai_assistant: "AI Assistant",
+    failed_to_load_ai_conversations: "Failed to load AI conversation history",
+    no_response_from_ai: "No response received from AI",
+    failed_to_process_ai_request: "Failed to process AI request",
+    conversation_history: "Conversation History",
+    create_new: "Create New",
+    loading_history: "Loading history...",
+
+    new_conversation: "New conversation",
+    hide: "Hide",
+    ai_welcome_title: "Hello! I'm your AI assistant",
+    ai_welcome_message: "You can ask me anything. I'll do my best to help!",
+    send_to_conversation: "Send to conversation",
+    ai_thinking: "AI is thinking...",
+    enter_ai_message: "Enter a message for AI...",
+    loading_conversations: "Loading conversations...",
+    no_conversations_yet: "No conversations yet",
+    start_by_asking: "Start by asking AI for help!",
   },
 };
 
