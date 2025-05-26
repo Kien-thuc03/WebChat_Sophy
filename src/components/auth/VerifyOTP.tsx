@@ -11,7 +11,7 @@ const VerifyOTP: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isResending, setIsResending] = useState(false);
   const [isRateLimited, setIsRateLimited] = useState(false);
-  const [backendOTP, setBackendOTP] = useState("");
+  const [, setBackendOTP] = useState("");
 
   // Kiểm tra môi trường development dựa trên biến môi trường thay vì hostname
   // Điều này đảm bảo hoạt động đúng cả trên local và Vercel
