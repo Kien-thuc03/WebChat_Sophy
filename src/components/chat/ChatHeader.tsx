@@ -14,7 +14,7 @@ import { Avatar } from "../common/Avatar";
 import { useLanguage } from "../../features/auth/context/LanguageContext";
 import { getUserById, getConversationDetail } from "../../api/API";
 import { User } from "../../features/auth/types/authTypes";
-import { Button, Tooltip, message, Modal } from "antd";
+import { Button, Tooltip, message } from "antd";
 import socketService from "../../services/socketService";
 import AddMemberModal from "./modals/AddMemberModal";
 // Import ZegoUIKitPrebuilt để sử dụng các hằng số và kiểu dữ liệu
@@ -386,10 +386,34 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
   // Xử lý khi người dùng nhấn nút gọi điện thoại
   const handleVoiceCall = async () => {
     if (!zegoInstance) {
-      message.error(
-        "Không thể kết nối dịch vụ gọi điện. Vui lòng thử lại sau."
-      );
-      return;
+      // Thử lấy instance từ zegoService
+      const userId = localStorage.getItem("userId") || "";
+      const userName = localStorage.getItem("fullname") || "User";
+
+      try {
+        // Thử khởi tạo một zegoInstance mới nếu cần
+        message.loading("Đang kết nối dịch vụ gọi điện...");
+        const zp = await zegoService.initializeZego(userId, userName, {
+          onZIMInitialized: () => setIsZIMInitialized(true),
+          onCallModalVisibilityChange: (visible) =>
+            setIsCallModalVisible(visible),
+          onCallingProgressChange: (inProgress) =>
+            setIsCallingInProgress(inProgress),
+        });
+
+        if (zp) {
+          setZegoInstance(zp);
+          message.success("Kết nối dịch vụ gọi điện thành công");
+        } else {
+          message.error("Không thể kết nối dịch vụ gọi điện.");
+          return;
+        }
+      } catch {
+        message.error(
+          "Không thể kết nối dịch vụ gọi điện. Vui lòng thử lại sau."
+        );
+        return;
+      }
     }
 
     // Kiểm tra nếu đang có cuộc gọi
@@ -418,6 +442,15 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
     try {
       setIsCallingInProgress(true);
 
+      // Ensure zegoInstance is not null
+      if (!zegoInstance) {
+        message.error(
+          "Không thể kết nối dịch vụ gọi điện. Vui lòng thử lại sau."
+        );
+        setIsCallingInProgress(false);
+        return;
+      }
+
       // Sử dụng zegoService để gửi lời mời gọi điện
       await zegoService.sendCallInvitation(
         zegoInstance,
@@ -440,10 +473,34 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
   // Xử lý khi người dùng nhấn nút gọi video
   const handleVideoCall = async () => {
     if (!zegoInstance) {
-      message.error(
-        "Không thể kết nối dịch vụ gọi điện. Vui lòng thử lại sau."
-      );
-      return;
+      // Thử lấy instance từ zegoService
+      const userId = localStorage.getItem("userId") || "";
+      const userName = localStorage.getItem("fullname") || "User";
+
+      try {
+        // Thử khởi tạo một zegoInstance mới nếu cần
+        message.loading("Đang kết nối dịch vụ gọi điện...");
+        const zp = await zegoService.initializeZego(userId, userName, {
+          onZIMInitialized: () => setIsZIMInitialized(true),
+          onCallModalVisibilityChange: (visible) =>
+            setIsCallModalVisible(visible),
+          onCallingProgressChange: (inProgress) =>
+            setIsCallingInProgress(inProgress),
+        });
+
+        if (zp) {
+          setZegoInstance(zp);
+          message.success("Kết nối dịch vụ gọi điện thành công");
+        } else {
+          message.error("Không thể kết nối dịch vụ gọi điện.");
+          return;
+        }
+      } catch {
+        message.error(
+          "Không thể kết nối dịch vụ gọi điện. Vui lòng thử lại sau."
+        );
+        return;
+      }
     }
 
     // Kiểm tra nếu đang có cuộc gọi
@@ -472,6 +529,15 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
     try {
       setIsCallingInProgress(true);
 
+      // Ensure zegoInstance is not null
+      if (!zegoInstance) {
+        message.error(
+          "Không thể kết nối dịch vụ gọi điện. Vui lòng thử lại sau."
+        );
+        setIsCallingInProgress(false);
+        return;
+      }
+
       // Sử dụng zegoService để gửi lời mời gọi video
       await zegoService.sendCallInvitation(
         zegoInstance,
@@ -489,13 +555,6 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
       console.error("Error making video call:", err);
       setIsCallingInProgress(false);
     }
-  };
-
-  // Thay đổi hàm kết thúc cuộc gọi trong Modal
-  const endCall = () => {
-    setIsCallModalVisible(false);
-    setIsCallingInProgress(false);
-    zegoService.endCall(zegoInstance);
   };
 
   return (
@@ -569,7 +628,7 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
             icon={<PhoneOutlined />}
             className="flex items-center justify-center w-10 h-10"
             onClick={handleVoiceCall}
-            disabled={isGroup || !zegoInstance || isCallingInProgress}
+            disabled={isGroup || isCallingInProgress}
           />
         </Tooltip>
         <Tooltip title={t.video_call || "Gọi video"}>
@@ -578,7 +637,7 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
             icon={<VideoCameraOutlined />}
             className="flex items-center justify-center w-10 h-10"
             onClick={handleVideoCall}
-            disabled={isGroup || !zegoInstance || isCallingInProgress}
+            disabled={isGroup || isCallingInProgress}
           />
         </Tooltip>
         <Tooltip title={t.conversation_info || "Thông tin hội thoại"}>
@@ -600,44 +659,6 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
         groupMembers={conversation.groupMembers || []}
         refreshConversationData={refreshConversationData}
       />
-
-      {/* Modal cho cuộc gọi đang diễn ra */}
-      {isCallModalVisible && (
-        <Modal
-          title="Cuộc gọi đang diễn ra"
-          open={isCallModalVisible}
-          onCancel={() => {
-            endCall();
-          }}
-          footer={null}
-          width={400}
-          centered>
-          <div className="incoming-call-container">
-            <div className="incoming-call-avatar">
-              <Avatar
-                name={otherUserInfo?.fullname || "User"}
-                avatarUrl={otherUserInfo?.urlavatar}
-                size={80}
-                className="rounded-full"
-              />
-            </div>
-            <div className="incoming-call-info">
-              <h2>{otherUserInfo?.fullname || "Người dùng"}</h2>
-              <p>Đang gọi...</p>
-            </div>
-            <div className="flex justify-center mt-6 space-x-4">
-              <Button
-                type="primary"
-                danger
-                shape="circle"
-                icon={<PhoneOutlined className="rotate-135" />}
-                onClick={endCall}
-                size="large"
-              />
-            </div>
-          </div>
-        </Modal>
-      )}
     </header>
   );
 };

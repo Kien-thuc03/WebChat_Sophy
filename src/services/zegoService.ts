@@ -1,6 +1,12 @@
 import { ZegoUIKitPrebuilt } from "@zegocloud/zego-uikit-prebuilt";
 import { ZIM } from "zego-zim-web";
-import { message } from "antd";
+import { message, notification, Modal } from "antd";
+import {
+  PhoneOutlined,
+  VideoCameraOutlined,
+  CloseCircleOutlined,
+} from "@ant-design/icons";
+import React from "react";
 
 // Mở rộng interface Window để thêm các thuộc tính ZEGO
 declare global {
@@ -15,6 +21,8 @@ declare global {
       onUserLeave: () => void;
     };
     zegoObserverActive?: boolean; // Flag để kiểm soát trạng thái của observer
+    globalCallNotification?: any; // Store the global call notification
+    globalCallModal?: any; // Store the global call modal
   }
 }
 
@@ -31,6 +39,84 @@ const ROOM_ID = "SophyWebChatRoom";
  */
 class ZegoService {
   private observer: MutationObserver | null = null;
+
+  private playIncomingCallSound() {
+    try {
+      if (!window.incomingCallAudio) {
+        try {
+          // Try to load the mp3 file
+          window.incomingCallAudio = new Audio("/sounds/incoming-call.mp3");
+        } catch (error) {
+          console.warn("Could not load incoming call sound, using fallback");
+          // Use a simple oscillator as fallback
+          this.playBeepSound();
+          return;
+        }
+        window.incomingCallAudio.loop = true;
+      }
+      window.incomingCallAudio.play().catch((err) => {
+        console.warn("Could not play incoming call sound:", err);
+        // Use a simple oscillator as fallback
+        this.playBeepSound();
+      });
+    } catch (err) {
+      console.error("Error playing incoming call sound:", err);
+      // Use a simple oscillator as fallback
+      this.playBeepSound();
+    }
+  }
+
+  // Fallback sound using Web Audio API
+  private playBeepSound() {
+    try {
+      // Create a periodic beep sound using Web Audio API
+      const AudioContext =
+        window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioContext) return;
+
+      const audioCtx = new AudioContext();
+      const oscillator = audioCtx.createOscillator();
+      const gainNode = audioCtx.createGain();
+
+      oscillator.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
+
+      oscillator.type = "sine";
+      oscillator.frequency.value = 1000; // value in hertz
+      gainNode.gain.value = 0.5; // volume
+
+      oscillator.start();
+
+      // Beep pattern for incoming call
+      const beepInterval = setInterval(() => {
+        gainNode.gain.value = gainNode.gain.value > 0 ? 0 : 0.5;
+      }, 500); // toggle every 500ms
+
+      // Store reference for cleanup
+      const beepSound = { oscillator, gainNode, beepInterval, audioCtx };
+      window.callAudioElements.push(beepSound as any);
+
+      // Stop after 10 seconds if not manually stopped
+      setTimeout(() => {
+        if (window.callAudioElements.includes(beepSound as any)) {
+          oscillator.stop();
+          clearInterval(beepInterval);
+          window.callAudioElements = window.callAudioElements.filter(
+            (s) => s !== beepSound
+          );
+        }
+      }, 10000);
+    } catch (err) {
+      console.error("Failed to create fallback sound:", err);
+    }
+  }
+
+  private stopIncomingCallSound() {
+    if (window.incomingCallAudio) {
+      window.incomingCallAudio.pause();
+      window.incomingCallAudio.currentTime = 0;
+    }
+  }
 
   /**
    * Khởi tạo instance ZEGO cho người dùng hiện tại
@@ -67,25 +153,64 @@ class ZegoService {
       // Khởi tạo ZIM và đồng bộ người dùng với hệ thống
       zp.addPlugins({ ZIM });
 
+      // Thiết lập handler cho các cuộc gọi đến
+      this.setupIncomingCallHandler(zp, userName);
+
       // Lưu các xử lý sự kiện vào biến toàn cục để xử lý cuộc gọi
       window.zegoCallbacks = {
         onCallAccepted: () => {
           console.log("Cuộc gọi được chấp nhận");
+          this.stopIncomingCallSound();
+          if (window.globalCallNotification) {
+            notification.destroy(window.globalCallNotification);
+            window.globalCallNotification = null;
+          }
+          if (window.globalCallModal) {
+            Modal.destroyAll();
+            window.globalCallModal = null;
+          }
           callbacks.onCallModalVisibilityChange(false);
           callbacks.onCallingProgressChange(false);
         },
         onCallEnd: () => {
           console.log("Cuộc gọi kết thúc");
+          this.stopIncomingCallSound();
+          if (window.globalCallNotification) {
+            notification.destroy(window.globalCallNotification);
+            window.globalCallNotification = null;
+          }
+          if (window.globalCallModal) {
+            Modal.destroyAll();
+            window.globalCallModal = null;
+          }
           callbacks.onCallModalVisibilityChange(false);
           callbacks.onCallingProgressChange(false);
         },
         onCallRejected: () => {
           console.log("Cuộc gọi bị từ chối");
+          this.stopIncomingCallSound();
+          if (window.globalCallNotification) {
+            notification.destroy(window.globalCallNotification);
+            window.globalCallNotification = null;
+          }
+          if (window.globalCallModal) {
+            Modal.destroyAll();
+            window.globalCallModal = null;
+          }
           callbacks.onCallModalVisibilityChange(false);
           callbacks.onCallingProgressChange(false);
         },
         onUserJoin: () => {
           console.log("Có người tham gia phòng");
+          this.stopIncomingCallSound();
+          if (window.globalCallNotification) {
+            notification.destroy(window.globalCallNotification);
+            window.globalCallNotification = null;
+          }
+          if (window.globalCallModal) {
+            Modal.destroyAll();
+            window.globalCallModal = null;
+          }
           callbacks.onCallModalVisibilityChange(false);
         },
         onUserLeave: () => {
@@ -110,6 +235,171 @@ class ZegoService {
       );
       return null;
     }
+  }
+
+  /**
+   * Thiết lập handler cho cuộc gọi đến
+   */
+  private setupIncomingCallHandler(zp: ZegoUIKitPrebuilt, userName: string) {
+    if (!zp || !zp.getCallInvitationList) return;
+
+    // Lắng nghe sự kiện cuộc gọi đến
+    zp.getCallInvitationList().onCallInvitationReceived(
+      (callID, caller, callType, callData) => {
+        console.log("Received call invitation:", { callID, caller, callType });
+
+        // Parse callData nếu có
+        let parsedData = {};
+        try {
+          parsedData = JSON.parse(callData || "{}");
+        } catch (e) {
+          console.error("Failed to parse call data:", e);
+        }
+
+        // Xác định kiểu cuộc gọi
+        const isVideoCall =
+          callType === ZegoUIKitPrebuilt.InvitationTypeVideoCall;
+
+        // Phát nhạc chuông
+        this.playIncomingCallSound();
+
+        // Hiển thị thông báo toàn cục
+        window.globalCallNotification = notification.open({
+          message: `${isVideoCall ? "Cuộc gọi video" : "Cuộc gọi thoại"} đến`,
+          description: `${caller.userName} đang gọi cho bạn`,
+          icon: null, // Không sử dụng JSX icon
+          duration: 0,
+          key: "incoming-call",
+          placement: "bottomRight",
+          btn: null,
+          onClick: () => {
+            // Hiển thị modal khi click vào notification
+            this.showIncomingCallModal(zp, callID, caller, isVideoCall);
+          },
+        });
+
+        // Tự động hiển thị modal cuộc gọi đến
+        this.showIncomingCallModal(zp, callID, caller, isVideoCall);
+      }
+    );
+
+    // Xử lý khi có người hủy cuộc gọi
+    zp.getCallInvitationList().onCallInvitationCanceled((callID, caller) => {
+      console.log("Call invitation canceled:", { callID, caller });
+      this.stopIncomingCallSound();
+
+      if (window.globalCallNotification) {
+        notification.destroy(window.globalCallNotification);
+        window.globalCallNotification = null;
+      }
+
+      if (window.globalCallModal) {
+        Modal.destroyAll();
+        window.globalCallModal = null;
+      }
+
+      notification.info({
+        message: "Cuộc gọi kết thúc",
+        description: `${caller.userName} đã hủy cuộc gọi`,
+        duration: 4,
+      });
+    });
+
+    // Xử lý khi cuộc gọi kết thúc
+    zp.getCallInvitationList().onCallInvitationEnded((callID, reason) => {
+      console.log("Call invitation ended:", { callID, reason });
+      this.stopIncomingCallSound();
+
+      if (window.globalCallNotification) {
+        notification.destroy(window.globalCallNotification);
+        window.globalCallNotification = null;
+      }
+
+      if (window.globalCallModal) {
+        Modal.destroyAll();
+        window.globalCallModal = null;
+      }
+    });
+
+    // Xử lý khi cuộc gọi hết hạn
+    zp.getCallInvitationList().onCallInvitationTimeout((callID) => {
+      console.log("Call invitation timeout:", callID);
+      this.stopIncomingCallSound();
+
+      if (window.globalCallNotification) {
+        notification.destroy(window.globalCallNotification);
+        window.globalCallNotification = null;
+      }
+
+      if (window.globalCallModal) {
+        Modal.destroyAll();
+        window.globalCallModal = null;
+      }
+
+      notification.info({
+        message: "Cuộc gọi nhỡ",
+        description: "Bạn đã bỏ lỡ một cuộc gọi",
+        duration: 4,
+      });
+    });
+  }
+
+  /**
+   * Hiển thị modal cuộc gọi đến
+   */
+  private showIncomingCallModal(
+    zp: ZegoUIKitPrebuilt,
+    callID: string,
+    caller: any,
+    isVideoCall: boolean
+  ) {
+    // Nếu đã có modal đang hiển thị, không hiển thị thêm
+    if (window.globalCallModal) return;
+
+    // Close notification if it exists
+    if (window.globalCallNotification) {
+      notification.destroy(window.globalCallNotification);
+      window.globalCallNotification = null;
+    }
+
+    // Hiển thị modal cuộc gọi đến
+    window.globalCallModal = Modal.confirm({
+      title: `${isVideoCall ? "Cuộc gọi video" : "Cuộc gọi thoại"} đến`,
+      content: `${caller.userName} đang gọi cho bạn`,
+      icon: null, // Không sử dụng JSX icon
+      okText: "Trả lời",
+      cancelText: "Từ chối",
+      centered: true,
+      width: 400,
+      keyboard: false, // Ngăn chặn đóng bằng ESC
+      maskClosable: false, // Ngăn chặn đóng bằng click outside
+      okButtonProps: {
+        style: {
+          backgroundColor: "#52c41a",
+          borderColor: "#52c41a",
+        },
+      },
+      cancelButtonProps: {
+        danger: true,
+      },
+      onOk: () => {
+        // Chấp nhận cuộc gọi
+        console.log("Accepting call:", callID);
+        this.stopIncomingCallSound();
+        zp.getCallInvitationList().acceptCallInvitation(callID);
+        return Promise.resolve();
+      },
+      onCancel: () => {
+        // Từ chối cuộc gọi
+        console.log("Rejecting call:", callID);
+        this.stopIncomingCallSound();
+        zp.getCallInvitationList().refuseCallInvitation(callID);
+        return Promise.resolve();
+      },
+      afterClose: () => {
+        window.globalCallModal = null;
+      },
+    });
   }
 
   /**
@@ -175,6 +465,20 @@ class ZegoService {
           if (zegoElements.length > 0) {
             console.log("Phát hiện giao diện ZEGO, đóng modal ngay lập tức");
             callbacks.onCallModalVisibilityChange(false);
+
+            // Đồng thời đóng call notification và modal nếu có
+            if (window.globalCallNotification) {
+              notification.destroy(window.globalCallNotification);
+              window.globalCallNotification = null;
+            }
+
+            if (window.globalCallModal) {
+              Modal.destroyAll();
+              window.globalCallModal = null;
+            }
+
+            // Dừng âm thanh cuộc gọi đến
+            this.stopIncomingCallSound();
 
             // Vô hiệu hóa observer sau khi đã tìm thấy để tránh log lặp lại
             window.zegoObserverActive = false;
@@ -329,12 +633,40 @@ class ZegoService {
     if (zegoInstance) {
       zegoInstance.hangUp();
     }
+
+    // Dừng âm thanh cuộc gọi đến
+    this.stopIncomingCallSound();
+
+    // Đóng notification và modal nếu có
+    if (window.globalCallNotification) {
+      notification.destroy(window.globalCallNotification);
+      window.globalCallNotification = null;
+    }
+
+    if (window.globalCallModal) {
+      Modal.destroyAll();
+      window.globalCallModal = null;
+    }
   }
 
   /**
    * Dọn dẹp tài nguyên ZEGO
    */
   cleanup(): void {
+    // Dừng âm thanh cuộc gọi đến
+    this.stopIncomingCallSound();
+
+    // Đóng notification và modal nếu có
+    if (window.globalCallNotification) {
+      notification.destroy(window.globalCallNotification);
+      window.globalCallNotification = null;
+    }
+
+    if (window.globalCallModal) {
+      Modal.destroyAll();
+      window.globalCallModal = null;
+    }
+
     // Xóa các callbacks khỏi window nếu đã đăng ký
     if (window.zegoCallbacks) {
       window.zegoCallbacks = undefined;
