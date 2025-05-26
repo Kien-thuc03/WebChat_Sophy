@@ -2,6 +2,7 @@ import React, { useMemo } from "react";
 import { GroupAvatarProps } from "../../features/chat/types/groupTypes";
 import { useGroupAvatar } from "../../features/chat/hooks/useGroupAvatar";
 import { useAvatarPlaceholder } from "../../features/auth/hooks/useAvatarPlaceholder";
+import { useLanguage } from "../../features/auth/context/LanguageContext";
 
 const GroupAvatar: React.FC<GroupAvatarProps> = ({
   members,
@@ -10,6 +11,7 @@ const GroupAvatar: React.FC<GroupAvatarProps> = ({
   className = "",
   groupAvatarUrl,
 }) => {
+  const { t } = useLanguage();
   const { visibleMembers, remainingCount, containerStyle, getAvatarClasses } =
     useGroupAvatar({
       members,
@@ -52,10 +54,17 @@ const GroupAvatar: React.FC<GroupAvatarProps> = ({
     return (
       <div
         className={`rounded-full overflow-hidden ${className}`}
-        style={{ width: `${size}px`, height: `${size}px`, backgroundColor: "#4a76a8", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        style={{
+          width: `${size}px`,
+          height: `${size}px`,
+          backgroundColor: "#4a76a8",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}>
         <img
           src={groupAvatarUrl}
-          alt="Group Avatar"
+          alt={t.group_avatar || "Group Avatar"}
           className="w-full h-full object-cover"
           onError={(e) => {
             // Lưu trạng thái lỗi vào sessionStorage để hạn chế lặp lại log lỗi
@@ -64,14 +73,14 @@ const GroupAvatar: React.FC<GroupAvatarProps> = ({
               console.error("Failed to load group avatar:", e);
               sessionStorage.setItem(errorKey, "true");
             }
-            
+
             // Nếu lỗi, ẩn ảnh và hiển thị chữ cái đầu từ tên nhóm
             e.currentTarget.style.display = "none";
-            
+
             // Đảm bảo có thẻ div cha
             if (e.currentTarget.parentElement) {
               const parentDiv = e.currentTarget.parentElement;
-              parentDiv.textContent = "G";
+              parentDiv.textContent = t.group_initial || "G";
             }
           }}
         />

@@ -472,6 +472,31 @@ const translations = {
     // Call sound toggle
     mute_call_sound: "Tắt âm thanh cuộc gọi",
     unmute_call_sound: "Bật âm thanh cuộc gọi",
+
+    // GroupAvatar translations
+    group_avatar: "Ảnh nhóm",
+    group_initial: "N",
+
+    // AIAssistant translations
+    ai_assistant: "Trợ lý AI",
+    failed_to_load_ai_conversations: "Không thể tải lịch sử trò chuyện AI",
+    no_response_from_ai: "Không nhận được phản hồi từ AI",
+    failed_to_process_ai_request: "Không thể xử lý yêu cầu AI",
+    conversation_history: "Lịch sử trò chuyện",
+    create_new: "Tạo mới",
+    loading_history: "Đang tải lịch sử...",
+
+    new_conversation: "Cuộc trò chuyện mới",
+    hide: "Ẩn",
+    ai_welcome_title: "Xin chào! Tôi là trợ lý AI",
+    ai_welcome_message:
+      "Bạn có thể hỏi tôi bất cứ điều gì. Tôi sẽ cố gắng giúp đỡ!",
+    send_to_conversation: "Gửi vào cuộc trò chuyện",
+    ai_thinking: "AI đang suy nghĩ...",
+    enter_ai_message: "Nhập tin nhắn cho AI...",
+    loading_conversations: "Đang tải cuộc trò chuyện...",
+    no_conversations_yet: "Chưa có cuộc trò chuyện nào",
+    start_by_asking: "Hãy bắt đầu bằng cách hỏi AI trợ giúp!",
   },
   en: {
     settings: "Settings",
@@ -944,6 +969,30 @@ const translations = {
     // Call sound toggle
     mute_call_sound: "Mute Call Sound",
     unmute_call_sound: "Unmute Call Sound",
+
+    // GroupAvatar translations
+    group_avatar: "Group Avatar",
+    group_initial: "G",
+
+    // AIAssistant translations
+    ai_assistant: "AI Assistant",
+    failed_to_load_ai_conversations: "Failed to load AI conversation history",
+    no_response_from_ai: "No response received from AI",
+    failed_to_process_ai_request: "Failed to process AI request",
+    conversation_history: "Conversation History",
+    create_new: "Create New",
+    loading_history: "Loading history...",
+
+    new_conversation: "New conversation",
+    hide: "Hide",
+    ai_welcome_title: "Hello! I'm your AI assistant",
+    ai_welcome_message: "You can ask me anything. I'll do my best to help!",
+    send_to_conversation: "Send to conversation",
+    ai_thinking: "AI is thinking...",
+    enter_ai_message: "Enter a message for AI...",
+    loading_conversations: "Loading conversations...",
+    no_conversations_yet: "No conversations yet",
+    start_by_asking: "Start by asking AI for help!",
   },
 };
 
