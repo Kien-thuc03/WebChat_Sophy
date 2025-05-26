@@ -32,6 +32,41 @@ if (typeof window !== "undefined") {
 // Component wrapper để khởi tạo Zego
 const ZegoInitializer = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
+    const initZIM = async () => {
+      const userId = localStorage.getItem("userId");
+      const userName = localStorage.getItem("fullname");
+
+      if (userId && userName) {
+        console.log("App: Khởi tạo ZIM riêng trước");
+        try {
+          // Thử khởi tạo ZIM trực tiếp trước
+          const zimSuccess = await zegoService.initializeZIM(userId, userName);
+          if (zimSuccess) {
+            console.log("App: ZIM đã được khởi tạo thành công");
+          } else {
+            console.log("App: ZIM không khởi tạo được, thử lại sau 2 giây");
+            // Thử lại sau 2 giây
+            setTimeout(async () => {
+              const retrySuccess = await zegoService.initializeZIM(
+                userId,
+                userName
+              );
+              if (retrySuccess) {
+                console.log("App: ZIM khởi tạo thành công sau khi thử lại");
+              } else {
+                console.log("App: ZIM không khởi tạo được sau nhiều lần thử");
+              }
+            }, 2000);
+          }
+        } catch (error) {
+          console.error("App: Lỗi khởi tạo ZIM:", error);
+        }
+      }
+    };
+
+    // Khởi tạo ZIM ngay lập tức khi có thông tin người dùng
+    initZIM();
+
     const initializeZego = async () => {
       const userId = localStorage.getItem("userId");
       const userName = localStorage.getItem("fullname");
@@ -51,10 +86,14 @@ const ZegoInitializer = ({ children }: { children: React.ReactNode }) => {
       }
     };
 
-    initializeZego();
+    // Khởi tạo ZegoUIKit sau ZIM
+    setTimeout(() => {
+      initializeZego();
+    }, 1000);
 
     return () => {
-      zegoService.cleanup();
+      // Giữ zegoService khi component unmount để tiếp tục nhận cuộc gọi
+      // zegoService.cleanup();
     };
   }, []);
 
