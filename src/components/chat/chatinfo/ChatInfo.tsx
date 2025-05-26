@@ -64,7 +64,6 @@ interface DetailedConversation extends Conversation {
   sharedLinks?: any[];
 }
 
-
 const ChatInfo: React.FC<ChatInfoProps> = ({
   conversation,
   onClose,
@@ -91,7 +90,7 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
     "media" | "files" | null
   >(null);
   const { userCache, userAvatars } = useConversations();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [userRole, setUserRole] = useState<"owner" | "co-owner" | "member">(
     "member"
   );
@@ -144,7 +143,7 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
   const isGroup = currentConversation.isGroup;
   const groupName = currentConversation.groupName;
   const groupAvatarUrl = currentConversation.groupAvatarUrl;
-  
+
   // Cập nhật danh sách thành viên và số lượng thành viên khi conversation thay đổi
   useEffect(() => {
     if (currentConversation.groupMembers) {
@@ -259,9 +258,12 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
     } catch (error) {
       // Nếu lỗi 403 hoặc không phải thành viên, không hiển thị lỗi nữa
       const errObj = error as any;
-      if ((errObj && errObj.response && errObj.response.status === 403) || (errObj && errObj.message && errObj.message.includes('not a member'))) {
+      if (
+        (errObj && errObj.response && errObj.response.status === 403) ||
+        (errObj && errObj.message && errObj.message.includes("not a member"))
+      ) {
         setDetailedConversation(null);
-        if (typeof onLeaveGroup === 'function') onLeaveGroup();
+        if (typeof onLeaveGroup === "function") onLeaveGroup();
         return;
       }
       console.error("Failed to load conversation details:", error);
@@ -311,11 +313,12 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
 
   const handleDeleteChat = () => {
     Modal.confirm({
-      title: "Xóa lịch sử trò chuyện",
+      title: t.delete_chat_history || "Xóa lịch sử trò chuyện",
       content:
+        t.confirm_delete_chat ||
         "Bạn có chắc chắn muốn xóa toàn bộ lịch sử trò chuyện? Hành động này không thể hoàn tác.",
-      okText: "Xóa",
-      cancelText: "Hủy",
+      okText: t.confirm || "Xác nhận",
+      cancelText: t.cancel || "Hủy",
       okButtonProps: { danger: true },
       onOk: () => {
         // Delete chat history logic using the API
@@ -358,11 +361,12 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
         // Nếu là chủ nhóm, yêu cầu chuyển quyền
         if (isOwner) {
           modal.confirm({
-            title: "Chuyển quyền trưởng nhóm",
+            title: t.transfer_ownership || "Chuyển quyền trưởng nhóm",
             content:
-              "Bạn là trưởng nhóm. Để rời nhóm, bạn cần chuyển quyền trưởng nhóm cho người khác trước. Lưu ý: Sau khi chuyển quyền trưởng nhóm, bạn sẽ trở thành thành viên thường và không thể hoàn tác thao tác này.",
-            okText: "Chuyển quyền",
-            cancelText: "Hủy",
+              t.transfer_ownership_note ||
+              "Lưu ý: Sau khi chuyển quyền trưởng nhóm, bạn sẽ trở thành thành viên thường và không thể hoàn tác thao tác này.",
+            okText: t.transfer || "Chuyển quyền",
+            cancelText: t.cancel || "Hủy",
             onOk: () => {
               // Chuyển đến trang chuyển quyền trưởng nhóm
               setShowOwnershipTransfer(true);
@@ -373,10 +377,11 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
 
         // Xử lý rời nhóm cho các thành viên khác
         modal.confirm({
-          title: "Rời nhóm",
-          content: "Bạn có chắc chắn muốn rời khỏi nhóm này?",
-          okText: "Rời nhóm",
-          cancelText: "Hủy",
+          title: t.leave_group || "Rời nhóm",
+          content:
+            t.confirm_leave_group || "Bạn có chắc chắn muốn rời khỏi nhóm này?",
+          okText: t.confirm || "Xác nhận",
+          cancelText: t.cancel || "Hủy",
           okButtonProps: { danger: true },
           onOk: async () => {
             try {
@@ -389,7 +394,9 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
 
               if (result) {
                 message.success({
-                  content: "Đã rời nhóm thành công.",
+                  content:
+                    t.ownership_transferred ||
+                    "Đã chuyển quyền trưởng nhóm thành công",
                   key,
                   duration: 2,
                 });
@@ -398,11 +405,11 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
                 setDetailedConversation(null);
 
                 // Gọi callback để cập nhật giao diện ngay lập tức
-                if (typeof onLeaveGroup === 'function') {
+                if (typeof onLeaveGroup === "function") {
                   onLeaveGroup();
-                } else if (typeof onClose === 'function') {
+                } else if (typeof onClose === "function") {
                   onClose();
-                } 
+                }
               } else {
                 message.error({
                   content: "Không thể rời nhóm",
@@ -448,7 +455,8 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
 
       if (result) {
         message.success({
-          content: "Đã chuyển quyền trưởng nhóm thành công",
+          content:
+            t.ownership_transferred || "Đã chuyển quyền trưởng nhóm thành công",
           key: "transfer-ownership",
           duration: 2,
         });
@@ -464,11 +472,12 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
 
         // Hỏi người dùng có muốn rời nhóm sau khi chuyển quyền không
         modal.confirm({
-          title: "Rời nhóm",
+          title: t.leave_group || "Rời nhóm",
           content:
+            t.confirm_leave_group ||
             "Bạn đã chuyển quyền trưởng nhóm thành công. Bạn có muốn rời nhóm ngay bây giờ không?",
-          okText: "Rời nhóm",
-          cancelText: "Ở lại",
+          okText: t.leave_group || "Rời nhóm",
+          cancelText: t.stay || "Ở lại",
           onOk: () => handleLeaveGroup(),
         });
       } else {
@@ -528,11 +537,13 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
 
   // Determine the display name based on whether it's a group or individual conversation
   const displayName = isGroup
-    ? groupName || "Nhóm chat"
+    ? groupName || t.group_chat || "Nhóm chat"
     : otherUserInfo?.fullname || t.loading || "Đang tải...";
 
   // Determine online status
-  const onlineStatus = isGroup ? `${memberCount} thành viên` : "Online";
+  const onlineStatus = isGroup
+    ? `${memberCount} ${t.members || "thành viên"}`
+    : t.online || "Online";
 
   // Function to load media and files
   const loadMediaAndFiles = async (conversationId: string) => {
@@ -662,7 +673,7 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
   // Lắng nghe sự kiện thay đổi thành viên nhóm từ socket
   useEffect(() => {
     if (!currentConversation.conversationId) return;
-    
+
     // Xử lý khi một thành viên bị xóa khỏi nhóm
     const handleMemberRemoved = (data: {
       conversationId: string;
@@ -671,10 +682,10 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
       if (data.conversationId === currentConversation.conversationId) {
         // Cập nhật số lượng thành viên
         setMemberCount((prev) => Math.max(0, prev - 1));
-        
+
         // Cập nhật danh sách thành viên nhóm
-        setGroupMembers((prevMembers) => 
-          prevMembers.filter(id => id !== data.userId)
+        setGroupMembers((prevMembers) =>
+          prevMembers.filter((id) => id !== data.userId)
         );
       }
     };
@@ -688,10 +699,10 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
       if (data.conversationId === currentConversation.conversationId) {
         // Cập nhật số lượng thành viên
         setMemberCount((prev) => Math.max(0, prev - 1));
-        
+
         // Cập nhật danh sách thành viên nhóm
-        setGroupMembers((prevMembers) => 
-          prevMembers.filter(id => id !== data.kickedUser.userId)
+        setGroupMembers((prevMembers) =>
+          prevMembers.filter((id) => id !== data.kickedUser.userId)
         );
       }
     };
@@ -704,15 +715,15 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
     }) => {
       if (data.conversationId === currentConversation.conversationId) {
         const addedUserId = data.addedUser.userId;
-        
+
         // Kiểm tra xem thành viên này đã có trong danh sách chưa
         if (!groupMembers.includes(addedUserId)) {
           // Cập nhật số lượng thành viên
           setMemberCount((prev) => prev + 1);
-          
+
           // Cập nhật danh sách thành viên nhóm
           setGroupMembers((prevMembers) => [...prevMembers, addedUserId]);
-          
+
           // Gọi API để lấy thông tin nhóm mới nhất
           refreshConversationData();
         }
@@ -742,21 +753,37 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
       if (hasShownGroupDeletedRef.current === data.conversationId) return;
       hasShownGroupDeletedRef.current = data.conversationId;
       modal.error({
-        title: 'Nhóm đã bị giải tán',
-        content: 'Nhóm chat này đã bị giải tán bởi người quản trị',
-        okText: 'Đã hiểu',
+        title: t.group_disbanded || "Nhóm đã bị giải tán",
+        content:
+          t.group_disbanded_by_admin ||
+          "Nhóm chat này đã bị giải tán bởi người quản trị",
+        okText: t.understood || "Đã hiểu",
         centered: true,
       });
-      if (typeof onLeaveGroup === 'function') {
+      if (typeof onLeaveGroup === "function") {
         onLeaveGroup();
       }
     };
 
-    socketService.on('groupDeleted', handleGroupDeleted);
+    socketService.on("groupDeleted", handleGroupDeleted);
     return () => {
-      socketService.off('groupDeleted', handleGroupDeleted);
+      socketService.off("groupDeleted", handleGroupDeleted);
     };
   }, [currentConversation.conversationId, onLeaveGroup]);
+
+  // Add useEffect to update displayed info when language changes
+  useEffect(() => {
+    // Refresh the UI when language changes
+    // If there's other user info available, re-evaluate status and other displayed text
+    if (otherUserInfo) {
+      // No specific function to call, but this ensures the component re-renders
+    }
+
+    // For groups, make sure member count display is updated
+    if (currentConversation.groupMembers) {
+      setMemberCount(currentConversation.groupMembers.length);
+    }
+  }, [language, otherUserInfo, currentConversation.groupMembers]);
 
   // If showing members list view
   if (showMembersList && isGroup) {
@@ -787,20 +814,24 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
             icon={<LeftOutlined />}
             onClick={handleBackFromOwnershipTransfer}
           />
-          <h2 className="text-lg font-semibold">Chuyển quyền trưởng nhóm</h2>
+          <h2 className="text-lg font-semibold">
+            {t.transfer_ownership || "Chuyển quyền trưởng nhóm"}
+          </h2>
         </div>
 
         <div className="p-4">
           <div className="bg-yellow-50 p-3 rounded border border-yellow-200 mb-4">
             <p className="text-yellow-700 text-sm">
-              Lưu ý: Sau khi chuyển quyền trưởng nhóm, bạn sẽ trở thành thành
-              viên thường và không thể hoàn tác thao tác này.
+              {t.transfer_ownership_note ||
+                "Lưu ý: Sau khi chuyển quyền trưởng nhóm, bạn sẽ trở thành thành viên thường và không thể hoàn tác thao tác này."}
             </p>
           </div>
         </div>
 
         <div className="px-4 mb-3">
-          <h3 className="font-medium text-gray-700">Chọn trưởng nhóm mới</h3>
+          <h3 className="font-medium text-gray-700">
+            {t.select_new_owner || "Chọn trưởng nhóm mới"}
+          </h3>
         </div>
 
         <div className="member-list overflow-y-auto">
@@ -808,9 +839,9 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
             const memberInfo = userCache[memberId] || localUserCache[memberId];
             const isCurrentUser = memberId === localStorage.getItem("userId");
             // const isOwner = currentConversation.rules?.ownerId === memberId;
-            const isCoOwner =
-              currentConversation.rules?.coOwnerIds?.includes(memberId) ||
-              false;
+            // const isCoOwner =
+            //   currentConversation.rules?.coOwnerIds?.includes(memberId) ||
+            //   false;
             const isSelected = newOwnerSelected === memberId;
 
             // Skip the current user (owner) from the list
@@ -832,9 +863,10 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
                     <div className="font-medium flex items-center">
                       {memberInfo?.fullname ||
                         `User-${memberId.substring(0, 6)}`}
+                      {isCurrentUser && ` (${t.you || "Bạn"})`}
                     </div>
                     <div className="text-sm text-gray-500">
-                      {isCoOwner ? "Phó nhóm" : "Thành viên"}
+                      {t.group_leader || "Trưởng nhóm"}
                     </div>
                   </div>
                 </div>
@@ -868,7 +900,7 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
               newOwnerSelected && handleTransferOwnership(newOwnerSelected)
             }
             className="w-full">
-            Chuyển quyền
+            {t.transfer || "Chuyển quyền"}
           </Button>
         </div>
       </div>
@@ -931,7 +963,9 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
         {/* Header - Fixed */}
         <div className="flex-none p-4 border-b border-gray-200">
           <h2 className="text-lg font-semibold text-center">
-            {isGroup ? "Thông tin nhóm" : "Thông tin hội thoại"}
+            {isGroup
+              ? t.group_info || "Thông tin nhóm"
+              : t.conversation_info || "Thông tin hội thoại"}
           </h2>
         </div>
 
@@ -994,7 +1028,9 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
                         onClick={handleToggleMute}
                         className="flex items-center justify-center h-10 w-10 bg-gray-100"
                       />
-                      <span className="text-xs mt-1">Tắt thông báo</span>
+                      <span className="text-xs mt-1">
+                        {t.mute_notifications || "Tắt thông báo"}
+                      </span>
                     </div>
 
                     <div className="flex flex-col items-center">
@@ -1011,7 +1047,9 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
                         onClick={handleTogglePin}
                         className="flex items-center justify-center h-10 w-10 bg-gray-100"
                       />
-                      <span className="text-xs mt-1">Ghim hội thoại</span>
+                      <span className="text-xs mt-1">
+                        {t.pin_chat || "Ghim hội thoại"}
+                      </span>
                     </div>
 
                     {isGroup ? (
@@ -1024,7 +1062,9 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
                             className="flex items-center justify-center h-10 w-10 bg-gray-100"
                             onClick={() => setIsAddMemberModalVisible(true)}
                           />
-                          <span className="text-xs mt-1">Thêm thành viên</span>
+                          <span className="text-xs mt-1">
+                            {t.add_member || "Thêm thành viên"}
+                          </span>
                         </div>
 
                         <div className="flex flex-col items-center">
@@ -1035,7 +1075,9 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
                             onClick={handleShowGroupManagement}
                             className="flex items-center justify-center h-10 w-10 bg-gray-100"
                           />
-                          <span className="text-xs mt-1">Quản lý nhóm</span>
+                          <span className="text-xs mt-1">
+                            {t.manage_group || "Quản lý nhóm"}
+                          </span>
                         </div>
                       </>
                     ) : (
@@ -1049,7 +1091,9 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
                           className="flex items-center justify-center h-10 w-10 bg-gray-100"
                           onClick={handleCreateGroup}
                         />
-                        <span className="text-xs mt-1">Tạo nhóm</span>
+                        <span className="text-xs mt-1">
+                          {t.create_group || "Tạo nhóm"}
+                        </span>
                       </div>
                     )}
                   </div>
@@ -1071,7 +1115,9 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
                     }>
                     <div className="flex items-center">
                       <TeamOutlined className="text-gray-500 mr-3" />
-                      <span className="font-medium">Thành viên nhóm</span>
+                      <span className="font-medium">
+                        {t.group_members || "Thành viên nhóm"}
+                      </span>
                     </div>
                     <RightOutlined
                       className={`text-gray-400 transition-transform ${activeKeys.includes("members") ? "transform rotate-90" : ""}`}
@@ -1087,7 +1133,7 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
                           onClick={handleShowMembers}>
                           <i className="far fa-user mr-1" />
                           <span>
-                            {memberCount} {t.members || "thành viên"}
+                            {memberCount} {t.member || "thành viên"}
                           </span>
                         </span>
                       </div>
@@ -1095,7 +1141,7 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
                       <div className="mb-4">
                         <div className="flex items-center justify-between">
                           <span className="text-sm font-medium">
-                            Link tham gia nhóm
+                            {t.group_invitation_link || "Link tham gia nhóm"}
                           </span>
                         </div>
                         <div className="flex items-center mt-2 p-2 bg-gray-50 rounded">
@@ -1125,7 +1171,9 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
                   <div className="flex items-center justify-between">
                     <div className="flex items-center">
                       <TeamOutlined className="text-gray-500 mr-3" />
-                      <span>{mutualGroups} nhóm chung</span>
+                      <span>
+                        {mutualGroups} {t.common_groups || "nhóm chung"}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -1145,7 +1193,9 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
                     }>
                     <div className="flex items-center">
                       <FileTextOutlined className="text-gray-500 mr-3" />
-                      <span className="font-medium">Bảng tin nhóm</span>
+                      <span className="font-medium">
+                        {t.group_board || "Bảng tin nhóm"}
+                      </span>
                     </div>
                     <RightOutlined
                       className={`text-gray-400 transition-transform ${activeKeys.includes("board") ? "transform rotate-90" : ""}`}
@@ -1157,7 +1207,7 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
                       <div className="flex items-center justify-between py-2 px-3 bg-gray-50 rounded cursor-pointer">
                         <div className="flex items-center">
                           <ClockCircleOutlined className="text-gray-500 mr-2" />
-                          <span>Danh sách nhắc hẹn</span>
+                          <span>{t.reminder_list || "Danh sách nhắc hẹn"}</span>
                         </div>
                         <RightOutlined className="text-gray-400" />
                       </div>
@@ -1180,7 +1230,7 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
                   <div className="flex items-center justify-between">
                     <div className="flex items-center">
                       <ClockCircleOutlined className="text-gray-500 mr-3" />
-                      <span>Danh sách nhắc hẹn</span>
+                      <span>{t.reminder_list || "Danh sách nhắc hẹn"}</span>
                     </div>
                   </div>
                 </div>
@@ -1199,7 +1249,9 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
                   }>
                   <div className="flex items-center">
                     <FileImageOutlined className="text-gray-500 mr-3" />
-                    <span className="font-medium">Ảnh/Video</span>
+                    <span className="font-medium">
+                      {t.media || "Ảnh/Video"}
+                    </span>
                   </div>
                   <RightOutlined
                     className={`text-gray-400 transition-transform ${activeKeys.includes("media") ? "transform rotate-90" : ""}`}
@@ -1264,7 +1316,7 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
                       </div>
                     ) : (
                       <div className="text-sm text-gray-500 text-center py-2">
-                        Chưa có ảnh/video nào
+                        {t.no_images || "Chưa có ảnh/video nào"}
                       </div>
                     )}
 
@@ -1272,7 +1324,7 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
                       <div
                         className="flex justify-center items-center mt-3 py-2 bg-gray-100 rounded cursor-pointer hover:bg-gray-200"
                         onClick={() => handleShowMediaGallery("media")}>
-                        <span>Xem tất cả</span>
+                        <span>{t.view_all || "Xem tất cả"}</span>
                       </div>
                     )}
                   </div>
@@ -1292,7 +1344,7 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
                   }>
                   <div className="flex items-center">
                     <FileOutlined className="text-gray-500 mr-3" />
-                    <span className="font-medium">File</span>
+                    <span className="font-medium">{t.files || "Tệp tin"}</span>
                   </div>
                   <RightOutlined
                     className={`text-gray-400 transition-transform ${activeKeys.includes("files") ? "transform rotate-90" : ""}`}
@@ -1421,8 +1473,8 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
                     ) : (
                       <div className="text-sm text-gray-500 text-center py-2">
                         {isGroup
-                          ? "Chưa có file nào"
-                          : "Chưa có File được chia sẻ từ sau 10/3/2025"}
+                          ? t.no_files || "Chưa có file nào"
+                          : t.no_files || "Chưa có file nào"}
                       </div>
                     )}
 
@@ -1430,7 +1482,7 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
                       <div
                         className="flex justify-center items-center mt-3 py-2 bg-gray-100 rounded cursor-pointer hover:bg-gray-200"
                         onClick={() => handleShowMediaGallery("files")}>
-                        <span>Xem tất cả</span>
+                        <span>{t.view_all || "Xem tất cả"}</span>
                       </div>
                     )}
                   </div>
@@ -1450,7 +1502,7 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
                 <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
                   <div className="flex items-center">
                     <LinkOutlined className="text-gray-500 mr-3" />
-                    <span>Link</span>
+                    <span>{t.links || "Liên kết"}</span>
                   </div>
                   <RightOutlined
                     className={`text-gray-400 transition-transform ${activeKeys.includes("links") ? "transform rotate-90" : ""}`}
@@ -1506,7 +1558,7 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
                       </div>
                     ) : (
                       <div className="text-sm text-gray-500 text-center py-2">
-                        Chưa có link nào
+                        {t.no_links || "Chưa có link nào"}
                       </div>
                     )}
                   </div>
@@ -1526,7 +1578,7 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
                 <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
                   <div className="flex items-center">
                     <EyeInvisibleOutlined className="text-gray-500 mr-3" />
-                    <span>Thiết lập bảo mật</span>
+                    <span>{t.privacy_settings || "Thiết lập bảo mật"}</span>
                   </div>
                   <RightOutlined
                     className={`text-gray-400 transition-transform ${activeKeys.includes("security") ? "transform rotate-90" : ""}`}
@@ -1537,17 +1589,23 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
                     <div className="space-y-4">
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="font-medium">Tin nhắn tự xóa</p>
-                          <p className="text-sm text-gray-500">Không bao giờ</p>
+                          <p className="font-medium">
+                            {t.auto_delete_messages || "Tin nhắn tự xóa"}
+                          </p>
+                          <p className="text-sm text-gray-500">
+                            {t.auto_delete_never || "Không bao giờ"}
+                          </p>
                         </div>
                         <Switch checked={false} size="small" />
                       </div>
 
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="font-medium">Ẩn trò chuyện</p>
+                          <p className="font-medium">
+                            {t.hide_chat || "Ẩn trò chuyện"}
+                          </p>
                           <p className="text-sm text-gray-500">
-                            Yêu cầu mật khẩu để xem
+                            {t.require_password || "Yêu cầu mật khẩu để xem"}
                           </p>
                         </div>
                         <Switch
@@ -1565,20 +1623,22 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
               <div className="mt-2">
                 <div className="flex items-center text-red-500 px-4 py-3 cursor-pointer hover:bg-gray-50">
                   <WarningOutlined className="mr-3" />
-                  <span>Báo xấu</span>
+                  <span>{t.report || "Báo xấu"}</span>
                 </div>
                 <div
                   className="flex items-center text-red-500 px-4 py-3 cursor-pointer hover:bg-gray-50"
                   onClick={handleDeleteChat}>
                   <DeleteOutlined className="mr-3" />
-                  <span>Xóa lịch sử trò chuyện</span>
+                  <span>
+                    {t.delete_chat_history || "Xóa lịch sử trò chuyện"}
+                  </span>
                 </div>
                 {isGroup && (
                   <div
                     className="flex items-center text-red-500 px-4 py-3 cursor-pointer hover:bg-gray-50"
                     onClick={handleLeaveGroup}>
                     <LogoutOutlined className="mr-3" />
-                    <span>Rời nhóm</span>
+                    <span>{t.leave_group || "Rời nhóm"}</span>
                   </div>
                 )}
               </div>
@@ -1710,17 +1770,17 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
 
       {/* Edit Local Name Modal */}
       <Modal
-        title="Đổi tên gợi nhớ"
+        title={t.edit_nickname || "Đổi tên gợi nhớ"}
         open={isEditNameModalVisible}
         onOk={handleSaveLocalName}
         onCancel={() => setIsEditNameModalVisible(false)}
-        okText="Lưu"
-        cancelText="Hủy">
+        okText={t.save || "Lưu"}
+        cancelText={t.cancel || "Hủy"}>
         <Input
           value={localName}
           onChange={(e) => setLocalName(e.target.value)}
           className="w-full p-2 border rounded"
-          placeholder="Nhập tên gợi nhớ"
+          placeholder={t.enter_nickname || "Nhập tên gợi nhớ"}
         />
       </Modal>
 

@@ -8,6 +8,7 @@ import {
   changePassword as apiChangePassword, // Import hàm changePassword từ API
 } from "../../../api/API";
 import socketService from "../../../services/socketService";
+import zegoService from "../../../services/zegoService";
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -15,26 +16,44 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // Kiểm tra token khi khởi động ứng dụng
   useEffect(() => {
     const token = localStorage.getItem("token");
-    const userId = localStorage.getItem("userId"); // Lưu userId khi login
+    const userId = localStorage.getItem("userId");
     const refreshToken = localStorage.getItem("refreshToken");
+    const fullname = localStorage.getItem("fullname"); // Lấy fullname
+
     if ((token && userId) || (refreshToken && userId)) {
       const fetchUser = async () => {
         try {
           const userData = await fetchUserData(userId);
           if (userData) {
             setUser(userData);
+            // Lưu fullname vào localStorage nếu chưa có
+            if (!fullname && userData.fullname) {
+              localStorage.setItem("fullname", userData.fullname);
+            }
+
             // Authenticate socket connection with userId
             socketService.authenticate(userId);
+
+            // Khởi tạo ZIM cho cuộc gọi
+            if (userData.fullname || fullname) {
+              const userName = userData.fullname || fullname;
+              console.log("AuthProvider: Khởi tạo ZIM sau khi xác thực token");
+              zegoService.initializeZIM(userId, userName).catch((error) => {
+                console.error("AuthProvider: Lỗi khởi tạo ZIM:", error);
+              });
+            }
           } else {
             localStorage.removeItem("token");
             localStorage.removeItem("userId");
             localStorage.removeItem("refreshToken");
+            localStorage.removeItem("fullname");
           }
         } catch (error) {
           console.error("Lỗi khi lấy thông tin người dùng:", error);
           localStorage.removeItem("token");
           localStorage.removeItem("userId");
           localStorage.removeItem("refreshToken");
+          localStorage.removeItem("fullname");
         }
       };
       fetchUser();
@@ -44,19 +63,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // Thêm class vào body để ẩn reCAPTCHA khi người dùng đã đăng nhập
   useEffect(() => {
     if (user) {
-      document.body.classList.add('user-logged-in');
-      
+      document.body.classList.add("user-logged-in");
+
       // Ẩn tất cả các thành phần reCAPTCHA
-      const recaptchaElements = document.querySelectorAll('.grecaptcha-badge, .g-recaptcha, iframe[src*="recaptcha"]');
-      recaptchaElements.forEach(element => {
+      const recaptchaElements = document.querySelectorAll(
+        '.grecaptcha-badge, .g-recaptcha, iframe[src*="recaptcha"]'
+      );
+      recaptchaElements.forEach((element) => {
         if (element instanceof HTMLElement) {
-          element.style.display = 'none';
-          element.style.visibility = 'hidden';
-          element.style.opacity = '0';
+          element.style.display = "none";
+          element.style.visibility = "hidden";
+          element.style.opacity = "0";
         }
       });
     } else {
-      document.body.classList.remove('user-logged-in');
+      document.body.classList.remove("user-logged-in");
     }
   }, [user]);
 
@@ -66,7 +87,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         console.log("Attempting login with:", form);
         const response = await apiLogin(form.phone, form.password);
 
-        if (!response?.userId || !response?.accessToken || !response?.refreshToken) {
+        if (
+          !response?.userId ||
+          !response?.accessToken ||
+          !response?.refreshToken
+        ) {
           console.error("Invalid login response:", response);
           throw new Error("Đăng nhập thất bại, không có dữ liệu hợp lệ");
         }
@@ -80,14 +105,30 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           // Fetch user data using the phone number
           const userData = await getUserByPhone(form.phone);
           setUser(userData);
-          
+
+          // Lưu fullname vào localStorage
+          if (userData.fullname) {
+            localStorage.setItem("fullname", userData.fullname);
+          }
+
           // Authenticate socket connection after successful login
           socketService.authenticate(response.userId.toString());
+
+          // Khởi tạo ZIM ngay sau khi đăng nhập
+          if (userData.fullname) {
+            console.log("AuthProvider: Khởi tạo ZIM sau khi đăng nhập");
+            zegoService
+              .initializeZIM(response.userId.toString(), userData.fullname)
+              .catch((error) => {
+                console.error("AuthProvider: Lỗi khởi tạo ZIM:", error);
+              });
+          }
         } catch (error) {
           // If fetching user data fails, clean up localStorage
           localStorage.removeItem("token");
           localStorage.removeItem("refreshToken");
           localStorage.removeItem("userId");
+          localStorage.removeItem("fullname");
           throw error;
         }
       } catch (error) {
@@ -101,6 +142,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const logout = useCallback(() => {
     setUser(null);
     localStorage.removeItem("token");
+    localStorage.removeItem("fullname");
     // Disconnect socket on logout
     // socketService.disconnect();
   }, []);
@@ -110,15 +152,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (!user) {
         throw new Error("Người dùng chưa đăng nhập");
       }
-  
+
       try {
         const response = await apiChangePassword(oldPassword, newPassword);
         console.log("Change password response in AuthProvider:", response);
-  
+
         localStorage.setItem("token", response.accessToken);
         localStorage.setItem("refreshToken", response.refreshToken);
         localStorage.setItem("userId", response.userId);
-  
+
         if (user.phone) {
           const userData = await getUserByPhone(user.phone);
           setUser(userData);

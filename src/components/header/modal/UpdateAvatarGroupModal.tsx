@@ -1,5 +1,5 @@
 // UpdateAvatarGroupModal.tsx
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { Modal, Button, Spin, App } from "antd";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faCamera } from "@fortawesome/free-solid-svg-icons";
@@ -24,8 +24,13 @@ const UpdateAvatarGroupModal: React.FC<UpdateAvatarGroupModalProps> = ({
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [uploadProgress, setUploadProgress] = useState<number>(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { message } = App.useApp();
+
+  // Effect for language change
+  useEffect(() => {
+    // Re-render component when language changes
+  }, [language]);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -125,7 +130,7 @@ const UpdateAvatarGroupModal: React.FC<UpdateAvatarGroupModalProps> = ({
           loading={isLoading}
           disabled={isLoading || !selectedFile}>
           {isLoading
-            ? `Đang cập nhật... ${uploadProgress}%`
+            ? `${t.loading || "Đang cập nhật"}... ${uploadProgress}%`
             : t.update || "Cập nhật"}
         </Button>,
       ]}
@@ -146,7 +151,7 @@ const UpdateAvatarGroupModal: React.FC<UpdateAvatarGroupModalProps> = ({
             />
           ) : (
             <div className="w-32 h-32 rounded-full bg-gray-200 flex items-center justify-center text-gray-500">
-              {"Chưa có ảnh"}
+              {t.no_avatar || "Chưa có ảnh"}
             </div>
           )}
         </div>

@@ -59,7 +59,7 @@ const RequestList: React.FC<RequestListProps> = ({
   onRequestsUpdate,
   onSelectConversation,
 }) => {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [receivedRequests, setReceivedRequests] = useState<FriendRequest[]>([]);
   const [sentRequests, setSentRequests] = useState<FriendRequest[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -96,10 +96,17 @@ const RequestList: React.FC<RequestListProps> = ({
     } catch (err) {
       console.error("RequestList: Error fetching friend requests:", err);
       setError(
-        err instanceof Error ? err.message : "Không thể tải lời mời kết bạn"
+        err instanceof Error
+          ? err.message
+          : t.retrieve_friend_requests_error || "Không thể tải lời mời kết bạn"
       );
     }
   };
+
+  // Effect for language change
+  useEffect(() => {
+    // No specific updates needed here, the component will re-render with new translations
+  }, [language]);
 
   // Polling and socket setup
   useEffect(() => {
@@ -252,9 +259,7 @@ const RequestList: React.FC<RequestListProps> = ({
 
         // Show notification only if the current user is the sender
         if (data.sender.userId === currentUserId) {
-          message.info(
-            `Lời mời kết bạn của bạn đến ${data.sender.fullname} đã bị từ chối`
-          );
+          message.info(`${data.sender.fullname} đã bị từ chối lời mời kết bạn`);
         }
 
         console.log(
@@ -304,7 +309,7 @@ const RequestList: React.FC<RequestListProps> = ({
         // Show notification only if the current user is the sender
         if (data.sender.userId === currentUserId) {
           message.success(
-            `${data.sender.fullname} đã chấp nhận lời mời kết bạn của bạn`
+            `${data.sender.fullname} đã chấp nhận lời mời kết bạn`
           );
         }
 
@@ -423,7 +428,9 @@ const RequestList: React.FC<RequestListProps> = ({
       setReceivedRequests((prev) =>
         prev.filter((req) => req.friendRequestId !== requestId)
       );
-      message.success("Đã chấp nhận lời mời kết bạn");
+      message.success(
+        t.accepted_friend_request || "Đã chấp nhận lời mời kết bạn"
+      );
       console.log(
         "RequestList: Notifying parent via onRequestsUpdate (accept)"
       );
@@ -445,7 +452,8 @@ const RequestList: React.FC<RequestListProps> = ({
       message.error(
         error instanceof Error
           ? error.message
-          : "Không thể chấp nhận lời mời kết bạn"
+          : t.accept_friend_request_error ||
+              "Không thể chấp nhận lời mời kết bạn"
       );
     }
   };
@@ -457,7 +465,9 @@ const RequestList: React.FC<RequestListProps> = ({
       setReceivedRequests((prev) =>
         prev.filter((req) => req.friendRequestId !== requestId)
       );
-      message.success("Đã từ chối lời mời kết bạn");
+      message.success(
+        t.rejected_friend_request || "Đã từ chối lời mời kết bạn"
+      );
       console.log(
         "RequestList: Notifying parent via onRequestsUpdate (reject)"
       );
@@ -467,7 +477,7 @@ const RequestList: React.FC<RequestListProps> = ({
       message.error(
         error instanceof Error
           ? error.message
-          : "Không thể từ chối lời mời kết bạn"
+          : t.reject_friend_request_error || "Không thể từ chối lời mời kết bạn"
       );
     }
   };
@@ -475,13 +485,17 @@ const RequestList: React.FC<RequestListProps> = ({
   const handleCancel = async (requestId: string) => {
     try {
       console.log("RequestList: Canceling friend request:", requestId);
-      message.loading({ content: "Đang xử lý...", key: "cancelRequest" });
+      message.loading({
+        content: t.processing || "Đang xử lý...",
+        key: "cancelRequest",
+      });
       await cancelFriendRequest(requestId);
       setSentRequests((prev) =>
         prev.filter((req) => req.friendRequestId !== requestId)
       );
       message.success({
-        content: "Đã thu hồi lời mời kết bạn",
+        content:
+          t.revoke_friend_request_success || "Đã thu hồi lời mời kết bạn",
         key: "cancelRequest",
         duration: 2,
       });
@@ -499,7 +513,8 @@ const RequestList: React.FC<RequestListProps> = ({
         content:
           error instanceof Error
             ? error.message
-            : "Không thể thu hồi lời mời kết bạn",
+            : t.revoke_friend_request_error ||
+              "Không thể thu hồi lời mời kết bạn",
         key: "cancelRequest",
         duration: 3,
       });
@@ -511,7 +526,10 @@ const RequestList: React.FC<RequestListProps> = ({
       console.log("RequestList: Handling friend click for user:", userId);
 
       // Set loading state
-      const loadingMsg = message.loading("Đang mở cuộc trò chuyện...", 0);
+      const loadingMsg = message.loading(
+        t.opening_conversation || "Đang mở cuộc trò chuyện...",
+        0
+      );
 
       // Create or get the conversation
       const conversation = await createConversation(userId);
@@ -536,7 +554,9 @@ const RequestList: React.FC<RequestListProps> = ({
       }
     } catch (error) {
       console.error("RequestList: Error creating conversation:", error);
-      message.error("Không thể tạo cuộc trò chuyện");
+      message.error(
+        t.create_conversation_error || "Không thể tạo cuộc trò chuyện"
+      );
     }
   };
 
@@ -606,7 +626,8 @@ const RequestList: React.FC<RequestListProps> = ({
         <TabPane
           tab={
             <span className="pl-5">
-              Lời mời đã nhận ({receivedRequests.length})
+              {t.friend_request_received || "Lời mời đã nhận"} (
+              {receivedRequests.length})
             </span>
           }
           key="received"
@@ -614,7 +635,9 @@ const RequestList: React.FC<RequestListProps> = ({
           {error ? (
             <div className="p-4 text-center text-red-500">{error}</div>
           ) : receivedRequests.length === 0 ? (
-            <div className="p-4 text-center">Không có lời mời nào</div>
+            <div className="p-4 text-center">
+              {t.no_requests || "Không có lời mời nào"}
+            </div>
           ) : (
             <div className="overflow-y-auto space-y-4 p-4">
               {receivedRequests.map((request) => (
@@ -632,7 +655,11 @@ const RequestList: React.FC<RequestListProps> = ({
                         )
                       }>
                       <Avatar
-                        name={request.senderId.fullname || "Unknown"}
+                        name={
+                          request.senderId.fullname ||
+                          t.unknown_user ||
+                          "Unknown"
+                        }
                         avatarUrl={request.senderId.urlavatar}
                         size={60}
                         className="flex-shrink-0"
@@ -649,7 +676,9 @@ const RequestList: React.FC<RequestListProps> = ({
                               "received"
                             )
                           }>
-                          {request.senderId.fullname || "Unknown"}
+                          {request.senderId.fullname ||
+                            t.unknown_user ||
+                            "Unknown"}
                         </div>
                         <div className="text-sm text-gray-500">
                           {/* {formatDate(request.createdAt)} */}
@@ -676,7 +705,7 @@ const RequestList: React.FC<RequestListProps> = ({
                             onClick={() =>
                               handleReject(request.friendRequestId)
                             }>
-                            {t.cancel || "Từ chối"}
+                            {t.decline || "Từ chối"}
                           </Button>
                         </div>
                       </div>
@@ -690,14 +719,19 @@ const RequestList: React.FC<RequestListProps> = ({
 
         <TabPane
           tab={
-            <span className="pl-1">Lời mời đã gửi ({sentRequests.length})</span>
+            <span className="pl-1">
+              {t.friend_request_sent || "Lời mời đã gửi"} ({sentRequests.length}
+              )
+            </span>
           }
           key="sent">
           <div className="p-4">
             {error ? (
               <div className="p-4 text-center text-red-500">{error}</div>
             ) : sentRequests.length === 0 ? (
-              <div className="p-4 text-center">Không có lời mời nào</div>
+              <div className="p-4 text-center">
+                {t.no_requests || "Không có lời mời nào"}
+              </div>
             ) : (
               <div className="overflow-y-auto space-y-4 p-4">
                 {sentRequests.map((request) => (
@@ -716,7 +750,11 @@ const RequestList: React.FC<RequestListProps> = ({
                             )
                           }>
                           <Avatar
-                            name={request.receiverId.fullname || "Unknown"}
+                            name={
+                              request.receiverId.fullname ||
+                              t.unknown_user ||
+                              "Unknown"
+                            }
                             avatarUrl={request.receiverId.urlavatar}
                             size={60}
                             className="flex-shrink-0"
@@ -733,7 +771,9 @@ const RequestList: React.FC<RequestListProps> = ({
                                   "sent"
                                 )
                               }>
-                              {request.receiverId.fullname || "Unknown"}
+                              {request.receiverId.fullname ||
+                                t.unknown_user ||
+                                "Unknown"}
                             </div>
                             <div className="text-sm text-gray-500">
                               {/* {formatDate(request.createdAt)} */}

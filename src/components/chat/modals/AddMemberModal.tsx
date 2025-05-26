@@ -10,6 +10,7 @@ import {
 import { Avatar } from "../../common/Avatar";
 import { useConversationContext } from "../../../features/chat/context/ConversationContext";
 import socketService from "../../../services/socketService";
+import { useLanguage } from "../../../features/auth/context/LanguageContext";
 
 // Use a type that contains only the properties we need
 interface UserDisplay {
@@ -34,6 +35,7 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
   groupMembers,
   refreshConversationData,
 }) => {
+  const { t, language } = useLanguage(); // Use language context
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<UserDisplay[]>([]);
   const [friends, setFriends] = useState<UserDisplay[]>([]);
@@ -41,8 +43,15 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
   const [isSearching, setIsSearching] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isAddingMember, setIsAddingMember] = useState(false);
-  const [activeFilter, setActiveFilter] = useState("tất cả");
+  const [activeFilter, setActiveFilter] = useState(
+    t.all_category ? t.all_category.toLowerCase() : "tất cả"
+  );
   const { updateConversationField } = useConversationContext();
+
+  // Update activeFilter when language changes
+  useEffect(() => {
+    setActiveFilter(t.all_category ? t.all_category.toLowerCase() : "tất cả");
+  }, [language, t.all_category]);
 
   // Load friends chỉ khi modal mở/đóng
   useEffect(() => {
@@ -79,7 +88,6 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
       addedByUser: { userId: string; fullname: string };
     }) => {
       if (data.conversationId === conversationId) {
-        
         // Join conversation for the new member
         socketService.joinConversation(conversationId);
         if (refreshConversationData) {
@@ -172,7 +180,9 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
   // Handle adding members to the group
   const handleAddMembers = async () => {
     if (selectedUsers.length === 0) {
-      message.warning("Vui lòng chọn ít nhất một người dùng");
+      message.warning(
+        t.select_at_least_one || "Vui lòng chọn ít nhất một người dùng"
+      );
       return;
     }
 
@@ -198,7 +208,7 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
             );
           } else {
             errors.push(
-              `Không thể thêm ${
+              `${t.cannot_add_member || "Không thể thêm"} ${
                 searchResults.find((u) => u.userId === userId)?.fullname ||
                 friends.find((f) => f.userId === userId)?.fullname ||
                 "người dùng"
@@ -212,7 +222,7 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
         // Chỉ emit một sự kiện socket duy nhất cho tất cả thành viên đã thêm
         const currentUser = {
           userId: localStorage.getItem("userId") || "",
-          fullname: localStorage.getItem("fullname") || "Người dùng"
+          fullname: localStorage.getItem("fullname") || "Người dùng",
         };
 
         // Nếu có nhiều thành viên được thêm, chỉ gửi một thông báo tổng hợp
@@ -225,24 +235,28 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
               content: `${currentUser.fullname} đã thêm ${successes.length} thành viên vào nhóm`,
               senderId: currentUser.userId,
               createdAt: new Date().toISOString(),
-            }
+            },
           });
         } else if (successes.length === 1) {
           // Nếu chỉ thêm một người, gửi thông báo chi tiết
-          const addedUser = searchResults.find(u => u.userId === successes[0]) || 
-                          friends.find(f => f.userId === successes[0]) || 
-                          { userId: successes[0], fullname: "Người dùng mới" };
-                          
+          const addedUser = searchResults.find(
+            (u) => u.userId === successes[0]
+          ) ||
+            friends.find((f) => f.userId === successes[0]) || {
+              userId: successes[0],
+              fullname: "Người dùng mới",
+            };
+
           socketService.emitUserAddedToGroup({
             conversationId,
             addedUser: {
               userId: addedUser.userId,
-              fullname: addedUser.fullname
+              fullname: addedUser.fullname,
             },
             addedByUser: {
               userId: currentUser.userId,
-              fullname: currentUser.fullname
-            }
+              fullname: currentUser.fullname,
+            },
           });
         }
 
@@ -251,7 +265,7 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
           console.log("userId", userId);
           socketService.joinConversation(conversationId);
         }
-        
+
         // Refresh conversation data một lần duy nhất
         await refreshConversation();
       }
@@ -308,12 +322,12 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
 
   return (
     <Modal
-      title="Thêm thành viên"
+      title={t.add_member || "Thêm thành viên"}
       open={visible}
       onCancel={handleClose}
       footer={[
         <Button key="cancel" onClick={handleClose}>
-          Hủy
+          {t.cancel || "Hủy"}
         </Button>,
         <Button
           key="add"
@@ -321,14 +335,17 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
           onClick={handleAddMembers}
           loading={isAddingMember}
           disabled={selectedUsers.length === 0}>
-          Xác nhận
+          {t.confirm || "Xác nhận"}
         </Button>,
       ]}
       width={500}>
       <div className="mb-4 relative">
         <Input
           prefix={<SearchOutlined className="text-gray-400" />}
-          placeholder="Nhập tên, số điện thoại, hoặc danh sách số điện thoại"
+          placeholder={
+            t.enter_name_phone ||
+            "Nhập tên, số điện thoại, hoặc danh sách số điện thoại"
+          }
           value={searchQuery}
           onChange={handleSearchChange}
           className="w-full py-2"
@@ -338,22 +355,31 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
       <div className="flex mb-4 overflow-x-auto">
         <div className="flex flex-wrap gap-1">
           {[
-            "Tất cả",
-            "Khách hàng",
-            "Gia đình",
-            "Công việc",
-            "Bạn bè",
-            "Trả lời sau",
-          ].map((category) => (
+            { key: "all_category", default: "Tất cả" },
+            { key: "customers_category", default: "Khách hàng" },
+            { key: "family_category", default: "Gia đình" },
+            { key: "work_category", default: "Công việc" },
+            { key: "friends_category", default: "Bạn bè" },
+            { key: "reply_later_category", default: "Trả lời sau" },
+          ].map(({ key, default: defaultText }) => (
             <button
-              key={category}
+              key={key}
               className={`px-4 py-1 rounded-full text-sm ${
-                activeFilter.toLowerCase() === category.toLowerCase()
+                activeFilter.toLowerCase() ===
+                (t[key as keyof typeof t]
+                  ? t[key as keyof typeof t].toLowerCase()
+                  : defaultText.toLowerCase())
                   ? "bg-blue-500 text-white"
                   : "bg-gray-200 text-gray-700"
               }`}
-              onClick={() => setActiveFilter(category)}>
-              {category}
+              onClick={() =>
+                setActiveFilter(
+                  t[key as keyof typeof t]
+                    ? t[key as keyof typeof t].toLowerCase()
+                    : defaultText.toLowerCase()
+                )
+              }>
+              {t[key as keyof typeof t] || defaultText}
             </button>
           ))}
         </div>
@@ -362,7 +388,7 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
       {selectedUsersList.length > 0 && (
         <div className="mb-4">
           <span className="text-sm text-gray-500">
-            Đã chọn: {selectedUsersList.length}/100
+            {t.selected_members || "Đã chọn"}: {selectedUsersList.length}/100
           </span>
           <div className="mt-1">
             {selectedUsersList.map((user) => (
@@ -391,11 +417,15 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
 
       <div className="mb-4">
         <h3 className="text-sm font-medium mb-2">
-          {searchQuery ? "Kết quả tìm kiếm" : "Danh bạ"}
+          {searchQuery
+            ? t.search_results_label || "Kết quả tìm kiếm"
+            : t.contacts_label || "Danh bạ"}
         </h3>
         <div className="max-h-60 overflow-y-auto">
           {isLoading || isSearching ? (
-            <div className="text-center py-4 text-gray-500">Đang tải...</div>
+            <div className="text-center py-4 text-gray-500">
+              {t.loading_contacts || "Đang tải..."}
+            </div>
           ) : sortedUsers.length > 0 ? (
             <div>
               {letters.map((letter) => (
@@ -438,8 +468,8 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
           ) : (
             <div className="text-center py-4 text-gray-500">
               {searchQuery
-                ? "Không tìm thấy kết quả phù hợp"
-                : "Bạn chưa có bạn bè nào"}
+                ? t.no_search_results_found || "Không tìm thấy kết quả phù hợp"
+                : t.no_friends_yet || "Bạn chưa có bạn bè nào"}
             </div>
           )}
         </div>
