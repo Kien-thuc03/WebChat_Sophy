@@ -786,6 +786,152 @@ class ZegoService {
   }
 
   /**
+   * Gửi lời mời gọi nhóm (group call)
+   * @param zegoInstance Instance ZEGO đã được khởi tạo
+   * @param memberIds Danh sách ID của các thành viên trong nhóm sẽ được mời
+   * @param memberNames Danh sách tên của các thành viên trong nhóm (tương ứng với memberIds)
+   * @param roomID ID phòng họp (mặc định là tên phòng + timestamp)
+   * @param isVideoCall True nếu là cuộc gọi video, False nếu là cuộc gọi thoại
+   * @param callbacks Các hàm callback cho các sự kiện cuộc gọi
+   * @returns Promise<void>
+   */
+  async sendGroupCallInvitation(
+    zegoInstance: ZegoUIKitPrebuilt,
+    memberIds: string[],
+    memberNames: string[],
+    roomID: string = `group_call_${Date.now()}`,
+    isVideoCall: boolean,
+    callbacks: {
+      onCallModalVisibilityChange: (visible: boolean) => void;
+      onCallingProgressChange: (inProgress: boolean) => void;
+    }
+  ): Promise<void> {
+    try {
+      if (!memberIds.length || memberIds.length !== memberNames.length) {
+        message.error("Danh sách thành viên không hợp lệ");
+        return;
+      }
+
+      // Chuẩn hóa ID thành viên
+      const callees = memberIds.map((id, index) => ({
+        userID: String(id).replace(/[^a-zA-Z0-9]/g, ""),
+        userName: memberNames[index] || "User",
+      }));
+
+      const callType = isVideoCall
+        ? (ZegoUIKitPrebuilt as any).InvitationTypeVideoCall
+        : (ZegoUIKitPrebuilt as any).InvitationTypeVoiceCall;
+
+      message.loading(
+        `Đang gửi lời mời ${isVideoCall ? "video" : "cuộc gọi"} đến ${memberIds.length} thành viên...`
+      );
+
+      // Reset observer state để có thể bắt sự kiện mới
+      window.zegoObserverActive = true;
+
+      // Cấu hình cuộc gọi với các tùy chọn phù hợp cho nhóm
+      const result = await (zegoInstance as any).sendCallInvitation({
+        callees: callees,
+        callType: callType,
+        timeout: 60,
+        data: JSON.stringify({
+          roomID: roomID,
+          action: isVideoCall ? "group-video-call" : "group-voice-call",
+          config: {
+            // Cấu hình chung
+            turnOnCameraWhenJoining: isVideoCall, // Chỉ bật camera tự động nếu là video call
+            turnOnMicrophoneWhenJoining: true, // Luôn bật micro tự động
+            useFrontFacingCamera: true, // Sử dụng camera trước
+            showPreJoinView: true, // Hiển thị màn hình xác nhận trước khi tham gia
+            showLeavingView: true, // Hiển thị xác nhận khi rời khỏi
+
+            // Cấu hình UI cho nhóm
+            showMicrophoneToggleButton: true,
+            showCameraToggleButton: isVideoCall,
+            showUserList: true, // Quan trọng trong cuộc gọi nhóm
+            showLayoutToggleButton: isVideoCall,
+            showScreenSharingButton: isVideoCall,
+            showTextChat: true, // Bật chat trong cuộc gọi nhóm
+            showAudioVideoSettingsButton: true,
+
+            // Bố cục cho nhóm
+            layout: isVideoCall ? "Grid" : "Auto", // Grid phù hợp cho nhiều người
+
+            // Cấu hình âm thanh nâng cao
+            enableStereo: true,
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+
+            // Hiển thị số người trong phòng
+            showRoomDetailsButton: true,
+
+            // Custom sự kiện
+            onCallEnd: () => {
+              if (window.zegoCallbacks?.onCallEnd) {
+                window.zegoCallbacks.onCallEnd();
+              }
+              // Reset trạng thái cuộc gọi
+              callbacks.onCallingProgressChange(false);
+            },
+            onJoinRoom: () => {
+              console.log("Đã tham gia phòng gọi nhóm");
+              callbacks.onCallModalVisibilityChange(false);
+            },
+          },
+        }),
+      });
+
+      console.log(
+        `${isVideoCall ? "Video c" : "C"}all group invitation sent:`,
+        result
+      );
+
+      if (result.errorInvitees && result.errorInvitees.length > 0) {
+        // Nếu có lỗi với một số người
+        const errorCount = result.errorInvitees.length;
+        const totalCount = callees.length;
+        const successCount = totalCount - errorCount;
+
+        if (successCount > 0) {
+          // Vẫn có người nhận được lời mời
+          message.warning(
+            `Đã gửi lời mời đến ${successCount}/${totalCount} thành viên. ${errorCount} thành viên không thể liên hệ.`
+          );
+          callbacks.onCallModalVisibilityChange(true);
+        } else {
+          // Không ai nhận được lời mời
+          message.error(
+            "Không thể gửi lời mời đến bất kỳ thành viên nào. Vui lòng thử lại sau."
+          );
+          callbacks.onCallingProgressChange(false);
+        }
+      } else {
+        // Thành công
+        callbacks.onCallModalVisibilityChange(true);
+        message.success(
+          `Đang kết nối cuộc gọi${isVideoCall ? " video" : ""} nhóm...`
+        );
+
+        // Timeout để đóng modal sau một khoảng thời gian
+        setTimeout(() => {
+          callbacks.onCallModalVisibilityChange(false);
+        }, 5000);
+      }
+    } catch (error) {
+      console.error(
+        `Error making ${isVideoCall ? "video " : ""}group call:`,
+        error
+      );
+      message.error(
+        `Đã xảy ra lỗi khi gọi ${isVideoCall ? "video" : "điện"} nhóm`
+      );
+      callbacks.onCallingProgressChange(false);
+      throw error;
+    }
+  }
+
+  /**
    * Kết thúc cuộc gọi hiện tại
    * @param zegoInstance Instance ZEGO đã được khởi tạo
    */
