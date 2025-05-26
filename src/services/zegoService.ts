@@ -567,6 +567,12 @@ class ZegoService {
    */
   async requestMediaPermissions(): Promise<void> {
     try {
+      // Thử giải phóng các thiết bị trước khi yêu cầu lại
+      this.releaseMediaDevices();
+
+      // Thêm timeout để đảm bảo thiết bị được giải phóng hoàn toàn
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: true,
         video: true,
@@ -590,11 +596,66 @@ class ZegoService {
       // Đóng stream sau khi kiểm tra để tránh sử dụng tài nguyên
       // nhưng giữ permissions
       stream.getTracks().forEach((track) => track.stop());
-    } catch (err) {
+    } catch (err: any) {
       console.warn("Chưa cấp quyền truy cập camera hoặc microphone:", err);
-      // message.warning(
-      //   "Vui lòng cấp quyền truy cập camera và microphone để sử dụng tính năng gọi điện"
-      // );
+
+      // Kiểm tra nếu lỗi là do thiết bị đang được sử dụng
+      if (
+        err.name === "NotReadableError" ||
+        err.message?.includes("equipment is being occupied") ||
+        err.message?.includes("device in use") ||
+        err.message?.includes("busy") ||
+        err.message?.includes("occupied")
+      ) {
+        console.log(
+          "Thiết bị đang được sử dụng bởi ứng dụng khác, thử giải phóng..."
+        );
+        // Hiển thị thông báo cho người dùng
+        message.warning(
+          "Thiết bị audio/video đang được sử dụng bởi ứng dụng khác. Vui lòng đóng các ứng dụng đang sử dụng camera/mic và thử lại."
+        );
+
+        // Thử giải phóng thiết bị
+        this.releaseMediaDevices();
+
+        // Thử lại sau 1 giây (tùy chọn)
+        setTimeout(() => {
+          message.info(
+            "Đang thử kết nối lại với thiết bị âm thanh và hình ảnh..."
+          );
+          this.requestMediaPermissions();
+        }, 1000);
+      } else {
+        // Lỗi khác
+        message.warning(
+          "Vui lòng cấp quyền truy cập camera và microphone để sử dụng tính năng gọi điện"
+        );
+      }
+    }
+  }
+
+  /**
+   * Giải phóng tất cả thiết bị media đang được sử dụng
+   */
+  releaseMediaDevices(): void {
+    try {
+      // Phương pháp thay thế - tìm và giải phóng các thẻ media trong trang
+      document.querySelectorAll("video, audio").forEach((element) => {
+        const mediaElement = element as HTMLMediaElement;
+        if (mediaElement.srcObject) {
+          const mediaStream = mediaElement.srcObject as MediaStream;
+          if (mediaStream && mediaStream.getTracks) {
+            mediaStream.getTracks().forEach((track) => {
+              track.stop();
+            });
+          }
+          mediaElement.srcObject = null;
+        }
+      });
+
+      console.log("Đã giải phóng các thiết bị media");
+    } catch (error) {
+      console.error("Lỗi khi giải phóng thiết bị media:", error);
     }
   }
 
@@ -675,6 +736,9 @@ class ZegoService {
     }
   ): Promise<void> {
     try {
+      // Giải phóng các thiết bị media trước khi bắt đầu cuộc gọi mới
+      this.releaseMediaDevices();
+
       // Đảm bảo ID người dùng là chuỗi và không có ký tự đặc biệt
       const normalizedCalleeId = String(calleeId).replace(/[^a-zA-Z0-9]/g, "");
 
@@ -725,6 +789,21 @@ class ZegoService {
             noiseSuppression: true, // Giảm tiếng ồn
             autoGainControl: true, // Tự động điều chỉnh âm lượng
 
+            // Xử lý lỗi thiết bị
+            onDeviceError: (errorCode: any, errorName: any) => {
+              console.error("Lỗi thiết bị:", errorCode, errorName);
+              if (
+                errorName?.includes("occupied") ||
+                errorName?.includes("busy")
+              ) {
+                message.error(
+                  "Thiết bị đang được sử dụng bởi ứng dụng khác. Vui lòng đóng các ứng dụng khác và thử lại."
+                );
+                // Thử giải phóng thiết bị
+                this.releaseMediaDevices();
+              }
+            },
+
             // Custom sự kiện
             onOnlySelfInRoom: () => {
               // Khi chỉ có mình trong phòng (đối phương đã rời đi)
@@ -746,6 +825,8 @@ class ZegoService {
               }
               // Reset trạng thái cuộc gọi
               callbacks.onCallingProgressChange(false);
+              // Giải phóng thiết bị media
+              this.releaseMediaDevices();
             },
             onJoinRoom: () => {
               // Khi tham gia phòng
@@ -779,7 +860,27 @@ class ZegoService {
       }
     } catch (error) {
       console.error(`Error making ${isVideoCall ? "video " : ""}call:`, error);
-      message.error(`Đã xảy ra lỗi khi gọi ${isVideoCall ? "video" : "điện"}`);
+
+      // Kiểm tra lỗi cụ thể
+      const errorMsg = error instanceof Error ? error.message : String(error);
+
+      if (
+        errorMsg.includes("occupied") ||
+        errorMsg.includes("busy") ||
+        errorMsg.includes("device") ||
+        errorMsg.includes("NotReadableError")
+      ) {
+        message.error(
+          "Thiết bị đang được sử dụng bởi ứng dụng khác. Vui lòng đóng các ứng dụng đang sử dụng camera/mic và thử lại."
+        );
+        // Thử giải phóng thiết bị
+        this.releaseMediaDevices();
+      } else {
+        message.error(
+          `Đã xảy ra lỗi khi gọi ${isVideoCall ? "video" : "điện"}`
+        );
+      }
+
       callbacks.onCallingProgressChange(false);
       throw error;
     }
@@ -807,6 +908,9 @@ class ZegoService {
     }
   ): Promise<void> {
     try {
+      // Giải phóng các thiết bị media trước khi bắt đầu cuộc gọi mới
+      this.releaseMediaDevices();
+
       if (!memberIds.length || memberIds.length !== memberNames.length) {
         message.error("Danh sách thành viên không hợp lệ");
         return;
@@ -863,6 +967,25 @@ class ZegoService {
             noiseSuppression: true,
             autoGainControl: true,
 
+            // Xử lý lỗi thiết bị
+            onDeviceError: (errorCode: any, errorName: any) => {
+              console.error(
+                "Lỗi thiết bị trong cuộc gọi nhóm:",
+                errorCode,
+                errorName
+              );
+              if (
+                errorName?.includes("occupied") ||
+                errorName?.includes("busy")
+              ) {
+                message.error(
+                  "Thiết bị đang được sử dụng bởi ứng dụng khác. Vui lòng đóng các ứng dụng khác và thử lại."
+                );
+                // Thử giải phóng thiết bị
+                this.releaseMediaDevices();
+              }
+            },
+
             // Hiển thị số người trong phòng
             showRoomDetailsButton: true,
 
@@ -873,6 +996,8 @@ class ZegoService {
               }
               // Reset trạng thái cuộc gọi
               callbacks.onCallingProgressChange(false);
+              // Giải phóng thiết bị media
+              this.releaseMediaDevices();
             },
             onJoinRoom: () => {
               console.log("Đã tham gia phòng gọi nhóm");
@@ -923,9 +1048,27 @@ class ZegoService {
         `Error making ${isVideoCall ? "video " : ""}group call:`,
         error
       );
-      message.error(
-        `Đã xảy ra lỗi khi gọi ${isVideoCall ? "video" : "điện"} nhóm`
-      );
+
+      // Kiểm tra lỗi cụ thể
+      const errorMsg = error instanceof Error ? error.message : String(error);
+
+      if (
+        errorMsg.includes("occupied") ||
+        errorMsg.includes("busy") ||
+        errorMsg.includes("device") ||
+        errorMsg.includes("NotReadableError")
+      ) {
+        message.error(
+          "Thiết bị đang được sử dụng bởi ứng dụng khác. Vui lòng đóng các ứng dụng đang sử dụng camera/mic và thử lại."
+        );
+        // Thử giải phóng thiết bị
+        this.releaseMediaDevices();
+      } else {
+        message.error(
+          `Đã xảy ra lỗi khi gọi ${isVideoCall ? "video" : "điện"} nhóm`
+        );
+      }
+
       callbacks.onCallingProgressChange(false);
       throw error;
     }
@@ -961,6 +1104,9 @@ class ZegoService {
   cleanup(): void {
     // Dừng âm thanh cuộc gọi đến
     this.stopIncomingCallSound();
+
+    // Giải phóng thiết bị media
+    this.releaseMediaDevices();
 
     // Đóng notification và modal nếu có
     if (window.globalCallNotification) {

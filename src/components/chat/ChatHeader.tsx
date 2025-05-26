@@ -383,6 +383,44 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
     }
   }, [isCallModalVisible]);
 
+  // Thêm useEffect mới để kiểm tra khi giao diện ZEGO biến mất (cuộc gọi kết thúc)
+  useEffect(() => {
+    // Chỉ thiết lập observer khi đang có cuộc gọi
+    if (isCallingInProgress) {
+      const callEndObserver = new MutationObserver(() => {
+        // Kiểm tra xem giao diện ZEGO có còn tồn tại không
+        const zegoElements = document.querySelectorAll('[class*="zego"]');
+
+        // Nếu không còn giao diện ZEGO và trước đó có cuộc gọi đang diễn ra
+        if (zegoElements.length === 0 && isCallingInProgress) {
+          console.log("Phát hiện cuộc gọi đã kết thúc, reset trạng thái");
+          setIsCallingInProgress(false);
+        }
+      });
+
+      // Bắt đầu quan sát thay đổi trên body
+      callEndObserver.observe(document.body, {
+        childList: true,
+        subtree: true,
+      });
+
+      // Thêm timeout để đảm bảo reset trạng thái nếu không có callback nào được gọi
+      const safetyTimeout = setTimeout(() => {
+        // Kiểm tra lại xem cuộc gọi có đang diễn ra không và thiết lập lại trạng thái
+        const zegoElements = document.querySelectorAll('[class*="zego"]');
+        if (zegoElements.length === 0 && isCallingInProgress) {
+          console.log("Safety timeout: Reset trạng thái cuộc gọi");
+          setIsCallingInProgress(false);
+        }
+      }, 60000); // Sau 60 giây, kiểm tra và reset nếu cần
+
+      return () => {
+        callEndObserver.disconnect();
+        clearTimeout(safetyTimeout);
+      };
+    }
+  }, [isCallingInProgress]);
+
   // Xử lý khi người dùng nhấn nút gọi điện thoại
   const handleVoiceCall = async () => {
     if (!zegoInstance) {
@@ -420,6 +458,18 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
     if (isCallingInProgress) {
       message.info("Đang có cuộc gọi. Vui lòng thử lại sau.");
       return;
+    }
+
+    // Trước khi gọi, thử giải phóng các thiết bị audio và video
+    try {
+      // Giải phóng các thiết bị media trước khi bắt đầu cuộc gọi mới
+      await zegoService.releaseMediaDevices();
+
+      // Yêu cầu quyền truy cập vào microphone và camera
+      await zegoService.requestMediaPermissions();
+    } catch (error) {
+      console.warn("Cảnh báo kiểm tra thiết bị:", error);
+      // Tiếp tục mặc dù có lỗi, vì Zego sẽ tự xử lý yêu cầu quyền
     }
 
     // Xử lý khác nhau cho cuộc gọi nhóm và cuộc gọi 1:1
@@ -575,6 +625,18 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
     if (isCallingInProgress) {
       message.info("Đang có cuộc gọi. Vui lòng thử lại sau.");
       return;
+    }
+
+    // Trước khi gọi, thử giải phóng các thiết bị audio và video
+    try {
+      // Giải phóng các thiết bị media trước khi bắt đầu cuộc gọi mới
+      await zegoService.releaseMediaDevices();
+
+      // Yêu cầu quyền truy cập vào microphone và camera
+      await zegoService.requestMediaPermissions();
+    } catch (error) {
+      console.warn("Cảnh báo kiểm tra thiết bị:", error);
+      // Tiếp tục mặc dù có lỗi, vì Zego sẽ tự xử lý yêu cầu quyền
     }
 
     // Xử lý khác nhau cho cuộc gọi nhóm và cuộc gọi 1:1
