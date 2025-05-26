@@ -14,14 +14,26 @@ interface IConfirmationResult {
   confirm: (code: string) => Promise<any>;
 }
 
-// Helper function to safely check if grecaptcha is ready
-// function isGrecaptchaReady(): boolean {
-//   return (
-//     typeof window !== 'undefined' &&
-//     window.grecaptcha !== undefined &&
-//     typeof window.grecaptcha.ready === 'function'
-//   );
-// }
+// Component hiển thị logs
+const LogViewer = ({ logs }: { logs: string[] }) => {
+  const logEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    // Scroll xuống cuối khi logs cập nhật
+    if (logEndRef.current) {
+      logEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [logs]);
+
+  return (
+    <div className="mt-4 bg-gray-900 text-green-400 p-3 rounded-md text-xs font-mono h-64 overflow-y-auto">
+      {logs.map((log, index) => (
+        <div key={index} className="mb-1">{log}</div>
+      ))}
+      <div ref={logEndRef} />
+    </div>
+  );
+};
 
 const Register: React.FC = () => {
   const navigate = useNavigate();
@@ -46,14 +58,49 @@ const Register: React.FC = () => {
   const [showRecaptcha, setShowRecaptcha] = useState(false);
   const [recaptchaVerified, setRecaptchaVerified] = useState(false);
   
+  // Debug logs state
+  const [logs, setLogs] = useState<string[]>([]);
+  const [showLogs, setShowLogs] = useState(false);
+  
+  // // Kiểm tra môi trường development
+  // const isDevelopment = window.location.hostname === 'localhost' || 
+  //                       window.location.hostname === '127.0.0.1';
+  const isDevelopment = false;
+
+  // Override console.log để ghi vào state logs
+  useEffect(() => {
+    if (isDevelopment) {
+      const originalLog = console.log;
+      const originalError = console.error;
+      const originalWarn = console.warn;
+      
+      console.log = function(...args) {
+        setLogs(prev => [...prev, args.join(' ')]);
+        originalLog.apply(console, args);
+      };
+      
+      console.error = function(...args) {
+        setLogs(prev => [...prev, `ERROR: ${args.join(' ')}`]);
+        originalError.apply(console, args);
+      };
+      
+      console.warn = function(...args) {
+        setLogs(prev => [...prev, `WARN: ${args.join(' ')}`]);
+        originalWarn.apply(console, args);
+      };
+      
+      return () => {
+        console.log = originalLog;
+        console.error = originalError;
+        console.warn = originalWarn;
+      };
+    }
+  }, [isDevelopment]);
+  
   // Tham chiếu để lưu confirmation result từ Firebase
   const confirmationResultRef = useRef<IConfirmationResult | null>(null);
   const recaptchaVerifierRef = useRef<RecaptchaVerifier | null>(null);
   
-  // Kiểm tra môi trường development
-  const isDevelopment = window.location.hostname === 'localhost' || 
-                        window.location.hostname === '127.0.0.1';
-
   // Xử lý khi reCAPTCHA được xác thực
   const handleRecaptchaVerified = async (verifier: RecaptchaVerifier) => {
     recaptchaVerifierRef.current = verifier;
@@ -514,23 +561,33 @@ const Register: React.FC = () => {
       // Lưu số điện thoại đã định dạng để sử dụng trong callback
       setFormattedPhoneNumber(formattedPhone);
       
-      // GIẢI PHÁP KHẮC PHỤC: Đơn giản hóa luồng kiểm tra số điện thoại và gửi OTP
+      // Thêm logs debugging
+      console.log(`[Register] Đang xử lý số điện thoại: ${formattedPhone}`);
+      
+      // Giải pháp khắc phục: Thêm try-catch chi tiết cho việc kiểm tra số điện thoại qua API
       try {
+        console.log(`[Register] Đang gọi API kiểm tra số điện thoại...`);
+        
         const apiFormattedPhone = formattedPhone.startsWith("+84") 
           ? "0" + formattedPhone.substring(3) 
           : formattedPhone;
           
         // Thử lấy OTP từ backend
         try {
+          console.log(`[Register] Gọi API checkUsedPhone với số: ${apiFormattedPhone}`);
           const response = await checkUsedPhone(apiFormattedPhone);
+          console.log(`[Register] Kết quả API checkUsedPhone:`, response);
           
           if (response && response.otp) {
+            console.log(`[Register] Nhận được mã OTP từ backend: ${response.otp}`);
             // Lưu mã OTP từ backend vào state để sử dụng sau này
             setBackendOTP(response.otp);
           }
           
-          // GIẢI PHÁP KHẮC PHỤC: Bỏ qua reCAPTCHA, gửi OTP trực tiếp
+          // Gửi OTP qua Firebase
+          console.log(`[Register] Đang gửi OTP qua Firebase với số: ${formattedPhone}`);
           const result = await sendOtpToPhone(formattedPhone, undefined, response?.otp);
+          console.log(`[Register] Kết quả gửi OTP:`, result);
           confirmationResultRef.current = result;
           
           // Chuyển sang bước OTP
@@ -538,38 +595,55 @@ const Register: React.FC = () => {
           setResendTimer(60);
           
           // Hiển thị thông báo OTP đã gửi
-          setSuccessMessage('Mã OTP đã được gửi đến số điện thoại của bạn. Sử dụng mã 123456');
+          const otpMessage = isDevelopment 
+            ? `Mã OTP đã được gửi đến số điện thoại của bạn. Sử dụng mã ${response?.otp || '123456'}`
+            : 'Mã OTP đã được gửi đến số điện thoại của bạn.';
+          
+          setSuccessMessage(otpMessage);
           setIsLoading(false);
           
         } catch (apiErr: any) {
-          console.error("Lỗi kiểm tra số điện thoại:", apiErr);
+          console.error(`[Register] Lỗi kiểm tra số điện thoại:`, apiErr);
+          
+          // Hiển thị message lỗi
+          if (apiErr.message) {
+            console.error(`[Register] Message lỗi: ${apiErr.message}`);
+          }
           
           // Kiểm tra nếu số điện thoại đã được sử dụng
           if (apiErr.message && apiErr.message.includes('đã được sử dụng')) {
+            console.log(`[Register] Số điện thoại đã được sử dụng`);
             setIsPhoneUsed(true);
             setError(apiErr.message);
             setIsLoading(false);
             return;
           }
           
-          // GIẢI PHÁP KHẮC PHỤC: Ngay cả khi API lỗi, vẫn sử dụng OTP giả lập
-          console.log("Gặp lỗi khi kiểm tra số điện thoại, sử dụng OTP giả lập");
-          const result = await sendOtpToPhone(formattedPhone);
-          confirmationResultRef.current = result;
-          
-          setStep('otp');
-          setResendTimer(60);
-          setSuccessMessage('Mã OTP đã được gửi đến số điện thoại của bạn. Sử dụng mã 123456');
-          setIsLoading(false);
+          // Nếu không phải lỗi số điện thoại đã dùng, vẫn thử sử dụng OTP giả lập
+          console.log(`[Register] Gặp lỗi khi gọi API, sử dụng Firebase trực tiếp`);
+          try {
+            const result = await sendOtpToPhone(formattedPhone);
+            console.log(`[Register] Kết quả gửi OTP qua Firebase:`, result);
+            confirmationResultRef.current = result;
+            
+            setStep('otp');
+            setResendTimer(60);
+            setSuccessMessage('Mã OTP đã được gửi đến số điện thoại của bạn. Sử dụng mã 123456');
+            setIsLoading(false);
+          } catch (firebaseErr: any) {
+            console.error(`[Register] Lỗi gửi OTP qua Firebase:`, firebaseErr);
+            setError('Không thể gửi mã OTP. Vui lòng thử lại sau.');
+            setIsLoading(false);
+          }
         }
       } catch (err: any) {
-        console.error("Lỗi không khắc phục được:", err);
+        console.error(`[Register] Lỗi không khắc phục được:`, err);
         setError('Có lỗi xảy ra. Vui lòng thử lại sau.');
         setIsLoading(false);
       }
       
     } catch (outerErr) {
-      console.error("Lỗi tổng thể:", outerErr);
+      console.error(`[Register] Lỗi tổng thể:`, outerErr);
       setError('Đã xảy ra lỗi. Vui lòng thử lại sau.');
       setIsLoading(false);
     }
@@ -587,8 +661,21 @@ const Register: React.FC = () => {
             <p className="mt-2 text-sm text-gray-600 text-center">
               Tạo tài khoản SOPHY để kết nối với ứng dụng SOPHY Web
             </p>
+            
+            {/* Toggle Logs Button (chỉ hiển thị trong môi trường phát triển) */}
+            {isDevelopment && (
+              <button 
+                onClick={() => setShowLogs(prev => !prev)}
+                className="mt-2 px-3 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
+              >
+                {showLogs ? 'Ẩn logs' : 'Hiện logs'}
+              </button>
+            )}
           </div>
 
+          {/* Hiển thị logs nếu được bật */}
+          {isDevelopment && showLogs && <LogViewer logs={logs} />}
+          
           {step === 'phone' && (
             <form className="mt-8 space-y-6" onSubmit={handlePhoneSubmit}>
               <div>

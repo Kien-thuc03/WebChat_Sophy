@@ -27,7 +27,18 @@ export const db = getFirestore(app);
 
 // Đảm bảo reCAPTCHA hiển thị và cấu hình đúng
 // Đặt thành false để sử dụng reCAPTCHA thật
-auth.settings.appVerificationDisabledForTesting = false;
+// TẠM THỜI BẬT TÍNH NĂNG NÀY ĐỂ DEBUG
+auth.settings.appVerificationDisabledForTesting = true;
+
+// Hàm debug log với timestamp
+const debugLog = (message: string, data?: any) => {
+  const timestamp = new Date().toISOString();
+  if (data) {
+    console.log(`[${timestamp}] ${message}`, data);
+  } else {
+    console.log(`[${timestamp}] ${message}`);
+  }
+};
 
 // Hàm gửi OTP với các tùy chọn cải tiến
 export const sendOtpToPhone = async (
@@ -47,7 +58,12 @@ export const sendOtpToPhone = async (
         }
     }
     
-    console.log('Gửi OTP đến số điện thoại:', formattedPhone);
+    debugLog(`Gửi OTP đến số điện thoại: ${formattedPhone}`);
+    debugLog(`Firebase Auth settings:`, { 
+      appVerificationDisabledForTesting: auth.settings.appVerificationDisabledForTesting,
+      authDomain: firebaseConfig.authDomain,
+      projectId: firebaseConfig.projectId 
+    });
     
     // GIẢI PHÁP KHẮC PHỤC: Luôn cho phép sử dụng OTP giả lập
     // Bất kể môi trường nào cũng cho phép OTP giả lập
@@ -55,7 +71,7 @@ export const sendOtpToPhone = async (
     
     // Nếu có mã OTP từ backend, ưu tiên sử dụng
     if (backendOTP) {
-        console.log('Sử dụng mã OTP từ backend');
+        debugLog('Sử dụng mã OTP từ backend', backendOTP);
         return createFakeOtpHandler(formattedPhone, backendOTP);
     }
     
@@ -63,9 +79,12 @@ export const sendOtpToPhone = async (
     const isDevelopment = window.location.hostname === 'localhost' || 
                          window.location.hostname === '127.0.0.1';
     
+    debugLog(`Môi trường hiện tại: ${isDevelopment ? 'Development' : 'Production'}`);
+    debugLog(`Hostname: ${window.location.hostname}`);
+    
     // GIẢI PHÁP KHẮC PHỤC: Sử dụng OTP giả lập bất kể môi trường nào
     if (isDevelopment || allowFakeOTP) {
-        console.log('Bỏ qua reCAPTCHA, sử dụng mã giả lập 123456');
+        debugLog('Bỏ qua reCAPTCHA, sử dụng mã giả lập 123456');
         return createFakeOtpHandler(formattedPhone);
     }
     
@@ -73,17 +92,22 @@ export const sendOtpToPhone = async (
     try {
         // Nếu có customVerifier, thử gửi OTP thật
         if (customVerifier) {
-            console.log('Đang thử gửi OTP thật qua SMS...');
+            debugLog('Đang thử gửi OTP thật qua SMS với customVerifier...');
             try {
+                debugLog('Thông tin customVerifier:', customVerifier);
                 const confirmationResult = await signInWithPhoneNumber(auth, formattedPhone, customVerifier);
-                console.log('Đã gửi OTP thành công qua SMS');
+                debugLog('Đã gửi OTP thành công qua SMS');
                 return confirmationResult;
             } catch (error: any) {
-                console.error('Lỗi khi gửi SMS:', error);
+                debugLog('Lỗi chi tiết khi gửi SMS:', {
+                  code: error.code,
+                  message: error.message,
+                  fullError: JSON.stringify(error)
+                });
                 
                 // Nếu đang trong môi trường phát triển và gặp lỗi, sử dụng mã giả lập
                 if (isDevelopment) {
-                    console.warn('Không thể gửi OTP thật, sử dụng mã giả lập 123456 trong môi trường phát triển');
+                    debugLog('Không thể gửi OTP thật, sử dụng mã giả lập 123456 trong môi trường phát triển');
                     return createFakeOtpHandler(formattedPhone);
                 }
                 
@@ -93,13 +117,14 @@ export const sendOtpToPhone = async (
         
         // Các trường hợp còn lại (không có customVerifier)
         const recaptchaElements = document.getElementsByClassName('g-recaptcha');
+        debugLog(`Tìm thấy ${recaptchaElements.length} phần tử g-recaptcha trên trang`);
         
         if (recaptchaElements.length === 0) {
-            console.error('Không tìm thấy widget reCAPTCHA - có thể bị chặn hoặc chưa tải');
+            debugLog('Không tìm thấy widget reCAPTCHA - có thể bị chặn hoặc chưa tải');
             
             // Trong môi trường phát triển, dùng mã giả lập
             if (isDevelopment) {
-                console.warn('Không tìm thấy widget reCAPTCHA, sử dụng mã giả lập 123456');
+                debugLog('Không tìm thấy widget reCAPTCHA, sử dụng mã giả lập 123456');
                 return createFakeOtpHandler(formattedPhone);
             }
             
@@ -108,13 +133,14 @@ export const sendOtpToPhone = async (
         
         // Tìm RecaptchaVerifier đã tồn tại
         const existingVerifier = window.recaptchaVerifier;
+        debugLog('RecaptchaVerifier hiện tại:', existingVerifier ? 'Đã tồn tại' : 'Không tìm thấy');
         
         if (!existingVerifier) {
-            console.log('Không tìm thấy RecaptchaVerifier toàn cục');
+            debugLog('Không tìm thấy RecaptchaVerifier toàn cục');
             
             // Trong môi trường phát triển, dùng mã giả lập
             if (isDevelopment) {
-                console.warn('Không tìm thấy RecaptchaVerifier, sử dụng mã giả lập 123456');
+                debugLog('Không tìm thấy RecaptchaVerifier, sử dụng mã giả lập 123456');
                 return createFakeOtpHandler(formattedPhone);
             }
             
@@ -123,23 +149,28 @@ export const sendOtpToPhone = async (
         
         try {
             // Gửi SMS OTP sử dụng appVerifier hiện có
+            debugLog('Đang gửi SMS OTP qua Firebase với verifier hiện có...');
             const confirmationResult = await signInWithPhoneNumber(auth, formattedPhone, existingVerifier);
-            console.log('Đã gửi OTP thành công qua SMS');
+            debugLog('Đã gửi OTP thành công qua SMS');
             return confirmationResult;
         } catch (error: any) {
-            console.error('Lỗi khi gửi SMS:', error);
+            debugLog('Lỗi chi tiết khi gửi SMS:', {
+              code: error.code,
+              message: error.message,
+              fullError: JSON.stringify(error)
+            });
             
             // Trong môi trường phát triển, dùng mã giả lập khi có lỗi
             if (isDevelopment) {
-                console.warn('Không thể gửi OTP thật, sử dụng mã giả lập 123456');
+                debugLog('Không thể gửi OTP thật, sử dụng mã giả lập 123456');
                 return createFakeOtpHandler(formattedPhone);
             }
             
             // Xử lý lỗi auth/invalid-app-credential
             if (error.code === 'auth/invalid-app-credential' || error.code === 'auth/internal-error') {
-                console.warn('Lỗi Firebase - Cần kiểm tra lại cấu hình Firebase');
-                console.log('Lỗi này thường do chưa cấu hình đúng Firebase hoặc chưa kích hoạt thanh toán');
-                console.log('Vui lòng kiểm tra tài khoản Firebase của bạn, đảm bảo Phone Authentication đã được bật và có phương thức thanh toán hợp lệ');
+                debugLog('Lỗi Firebase - Cần kiểm tra lại cấu hình Firebase');
+                debugLog('Lỗi này thường do chưa cấu hình đúng Firebase hoặc chưa kích hoạt thanh toán');
+                debugLog('Vui lòng kiểm tra tài khoản Firebase của bạn, đảm bảo Phone Authentication đã được bật và có phương thức thanh toán hợp lệ');
                 
                 // Nếu trong môi trường phát triển, dùng mã giả lập
                 if (isDevelopment) {
@@ -152,11 +183,15 @@ export const sendOtpToPhone = async (
         }
     } catch (error: any) {
         // Bắt tất cả lỗi khác
-        console.error('Lỗi tổng thể khi gửi OTP:', error);
+        debugLog('Lỗi tổng thể khi gửi OTP:', {
+          code: error.code,
+          message: error.message,
+          fullError: JSON.stringify(error)
+        });
         
         // Trong môi trường phát triển, luôn fallback về mã giả lập
         if (isDevelopment) {
-            console.warn('Sử dụng mã giả lập 123456 do lỗi khi gửi OTP thật');
+            debugLog('Sử dụng mã giả lập 123456 do lỗi khi gửi OTP thật');
             return createFakeOtpHandler(formattedPhone);
         }
         

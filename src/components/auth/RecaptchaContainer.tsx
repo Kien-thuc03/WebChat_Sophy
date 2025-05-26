@@ -119,6 +119,16 @@ const RecaptchaContainer: React.FC<RecaptchaContainerProps> = ({
   const verifierRef = useRef<RecaptchaVerifier | null>(null);
   const { user } = useAuth();
 
+  // Debug function
+  const debugLog = (message: string, data?: any) => {
+    const timestamp = new Date().toISOString();
+    if (data) {
+      console.log(`[${timestamp}] [RecaptchaContainer] ${message}`, data);
+    } else {
+      console.log(`[${timestamp}] [RecaptchaContainer] ${message}`);
+    }
+  };
+
   // Complete cleanup function to remove all reCAPTCHA artifacts
   const cleanupAllRecaptcha = () => {
     try {

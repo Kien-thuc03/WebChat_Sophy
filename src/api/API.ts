@@ -7,6 +7,8 @@ import {
 
 // Khai báo URL API chính
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+// Log để debug
+console.log("API_BASE_URL:", API_BASE_URL);
 const token = localStorage.getItem("token");
 // Tạo instance Axios
 const apiClient = axios.create({
@@ -903,16 +905,21 @@ export const checkUsedPhone = async (
     if (phone.startsWith("+84")) {
       formattedPhone = "0" + phone.slice(3);
     }
+    
+    console.log(`[checkUsedPhone] Kiểm tra số điện thoại: ${formattedPhone}`);
+    console.log(`[checkUsedPhone] URL đầy đủ: ${API_BASE_URL}/api/auth/check-used-phone/${formattedPhone}`);
 
     try {
       // Gọi API thực tế
       const response = await apiClient.post(
         `/api/auth/check-used-phone/${formattedPhone}`
       );
+      
+      console.log("[checkUsedPhone] Kết quả API:", response.data);
 
       // GIẢI PHÁP KHẮC PHỤC: Thêm fallback OTP nếu API không trả về
       if (!response.data.otpId) {
-        console.warn("API không trả về otpId, sử dụng giá trị giả lập");
+        console.warn("[checkUsedPhone] API không trả về otpId, sử dụng giá trị giả lập");
         return {
           otpId: "fake-otp-id-" + Date.now(),
           otp: "123456",
@@ -925,7 +932,18 @@ export const checkUsedPhone = async (
       };
     } catch (apiError: any) {
       // GIẢI PHÁP KHẮC PHỤC: Xử lý lỗi API và trả về OTP giả lập
-      console.error("Lỗi khi gọi API check-used-phone:", apiError.message);
+      console.error("[checkUsedPhone] Lỗi khi gọi API check-used-phone:", apiError);
+      
+      // Log chi tiết lỗi
+      if (apiError.response) {
+        console.error("[checkUsedPhone] Response status:", apiError.response.status);
+        console.error("[checkUsedPhone] Response data:", apiError.response.data);
+      } else if (apiError.request) {
+        console.error("[checkUsedPhone] Không nhận được response:", apiError.request);
+      } else {
+        console.error("[checkUsedPhone] Lỗi cấu hình request:", apiError.message);
+      }
+      console.error("[checkUsedPhone] Config:", apiError.config);
       
       // Kiểm tra nếu lỗi "Phone number is already used"
       if (apiError.response?.status === 400 && 
@@ -934,6 +952,7 @@ export const checkUsedPhone = async (
       }
       
       // Trả về OTP giả lập cho các lỗi khác
+      console.warn("[checkUsedPhone] Sử dụng OTP giả lập do lỗi API");
       return {
         otpId: "error-fallback-otp-id-" + Date.now(),
         otp: "123456",
@@ -941,6 +960,7 @@ export const checkUsedPhone = async (
     }
   } catch (error: any) {
     // Xử lý lỗi và ném ra cho caller xử lý
+    console.error("[checkUsedPhone] Lỗi tổng thể:", error.message);
     throw error;
   }
 };
