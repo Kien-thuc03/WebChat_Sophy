@@ -4,6 +4,7 @@ import { Conversation } from "../../../features/chat/types/conversationTypes";
 import { fetchFriends, createGroupConversation } from "../../../api/API";
 import { useConversationContext } from "../../../features/chat/context/ConversationContext";
 import socketService from "../../../services/socketService";
+import { useLanguage } from "../../../features/auth/context/LanguageContext";
 
 interface Friend {
   userId: string;
@@ -32,6 +33,7 @@ const AddGroupModal: React.FC<AddGroupModalProps> = ({
   onSelectConversation,
   preSelectedMembers = [],
 }) => {
+  const { t, language } = useLanguage();
   const { addNewConversation } = useConversationContext();
   const [groupName, setGroupName] = useState("");
   const [selectedContacts, setSelectedContacts] =
@@ -66,13 +68,16 @@ const AddGroupModal: React.FC<AddGroupModalProps> = ({
         setIsLoading(false);
       } catch (error) {
         console.error("Lỗi khi lấy danh sách bạn bè:", error);
-        setError("Không thể tải danh sách bạn bè. Vui lòng thử lại sau.");
+        setError(
+          t.retrieve_friend_requests_error ||
+            "Không thể tải danh sách bạn bè. Vui lòng thử lại sau."
+        );
         setIsLoading(false);
       }
     };
 
     loadFriends();
-  }, [visible]);
+  }, [visible, t]);
 
   useEffect(() => {
     console.log("Friends state changed:", friends);
@@ -131,6 +136,11 @@ const AddGroupModal: React.FC<AddGroupModalProps> = ({
     };
   }, [visible, onClose]);
 
+  // Effect for language changes
+  useEffect(() => {
+    // Re-render component when language changes
+  }, [language]);
+
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setSearchQuery(value);
@@ -150,7 +160,10 @@ const AddGroupModal: React.FC<AddGroupModalProps> = ({
       setError(null);
 
       if (selectedContacts.length === 0) {
-        setError("Vui lòng chọn ít nhất một thành viên");
+        setError(
+          t.please_select_members_error ||
+            "Vui lòng chọn ít nhất một thành viên"
+        );
         return;
       }
 
@@ -228,7 +241,7 @@ const AddGroupModal: React.FC<AddGroupModalProps> = ({
       setError(
         error instanceof Error
           ? error.message
-          : "Không thể tạo nhóm. Vui lòng thử lại."
+          : t.create_group_error_msg || "Không thể tạo nhóm. Vui lòng thử lại."
       );
     }
   };
@@ -295,7 +308,9 @@ const AddGroupModal: React.FC<AddGroupModalProps> = ({
       <div className="fixed inset-0 flex items-center justify-center z-[1001]">
         <div className="bg-white rounded-lg w-11/12 max-w-lg max-h-[80vh] p-4 overflow-y-auto">
           <div className="flex justify-between items-center mb-2">
-            <h2 className="text-lg font-semibold text-gray-900">Tạo nhóm</h2>
+            <h2 className="text-lg font-semibold text-gray-900">
+              {t.create_group_title || "Tạo nhóm"}
+            </h2>
             <button onClick={onClose} className="text-gray-500">
               ✕
             </button>
@@ -303,7 +318,7 @@ const AddGroupModal: React.FC<AddGroupModalProps> = ({
           <div className="relative flex items-center border border-gray-200 rounded-md px-2 py-1.5 mb-2">
             <input
               type="text"
-              placeholder="Nhập tên nhóm..."
+              placeholder={t.enter_group_name || "Nhập tên nhóm..."}
               value={groupName}
               onChange={(e) => setGroupName(e.target.value)}
               className="w-full focus:outline-none text-gray-900 placeholder-gray-400"
@@ -316,35 +331,38 @@ const AddGroupModal: React.FC<AddGroupModalProps> = ({
               type="text"
               value={searchQuery}
               onChange={handleSearchChange}
-              placeholder="Nhập tên, số điện thoại, hoặc danh sách số điện thoại"
+              placeholder={
+                t.enter_name_phone ||
+                "Nhập tên, số điện thoại, hoặc danh sách số điện thoại"
+              }
               className="pl-8 w-full focus:outline-none text-gray-900 placeholder-gray-400 text-sm"
             />
           </div>
           <div className="flex space-x-1 mb-2 overflow-x-auto">
             {[
-              "Tất cả",
-              "Khách hàng",
-              "Gia đình",
-              "Công việc",
-              "Bạn bè",
-              "Trả lời sau",
+              { id: "all", name: t.all || "Tất cả" },
+              { id: "customers", name: t.customers_tab || "Khách hàng" },
+              { id: "family", name: t.family_tab || "Gia đình" },
+              { id: "work", name: t.work_tab || "Công việc" },
+              { id: "friends", name: t.friends_tab || "Bạn bè" },
+              { id: "reply_later", name: t.reply_later_tab || "Trả lời sau" },
             ].map((tab) => (
               <button
-                key={tab}
+                key={tab.id}
                 className={`px-2 py-0.5 rounded-full text-sm ${
-                  activeFilter === tab.toLowerCase()
+                  activeFilter === tab.id.toLowerCase()
                     ? "bg-blue-500 text-white"
                     : "bg-gray-100 text-gray-700"
                 }`}
-                onClick={() => setActiveFilter(tab.toLowerCase())}>
-                {tab}
+                onClick={() => setActiveFilter(tab.id.toLowerCase())}>
+                {tab.name}
               </button>
             ))}
           </div>
           {selectedUsers.length > 0 && (
             <div className="mb-2">
               <span className="text-sm text-gray-500">
-                Đã chọn: {selectedUsers.length}/100
+                {t.selected_count || "Đã chọn"}: {selectedUsers.length}/100
               </span>
               <div className="mt-1">
                 {selectedUsers.map((user) => (
@@ -381,22 +399,25 @@ const AddGroupModal: React.FC<AddGroupModalProps> = ({
           )}
           <div className="mb-2">
             <h3 className="text-xs font-medium text-gray-500 mb-1">
-              {searchQuery ? "Kết quả tìm kiếm" : "Danh bạ"}
+              {searchQuery
+                ? t.search_results_label || "Kết quả tìm kiếm"
+                : t.contacts_label || "Danh bạ"}
             </h3>
             <div className="max-h-64 overflow-y-auto">
               {isLoading ? (
                 <div className="text-center py-4 text-gray-500">
-                  Đang tải...
+                  {t.loading_contacts || "Đang tải..."}
                 </div>
               ) : error ? (
                 <div className="text-center py-4 text-red-500">{error}</div>
               ) : friends.length === 0 ? (
                 <div className="text-center py-4 text-gray-500">
-                  Bạn chưa có bạn bè nào
+                  {t.no_friends_yet || "Bạn chưa có bạn bè nào"}
                 </div>
               ) : sortedUsers.length === 0 && searchQuery ? (
                 <div className="text-center py-4 text-gray-500">
-                  Không tìm thấy kết quả phù hợp
+                  {t.no_search_results_found ||
+                    "Không tìm thấy kết quả phù hợp"}
                 </div>
               ) : (
                 <div>
@@ -451,7 +472,7 @@ const AddGroupModal: React.FC<AddGroupModalProps> = ({
             <button
               onClick={onClose}
               className="px-3 py-1 rounded-md bg-gray-200 text-gray-700 text-sm">
-              Hủy
+              {t.cancel || "Hủy"}
             </button>
             <button
               onClick={handleCreateGroup}
@@ -461,7 +482,7 @@ const AddGroupModal: React.FC<AddGroupModalProps> = ({
                   : ""
               }`}
               disabled={selectedContacts.length === 0}>
-              Tạo nhóm
+              {t.create_group || "Tạo nhóm"}
             </button>
           </div>
         </div>

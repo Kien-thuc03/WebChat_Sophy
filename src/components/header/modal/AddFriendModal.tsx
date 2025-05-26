@@ -11,6 +11,7 @@ import {
 import UserInfoHeaderModal, { UserResult } from "./UserInfoHeaderModal";
 import UserModal from "../../content/modal/UserModal";
 import { Conversation } from "../../../features/chat/types/conversationTypes";
+import { useLanguage } from "../../../features/auth/context/LanguageContext";
 
 interface AddFriendModalProps {
   visible: boolean;
@@ -36,6 +37,7 @@ const AddFriendModal: React.FC<AddFriendModalProps> = ({
   onRequestsUpdate,
   onSelectConversation,
 }) => {
+  const { t, language } = useLanguage();
   const [phone, setPhone] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const [searchResult, setSearchResult] = useState<UserResult | null>(null);
@@ -60,6 +62,11 @@ const AddFriendModal: React.FC<AddFriendModalProps> = ({
     loadFriends();
   }, []);
 
+  // Effect for language changes
+  useEffect(() => {
+    // Re-render component when language changes
+  }, [language]);
+
   // Kiểm tra xem người dùng có phải là bạn bè không
   const isFriend = (userId: string) => {
     return friends.some((friend) => friend.userId === userId);
@@ -72,7 +79,7 @@ const AddFriendModal: React.FC<AddFriendModalProps> = ({
 
   const handleSearch = async () => {
     if (!phone || phone.trim() === "") {
-      message.error("Vui lòng nhập số điện thoại");
+      message.error(t.enter_phone || "Vui lòng nhập số điện thoại");
       return;
     }
 
@@ -87,7 +94,9 @@ const AddFriendModal: React.FC<AddFriendModalProps> = ({
 
       const userData = await getUserByPhone(formattedPhone);
       if (!userData?.userId) {
-        throw new Error("Không tìm thấy thông tin người dùng");
+        throw new Error(
+          t.user_not_found || "Không tìm thấy thông tin người dùng"
+        );
       }
 
       console.log("User data from getUserByPhone:", userData);
@@ -105,7 +114,9 @@ const AddFriendModal: React.FC<AddFriendModalProps> = ({
       setInfoModalVisible(true);
     } catch (error: unknown) {
       const err = error as ApiError;
-      message.error(err.message || "Không tìm thấy người dùng");
+      message.error(
+        err.message || t.user_not_found || "Không tìm thấy người dùng"
+      );
     } finally {
       setIsSearching(false);
     }
@@ -113,14 +124,18 @@ const AddFriendModal: React.FC<AddFriendModalProps> = ({
 
   const handleSendFriendRequest = async (userId: string) => {
     if (!userId) {
-      message.error("ID người dùng không hợp lệ");
+      message.error(t.invalid_user_id || "ID người dùng không hợp lệ");
       return;
     }
 
     setIsSending(true);
     try {
       const response = await sendFriendRequest(userId, friendMessage);
-      message.success(response.message || "Đã gửi lời mời kết bạn thành công");
+      message.success(
+        response.message ||
+          t.friend_request_sent_success ||
+          "Đã gửi lời mời kết bạn thành công"
+      );
 
       // Cập nhật lại danh sách bạn bè
       setFriends([
@@ -140,7 +155,11 @@ const AddFriendModal: React.FC<AddFriendModalProps> = ({
       setFriendMessage("");
     } catch (error: unknown) {
       const err = error as ApiError;
-      message.error(err.message || "Không thể gửi lời mời kết bạn");
+      message.error(
+        err.message ||
+          t.cannot_send_friend_request ||
+          "Không thể gửi lời mời kết bạn"
+      );
     } finally {
       setIsSending(false);
     }
@@ -158,7 +177,7 @@ const AddFriendModal: React.FC<AddFriendModalProps> = ({
       }
 
       // Nếu không, tạo conversation mới
-      message.loading("Đang mở cuộc trò chuyện...", 0.5);
+      message.loading(t.open_conversation || "Đang mở cuộc trò chuyện...", 0.5);
 
       // Tạo hoặc lấy conversation
       const newConversation = await createConversation(userId);
@@ -167,19 +186,26 @@ const AddFriendModal: React.FC<AddFriendModalProps> = ({
         console.log("AddFriendModal: Created conversation:", newConversation);
         onSelectConversation(newConversation);
       } else {
-        message.error("Không thể tạo cuộc trò chuyện");
+        message.error(
+          t.cannot_create_conversation || "Không thể tạo cuộc trò chuyện"
+        );
       }
 
       setInfoModalVisible(false);
       onClose();
     } catch (error) {
       console.error("Lỗi khi tạo cuộc trò chuyện:", error);
-      message.error("Không thể tạo cuộc trò chuyện");
+      message.error(
+        t.cannot_create_conversation || "Không thể tạo cuộc trò chuyện"
+      );
     }
   };
 
   const handleUpdate = () => {
-    message.info("Chức năng cập nhật thông tin đang được phát triển!");
+    message.info(
+      t.update_profile_developing ||
+        "Chức năng cập nhật thông tin đang được phát triển!"
+    );
     setInfoModalVisible(false);
     onClose();
   };
@@ -188,26 +214,28 @@ const AddFriendModal: React.FC<AddFriendModalProps> = ({
     <>
       {/* Modal nhập số điện thoại */}
       <Modal
-        title="Thêm bạn"
+        title={t.add_friend_title || "Thêm bạn"}
         visible={visible}
         onCancel={onClose}
         footer={[
           <Button key="cancel" onClick={onClose}>
-            Hủy
+            {t.cancel || "Hủy"}
           </Button>,
           <Button
             key="submit"
             type="primary"
             onClick={handleSearch}
             loading={isSearching}>
-            Tìm kiếm
+            {t.search || "Tìm kiếm"}
           </Button>,
         ]}>
-        <p>Nhập số điện thoại để tìm kiếm bạn bè.</p>
+        <p>
+          {t.enter_phone_to_search || "Nhập số điện thoại để tìm kiếm bạn bè."}
+        </p>
         <PhoneInput
           international
           defaultCountry="VN"
-          placeholder="Nhập số điện thoại"
+          placeholder={t.enter_phone || "Nhập số điện thoại"}
           value={phone}
           onChange={(value) => setPhone(value || "")}
           className="mt-2 w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none"

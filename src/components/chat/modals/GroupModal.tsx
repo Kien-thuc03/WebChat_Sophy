@@ -21,6 +21,7 @@ import {
 import UpdateAvatarGroupModal from "../../header/modal/UpdateAvatarGroupModal";
 import { useConversationContext } from "../../../features/chat/context/ConversationContext";
 import socketService from "../../../services/socketService";
+import { useLanguage } from "../../../features/auth/context/LanguageContext";
 
 interface MemberInfo {
   userId: string;
@@ -52,7 +53,8 @@ const GroupModal: React.FC<GroupModalProps> = ({
   refreshConversationData,
 }) => {
   const { updateConversationField } = useConversationContext();
-  const { message } = App.useApp(); // Use App.useApp() for message API
+  const { message, modal } = App.useApp(); // Đã thêm modal vào khai báo destructuring
+  const { t } = useLanguage(); // Use language context with both t and language
   const [loading, setLoading] = useState(false);
   const [memberDetails, setMemberDetails] = useState<MemberInfo[]>([]); // Initialize with empty array
   const [fetchingMembers, setFetchingMembers] = useState(false);
@@ -186,13 +188,16 @@ const GroupModal: React.FC<GroupModalProps> = ({
   // Đảm bảo giá trị của groupAvatarUrl được log ra để kiểm tra
   useEffect(() => {
     // Giới hạn log để tránh spam
-    const savedLogTimestamp = sessionStorage.getItem('lastAvatarLog');
+    const savedLogTimestamp = sessionStorage.getItem("lastAvatarLog");
     const currentTime = Date.now();
-    
-    if (!savedLogTimestamp || currentTime - parseInt(savedLogTimestamp) > 2000) {
+
+    if (
+      !savedLogTimestamp ||
+      currentTime - parseInt(savedLogTimestamp) > 2000
+    ) {
       console.log("Conversation in GroupModal:", conversation);
       console.log("Group avatar URL:", conversation.groupAvatarUrl);
-      sessionStorage.setItem('lastAvatarLog', currentTime.toString());
+      sessionStorage.setItem("lastAvatarLog", currentTime.toString());
     }
   }, [conversation.groupAvatarUrl]);
 
@@ -202,15 +207,15 @@ const GroupModal: React.FC<GroupModalProps> = ({
   // Xử lý sao chép link
   const handleCopyLink = () => {
     navigator.clipboard.writeText(groupLink);
-    message.success("Đã sao chép liên kết");
+    message.success(t.copy_link_success || "Đã sao chép liên kết");
   };
 
   // Xử lý chia sẻ link
   const handleShareLink = () => {
     if (navigator.share) {
       navigator.share({
-        title: `Nhóm: ${conversation.groupName}`,
-        text: "Tham gia nhóm chat của tôi trên Zalo",
+        title: `${t.group_info}: ${conversation.groupName}`,
+        text: t.join_group || "Tham gia nhóm chat của tôi trên Zalo",
         url: groupLink,
       });
     } else {
@@ -226,21 +231,33 @@ const GroupModal: React.FC<GroupModalProps> = ({
   // Xử lý rời nhóm
   const handleLeaveGroup = async () => {
     try {
-      setLoading(true);
-      await leaveGroup(conversation.conversationId);
-      message.success("Rời nhóm thành công");
+      modal.confirm({
+        title: t.leave_group || "Rời nhóm",
+        content:
+          t.leave_group_confirm || "Bạn có chắc chắn muốn rời khỏi nhóm này?",
+        okText: t.confirm || "Rời nhóm",
+        cancelText: t.cancel || "Hủy",
+        okButtonProps: { danger: true },
+        onOk: async () => {
+          setLoading(true);
+          await leaveGroup(conversation.conversationId);
+          message.success(t.leave_group_success || "Rời nhóm thành công");
 
-      if (onLeaveGroup) {
-        onLeaveGroup();
-      }
+          if (onLeaveGroup) {
+            onLeaveGroup();
+          }
 
-      onClose();
+          onClose();
+        },
+      });
     } catch (error) {
       console.error("Lỗi khi rời nhóm:", error);
       if (error instanceof Error) {
         message.error(error.message);
       } else {
-        message.error("Không thể rời nhóm. Vui lòng thử lại sau.");
+        message.error(
+          t.leave_group_error || "Không thể rời nhóm. Vui lòng thử lại sau."
+        );
       }
     } finally {
       setLoading(false);
@@ -262,7 +279,10 @@ const GroupModal: React.FC<GroupModalProps> = ({
     try {
       // Hiển thị thông báo đang xử lý
       const key = "updating-avatar";
-      message.loading({ content: "Đang cập nhật ảnh đại diện...", key });
+      message.loading({
+        content: t.updating_avatar || "Đang cập nhật ảnh đại diện...",
+        key,
+      });
 
       // Lưu URL trước đó để có thể quay lại nếu cập nhật thất bại
       const previousAvatarUrl = conversation.groupAvatarUrl;
@@ -286,7 +306,9 @@ const GroupModal: React.FC<GroupModalProps> = ({
         // Lấy thông tin user hiện tại
         const currentUserId = localStorage.getItem("userId") || "";
         // Tìm thông tin người dùng hiện tại từ danh sách thành viên
-        const currentMember = memberDetails.find(member => member.userId === currentUserId);
+        const currentMember = memberDetails.find(
+          (member) => member.userId === currentUserId
+        );
         const currentUserName = currentMember?.fullname || "Một thành viên";
 
         // Emit sự kiện thay đổi ảnh nhóm với thông tin người thay đổi
@@ -295,8 +317,8 @@ const GroupModal: React.FC<GroupModalProps> = ({
           newAvatar: result.conversation.groupAvatarUrl, // Sử dụng URL thực từ server, không phải URL blob
           changedBy: {
             userId: currentUserId,
-            fullname: currentUserName
-          }
+            fullname: currentUserName,
+          },
         });
 
         // Cập nhật state conversation with actual server URL
@@ -323,7 +345,9 @@ const GroupModal: React.FC<GroupModalProps> = ({
           refreshConversationData();
         }
 
-        message.success("Cập nhật ảnh đại diện thành công");
+        message.success(
+          t.update_group_avatar_success || "Cập nhật ảnh đại diện thành công"
+        );
       } else {
         // Revert to previous avatar if update failed
         setConversation((prev) => ({
@@ -331,14 +355,17 @@ const GroupModal: React.FC<GroupModalProps> = ({
           groupAvatarUrl: previousAvatarUrl,
         }));
         message.error({
-          content: "Không thể cập nhật ảnh đại diện",
+          content: t.cannot_update_avatar || "Không thể cập nhật ảnh đại diện",
           key,
           duration: 2,
         });
       }
     } catch (error) {
       console.error("Lỗi cập nhật ảnh đại diện:", error);
-      message.error("Không thể cập nhật ảnh đại diện. Vui lòng thử lại sau.");
+      message.error(
+        t.update_group_avatar_error ||
+          "Không thể cập nhật ảnh đại diện. Vui lòng thử lại sau."
+      );
       // Revert to previous avatar if there was an error
       setConversation((prev) => ({
         ...prev,
@@ -370,12 +397,16 @@ const GroupModal: React.FC<GroupModalProps> = ({
     }
 
     if (newName.length < 3) {
-      message.error("Tên nhóm phải có ít nhất 3 ký tự");
+      message.error(
+        t.group_name_min_length || "Tên nhóm phải có ít nhất 3 ký tự"
+      );
       return;
     }
 
     if (newName.length > 50) {
-      message.error("Tên nhóm không được vượt quá 50 ký tự");
+      message.error(
+        t.group_name_max_length || "Tên nhóm không được vượt quá 50 ký tự"
+      );
       return;
     }
 
@@ -388,13 +419,15 @@ const GroupModal: React.FC<GroupModalProps> = ({
 
       if (result && result.conversation) {
         // Cập nhật tên nhóm thành công, hiển thị thông báo thành công
-        message.success("Đã cập nhật tên nhóm");
+        message.success(t.update_success || "Đã cập nhật tên nhóm");
         setUpdatedName(newName);
 
         // Lấy thông tin user hiện tại
         const currentUserId = localStorage.getItem("userId") || "";
         // Tìm thông tin người dùng hiện tại từ danh sách thành viên
-        const currentMember = memberDetails.find(member => member.userId === currentUserId);
+        const currentMember = memberDetails.find(
+          (member) => member.userId === currentUserId
+        );
         const currentUserName = currentMember?.fullname || "Một thành viên";
 
         // Emit sự kiện thay đổi tên nhóm với thông tin người thay đổi
@@ -403,8 +436,8 @@ const GroupModal: React.FC<GroupModalProps> = ({
           newName,
           changedBy: {
             userId: currentUserId,
-            fullname: currentUserName
-          }
+            fullname: currentUserName,
+          },
         });
 
         // Update the global context
@@ -424,11 +457,11 @@ const GroupModal: React.FC<GroupModalProps> = ({
           onUpdateGroupName(newName);
         }
       } else {
-        message.error("Không thể cập nhật tên nhóm");
+        message.error(t.update_error || "Không thể cập nhật tên nhóm");
       }
     } catch (error) {
       console.error("Lỗi khi cập nhật tên nhóm:", error);
-      message.error("Không thể cập nhật tên nhóm");
+      message.error(t.update_error || "Không thể cập nhật tên nhóm");
     } finally {
       setUpdatingGroupName(false);
       setIsEditingName(false);
@@ -492,7 +525,7 @@ const GroupModal: React.FC<GroupModalProps> = ({
         onCancel={onClose}
         footer={null}
         closeIcon={<CloseOutlined />}
-        title="Thông tin nhóm"
+        title={t.group_info || "Thông tin nhóm"}
         centered
         className="group-info-modal"
         width={400}>
@@ -538,7 +571,7 @@ const GroupModal: React.FC<GroupModalProps> = ({
                     onClick={handleCancelEditName}
                     className="ml-1"
                     disabled={updatingGroupName}>
-                    Hủy
+                    {t.cancel || "Hủy"}
                   </Button>
                 </div>
               ) : (
@@ -558,14 +591,14 @@ const GroupModal: React.FC<GroupModalProps> = ({
               type="primary"
               className="mt-2 w-full"
               onClick={handleMessage}>
-              Nhắn tin
+              {t.message || "Nhắn tin"}
             </Button>
           </div>
 
           {/* Danh sách thành viên */}
           <div className="py-4 border-b">
             <h4 className="text-base font-medium mb-3">
-              Thành viên (
+              {t.member_list || "Thành viên"} (
               {memberDetails.length || conversation.groupMembers?.length || 0})
             </h4>
             {fetchingMembers ? (
@@ -597,16 +630,21 @@ const GroupModal: React.FC<GroupModalProps> = ({
 
           {/* Ảnh/Video */}
           <div className="py-4 border-b">
-            <h4 className="text-base font-medium mb-3">Ảnh/Video</h4>
+            <h4 className="text-base font-medium mb-3">
+              {t.group_images || "Ảnh/Video"}
+            </h4>
             <div className="text-center text-gray-500 py-4">
-              Chưa có ảnh nào được chia sẻ trong nhóm này
+              {t.no_shared_images ||
+                "Chưa có ảnh nào được chia sẻ trong nhóm này"}
             </div>
           </div>
 
           {/* Link tham gia nhóm */}
           <div className="py-4 border-b">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-base font-medium">Link tham gia nhóm</span>
+              <span className="text-base font-medium">
+                {t.group_link || "Link tham gia nhóm"}
+              </span>
             </div>
             <div className="flex items-center">
               <div className="flex-1 text-blue-500 text-sm truncate">
@@ -635,7 +673,7 @@ const GroupModal: React.FC<GroupModalProps> = ({
           <div className="py-4 border-b">
             <div className="flex items-center cursor-pointer hover:bg-gray-50 py-2 -mx-2 px-2 rounded">
               <SettingOutlined className="text-gray-600 mr-3" />
-              <span>Quản lý nhóm</span>
+              <span>{t.group_management || "Quản lý nhóm"}</span>
             </div>
           </div>
 
@@ -644,7 +682,9 @@ const GroupModal: React.FC<GroupModalProps> = ({
             <div
               className="flex items-center cursor-pointer hover:bg-gray-50 py-2 -mx-2 px-2 rounded text-red-500"
               onClick={handleLeaveGroup}>
-              {loading ? "Đang xử lý..." : "Rời nhóm"}
+              {loading
+                ? t.leaving || "Đang xử lý..."
+                : t.leave_group || "Rời nhóm"}
             </div>
           </div>
         </div>

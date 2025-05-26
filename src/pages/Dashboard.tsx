@@ -18,6 +18,7 @@ import ChatInfo from "../components/chat/chatinfo/ChatInfo";
 import { Spin, Button } from "antd";
 import { useConversationContext } from "../features/chat/context/ConversationContext";
 import socketService from "../services/socketService";
+import zegoService from "../services/zegoService";
 
 const Dashboard: React.FC = () => {
   const { t } = useLanguage();
@@ -37,6 +38,104 @@ const Dashboard: React.FC = () => {
   const [contactOption, setContactOption] = useState<string>("friends");
   const [showChatInfo, setShowChatInfo] = useState(true);
   const settingsRef = useRef<HTMLDivElement>(null);
+  const [zegoInitialized, setZegoInitialized] = useState<boolean>(false);
+
+  // Thêm khởi tạo ZegoService khi dashboard mount
+  useEffect(() => {
+    const userId = localStorage.getItem("userId");
+    const userName = localStorage.getItem("fullname");
+
+    if (userId && userName && !zegoInitialized) {
+      console.log(
+        "Dashboard: Khởi tạo lại ZegoService để đảm bảo nhận cuộc gọi"
+      );
+
+      // Khởi tạo ZIM riêng trước - quan trọng để nhận cuộc gọi ngay từ đầu
+      const initializeZIM = async (retries = 0, maxRetries = 5) => {
+        try {
+          console.log(
+            `Dashboard: Đang thử khởi tạo ZIM lần ${retries + 1}/${maxRetries}`
+          );
+          const success = await zegoService.initializeZIM(userId, userName);
+          if (success) {
+            console.log("Dashboard: ZIM đã được khởi tạo riêng thành công");
+            setZegoInitialized(true);
+            return true;
+          } else if (retries < maxRetries) {
+            // Tính toán thời gian chờ với backoff theo cấp số nhân
+            const delay = Math.min(1000 * Math.pow(1.5, retries), 10000);
+            console.log(
+              `Dashboard: ZIM khởi tạo không thành công, thử lại sau ${delay}ms`
+            );
+            // Thử lại với số lần thử tăng dần
+            setTimeout(() => initializeZIM(retries + 1, maxRetries), delay);
+            return false;
+          } else {
+            console.log("Dashboard: ZIM không thể khởi tạo sau nhiều lần thử");
+            return false;
+          }
+        } catch (error) {
+          console.error("Dashboard: Lỗi khởi tạo ZIM:", error);
+          if (retries < maxRetries) {
+            // Tính toán thời gian chờ với backoff theo cấp số nhân
+            const delay = Math.min(1000 * Math.pow(2, retries), 15000);
+            console.log(
+              `Dashboard: Có lỗi khi khởi tạo ZIM, thử lại sau ${delay}ms`
+            );
+            // Thử lại với số lần thử tăng dần
+            setTimeout(() => initializeZIM(retries + 1, maxRetries), delay);
+          }
+          return false;
+        }
+      };
+
+      // Khởi tạo ZIM riêng ngay lập tức
+      initializeZIM(0, 5); // Truyền các tham số cụ thể: retries = 0, maxRetries = 5
+
+      // Khởi tạo Zego UI Kit sau khi ZIM đã được khởi tạo hoặc sau một thời gian
+      setTimeout(() => {
+        const initializeZego = async () => {
+          try {
+            const zegoInstance = await zegoService.initializeZego(
+              userId,
+              userName,
+              {
+                onZIMInitialized: () => {
+                  console.log(
+                    "Dashboard: ZIM đã được khởi tạo thành công qua ZegoUIKit"
+                  );
+                  setZegoInitialized(true);
+                },
+                onCallModalVisibilityChange: () => {},
+                onCallingProgressChange: () => {},
+              }
+            );
+
+            if (zegoInstance) {
+              console.log(
+                "Dashboard: ZegoService đã được khởi tạo lại thành công"
+              );
+            }
+          } catch (error) {
+            console.error(
+              "Dashboard: Lỗi khi khởi tạo lại ZegoService:",
+              error
+            );
+          }
+        };
+
+        if (!zegoInitialized) {
+          console.log("Dashboard: Thử khởi tạo lại ZegoUIKit");
+          initializeZego();
+        }
+      }, 3000);
+    }
+
+    return () => {
+      // Không cleanup zegoService ở đây vì chúng ta muốn giữ kết nối
+      // khi chuyển giữa các phần của ứng dụng
+    };
+  }, [zegoInitialized]);
 
   const handleSelectConversation = (conversation: Conversation) => {
     if (!conversation) {
@@ -285,7 +384,7 @@ const Dashboard: React.FC = () => {
       changedBy?: { userId: string; fullname: string };
     }) => {
       // Cập nhật tên nhóm trong context với userId
-      const userId = data.fromUserId || data.changedBy?.userId || '';
+      const userId = data.fromUserId || data.changedBy?.userId || "";
       updateGroupName(data.conversationId, data.newName, userId);
 
       // Nếu đang hiển thị conversation này, cập nhật selectedConversation
@@ -314,7 +413,7 @@ const Dashboard: React.FC = () => {
       changedBy?: { userId: string; fullname: string };
     }) => {
       // Cập nhật avatar trong context với userId
-      const userId = data.fromUserId || data.changedBy?.userId || '';
+      const userId = data.fromUserId || data.changedBy?.userId || "";
       updateGroupAvatar(data.conversationId, data.newAvatar, userId);
 
       // Nếu đang hiển thị conversation này, cập nhật selectedConversation

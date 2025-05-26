@@ -51,7 +51,7 @@ const FriendList: React.FC<FriendListProps> = ({
   onSelectFriend,
   onSelectConversation,
 }) => {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [searchText, setSearchText] = useState("");
   const [friends, setFriends] = useState<Friend[]>([]);
   const [loading, setLoading] = useState(true);
@@ -101,6 +101,16 @@ const FriendList: React.FC<FriendListProps> = ({
     getFriends();
   }, []);
 
+  // Effect to update activity status text when language changes
+  useEffect(() => {
+    // Update activity status text for all friends when language changes
+    if (friends.length > 0 && Object.keys(userCache).length > 0) {
+      Object.entries(userCache).forEach(([userId, userData]) => {
+        updateFriendActivityStatus(userId, userData);
+      });
+    }
+  }, [language]);
+
   // Fetch user details and update activity status
   const fetchUserDetails = async (userId: string) => {
     try {
@@ -123,7 +133,7 @@ const FriendList: React.FC<FriendListProps> = ({
   const updateFriendActivityStatus = (userId: string, userData: User) => {
     const lastActive = userData.lastActive;
     if (!lastActive) {
-      updateFriendStatus(userId, "Đang ngoại tuyến", false);
+      updateFriendStatus(userId, t.offline || "Đang ngoại tuyến", false);
       return;
     }
 
@@ -134,14 +144,28 @@ const FriendList: React.FC<FriendListProps> = ({
     );
 
     if (minutesDiff < 5) {
-      updateFriendStatus(userId, "Vừa mới truy cập", true);
+      updateFriendStatus(userId, t.just_now || "Vừa mới truy cập", true);
     } else if (minutesDiff < 60) {
-      updateFriendStatus(userId, `Hoạt động ${minutesDiff} phút trước`, false);
+      updateFriendStatus(
+        userId,
+        (t.minutes_ago || "Hoạt động {0} phút trước").replace(
+          "{0}",
+          minutesDiff.toString()
+        ),
+        false
+      );
     } else if (minutesDiff < 24 * 60) {
       const hours = Math.floor(minutesDiff / 60);
-      updateFriendStatus(userId, `Hoạt động ${hours} giờ trước`, false);
+      updateFriendStatus(
+        userId,
+        (t.hours_ago || "Hoạt động {0} giờ trước").replace(
+          "{0}",
+          hours.toString()
+        ),
+        false
+      );
     } else {
-      updateFriendStatus(userId, "Đang ngoại tuyến", false);
+      updateFriendStatus(userId, t.offline || "Đang ngoại tuyến", false);
     }
   };
 
@@ -269,26 +293,26 @@ const FriendList: React.FC<FriendListProps> = ({
   const menu = (friend: Friend) => (
     <Menu>
       <Menu.Item key="view-info" onClick={() => handleViewInfo(friend)}>
-        Xem thông tin
+        {t.view_info || "Xem thông tin"}
       </Menu.Item>
       <Menu.Item
         key="categorize"
         onClick={() => console.log("Phân loại:", friend.id)}>
-        Phân loại
+        {t.categorize || "Phân loại"}
       </Menu.Item>
       <Menu.Item
         key="set-nickname"
         onClick={() => console.log("Đặt tên gợi nhớ:", friend.id)}>
-        Đặt tên gợi nhớ
+        {t.set_nickname || "Đặt tên gợi nhớ"}
       </Menu.Item>
       <Menu.Item key="block" onClick={() => handleBlockUser(friend.id)}>
-        Chặn người này
+        {t.block_user || "Chặn người này"}
       </Menu.Item>
       <Menu.Item
         key="remove-friend"
         onClick={() => handleRemoveFriend(friend.id)}
         style={{ color: "red" }}>
-        Xóa bạn
+        {t.remove_friend || "Xóa bạn"}
       </Menu.Item>
     </Menu>
   );
