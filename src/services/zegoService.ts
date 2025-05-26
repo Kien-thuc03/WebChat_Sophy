@@ -91,13 +91,15 @@ function setupConsoleFilters() {
         message.includes("weblogger") ||
         message.includes("coolzcloud") ||
         message.includes("ZegoExpressWeb") ||
+        message.includes("WebSocket connection to") ||
         (message.startsWith("{") && message.includes("appid")) ||
         message.includes("[MGR]") ||
-        message.includes("WebSocket connection to")
+        message.includes("WebSocket")
       );
     } else if (typeof message === "object" && message !== null) {
       return (
-        String(message).includes("zego") || String(message).includes("appid")
+        String(message).includes("zego") || String(message).includes("appid") ||
+        String(message).includes("WebSocket") || String(message).includes("websocket")
       );
     }
     return false;
@@ -144,20 +146,36 @@ function setupConsoleFilters() {
 
   // Chỉ lọc các lỗi không quan trọng từ Zego
   console.error = function (...args: any[]) {
-    if (args.length > 0 && isZegoLog(args[0])) {
-      // Giữ lại các lỗi quan trọng (các lỗi kết nối thực sự)
+    if (args.length > 0) {
+      // Bỏ qua hoàn toàn các lỗi WebSocket
       if (
-        args[0].includes("WebSocket connection to") ||
-        args[0].includes("weblogger") ||
-        args[0].includes("coolzcloud.com") ||
-        args[0].includes("log websocket")
+        typeof args[0] === 'string' && 
+        (
+          args[0].includes("WebSocket") || 
+          args[0].includes("websocket") || 
+          args[0].includes("coolzcloud") ||
+          args[0].includes("weblogger")
+        )
       ) {
-        return; // Bỏ qua các lỗi kết nối log không quan trọng
+        return; // Bỏ qua hoàn toàn
       }
-      if (window.enableZegoLogs) {
-        window.originalConsole!.error.apply(console, args);
+
+      // Kiểm tra các lỗi Zego khác
+      if (isZegoLog(args[0])) {
+        // Giữ lại các lỗi quan trọng (các lỗi kết nối thực sự)
+        if (
+          args[0].includes("WebSocket connection to") ||
+          args[0].includes("weblogger") ||
+          args[0].includes("coolzcloud.com") ||
+          args[0].includes("log websocket")
+        ) {
+          return; // Bỏ qua các lỗi kết nối log không quan trọng
+        }
+        if (window.enableZegoLogs) {
+          window.originalConsole!.error.apply(console, args);
+        }
+        return;
       }
-      return;
     }
     window.originalConsole!.error.apply(console, args);
   };
@@ -165,6 +183,20 @@ function setupConsoleFilters() {
 
 // Khởi tạo ngay khi file được load
 setupConsoleFilters();
+
+// Đảm bảo vô hiệu hóa Zego logs ngay khi trang được tải
+if (typeof window !== 'undefined') {
+  // Vô hiệu hóa logs ngay lập tức
+  window.enableZegoLogs = false;
+  
+  // Sau khi trang tải xong, vô hiệu hóa logs và WebSocket một cách triệt để
+  window.addEventListener('load', () => {
+    if (zegoService) {
+      zegoService.disableZegoLogs();
+      console.log('Đã vô hiệu hóa logs Zego sau khi trang tải xong');
+    }
+  });
+}
 
 /**
  * ZegoService - Cung cấp các phương thức để làm việc với ZEGO Cloud
@@ -184,6 +216,9 @@ class ZegoService {
    */
   async initializeZIM(userId: string, userName: string): Promise<boolean> {
     try {
+      // Vô hiệu hóa logs Zego ngay từ đầu
+      this.disableZegoLogs();
+      
       if (window.zimInitialized && window.zimInstance) {
         console.log("ZIM đã được khởi tạo trước đó");
         return true;
@@ -215,7 +250,9 @@ class ZegoService {
           if ((zim as any).setLogConfig) {
             (zim as any).setLogConfig({
               logLevel: "off",
+              remoteLogLevel: "off",  // Tắt remote log
               logUploader: false,
+              logURL: "",  // Không kết nối tới server log
             });
           }
         } catch (e) {
@@ -498,6 +535,10 @@ class ZegoService {
     }
   ): Promise<ZegoUIKitPrebuilt | null> {
     try {
+      // Vô hiệu hóa logs cho môi trường production
+      // Điều này sẽ ngăn chặn lỗi WebSocket
+      this.disableZegoLogs();
+
       // Khởi tạo ZIM riêng trước
       const zimInitialized = await this.initializeZIM(userId, userName);
       if (!zimInitialized) {
@@ -540,6 +581,7 @@ class ZegoService {
             logLevel: "off", // Tắt hoàn toàn logs
             remoteLogLevel: "off", // Tắt hoàn toàn remote logs
             logUploader: false, // Tắt việc upload logs lên server Zego
+            logURL: "", // Xóa URL log server để tránh kết nối
           });
         } catch (e) {
           console.error("Error setting log config for Zego:", e);
@@ -1415,6 +1457,65 @@ class ZegoService {
   public initializeLogsFilter() {
     setupConsoleFilters();
     console.log("Console log filters đã được khởi tạo thành công");
+  }
+
+  /**
+   * Vô hiệu hóa hoàn toàn logs và kết nối WebSocket của Zego
+   * Phù hợp cho môi trường production
+   */
+  public disableZegoLogs(): void {
+    // Tắt tất cả logs và kết nối WebSocket trên toàn cục
+    window.enableZegoLogs = false;
+    
+    // Xử lý MongoDB lỗi WebSocket một cách chủ động
+    try {
+      // Chặn tất cả các kết nối WebSocket đến máy chủ log
+      const originalWebSocket = window.WebSocket;
+      if (originalWebSocket) {
+        // @ts-ignore - Chúng ta cần ghi đè WebSocket constructor
+        window.WebSocket = function(url: string, protocols?: string | string[]) {
+          // Nếu là kết nối tới server log của Zego, không thiết lập kết nối
+          if (url.includes('coolzcloud.com/log') || url.includes('weblogger')) {
+            console.log('🛡️ Chặn kết nối WebSocket log:', url);
+            // Tạo một đối tượng giả để không gây lỗi và ép kiểu để TypeScript chấp nhận
+            return {
+              addEventListener: () => {},
+              removeEventListener: () => {},
+              send: () => {},
+              close: () => {},
+              url: url,
+              protocol: '',
+              readyState: 3, // CLOSED
+              onopen: null,
+              onmessage: null,
+              onclose: null,
+              onerror: null,
+              binaryType: 'blob',
+              bufferedAmount: 0,
+              extensions: ''
+            } as unknown as WebSocket;
+          }
+          
+          // Nếu là kết nối khác, sử dụng constructor gốc
+          return new originalWebSocket(url, protocols);
+        };
+        
+        // Giữ tham chiếu tới constructor gốc
+        window.WebSocket.prototype = originalWebSocket.prototype;
+        // @ts-ignore
+        window.WebSocket.CONNECTING = originalWebSocket.CONNECTING;
+        // @ts-ignore
+        window.WebSocket.OPEN = originalWebSocket.OPEN;
+        // @ts-ignore
+        window.WebSocket.CLOSING = originalWebSocket.CLOSING;
+        // @ts-ignore
+        window.WebSocket.CLOSED = originalWebSocket.CLOSED;
+      }
+    } catch (error) {
+      console.error('Không thể ghi đè WebSocket constructor:', error);
+    }
+    
+    console.log('🛡️ Đã vô hiệu hóa hoàn toàn logs và kết nối WebSocket của Zego');
   }
 }
 
