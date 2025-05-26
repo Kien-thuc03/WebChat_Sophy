@@ -13,9 +13,9 @@ const VerifyOTP: React.FC = () => {
   const [isRateLimited, setIsRateLimited] = useState(false);
   const [, setBackendOTP] = useState("");
 
-  // Kiểm tra môi trường development
-  const isDevelopment = window.location.hostname === 'localhost' || 
-                        window.location.hostname === '127.0.0.1';
+  // Kiểm tra môi trường development dựa trên biến môi trường thay vì hostname
+  // Điều này đảm bảo hoạt động đúng cả trên local và Vercel
+  const isDevelopmentOrTest = process.env.NODE_ENV !== "production";
 
   const location = useLocation();
   const navigate = useNavigate();
@@ -24,14 +24,15 @@ const VerifyOTP: React.FC = () => {
   const [phoneNumber] = useState(initialPhoneNumber); // Giữ nguyên phoneNumber
   const [otpId, setOtpId] = useState(initialOtpId); // Cập nhật otpId khi gửi lại mã
 
-  // Hiển thị mã OTP trong môi trường development nếu có
+  // Hiển thị mã OTP trong môi trường development hoặc testing
   useEffect(() => {
-    if (isDevelopment && location.state && location.state.backendOTP) {
-      setBackendOTP(location.state.backendOTP);
-      setMessage(`Dev mode: Sử dụng mã OTP ${location.state.backendOTP}`);
+    const stateBackendOTP = location.state?.backendOTP;
+    if (isDevelopmentOrTest && stateBackendOTP) {
+      setBackendOTP(stateBackendOTP);
+      setMessage(`Dev mode: Sử dụng mã OTP ${stateBackendOTP}`);
       setMessageType("success");
     }
-  }, [location.state]);
+  }, [location.state, isDevelopmentOrTest]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -107,8 +108,8 @@ const VerifyOTP: React.FC = () => {
       const response = await sendOTPForgotPassword(phoneNumber);
       setOtpId(response.otpId);
       
-      // Hiển thị mã OTP trong môi trường development nếu có
-      if (isDevelopment && response.otp) {
+      // Hiển thị mã OTP trong môi trường development hoặc testing nếu có
+      if (isDevelopmentOrTest && response.otp) {
         setBackendOTP(response.otp);
         setMessage(`Đã gửi lại mã OTP! Dev mode: Sử dụng mã OTP ${response.otp}`);
       } else {
@@ -167,59 +168,49 @@ const VerifyOTP: React.FC = () => {
                 </li>
               </ul>
             </div>
-            <button
-              type="button"
-              onClick={handleResendOTP}
-              disabled={isResending || isRateLimited}
-              className={`mt-2 text-sm ${
-                isResending || isRateLimited
-                  ? "text-gray-400 cursor-not-allowed"
-                  : "text-[#0066ff] hover:underline"
-              }`}>
-              {isResending
-                ? "Đang gửi..."
-                : isRateLimited
-                  ? "Bị chặn"
-                  : "Gửi lại mã"}
-            </button>
           </div>
 
           {message && (
             <div
-              className={`p-2 rounded-md border ${
+              className={`mt-4 p-2 rounded-md text-sm ${
                 messageType === "success"
-                  ? "bg-green-50 border-green-200"
-                  : "bg-red-50 border-red-200"
-              }`}>
-
-              <p
-                className={`text-sm text-center ${
-                  messageType === "success" ? "text-green-600" : "text-red-600"
-                }`}>
-                {message}
-              </p>
+                  ? "bg-green-50 text-green-700 border border-green-200"
+                  : "bg-red-50 text-red-700 border border-red-200"
+              }`}
+            >
+              {message}
             </div>
           )}
 
-          <button
-            type="submit"
-            disabled={isSubmitting || isRateLimited}
-            className={`w-full rounded-md ${
-              isSubmitting || isRateLimited
-                ? "bg-[#99c2ff] cursor-not-allowed"
-                : "bg-[#0066ff] hover:bg-[#0051cc]"
-            } px-4 py-2 text-sm font-semibold text-white focus:outline-none focus:ring-2 focus:ring-[#0066ff] focus:ring-offset-2`}>
-            {isSubmitting ? "Đang xử lý..." : "Xác nhận"}
-          </button>
+          <div className="flex flex-col mt-6 space-y-4">
+            <button
+              type="submit"
+              className={`w-full px-4 py-2 text-white font-medium rounded-md bg-[#0066ff] hover:bg-[#0055dd] focus:outline-none ${
+                (isSubmitting || isRateLimited) &&
+                "opacity-50 cursor-not-allowed"
+              }`}
+              disabled={isSubmitting || isRateLimited}
+            >
+              {isSubmitting ? "Đang xử lý..." : "Xác nhận"}
+            </button>
+            <button
+              type="button"
+              className={`w-full px-4 py-2 text-[#0066ff] font-medium rounded-md border border-[#0066ff] hover:bg-[#e6f0ff] focus:outline-none ${
+                (isResending || isRateLimited) && "opacity-50 cursor-not-allowed"
+              }`}
+              onClick={handleResendOTP}
+              disabled={isResending || isRateLimited}
+            >
+              {isResending ? "Đang gửi..." : "Gửi lại mã"}
+            </button>
+            <Link
+              to="/forgot-password"
+              className="text-center text-[#0066ff] hover:underline"
+            >
+              Quay lại
+            </Link>
+          </div>
         </form>
-
-        <div className="mt-4 text-center">
-          <Link
-            to="/forgot-password"
-            className="text-sm text-[#0066ff] hover:underline">
-            Quay lại
-          </Link>
-        </div>
       </div>
     </div>
   );
