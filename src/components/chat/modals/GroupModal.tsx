@@ -186,13 +186,16 @@ const GroupModal: React.FC<GroupModalProps> = ({
   // Đảm bảo giá trị của groupAvatarUrl được log ra để kiểm tra
   useEffect(() => {
     // Giới hạn log để tránh spam
-    const savedLogTimestamp = sessionStorage.getItem('lastAvatarLog');
+    const savedLogTimestamp = sessionStorage.getItem("lastAvatarLog");
     const currentTime = Date.now();
-    
-    if (!savedLogTimestamp || currentTime - parseInt(savedLogTimestamp) > 2000) {
+
+    if (
+      !savedLogTimestamp ||
+      currentTime - parseInt(savedLogTimestamp) > 2000
+    ) {
       console.log("Conversation in GroupModal:", conversation);
       console.log("Group avatar URL:", conversation.groupAvatarUrl);
-      sessionStorage.setItem('lastAvatarLog', currentTime.toString());
+      sessionStorage.setItem("lastAvatarLog", currentTime.toString());
     }
   }, [conversation.groupAvatarUrl]);
 
@@ -226,15 +229,24 @@ const GroupModal: React.FC<GroupModalProps> = ({
   // Xử lý rời nhóm
   const handleLeaveGroup = async () => {
     try {
-      setLoading(true);
-      await leaveGroup(conversation.conversationId);
-      message.success("Rời nhóm thành công");
+      modal.confirm({
+        title: "Rời nhóm",
+        content: "Bạn có chắc chắn muốn rời khỏi nhóm này?",
+        okText: "Rời nhóm",
+        cancelText: "Hủy",
+        okButtonProps: { danger: true },
+        onOk: async () => {
+          setLoading(true);
+          await leaveGroup(conversation.conversationId);
+          message.success("Rời nhóm thành công");
 
-      if (onLeaveGroup) {
-        onLeaveGroup();
-      }
+          if (onLeaveGroup) {
+            onLeaveGroup();
+          }
 
-      onClose();
+          onClose();
+        },
+      });
     } catch (error) {
       console.error("Lỗi khi rời nhóm:", error);
       if (error instanceof Error) {
@@ -286,7 +298,9 @@ const GroupModal: React.FC<GroupModalProps> = ({
         // Lấy thông tin user hiện tại
         const currentUserId = localStorage.getItem("userId") || "";
         // Tìm thông tin người dùng hiện tại từ danh sách thành viên
-        const currentMember = memberDetails.find(member => member.userId === currentUserId);
+        const currentMember = memberDetails.find(
+          (member) => member.userId === currentUserId
+        );
         const currentUserName = currentMember?.fullname || "Một thành viên";
 
         // Emit sự kiện thay đổi ảnh nhóm với thông tin người thay đổi
@@ -295,8 +309,8 @@ const GroupModal: React.FC<GroupModalProps> = ({
           newAvatar: result.conversation.groupAvatarUrl, // Sử dụng URL thực từ server, không phải URL blob
           changedBy: {
             userId: currentUserId,
-            fullname: currentUserName
-          }
+            fullname: currentUserName,
+          },
         });
 
         // Cập nhật state conversation with actual server URL
@@ -394,7 +408,9 @@ const GroupModal: React.FC<GroupModalProps> = ({
         // Lấy thông tin user hiện tại
         const currentUserId = localStorage.getItem("userId") || "";
         // Tìm thông tin người dùng hiện tại từ danh sách thành viên
-        const currentMember = memberDetails.find(member => member.userId === currentUserId);
+        const currentMember = memberDetails.find(
+          (member) => member.userId === currentUserId
+        );
         const currentUserName = currentMember?.fullname || "Một thành viên";
 
         // Emit sự kiện thay đổi tên nhóm với thông tin người thay đổi
@@ -403,8 +419,8 @@ const GroupModal: React.FC<GroupModalProps> = ({
           newName,
           changedBy: {
             userId: currentUserId,
-            fullname: currentUserName
-          }
+            fullname: currentUserName,
+          },
         });
 
         // Update the global context

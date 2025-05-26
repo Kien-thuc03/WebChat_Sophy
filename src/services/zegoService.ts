@@ -497,7 +497,23 @@ class ZegoService {
       );
 
       // Khởi tạo instance ZegoUIKit với các tùy chọn
-      const zp = ZegoUIKitPrebuilt.create(kitToken);
+      const zp = await ZegoUIKitPrebuilt.create(kitToken);
+
+      // Thiết lập ngôn ngữ tiếng Việt cho dialog "Leave Room"
+      if (zp && (zp as any).setLanguage) {
+        try {
+          (zp as any).setLanguage({
+            leaveRoom: {
+              title: "Rời khỏi phòng",
+              message: "Bạn có chắc chắn muốn rời khỏi phòng chat?",
+              cancelButton: "Hủy",
+              confirmButton: "Xác nhận",
+            },
+          });
+        } catch (error) {
+          console.warn("Không thể thiết lập ngôn ngữ cho Zego:", error);
+        }
+      }
 
       // Tắt logging mạnh mẽ hơn để tránh lỗi WebSocket
       if (zp && (zp as any).setLogConfig) {
@@ -752,7 +768,7 @@ class ZegoService {
       title: `${isVideoCall ? "Cuộc gọi video" : "Cuộc gọi thoại"} đến`,
       content: `${caller.userName} đang gọi cho bạn`,
       icon: null, // Không sử dụng JSX icon
-      okText: "Trả lời",
+      okText: "Chấp nhận",
       cancelText: "Từ chối",
       centered: true,
       width: 400,
