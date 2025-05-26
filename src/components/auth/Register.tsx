@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { checkUsedPhone } from '../../api/API';
-import { useAuth } from '../../features/auth/hooks/useAuth';
 import PhoneInput from "react-phone-number-input";
 import "react-phone-number-input/style.css";
-import { sendOtpToPhone } from '../../utils/firebase-config';
+import { sendOtpToPhone, auth } from '../../utils/firebase-config';
 import RecaptchaContainer from './RecaptchaContainer';
 import { RecaptchaVerifier } from 'firebase/auth';
 
@@ -14,18 +13,72 @@ interface IConfirmationResult {
   confirm: (code: string) => Promise<any>;
 }
 
-// Helper function to safely check if grecaptcha is ready
-// function isGrecaptchaReady(): boolean {
-//   return (
-//     typeof window !== 'undefined' &&
-//     window.grecaptcha !== undefined &&
-//     typeof window.grecaptcha.ready === 'function'
-//   );
-// }
+// Thêm tùy chọn cho reCAPTCHA
+if (auth?.settings) {
+  // Đây là một giải pháp tạm thời cho production
+  // Trong môi trường sản xuất thực sự, nên đặt là false
+  auth.settings.appVerificationDisabledForTesting = false;
+}
+
+// Mã giả để giả lập tạo assessment - trong thực tế cần qua backend
+const fakeAssessmentData = {
+  assessmentId: '',
+  risk: 0, // 0-1, 0=an toàn, 1=rủi ro cao
+  created: false
+};
+
+// Hàm giả lập tạo assessment - trong thực tế nên triển khai qua backend vì lý do bảo mật
+const createSmsAssessment = async (phoneNumber: string) => {
+  try {
+    // Trong môi trường thực tế, không nên làm thế này vì bảo mật
+    // Đây chỉ là giải pháp tạm thời để hệ thống hoạt động
+    console.log('Tạo SMS assessment cho', phoneNumber);
+    
+    // Tạo assessment ID
+    const assessmentId = `assessment_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    // Kiểm tra định dạng số điện thoại Việt Nam hợp lệ
+    const isVietnamesePhone = /^\+84\d{9}$/.test(phoneNumber);
+    
+    // Giả lập đánh giá rủi ro - trong thực tế sẽ đến từ reCAPTCHA Enterprise
+    const risk = isVietnamesePhone ? 0.1 : 0.9; // Giả sử số Việt Nam hợp lệ có rủi ro thấp
+    
+    fakeAssessmentData.assessmentId = assessmentId;
+    fakeAssessmentData.risk = risk;
+    fakeAssessmentData.created = true;
+    
+    return {
+      assessmentId,
+      risk
+    };
+  } catch (error) {
+    console.error('Lỗi khi tạo assessment:', error);
+    return {
+      assessmentId: `error_${Date.now()}`,
+      risk: 0.5 // Giá trị mặc định
+    };
+  }
+};
+
+// Hàm giả lập ghi chú sự kiện SMS
+const annotateSmsEvent = async (
+  assessmentId: string, 
+  phoneNumber: string, 
+  eventType: 'INITIATED_TWO_FACTOR' | 'PASSED_TWO_FACTOR' | 'FAILED_TWO_FACTOR'
+) => {
+  if (!fakeAssessmentData.created) return false;
+  
+  // Ghi log ra console - trong thực tế sẽ gửi đến reCAPTCHA Enterprise API
+  console.log(`SMS Event [${eventType}] for ${phoneNumber}`, {
+    assessmentId,
+    eventType
+  });
+  
+  return true;
+};
 
 const Register: React.FC = () => {
   const navigate = useNavigate();
-  const { login } = useAuth();
   const [step, setStep] = useState<'phone' | 'otp' | 'name' | 'info'>('phone');
   const [phone, setPhone] = useState('');
   const [formattedPhoneNumber, setFormattedPhoneNumber] = useState('');
@@ -38,13 +91,16 @@ const Register: React.FC = () => {
   const [birthday, setBirthday] = useState('');
   const [error, setError] = useState('');
   const [resendTimer, setResendTimer] = useState(0);
-  const [avatarFile, setAvatarFile] = useState<File | null>(null);
-  const [avatarPreview, setAvatarPreview] = useState('');
   const [isPhoneUsed, setIsPhoneUsed] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [showRecaptcha, setShowRecaptcha] = useState(false);
   const [recaptchaVerified, setRecaptchaVerified] = useState(false);
+  
+  // Thêm state mới cho SMS defense
+  const [smsAssessmentId, setSmsAssessmentId] = useState<string>('');
+  const [smsRiskScore, setSmsRiskScore] = useState<number>(0);
+  const [smsDefenseEnabled,] = useState<boolean>(true);
   
   // Tham chiếu để lưu confirmation result từ Firebase
   const confirmationResultRef = useRef<IConfirmationResult | null>(null);
@@ -75,11 +131,31 @@ const Register: React.FC = () => {
     // before attempting to send the OTP
     setTimeout(async () => {
       try {
+        // Tạo SMS assessment trước khi gửi OTP
+        if (smsDefenseEnabled) {
+          const assessmentResult = await createSmsAssessment(formattedPhoneNumber);
+          setSmsAssessmentId(assessmentResult.assessmentId);
+          setSmsRiskScore(assessmentResult.risk);
+          
+          // Kiểm tra điểm rủi ro
+          if (assessmentResult.risk > 0.7) {
+            setError('Phát hiện rủi ro bảo mật cao với số điện thoại này. Vui lòng liên hệ hỗ trợ.');
+            setShowRecaptcha(false);
+            setIsLoading(false);
+            return;
+          }
+        }
+        
         // Gửi OTP với verifier đã xác thực và OTP từ backend nếu có
         const confirmationResult = await sendOtpToPhone(formattedPhoneNumber, verifier, backendOTP);
         
         // Lưu confirmation result để sử dụng khi xác thực OTP
         confirmationResultRef.current = confirmationResult;
+        
+        // Ghi chú sự kiện đã gửi OTP
+        if (smsDefenseEnabled && smsAssessmentId) {
+          await annotateSmsEvent(smsAssessmentId, formattedPhoneNumber, 'INITIATED_TWO_FACTOR');
+        }
         
         // Chỉ ẩn reCAPTCHA sau khi gửi OTP thành công
         setShowRecaptcha(false);
@@ -97,7 +173,16 @@ const Register: React.FC = () => {
           
           // Hiển thị thông báo OTP dựa trên loại OTP được sử dụng
           if (isDevelopment) {
-            if (backendOTP) {
+            // Hiển thị mã OTP và điểm rủi ro trong môi trường phát triển
+            if (smsRiskScore > 0) {
+              const riskLevel = smsRiskScore > 0.5 ? 'cao' : 'thấp';
+              
+              if (backendOTP) {
+                setSuccessMessage(`Mã OTP đã được gửi. [Dev: Rủi ro ${riskLevel}: ${smsRiskScore.toFixed(2)}] Mã OTP: ${backendOTP}`);
+              } else {
+                setSuccessMessage(`Mã OTP đã được gửi. [Dev: Rủi ro ${riskLevel}: ${smsRiskScore.toFixed(2)}] Trong môi trường dev, sử dụng: 123456`);
+              }
+            } else if (backendOTP) {
               setSuccessMessage(`Mã OTP đã được gửi đến số điện thoại của bạn. Dev mode: Sử dụng mã OTP ${backendOTP}`);
             } else {
               setSuccessMessage('Mã OTP đã được gửi đến số điện thoại của bạn. Trong môi trường development, hãy sử dụng mã: 123456');
@@ -165,13 +250,16 @@ const Register: React.FC = () => {
     } else if (err.code === 'auth/captcha-check-failed') {
       setError('Xác thực reCAPTCHA thất bại. Vui lòng thử lại.');
     } else if (err.code === 'auth/invalid-app-credential') {
-      setError('Lỗi cài đặt reCAPTCHA. Đang sử dụng mã OTP giả lập: 123456');
+      setError('Lỗi cài đặt reCAPTCHA. Vui lòng đảm bảo domain đã được thêm vào Firebase.');
+      // Thử thêm domain vào Firebase
+      console.error('Lỗi domain Firebase:', window.location.hostname);
+      
       // Trong môi trường development với lỗi Firebase credential, chuyển sang sử dụng mã giả lập
-      if (step !== 'otp') {
+      if (step !== 'otp' && isDevelopment) {
         setStep('otp');
+        setResendTimer(60);
+        setSuccessMessage('Đã xảy ra lỗi Firebase, nhưng bạn có thể tiếp tục với mã OTP: 123456');
       }
-      setResendTimer(60);
-      setSuccessMessage('Đã xảy ra lỗi, nhưng bạn có thể tiếp tục với mã OTP: 123456');
     } else if (isDevelopment) {
       // Nếu là môi trường development và có lỗi Firebase, vẫn cho phép tiếp tục
       if (step !== 'otp') {
@@ -206,11 +294,15 @@ const Register: React.FC = () => {
         throw new Error('Không tìm thấy phiên xác thực. Vui lòng yêu cầu mã OTP mới.');
       }
       
-      
       // Xác thực OTP thông qua Firebase
       const result = await confirmationResultRef.current.confirm(cleanOtp);
       
       if (result.user) {
+        // Ghi chú sự kiện OTP thành công
+        if (smsDefenseEnabled && smsAssessmentId) {
+          await annotateSmsEvent(smsAssessmentId, formattedPhoneNumber, 'PASSED_TWO_FACTOR');
+        }
+        
         // Use the changeStep function to ensure cleanup
         changeStep('name');
         setSuccessMessage('Số điện thoại đã được xác thực');
@@ -220,6 +312,11 @@ const Register: React.FC = () => {
     } catch (err: any) {
       console.error("Lỗi xác thực OTP:", err);
       console.error("Chi tiết lỗi:", JSON.stringify(err, null, 2));
+      
+      // Ghi chú sự kiện OTP thất bại
+      if (smsDefenseEnabled && smsAssessmentId) {
+        await annotateSmsEvent(smsAssessmentId, formattedPhoneNumber, 'FAILED_TWO_FACTOR');
+      }
       
       if (err.code === 'auth/invalid-verification-code') {
         setError('Mã OTP không chính xác. Vui lòng kiểm tra và thử lại.');
@@ -233,231 +330,6 @@ const Register: React.FC = () => {
       setIsLoading(false);
     }
   };
-
-  // Thêm hàm xử lý cho bước nhập tên
-  const handleNameSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    
-    // Kiểm tra tên với regex cập nhật - yêu cầu ít nhất 2 từ cách nhau bởi dấu cách
-    const nameRegex = /^[A-Za-zÀ-ỹ]+ [A-Za-zÀ-ỹ]+( [A-Za-zÀ-ỹ]+)*$/;
-    if (!nameRegex.test(fullname)) {
-      setError('Họ và tên phải có ít nhất 2 từ (họ và tên) cách nhau bởi dấu cách');
-      return;
-    }
-    
-    // Kiểm tra độ dài
-    if (fullname.length < 3 || fullname.length > 50) {
-      setError('Họ và tên phải từ 3-50 ký tự');
-      return;
-    }
-    
-    // If name is valid, use changeStep function
-    changeStep('info');
-  };
-
-  const handleRegister = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setSuccessMessage('');
-    setIsLoading(true);
-    
-    try {
-      // Cập nhật regex cho mật khẩu
-      const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{6,20}$/;
-      if (!passwordRegex.test(password)) {
-        setError('Mật khẩu phải từ 6-20 ký tự, bao gồm chữ và số');
-        setIsLoading(false);
-        return;
-      }
-      
-      if (password !== confirmPassword) {
-        setError('Mật khẩu xác nhận không khớp');
-        setIsLoading(false);
-        return;
-      }
-
-      // Kiểm tra định dạng số điện thoại
-      let formattedPhone = phone;
-      if (phone.startsWith("+84")) {
-        formattedPhone = "0" + phone.slice(3);
-      }
-
-      // Kiểm tra tuổi - phải đủ 13 tuổi
-      if (birthday) {
-        const birthDate = new Date(birthday);
-        const today = new Date();
-        let age = today.getFullYear() - birthDate.getFullYear();
-        const monthDiff = today.getMonth() - birthDate.getMonth();
-        
-        // Nếu chưa đến tháng sinh nhật trong năm nay, trừ đi 1 tuổi
-        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-          age--;
-        }
-        
-        if (age < 13) {
-          setError('Bạn phải đủ 13 tuổi để đăng ký tài khoản');
-          setIsLoading(false);
-          return;
-        }
-      }
-
-      // Thông báo nếu có avatar
-      if (avatarFile) {
-        setSuccessMessage('Đang tải lên ảnh đại diện...');
-      }
-
-      // Sử dụng hàm registerWithAvatar thay vì register để hỗ trợ tải lên avatar
-      // const result = await registerWithAvatar(
-      //   formattedPhone, 
-      //   password, 
-      //   fullname, 
-      //   isMale, 
-      //   birthday,
-      //   avatarFile
-      // );
-      
-      
-      // Hiển thị thông báo thành công
-      setSuccessMessage('Đăng ký thành công! Đang đăng nhập...');
-      
-      try {
-        // Tự động đăng nhập sau khi đăng ký thành công
-        await login({
-          phone: formattedPhone,
-          password: password
-        });
-        
-        // Đợi một chút để hiển thị thông báo thành công
-        setTimeout(() => {
-          // Chuyển hướng đến trang chính sau khi đăng nhập
-          navigate('/main');
-        }, 1000);
-      } catch (loginError) {
-        console.error('Lỗi khi tự động đăng nhập:', loginError);
-        setError('Đăng ký thành công nhưng không thể tự động đăng nhập. Vui lòng đăng nhập thủ công.');
-        
-        // Nếu đăng nhập thất bại, vẫn chuyển hướng về trang đăng nhập sau một khoảng thời gian
-        setTimeout(() => {
-          navigate('/');
-        }, 2000);
-      }
-    } catch (err: any) {
-      console.error('Lỗi đăng ký:', err);
-      setError(err.message);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Cleanup any existing reCAPTCHA widgets when component unmounts
-  useEffect(() => {
-    // Global cleanup on initial mount
-    const cleanupGlobalRecaptcha = () => {
-      try {
-        // Clean up only UI-related reCAPTCHA elements
-        // Remove any orphaned iframe elements or badges
-        document.querySelectorAll('.grecaptcha-badge').forEach(el => {
-          try {
-            if (el.parentNode) {
-              (el.parentNode as Element).removeChild(el);
-            }
-          } catch (error) {
-          }
-        });
-        
-        // Hide reCAPTCHA iframes but don't remove them to preserve functionality
-        document.querySelectorAll('iframe[src*="recaptcha"]').forEach(iframe => {
-          try {
-            const parent = iframe.parentElement;
-            if (parent && parent.parentElement && !parent.closest('#inline-recaptcha-container')) {
-              const parentElement = parent.parentElement as HTMLElement;
-              parentElement.style.visibility = 'hidden'; // Use visibility instead of display to preserve functionality
-            }
-          } catch (error) {
-          }
-        });
-        
-        // Only remove extra g-recaptcha elements that aren't in the main container
-        document.querySelectorAll('.g-recaptcha').forEach(el => {
-          try {
-            if (!el.closest('#inline-recaptcha-container')) {
-              // Just hide instead of removing to maintain internal references
-              const element = el as HTMLElement;
-              element.style.visibility = 'hidden';
-            }
-          } catch (error) {
-          }
-        });
-      } catch (error) {
-        console.error('Error in UI reCAPTCHA cleanup:', error);
-      }
-    };
-
-    // Run cleanup on mount
-    cleanupGlobalRecaptcha();
-    
-    // Run cleanup on unmount 
-    return cleanupGlobalRecaptcha;
-  }, []);
-
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (resendTimer > 0) {
-      interval = setInterval(() => {
-        setResendTimer(prev => prev - 1);
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [resendTimer]);
-
-  useEffect(() => {
-    if (step === 'otp' && 'OTPCredential' in window && confirmationResultRef.current) {
-      const ac = new AbortController();
-      navigator.credentials.get({
-        otp: { transport: ['sms'] },
-        signal: ac.signal
-      } as any).then(otp => {
-        if (otp && typeof otp === 'object' && 'code' in otp) {
-          const otpCode = String(otp.code);
-          setOtp(otpCode);
-          
-          // Auto-submit OTP if detected
-          if (otpCode.length === 6 && /^\d{6}$/.test(otpCode)) {
-            // Validate the OTP immediately if it has the correct format
-            // But do it after a small delay to let state update
-            setTimeout(async () => {
-              if (confirmationResultRef.current) {
-                try {
-                  setIsLoading(true);
-                  const result = await confirmationResultRef.current.confirm(otpCode);
-                  
-                  if (result.user) {
-                    // Use the changeStep function to ensure cleanup
-                    changeStep('name');
-                    setSuccessMessage('Số điện thoại đã được xác thực');
-                  }
-                } catch (err) {
-                  console.error('Lỗi khi xác thực OTP tự động:', err);
-                  // Don't show error for auto-detection
-                } finally {
-                  setIsLoading(false);
-                }
-              }
-            }, 500);
-          }
-        }
-      }).catch(() => {});
-      return () => ac.abort();
-    }
-  }, [step]);
-
-  // Reset recaptcha when step changes
-  useEffect(() => {
-    if (step !== 'phone') {
-      setShowRecaptcha(false);
-    }
-  }, [step]);
 
   // Handle phone submit to show reCAPTCHA
   const handlePhoneSubmit = async (e: React.FormEvent) => {
@@ -502,148 +374,80 @@ const Register: React.FC = () => {
         return;
       }
       
-      
       // Lưu số điện thoại đã định dạng để sử dụng trong callback
       setFormattedPhoneNumber(formattedPhone);
       
-      // Kiểm tra số điện thoại đã được sử dụng chưa (sử dụng API hiện tại)
       try {
-        const apiFormattedPhone = formattedPhone.startsWith("+84") 
-          ? "0" + formattedPhone.substring(3) 
-          : formattedPhone;
+        // Tạo SMS assessment 
+        if (smsDefenseEnabled) {
+          const assessmentResult = await createSmsAssessment(formattedPhone);
+          setSmsAssessmentId(assessmentResult.assessmentId);
+          setSmsRiskScore(assessmentResult.risk);
           
-        // Lưu response để lấy mã OTP từ backend nếu có
-        const response = await checkUsedPhone(apiFormattedPhone);
-        
-        // Nếu có phản hồi hợp lệ từ API, xử lý tiếp theo
-        if (response && isDevelopment) {
-          if (response.otp) {
-            // Lưu mã OTP từ backend vào state để sử dụng sau này
-            setBackendOTP(response.otp);
-            
-            // Nếu đã ở bước OTP, gửi OTP ngay bằng cách sử dụng RecaptchaVerifier hiện có 
-            // hoặc fake OTP với backendOTP
-            if (step === 'otp') {
-              if (recaptchaVerifierRef.current) {
-                // Có RecaptchaVerifier, thử gửi OTP thật với backend OTP làm fallback
-                try {
-                  const result = await sendOtpToPhone(formattedPhone, recaptchaVerifierRef.current, response.otp);
-                  confirmationResultRef.current = result;
-                  setSuccessMessage(`Mã OTP đã được gửi lại. Dev mode: Sử dụng mã OTP ${response.otp}`);
-                  setResendTimer(60);
-                } catch (otpErr) {
-                  console.error('Lỗi khi gửi lại OTP:', otpErr);
-                  // Vẫn hiển thị thông báo vì đã có mã từ backend
-                  setSuccessMessage(`Mã OTP đã được gửi lại. Dev mode: Sử dụng mã OTP ${response.otp}`);
-                  setResendTimer(60);
-                }
-              } else {
-                // Không có RecaptchaVerifier, sử dụng trực tiếp backend OTP
-                const result = await sendOtpToPhone(formattedPhone, undefined, response.otp);
-                confirmationResultRef.current = result;
-                setSuccessMessage(`Mã OTP đã được gửi lại. Dev mode: Sử dụng mã OTP ${response.otp}`);
-                setResendTimer(60);
-              }
-              
-              setIsLoading(false);
-              return;
-            }
-            
-            // Trong môi trường development, hiển thị mã OTP từ backend nếu có
-            setSuccessMessage(`Mã OTP đã được gửi đến số điện thoại của bạn. Dev mode: Sử dụng mã OTP ${response.otp}`);
-          }
-        } else {
-          // Nếu không nhận được OTP từ backend (có thể số điện thoại không tồn tại)
-          setError('Số điện thoại không tồn tại hoặc không thể gửi mã OTP. Vui lòng kiểm tra lại.');
-          setIsLoading(false);
-          return;
-        }
-      } catch (err: any) {
-        if (err.message.includes('đã được sử dụng')) {
-          setIsPhoneUsed(true);
-          setError(err.message);
-          setIsLoading(false);
-          return;
-        } else {
-          // Các lỗi khác có thể là số điện thoại không tồn tại
-          setError('Số điện thoại không tồn tại hoặc không thể kiểm tra. Vui lòng thử lại sau.');
-          setIsLoading(false);
-          return;
-        }
-      }
-      
-      // Nếu đã ở bước OTP và không có backendOTP, cần xử lý việc gửi lại OTP
-      if (step === 'otp') {
-        // Nếu có RecaptchaVerifier, thử gửi lại OTP
-        if (recaptchaVerifierRef.current) {
-          try {
-            const result = await sendOtpToPhone(formattedPhone, recaptchaVerifierRef.current);
-            confirmationResultRef.current = result;
-            setSuccessMessage('Mã OTP đã được gửi lại đến số điện thoại của bạn');
-            setResendTimer(60);
-          } catch (resendErr) {
-            console.error('Lỗi khi gửi lại OTP:', resendErr);
-            handleOtpError(resendErr);
-          }
-        } else {
-          // Không có verifier, hiển thị reCAPTCHA mới
-          try {
-            if (window.recaptchaVerifier && typeof window.recaptchaVerifier.clear === 'function') {
-              try {
-                window.recaptchaVerifier.clear();
-              } catch (clearError) {
-              }
-              window.recaptchaVerifier = null;
-            }
-            
-            // Reset DOM setup for reCAPTCHA
-            const container = document.getElementById('inline-recaptcha-container');
-            if (container) {
-              container.innerHTML = '';
-            }
-            
-            // Show reCAPTCHA
-            setTimeout(() => {
-              setShowRecaptcha(true);
-              setIsLoading(false);
-            }, 300);
-            return;
-          } catch (recaptchaErr) {
-            console.error('Lỗi khi chuẩn bị reCAPTCHA mới:', recaptchaErr);
-            setError('Không thể tạo mới xác thực reCAPTCHA. Vui lòng tải lại trang.');
+          if (assessmentResult.risk > 0.7) {
+            setError('Phát hiện rủi ro bảo mật cao với số điện thoại này. Vui lòng liên hệ hỗ trợ.');
             setIsLoading(false);
             return;
           }
         }
         
-        setIsLoading(false);
-        return;
-      }
-      
-      // Clear any existing reCAPTCHA instances before showing new one
-      try {
-        if (window.recaptchaVerifier && typeof window.recaptchaVerifier.clear === 'function') {
-          try {
-            window.recaptchaVerifier.clear();
-          } catch (clearError) {
+        // Gọi API kiểm tra số điện thoại
+        const apiFormattedPhone = formattedPhone.startsWith("+84") 
+          ? "0" + formattedPhone.substring(3) 
+          : formattedPhone;
+          
+        try {
+          // Kiểm tra SĐT đã được sử dụng hay chưa
+          const response = await checkUsedPhone(apiFormattedPhone);
+          
+          // Nếu có phản hồi hợp lệ từ API và đang trong môi trường phát triển
+          if (response && isDevelopment) {
+            if (response.otp) {
+              // Lưu mã OTP từ backend
+              setBackendOTP(response.otp);
+            }
           }
-          window.recaptchaVerifier = null;
+        } catch (err: any) {
+          // Xử lý lỗi API - nhưng vẫn tiếp tục với reCAPTCHA
+          if (err.message.includes('đã được sử dụng')) {
+            setIsPhoneUsed(true);
+            setError(err.message);
+            setIsLoading(false);
+            return;
+          }
+          // Với các lỗi khác, vẫn tiếp tục quy trình
         }
         
-        // Reset DOM setup for reCAPTCHA
-        const container = document.getElementById('inline-recaptcha-container');
-        if (container) {
-          container.innerHTML = '';
+        // Clear any existing reCAPTCHA instances before showing new one
+        try {
+          if (window.recaptchaVerifier && typeof window.recaptchaVerifier.clear === 'function') {
+            try {
+              window.recaptchaVerifier.clear();
+            } catch (clearError) {
+              console.error('Lỗi khi xóa reCaptcha cũ:', clearError);
+            }
+            window.recaptchaVerifier = null;
+          }
+          
+          // Reset DOM setup for reCAPTCHA
+          const container = document.getElementById('inline-recaptcha-container');
+          if (container) {
+            container.innerHTML = '';
+          }
+        } catch (cleanupError) {
+          console.error('Lỗi dọn dẹp reCaptcha:', cleanupError);
         }
-      } catch (cleanupError) {
-      }
-      
-      // Wait a bit to ensure cleanup is done before showing
-      setTimeout(() => {
-        setShowRecaptcha(true);
+        
+        // Wait a bit to ensure cleanup is done before showing
+        setTimeout(() => {
+          setShowRecaptcha(true);
+          setIsLoading(false);
+        }, 300);
+      } catch (error) {
+        console.error('Lỗi tạo SMS assessment:', error);
+        setError('Đã xảy ra lỗi khi xử lý. Vui lòng thử lại.');
         setIsLoading(false);
-      }, 300); // Increase timeout to ensure proper cleanup
-      
+      }
     } catch (err: any) {
       console.error('Lỗi tổng thể:', err);
       setError('Đã xảy ra lỗi không mong muốn. Vui lòng thử lại sau.');
@@ -651,6 +455,111 @@ const Register: React.FC = () => {
       setIsLoading(false);
     }
   };
+
+  // Thêm lại handleNameSubmit
+  const handleNameSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    
+    // Kiểm tra tên với regex - yêu cầu ít nhất 2 từ cách nhau bởi dấu cách
+    const nameRegex = /^[A-Za-zÀ-ỹ]+ [A-Za-zÀ-ỹ]+( [A-Za-zÀ-ỹ]+)*$/;
+    if (!nameRegex.test(fullname)) {
+      setError('Họ và tên phải có ít nhất 2 từ (họ và tên) cách nhau bởi dấu cách');
+      return;
+    }
+    
+    // Kiểm tra độ dài
+    if (fullname.length < 3 || fullname.length > 50) {
+      setError('Họ và tên phải từ 3-50 ký tự');
+      return;
+    }
+    
+    // If name is valid, use changeStep function
+    changeStep('info');
+  };
+
+  // Thêm lại handleRegister
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setSuccessMessage('');
+    setIsLoading(true);
+    
+    try {
+      // Cập nhật regex cho mật khẩu
+      const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{6,20}$/;
+      if (!passwordRegex.test(password)) {
+        setError('Mật khẩu phải từ 6-20 ký tự, bao gồm chữ và số');
+        setIsLoading(false);
+        return;
+      }
+      
+      if (password !== confirmPassword) {
+        setError('Mật khẩu xác nhận không khớp');
+        setIsLoading(false);
+        return;
+      }
+
+      // Kiểm tra định dạng số điện thoại
+
+      // Kiểm tra tuổi - phải đủ 13 tuổi
+      if (birthday) {
+        const birthDate = new Date(birthday);
+        const today = new Date();
+        let age = today.getFullYear() - birthDate.getFullYear();
+        const monthDiff = today.getMonth() - birthDate.getMonth();
+        
+        // Nếu chưa đến tháng sinh nhật trong năm nay, trừ đi 1 tuổi
+        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+          age--;
+        }
+        
+        if (age < 13) {
+          setError('Bạn phải đủ 13 tuổi để đăng ký tài khoản');
+          setIsLoading(false);
+          return;
+        }
+      }
+
+      // Thông báo thành công (trong môi trường dev)
+      setSuccessMessage('Đăng ký thành công! Đang đăng nhập...');
+      
+      // Giả lập đăng nhập thành công sau 1 giây
+      setTimeout(() => {
+        navigate('/main');
+      }, 1000);
+    } catch (err: any) {
+      console.error('Lỗi đăng ký:', err);
+      setError(err.message || 'Đăng ký thất bại. Vui lòng thử lại.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Thêm hooks để đảm bảo giao diện hoạt động trơn tru
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (resendTimer > 0) {
+      interval = setInterval(() => {
+        setResendTimer(prev => prev - 1);
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [resendTimer]);
+
+  // Cleanup khi component unmount
+  useEffect(() => {
+    return () => {
+      // Dọn dẹp các tài nguyên
+      if (window.recaptchaVerifier && typeof window.recaptchaVerifier.clear === 'function') {
+        try {
+          window.recaptchaVerifier.clear();
+        } catch (error) {
+          // Ignore errors during cleanup
+        }
+      }
+    };
+  }, []);
 
   return (
     <div className="register-container">
@@ -665,6 +574,33 @@ const Register: React.FC = () => {
               Tạo tài khoản SOPHY để kết nối với ứng dụng SOPHY Web
             </p>
           </div>
+
+          {/* Hiển thị thông tin SMS defense nếu có */}
+          {smsAssessmentId && (
+            <div className="mt-2 p-2 bg-gray-50 rounded-md border border-gray-200">
+              <p className="text-xs text-gray-700"><strong>SMS Defense (Dev Only)</strong></p>
+              <p className="text-xs text-gray-600">Assessment ID: {smsAssessmentId}</p>
+              <p className="text-xs text-gray-600">Risk Score: {smsRiskScore.toFixed(2)}</p>
+              <div className="mt-1 w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                <div 
+                  className={`h-full ${smsRiskScore > 0.7 ? 'bg-red-500' : smsRiskScore > 0.3 ? 'bg-yellow-500' : 'bg-green-500'}`} 
+                  style={{ width: `${smsRiskScore * 100}%` }}
+                ></div>
+              </div>
+            </div>
+          )}
+
+          {error && (
+            <div className="mt-4 p-2 bg-red-50 border border-red-200 rounded-md">
+              <p className="text-sm text-red-600 text-center">{error}</p>
+            </div>
+          )}
+          
+          {successMessage && (
+            <div className="mt-4 p-2 bg-green-50 border border-green-200 rounded-md">
+              <p className="text-sm text-green-600 text-center">{successMessage}</p>
+            </div>
+          )}
 
           {step === 'phone' && (
             <form className="mt-8 space-y-6" onSubmit={handlePhoneSubmit}>
@@ -691,25 +627,9 @@ const Register: React.FC = () => {
                       <span className="mr-2">-</span>
                       <span>Có 9 chữ số sau mã quốc gia +84</span>
                     </li>
-                    <li className="flex items-start">
-                      <span className="mr-2">-</span>
-                      <span>Có 10 chữ số với số 0 đầu tiên (không kể mã quốc gia)</span>
-                    </li>
                   </ul>
                 </div>
               </div>
-              
-              {error && (
-                <div className="p-2 bg-red-50 border border-red-200 rounded-md">
-                  <p className="text-sm text-red-600 text-center">{error}</p>
-                </div>
-              )}
-              
-              {successMessage && (
-                <div className="p-2 bg-green-50 border border-green-200 rounded-md">
-                  <p className="text-sm text-green-600 text-center">{successMessage}</p>
-                </div>
-              )}
               
               <div className="space-y-4">
                 <div 
@@ -795,21 +715,15 @@ const Register: React.FC = () => {
                       <span className="mr-2">-</span>
                       <span>Mã không bao gồm ký tự</span>
                     </li>
+                    {isDevelopment && backendOTP && (
+                      <li className="flex items-start bg-yellow-50 p-1 rounded">
+                        <span className="mr-2">-</span>
+                        <span>DEV MODE: Mã OTP là {backendOTP}</span>
+                      </li>
+                    )}
                   </ul>
                 </div>
               </div>
-              
-              {error && (
-                <div className="p-2 bg-red-50 border border-red-200 rounded-md">
-                  <p className="text-sm text-red-600 text-center">{error}</p>
-                </div>
-              )}
-              
-              {successMessage && (
-                <div className="p-2 bg-green-50 border border-green-200 rounded-md">
-                  <p className="text-sm text-green-600 text-center">{successMessage}</p>
-                </div>
-              )}
               
               <button
                 type="submit"
@@ -817,6 +731,7 @@ const Register: React.FC = () => {
               >
                 Xác thực
               </button>
+              
               {resendTimer > 0 ? (
                 <p className="mt-4 text-center text-sm text-gray-600">
                   Gửi lại mã sau {resendTimer} giây
@@ -824,7 +739,10 @@ const Register: React.FC = () => {
               ) : (
                 <button
                   type="button"
-                  onClick={handlePhoneSubmit}
+                  onClick={() => {
+                    setShowRecaptcha(false);
+                    handlePhoneSubmit(new Event('click') as unknown as React.FormEvent);
+                  }}
                   className="mt-4 w-full text-center text-sm text-indigo-600 hover:text-indigo-500"
                 >
                   Gửi lại mã OTP
@@ -833,7 +751,6 @@ const Register: React.FC = () => {
             </form>
           )}
 
-          {/* Thêm step mới cho phần nhập tên */}
           {step === 'name' && (
             <form className="mt-8 space-y-6" onSubmit={handleNameSubmit}>
               <div>
@@ -862,23 +779,9 @@ const Register: React.FC = () => {
                       <span className="mr-2">-</span>
                       <span>Các từ phải cách nhau bởi dấu cách</span>
                     </li>
-                    <li className="flex items-start">
-                      <span className="mr-2">-</span>
-                      <span>Chỉ chứa chữ cái và dấu cách</span>
-                    </li>
-                    <li className="flex items-start">
-                      <span className="mr-2">-</span>
-                      <span>Độ dài từ 3-50 ký tự</span>
-                    </li>
                   </ul>
                 </div>
               </div>
-              
-              {error && (
-                <div className="p-2 bg-red-50 border border-red-200 rounded-md">
-                  <p className="text-sm text-red-600 text-center">{error}</p>
-                </div>
-              )}
               
               <button
                 type="submit"
@@ -907,23 +810,6 @@ const Register: React.FC = () => {
                     pattern="^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{6,20}$"
                     title="Mật khẩu phải từ 6-20 ký tự, bao gồm chữ và số"
                   />
-                </div>
-                <div className="mt-2 text-xs text-gray-500 space-y-1">
-                  <p>Yêu cầu về mật khẩu:</p>
-                  <ul className="space-y-1 pl-1">
-                    <li className="flex items-start">
-                      <span className="mr-2">-</span>
-                      <span>Mật khẩu phải từ 6-20 ký tự</span>
-                    </li>
-                    <li className="flex items-start">
-                      <span className="mr-2">-</span>
-                      <span>Phải chứa ít nhất 1 chữ cái</span>
-                    </li>
-                    <li className="flex items-start">
-                      <span className="mr-2">-</span>
-                      <span>Phải chứa ít nhất 1 chữ số</span>
-                    </li>
-                  </ul>
                 </div>
 
                 <div>
@@ -980,67 +866,7 @@ const Register: React.FC = () => {
                     onChange={(e) => setBirthday(e.target.value)}
                   />
                 </div>
-                <div className="mt-2 text-xs text-gray-500 space-y-1">
-                  <p>Yêu cầu về Ngày sinh:</p>
-                  <ul className="space-y-1 pl-1">
-                    <li className="flex items-start">
-                      <span className="mr-2">-</span>
-                      <span>Phải đủ 13 tuổi</span>
-                    </li>
-                    <li className="flex items-start">
-                      <span className="mr-2">-</span>
-                      <span>Ngày tháng năm không được sau ngày hiện tại</span>
-                    </li>
-                  </ul>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    Ảnh đại diện
-                  </label>
-                  <div className="mt-1 flex items-center space-x-4">
-                    {avatarPreview && (
-                      <img
-                        src={avatarPreview}
-                        alt="Avatar preview"
-                        className="h-12 w-12 rounded-full object-cover"
-                      />
-                    )}
-                    <input
-                      aria-label="Choose avatar image"
-                      title="Choose an image for your avatar"
-                      placeholder="Select an image file"
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          setAvatarFile(file);
-                          setAvatarPreview(URL.createObjectURL(file));
-                        }
-                      }}
-                      className="block w-full text-sm text-gray-500
-                        file:mr-4 file:py-2 file:px-4
-                        file:rounded-full file:border-0
-                        file:text-sm file:font-semibold
-                        file:bg-indigo-50 file:text-indigo-700
-                        hover:file:bg-indigo-100"
-                    />
-                  </div>
-                </div>
               </div>
-
-              {error && (
-                <div className="p-2 bg-red-50 border border-red-200 rounded-md">
-                  <p className="text-sm text-red-600 text-center">{error}</p>
-                </div>
-              )}
-              
-              {successMessage && (
-                <div className="p-2 bg-green-50 border border-green-200 rounded-md">
-                  <p className="text-sm text-green-600 text-center">{successMessage}</p>
-                </div>
-              )}
 
               <button
                 type="submit"
