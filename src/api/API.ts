@@ -976,17 +976,14 @@ export const sendOTPForgotPassword = async (
       throw new Error("Không nhận được mã OTP từ server");
     }
 
-    // Kiểm tra nếu môi trường là development và server trả về mã OTP
-    const isDevelopment = window.location.hostname === 'localhost' || 
-                          window.location.hostname === '127.0.0.1';
-    
-    // Trả về đầy đủ dữ liệu bao gồm mã OTP nếu ở môi trường development
+    // Luôn trả về OTP nếu server trả về, bất kể môi trường nào
+    // Việc hiển thị hay không sẽ được quyết định ở component
     return {
       otpId: response.data.otpId,
-      // Chỉ trả về otp nếu server có trả về và đang ở môi trường development
-      ...(isDevelopment && response.data.otp ? { otp: response.data.otp } : {})
+      otp: response.data.otp
     };
   } catch (error: unknown) {
+    // Xử lý lỗi
     if (error instanceof AxiosError && error.response) {
       console.error("Error response:", error.response.data);
     }
