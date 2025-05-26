@@ -1,6 +1,7 @@
 import { ZegoUIKitPrebuilt } from "@zegocloud/zego-uikit-prebuilt";
 import { ZIM } from "zego-zim-web";
 import { message, notification, Modal } from "antd";
+import translations from "../features/auth/context/Languages";
 
 // Mở rộng interface Window để thêm các thuộc tính ZEGO
 declare global {
@@ -47,6 +48,20 @@ const serverSecret = "909c6e1e38843287267a33f633539f93";
 
 // Dùng một roomID cố định cho ứng dụng
 const ROOM_ID = "SophyWebChatRoom";
+
+// Lấy ngôn ngữ hiện tại từ localStorage hoặc mặc định là tiếng Việt
+const getCurrentLanguage = (): "vi" | "en" => {
+  const savedLang = localStorage.getItem("language");
+  return (savedLang === "en" ? "en" : "vi") as "vi" | "en";
+};
+
+// Hàm lấy chuỗi dịch dựa trên khóa
+const getTranslation = (key: string): string => {
+  const currentLang = getCurrentLanguage();
+  const langObj = translations[currentLang];
+  // Sử dụng type assertion để giúp TypeScript hiểu rằng key có thể là một key của langObj
+  return (langObj as Record<string, string>)[key] || key; // Trả về key nếu không tìm thấy bản dịch
+};
 
 // Thiết lập filter để chặn logs không cần thiết
 function setupConsoleFilters() {
@@ -205,6 +220,7 @@ class ZegoService {
           }
         } catch (e) {
           // Bỏ qua nếu không hỗ trợ
+          console.warn("Không thể cấu hình log cho ZIM:", e);
         }
 
         // Lưu instance vào biến toàn cục
@@ -222,7 +238,7 @@ class ZegoService {
           console.error("ZIM error:", errorInfo);
         });
 
-        zim.on("callInvitationReceived", (zimInstance, data) => {
+        zim.on("callInvitationReceived", ( data) => {
           // Chỉ ghi log cuộc gọi đến để dễ dàng debug
           console.log("ZIM call invitation received:", data);
         });
@@ -286,16 +302,16 @@ class ZegoService {
           if (soundEnabled === "false") {
             window.incomingCallAudio.volume = 0;
           }
-        } catch (_) {
-          console.warn("Could not load incoming call sound, using fallback");
+        } catch (e) {
+          console.error("Error loading incoming call sound:", e);
           // Use a simple oscillator as fallback
           this.playBeepSound(false); // false for incoming call
           return;
         }
         window.incomingCallAudio.loop = true;
       }
-      window.incomingCallAudio.play().catch((_) => {
-        console.warn("Could not play incoming call sound, using fallback");
+      window.incomingCallAudio.play().catch((e) => {
+        console.error("Error playing incoming call sound:", e);
         // Use a simple oscillator as fallback
         this.playBeepSound(false); // false for incoming call
       });
@@ -321,15 +337,15 @@ class ZegoService {
           if (soundEnabled === "false") {
             window.outgoingCallAudio.volume = 0;
           }
-        } catch (_) {
-          console.warn("Could not load outgoing call sound, using fallback");
+        } catch (e) {
+          console.error("Error loading outgoing call sound:", e);
           this.playBeepSound(true); // true indicates outgoing call
           return;
         }
         window.outgoingCallAudio.loop = true;
       }
-      window.outgoingCallAudio.play().catch((_) => {
-        console.warn("Could not play outgoing call sound, using fallback");
+      window.outgoingCallAudio.play().catch((e) => {
+        console.error("Error playing outgoing call sound:", e);
         this.playBeepSound(true);
       });
     } catch (err) {
@@ -504,10 +520,10 @@ class ZegoService {
         try {
           (zp as any).setLanguage({
             leaveRoom: {
-              title: "Rời khỏi phòng",
-              message: "Bạn có chắc chắn muốn rời khỏi phòng chat?",
-              cancelButton: "Hủy",
-              confirmButton: "Xác nhận",
+              title: getTranslation("leave_room"),
+              message: getTranslation("leave_room_confirm"),
+              cancelButton: getTranslation("cancel"),
+              confirmButton: getTranslation("confirm"),
             },
           });
         } catch (error) {
@@ -523,8 +539,8 @@ class ZegoService {
             remoteLogLevel: "off", // Tắt hoàn toàn remote logs
             logUploader: false, // Tắt việc upload logs lên server Zego
           });
-        } catch (_) {
-          console.warn("Không thể cấu hình log cho Zego");
+        } catch (e) {
+          console.error("Error setting log config for Zego:", e);
         }
       }
 
@@ -532,8 +548,8 @@ class ZegoService {
       if (zp && (zp as any).setDebugMode) {
         try {
           (zp as any).setDebugMode(false);
-        } catch (_) {
-          console.warn("Không thể tắt debug mode cho Zego");
+        } catch (e) {
+          console.error("Error setting debug mode for Zego:", e);
         }
       }
 
@@ -575,6 +591,11 @@ class ZegoService {
           }
           callbacks.onCallModalVisibilityChange(false);
           callbacks.onCallingProgressChange(false);
+          notification.info({
+            message: getTranslation("call_ended"),
+            description: `${userName} ${getTranslation("call_ended").toLowerCase()}`,
+            duration: 4,
+          });
         },
         onCallRejected: () => {
           console.log("Cuộc gọi bị từ chối");
@@ -660,8 +681,8 @@ class ZegoService {
 
           // Hiển thị thông báo toàn cục
           window.globalCallNotification = notification.open({
-            message: `${isVideoCall ? "Cuộc gọi video" : "Cuộc gọi thoại"} đến`,
-            description: `${caller.userName} đang gọi cho bạn`,
+            message: `${isVideoCall ? getTranslation("incoming_video_call") : getTranslation("incoming_call")}`,
+            description: `${caller.userName} ${getTranslation("is_calling_you")}`,
             icon: null,
             duration: 0,
             key: "incoming-call",
@@ -738,8 +759,8 @@ class ZegoService {
         }
 
         notification.info({
-          message: "Cuộc gọi nhỡ",
-          description: "Bạn đã bỏ lỡ một cuộc gọi",
+          message: getTranslation("missed_call"),
+          description: getTranslation("missed_call"),
           duration: 4,
         });
       });
@@ -765,11 +786,11 @@ class ZegoService {
 
     // Hiển thị modal cuộc gọi đến
     window.globalCallModal = Modal.confirm({
-      title: `${isVideoCall ? "Cuộc gọi video" : "Cuộc gọi thoại"} đến`,
-      content: `${caller.userName} đang gọi cho bạn`,
+      title: `${isVideoCall ? getTranslation("incoming_video_call") : getTranslation("incoming_call")}`,
+      content: `${caller.userName} ${getTranslation("is_calling_you")}`,
       icon: null, // Không sử dụng JSX icon
-      okText: "Chấp nhận",
-      cancelText: "Từ chối",
+      okText: getTranslation("accept"),
+      cancelText: getTranslation("decline"),
       centered: true,
       width: 400,
       keyboard: false, // Ngăn chặn đóng bằng ESC
@@ -868,9 +889,9 @@ class ZegoService {
         }, 1000);
       } else {
         // Lỗi khác
-        message.warning(
-          "Vui lòng cấp quyền truy cập camera và microphone để sử dụng tính năng gọi điện"
-        );
+        // message.warning(
+        //   "Vui lòng cấp quyền truy cập camera và microphone để sử dụng tính năng gọi điện"
+        // );
       }
     }
   }

@@ -21,6 +21,7 @@ import {
 import UpdateAvatarGroupModal from "../../header/modal/UpdateAvatarGroupModal";
 import { useConversationContext } from "../../../features/chat/context/ConversationContext";
 import socketService from "../../../services/socketService";
+import { useLanguage } from "../../../features/auth/context/LanguageContext";
 
 interface MemberInfo {
   userId: string;
@@ -52,7 +53,8 @@ const GroupModal: React.FC<GroupModalProps> = ({
   refreshConversationData,
 }) => {
   const { updateConversationField } = useConversationContext();
-  const { message } = App.useApp(); // Use App.useApp() for message API
+  const { message, modal } = App.useApp(); // Đã thêm modal vào khai báo destructuring
+  const { t } = useLanguage(); // Sử dụng context ngôn ngữ
   const [loading, setLoading] = useState(false);
   const [memberDetails, setMemberDetails] = useState<MemberInfo[]>([]); // Initialize with empty array
   const [fetchingMembers, setFetchingMembers] = useState(false);
@@ -230,10 +232,11 @@ const GroupModal: React.FC<GroupModalProps> = ({
   const handleLeaveGroup = async () => {
     try {
       modal.confirm({
-        title: "Rời nhóm",
-        content: "Bạn có chắc chắn muốn rời khỏi nhóm này?",
-        okText: "Rời nhóm",
-        cancelText: "Hủy",
+        title: t.leave_room || "Rời nhóm",
+        content:
+          t.leave_room_confirm || "Bạn có chắc chắn muốn rời khỏi nhóm này?",
+        okText: t.confirm || "Rời nhóm",
+        cancelText: t.cancel || "Hủy",
         okButtonProps: { danger: true },
         onOk: async () => {
           setLoading(true);

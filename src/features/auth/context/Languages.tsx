@@ -192,6 +192,30 @@ const translations = {
     no_group_invites: "Không có lời mời vào nhóm và cộng đồng",
     when_to_receive_group_invites: "Khi nào tôi nhận được lời mời?",
     no_avatar: "Chưa có ảnh",
+    // Call UI elements
+    calling: "Đang gọi...",
+    end_call: "Kết thúc cuộc gọi",
+    leave_room: "Rời khỏi phòng",
+    leave_room_confirm: "Bạn có chắc chắn muốn rời khỏi phòng chat?",
+    accept: "Chấp nhận",
+    decline: "Từ chối",
+    incoming_call: "Cuộc gọi đến",
+    incoming_video_call: "Cuộc gọi video đến",
+    is_calling_you: "đang gọi cho bạn",
+    call_connecting: "Đang kết nối cuộc gọi...",
+    call_ended: "Cuộc gọi kết thúc",
+    missed_call: "Cuộc gọi nhỡ",
+
+    // Friend activity status
+    offline: "Đang ngoại tuyến",
+    just_now: "Vừa mới truy cập",
+    minutes_ago: "Hoạt động {0} phút trước",
+    hours_ago: "Hoạt động {0} giờ trước",
+    view_info: "Xem thông tin",
+    categorize: "Phân loại",
+    set_nickname: "Đặt tên gợi nhớ",
+    block_user: "Chặn người này",
+    remove_friend: "Xóa bạn",
   },
   en: {
     settings: "Settings",
@@ -219,7 +243,7 @@ const translations = {
     lock_screen_desc: "Lock the screen when not in use",
     two_factor: "Two-Factor Authentication",
     two_factor_desc:
-      "When enabled, you’ll be required to enter an OTP or authenticate from a mobile device after logging in",
+      "When enabled, you'll be required to enter an OTP or authenticate from a mobile device after logging in",
     // MainContent
     welcome: "Welcome to",
     welcome_desc:
@@ -373,7 +397,7 @@ const translations = {
     group_community_list: "Groups and Communities List",
     friend_requests: "Friend Requests",
     group_invites: "Group and Community Invites",
-    cancel_request: "Cancel Request", // 
+    cancel_request: "Cancel Request",
     unblock: "Unblock",
     no_blocked_users: "No users have been blocked",
     update_group_avatar_success: "Group avatar updated successfully!",
@@ -383,6 +407,30 @@ const translations = {
     no_group_invites: "No group invites yet",
     when_to_receive_group_invites: "When will I receive group invites?",
     no_avatar: "No Avatar",
+    // Call UI elements
+    calling: "Calling...",
+    end_call: "End call",
+    leave_room: "Leave the room",
+    leave_room_confirm: "Are you sure to leave the room?",
+    accept: "Accept",
+    decline: "Decline",
+    incoming_call: "Incoming call",
+    incoming_video_call: "Incoming video call",
+    is_calling_you: "is calling you",
+    call_connecting: "Call connecting...",
+    call_ended: "Call ended",
+    missed_call: "Missed call",
+
+    // Friend activity status
+    offline: "Offline",
+    just_now: "Just now",
+    minutes_ago: "Active {0} minutes ago",
+    hours_ago: "Active {0} hours ago",
+    view_info: "View info",
+    categorize: "Categorize",
+    set_nickname: "Set nickname",
+    block_user: "Block this user",
+    remove_friend: "Remove friend",
   },
 };
 
