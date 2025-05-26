@@ -477,7 +477,11 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
     localStorage.setItem("callSoundEnabled", newSoundState.toString());
 
     // Hiển thị thông báo
-    message.info(`${newSoundState ? "Bật" : "Tắt"} âm thanh cuộc gọi`);
+    message.info(
+      newSoundState
+        ? t.unmute_call_sound || "Bật âm thanh cuộc gọi"
+        : t.mute_call_sound || "Tắt âm thanh cuộc gọi"
+    );
   };
 
   // Khôi phục cài đặt âm thanh khi component mount
@@ -883,7 +887,9 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
       <div className="flex items-center space-x-2">
         <Tooltip
           title={
-            isSoundEnabled ? "Tắt âm thanh cuộc gọi" : "Bật âm thanh cuộc gọi"
+            isSoundEnabled
+              ? t.mute_call_sound || "Tắt âm thanh cuộc gọi"
+              : t.unmute_call_sound || "Bật âm thanh cuộc gọi"
           }>
           <Button
             type="text"
@@ -898,7 +904,10 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
           onClick={showAddMemberModal}>
           <UserAddOutlined className="text-xl text-gray-600" />
         </button>
-        <Tooltip title={isGroup ? "Gọi nhóm" : t.calls || "Gọi thoại"}>
+        <Tooltip
+          title={
+            isGroup ? t.group_audio_call || "Gọi nhóm" : t.calls || "Gọi thoại"
+          }>
           <Button
             type="text"
             icon={<PhoneOutlined />}
@@ -908,7 +917,11 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
           />
         </Tooltip>
         <Tooltip
-          title={isGroup ? "Gọi video nhóm" : t.video_call || "Gọi video"}>
+          title={
+            isGroup
+              ? t.group_video_call || "Gọi video nhóm"
+              : t.video_call || "Gọi video"
+          }>
           <Button
             type="text"
             icon={<VideoCameraOutlined />}

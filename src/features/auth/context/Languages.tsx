@@ -350,21 +350,21 @@ const translations = {
     understood: "Đã hiểu",
 
     // ChatInfo translations
-    
+
     mute_notifications: "Tắt thông báo",
     pin_chat: "Ghim hội thoại",
-    
+
     manage_group: "Quản lý nhóm",
-    
+
     group_members: "Thành viên nhóm",
     group_invitation_link: "Link tham gia nhóm",
     media: "Ảnh/Video",
     files: "Tệp tin",
     links: "Liên kết",
     privacy_settings: "Thiết lập bảo mật",
-    
+
     delete_chat_history: "Xóa lịch sử trò chuyện",
-    
+
     confirm_delete_chat:
       "Bạn có chắc chắn muốn xóa toàn bộ lịch sử trò chuyện? Hành động này không thể hoàn tác.",
     confirm_leave_group: "Bạn có chắc chắn muốn rời khỏi nhóm này?",
@@ -413,7 +413,7 @@ const translations = {
     add_to_block_list: "Thêm vào danh sách chặn",
     blocked_members: "Thành viên bị chặn",
     no_blocked_members: "Không có thành viên nào bị chặn",
-    
+
     block: "Chặn",
     search_members: "Tìm kiếm thành viên...",
     add_to_block_list_title: "Thêm vào danh sách chặn",
@@ -424,7 +424,7 @@ const translations = {
     disband_group_confirm:
       "Bạn có chắc chắn muốn giải tán nhóm? Tất cả thành viên sẽ bị xóa khỏi nhóm và không thể hoàn tác hành động này.",
     disband: "Giải tán",
-    
+
     disbanding_group: "Đang giải tán nhóm...",
     success: "Thành công",
     group_disbanded_success: "Đã giải tán nhóm thành công.",
@@ -445,10 +445,10 @@ const translations = {
     no_permission: "Bạn không có quyền",
 
     // Owner/Co-owner management
-    
+
     delete: "Xóa",
     no_deputy: "Chưa có phó nhóm",
-    
+
     transfer_owner: "Chuyển quyền trưởng nhóm",
     note: "Lưu ý",
 
@@ -456,7 +456,6 @@ const translations = {
     adjust_deputy: "Điều chỉnh phó nhóm",
     search_member: "Tìm kiếm thành viên",
     no_member_found: "Không tìm thấy thành viên",
-    
 
     // Transfer owner modal
     transfer_owner_title: "Chuyển quyền trưởng nhóm",
@@ -465,7 +464,14 @@ const translations = {
     transfer_success_title: "Chuyển quyền thành công",
     transfer_success_message:
       'Bạn đã chuyển quyền trưởng nhóm thành công và hiện là thành viên thường. Bạn có thể rời nhóm bằng cách nhấn vào "Rời nhóm" ở cuối trang.',
-    
+
+    // Call related translations
+    group_audio_call: "Gọi nhóm",
+    group_video_call: "Gọi video nhóm",
+
+    // Call sound toggle
+    mute_call_sound: "Tắt âm thanh cuộc gọi",
+    unmute_call_sound: "Bật âm thanh cuộc gọi",
   },
   en: {
     settings: "Settings",
@@ -816,21 +822,21 @@ const translations = {
     understood: "Understood",
 
     // ChatInfo translations
-    
+
     mute_notifications: "Mute Notifications",
     pin_chat: "Pin Conversation",
-    
+
     manage_group: "Manage Group",
-    
+
     group_members: "Group Members",
     group_invitation_link: "Group Invitation Link",
     media: "Images/Videos",
     files: "Files",
     links: "Links",
     privacy_settings: "Privacy Settings",
-    
+
     delete_chat_history: "Delete Chat History",
-    
+
     confirm_delete_chat:
       "Are you sure you want to delete the entire chat history? This action cannot be undone.",
     confirm_leave_group: "Are you sure you want to leave this group?",
@@ -879,7 +885,7 @@ const translations = {
     add_to_block_list: "Add to Block List",
     blocked_members: "Blocked Members",
     no_blocked_members: "No blocked members",
-    
+
     block: "Block",
     search_members: "Search members...",
     add_to_block_list_title: "Add to Block List",
@@ -890,7 +896,7 @@ const translations = {
     disband_group_confirm:
       "Are you sure you want to disband the group? All members will be removed and this action cannot be undone.",
     disband: "Disband",
-    
+
     disbanding_group: "Disbanding group...",
     success: "Success",
     group_disbanded_success: "Group disbanded successfully.",
@@ -911,10 +917,10 @@ const translations = {
     no_permission: "You don't have permission",
 
     // Owner/Co-owner management
-    
+
     delete: "Delete",
     no_deputy: "No deputies yet",
-    
+
     transfer_owner: "Transfer ownership",
     note: "Note",
 
@@ -922,7 +928,6 @@ const translations = {
     adjust_deputy: "Adjust Deputy",
     search_member: "Search members",
     no_member_found: "No members found",
-    
 
     // Transfer owner modal
     transfer_owner_title: "Transfer Ownership",
@@ -931,7 +936,14 @@ const translations = {
     transfer_success_title: "Transfer Successful",
     transfer_success_message:
       'You have successfully transferred group ownership and are now a regular member. You can leave the group by clicking "Leave Group" at the bottom of the page.',
-    
+
+    // Call related translations
+    group_audio_call: "Group Call",
+    group_video_call: "Group Video Call",
+
+    // Call sound toggle
+    mute_call_sound: "Mute Call Sound",
+    unmute_call_sound: "Unmute Call Sound",
   },
 };
 
