@@ -4,6 +4,8 @@ import {
   UserAddOutlined,
   InfoCircleOutlined,
   PhoneOutlined,
+  SoundOutlined,
+  AudioMutedOutlined,
 } from "@ant-design/icons";
 import { ChatHeaderProps } from "../../features/chat/types/chatTypes";
 import { Conversation } from "../../features/chat/types/conversationTypes";
@@ -48,6 +50,14 @@ interface ExtendedChatHeaderProps extends ChatHeaderProps {
   showInfo?: boolean;
 }
 
+// Thêm định nghĩa interface BeepSound từ zegoService.ts
+interface BeepSound {
+  oscillator: OscillatorNode;
+  gainNode: GainNode;
+  beepInterval: NodeJS.Timeout;
+  audioCtx: AudioContext;
+}
+
 const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
   conversation: initialConversation,
   onInfoClick,
@@ -73,6 +83,7 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
     useState<boolean>(false);
   const [isZIMInitialized, setIsZIMInitialized] = useState<boolean>(false);
   const [observer, setObserver] = useState<MutationObserver | null>(null);
+  const [isSoundEnabled, setIsSoundEnabled] = useState<boolean>(true);
 
   // Get the most up-to-date conversation data from context
   useEffect(() => {
@@ -420,6 +431,45 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
       };
     }
   }, [isCallingInProgress]);
+
+  // Thêm hàm để bật/tắt âm thanh
+  const toggleSound = () => {
+    // Lấy tất cả các phần tử âm thanh
+    const audioElements = [];
+    if (window.incomingCallAudio) audioElements.push(window.incomingCallAudio);
+    if (window.outgoingCallAudio) audioElements.push(window.outgoingCallAudio);
+    if (window.callAudioElements)
+      audioElements.push(...window.callAudioElements);
+
+    // Thiết lập âm lượng dựa trên trạng thái mới
+    const newSoundState = !isSoundEnabled;
+    setIsSoundEnabled(newSoundState);
+
+    // Áp dụng cài đặt âm lượng cho tất cả phần tử âm thanh
+    audioElements.forEach((audio) => {
+      if (audio instanceof HTMLAudioElement) {
+        audio.volume = newSoundState ? 1.0 : 0.0;
+      } else if ((audio as unknown as BeepSound)?.gainNode) {
+        // Xử lý cho BeepSound
+        const beepSound = audio as unknown as BeepSound;
+        beepSound.gainNode.gain.value = newSoundState ? 0.5 : 0.0;
+      }
+    });
+
+    // Lưu cài đặt vào localStorage để duy trì qua các phiên
+    localStorage.setItem("callSoundEnabled", newSoundState.toString());
+
+    // Hiển thị thông báo
+    message.info(`${newSoundState ? "Bật" : "Tắt"} âm thanh cuộc gọi`);
+  };
+
+  // Khôi phục cài đặt âm thanh khi component mount
+  useEffect(() => {
+    const savedSoundState = localStorage.getItem("callSoundEnabled");
+    if (savedSoundState !== null) {
+      setIsSoundEnabled(savedSoundState === "true");
+    }
+  }, []);
 
   // Xử lý khi người dùng nhấn nút gọi điện thoại
   const handleVoiceCall = async () => {
@@ -814,6 +864,17 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
         </div>
       </div>
       <div className="flex items-center space-x-2">
+        <Tooltip
+          title={
+            isSoundEnabled ? "Tắt âm thanh cuộc gọi" : "Bật âm thanh cuộc gọi"
+          }>
+          <Button
+            type="text"
+            icon={isSoundEnabled ? <SoundOutlined /> : <AudioMutedOutlined />}
+            className="flex items-center justify-center w-10 h-10"
+            onClick={toggleSound}
+          />
+        </Tooltip>
         <button
           className="p-2 rounded-lg hover:bg-gray-100"
           title={t.add_to_community || "Thêm bạn vào cộng đồng"}

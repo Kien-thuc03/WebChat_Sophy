@@ -90,7 +90,7 @@ const Dashboard: React.FC = () => {
       };
 
       // Khởi tạo ZIM riêng ngay lập tức
-      initializeZIM();
+      initializeZIM(0, 5); // Truyền các tham số cụ thể: retries = 0, maxRetries = 5
 
       // Khởi tạo Zego UI Kit sau khi ZIM đã được khởi tạo hoặc sau một thời gian
       setTimeout(() => {

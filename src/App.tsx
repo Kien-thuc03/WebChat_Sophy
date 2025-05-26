@@ -1,3 +1,4 @@
+import "./utils/logFilterPlugin";
 import {
   BrowserRouter as Router,
   Routes,
