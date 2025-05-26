@@ -51,7 +51,7 @@ export const sendOtpToPhone = async (
     
     // Kiểm tra môi trường phát triển
     const isDevelopment = window.location.hostname === 'localhost' || 
-                         window.location.hostname === '127.0.0.1';
+                         window.location.hostname === 'web-chat-sophy-git-fil-kien-thucs-projects.vercel.app';
     
     // Nếu có mã OTP từ backend, ưu tiên sử dụng
     if (backendOTP) {
