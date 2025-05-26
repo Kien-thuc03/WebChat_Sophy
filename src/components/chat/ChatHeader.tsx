@@ -885,7 +885,7 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
         </div>
       </div>
       <div className="flex items-center space-x-2">
-        <Tooltip
+        {/* <Tooltip
           title={
             isSoundEnabled
               ? t.mute_call_sound || "Tắt âm thanh cuộc gọi"
@@ -897,7 +897,7 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
             className="flex items-center justify-center w-10 h-10"
             onClick={toggleSound}
           />
-        </Tooltip>
+        </Tooltip> */}
         <button
           className="p-2 rounded-lg hover:bg-gray-100"
           title={t.add_to_community || "Thêm bạn vào cộng đồng"}

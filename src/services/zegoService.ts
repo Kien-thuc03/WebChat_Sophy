@@ -157,11 +157,19 @@ setupConsoleFilters();
 class ZegoService {
   private observer: MutationObserver | null = null;
   private zimLoginAttempts: number = 0;
+  private soundEnabled: boolean = false; // Add new property to control sound globally
 
   // Thêm phương thức để bật/tắt logs từ Zego
   public toggleZegoLogs(enabled: boolean): void {
     window.enableZegoLogs = enabled;
     console.log(`Zego logs have been ${enabled ? "enabled" : "disabled"}`);
+  }
+
+  // Thêm phương thức để bật/tắt âm thanh cuộc gọi
+  public toggleCallSounds(enabled: boolean): void {
+    this.soundEnabled = enabled;
+    localStorage.setItem("callSoundEnabled", enabled ? "true" : "false");
+    console.log(`Call sounds have been ${enabled ? "enabled" : "disabled"}`);
   }
 
   /**
@@ -273,6 +281,12 @@ class ZegoService {
   }
 
   private playIncomingCallSound() {
+    // Kiểm tra trạng thái âm thanh toàn cục
+    if (!this.soundEnabled) {
+      console.log("Call sounds are disabled, skipping incoming call sound");
+      return;
+    }
+
     try {
       if (!window.incomingCallAudio) {
         try {
@@ -308,6 +322,12 @@ class ZegoService {
 
   // Thêm mới: Phát âm thanh cuộc gọi đi
   private playOutgoingCallSound() {
+    // Kiểm tra trạng thái âm thanh toàn cục
+    if (!this.soundEnabled) {
+      console.log("Call sounds are disabled, skipping outgoing call sound");
+      return;
+    }
+
     try {
       if (!window.outgoingCallAudio) {
         try {
@@ -340,6 +360,12 @@ class ZegoService {
 
   // Mở rộng phương thức playBeepSound để hỗ trợ cả cuộc gọi đi và đến
   private playBeepSound(isOutgoing: boolean = false) {
+    // Kiểm tra trạng thái âm thanh toàn cục
+    if (!this.soundEnabled) {
+      console.log("Call sounds are disabled, skipping beep sound");
+      return;
+    }
+
     try {
       // Create a periodic beep sound using Web Audio API
       const AudioContext =
@@ -480,6 +506,10 @@ class ZegoService {
     }
   ): Promise<ZegoUIKitPrebuilt | null> {
     try {
+      // Áp dụng cài đặt âm lượng từ localStorage (nếu có)
+      const soundEnabledSetting = localStorage.getItem("callSoundEnabled");
+      this.soundEnabled = soundEnabledSetting === "true";
+
       // Khởi tạo ZIM riêng trước
       const zimInitialized = await this.initializeZIM(userId, userName);
       if (!zimInitialized) {
