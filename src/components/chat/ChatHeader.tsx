@@ -81,7 +81,7 @@ const ChatHeader: React.FC<ExtendedChatHeaderProps> = ({
     useState<boolean>(false);
   const [isZIMInitialized, setIsZIMInitialized] = useState<boolean>(false);
   const [observer, setObserver] = useState<MutationObserver | null>(null);
-  const [isSoundEnabled, setIsSoundEnabled] = useState<boolean>(true);
+  const [, setIsSoundEnabled] = useState<boolean>(true);
 
   // Get the most up-to-date conversation data from context
   useEffect(() => {
