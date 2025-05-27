@@ -230,7 +230,7 @@ class ZegoService {
           console.error("ZIM error:", errorInfo);
         });
 
-        zim.on("callInvitationReceived", (zimInstance, data) => {
+        zim.on("callInvitationReceived", (data) => {
           // Chỉ ghi log cuộc gọi đến để dễ dàng debug
           console.log("ZIM call invitation received:", data);
         });
@@ -247,11 +247,13 @@ class ZegoService {
           );
 
           // Đăng nhập vào ZIM với token được tạo
-          await zim.login({
-            userID: userId,
-            userName: userName,
-            token: kitToken,
-          });
+          await zim.login(
+            {
+              userID: userId,
+              userName: userName,
+            },
+            kitToken
+          );
 
           console.log("ZIM login success:", userId, userName);
           window.zimInitialized = true;
